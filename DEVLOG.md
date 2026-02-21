@@ -1,3 +1,25 @@
+## v0.6.0 Update (2026-02-21) - Type Methods & Language Parity
+Successfully implemented and verified Type Methods, bridging the gap between Blitz3D's custom types and modern object-oriented paradigms.
+
+### Achievements
+1.  **Type Methods Implementation**:
+    *   **New Syntax**: Added support for `Method...End Method` blocks within `Type` definitions.
+    *   **Implicit `Self`**: Added the `Self` keyword for object instance reference, mapping directly to C++ `this`.
+    *   **Method Resolution**: Updated the semantic analyzer to resolve method calls on object instances (`p\Move(5, 5)` -> `p->move(5, 5)`).
+2.  **Transpiler Enhancements**:
+    *   **Context Propagation**: Implemented struct context tracking during semantic analysis to allow methods to access fields implicitly or via `Self`.
+    *   **Member Assignment**: Fixed a critical parser blocker where `Self\field = value` was incorrectly handled.
+3.  **Stability & Hardening**:
+    *   **Field Pointer Safety**: Resolved a crash in the code generator related to null pointer dereferences when emitting field declarations.
+    *   **Keyword Lexing**: Hardened the toker to correctly distinguish between `Self` as a keyword and potential identifiers.
+4.  **Verification**:
+    *   Verified full method parity (Parameters, Return values, Self-access) with `tests/type_methods.bb`.
+    *   Confirmed clean C++ emission for nested method calls and field manipulations.
+
+### Next Steps
+1.  **Audio Subsystem**: Integration of SDL_mixer for cross-platform sound support.
+2.  **Advanced 3D Effects**: Alpha blending stability and texture animations.
+
 ## v0.6.0 Update (2026-02-20) - Collision System & SDK Refinement
 Successfully implemented sphere-mesh collision detection, sliding response, and collision state queries.
 

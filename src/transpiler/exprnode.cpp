@@ -613,3 +613,35 @@ void BeforeNode::accept(Visitor *v) { v->visit(this); }
 void NullNode::accept(Visitor *v) { v->visit(this); }
 void ObjectCastNode::accept(Visitor *v) { v->visit(this); }
 void ObjectHandleNode::accept(Visitor *v) { v->visit(this); }
+
+ExprNode *SelfNode::semant(BCEnviron *e) {
+  if (!e->currStruct) {
+    semex("'Self' can only be used inside a Method");
+  }
+  sem_type = e->currStruct;
+  std::cerr << "Debug: SelfNode::semant - sem_type: " << sem_type << std::endl;
+  return this;
+}
+
+void SelfNode::accept(Visitor *v) { v->visit(this); }
+
+ExprNode *MethodCallNode::semant(BCEnviron *e) {
+  expr = expr->semant(e);
+  StructType *st = expr->sem_type->structType();
+  if (!st)
+    semex("Method call receiver must be a custom type object");
+
+  // Find the method in the struct
+  Decl *d = st->fields->findDecl(mangle(ident, tag));
+  if (!d || !(d->kind & DECL_METHOD)) {
+    semex("Method '" + ident + "' not found in type '" + st->ident + "'");
+  }
+
+  FuncType *f = d->type->funcType();
+  exprs->semant(e);
+  exprs->castTo(f->params, e, false);
+  sem_type = f->returnType;
+  return this;
+}
+
+void MethodCallNode::accept(Visitor *v) { v->visit(this); }

@@ -198,6 +198,26 @@ struct NullNode : public ExprNode {
   void accept(Visitor *v);
 };
 
+struct SelfNode : public ExprNode {
+  ExprNode *semant(BCEnviron *e);
+  void accept(Visitor *v);
+};
+
+struct MethodCallNode : public ExprNode {
+  ExprNode *expr;
+  std::string ident, tag;
+  ExprSeqNode *exprs;
+  MethodCallNode(ExprNode *e, const std::string &i, const std::string &t,
+                 ExprSeqNode *es)
+      : expr(e), ident(i), tag(t), exprs(es) {}
+  ~MethodCallNode() {
+    delete expr;
+    delete exprs;
+  }
+  ExprNode *semant(BCEnviron *e) override;
+  void accept(Visitor *v) override;
+};
+
 struct ObjectCastNode : public ExprNode {
   ExprNode *expr;
   std::string type_ident;

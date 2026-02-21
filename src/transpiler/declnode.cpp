@@ -74,11 +74,13 @@ void VarDeclNode::proto(DeclSeq *d, BCEnviron *e) {
   Decl *decl = d->insertDecl(m_name, ty, kind, defType);
   if (!decl)
     semex("Duplicate variable name");
-  if (expr)
-    sem_var = d_new<DeclVarNode>(decl);
+  sem_var = d_new<DeclVarNode>(decl);
 }
 
-void VarDeclNode::semant(BCEnviron *e) {}
+void VarDeclNode::semant(BCEnviron *e) {
+  if (expr)
+    expr = expr->semant(e);
+}
 
 //////////////////////////
 // Function Declaration //
@@ -113,6 +115,51 @@ void FuncDeclNode::semant(BCEnviron *e) {
   stmts->semant(sem_env);
 }
 
+////////////////////////
+// Method Declaration //
+////////////////////////
+void MethodDeclNode::proto(DeclSeq *d, BCEnviron *e) {
+  if (!e->currStruct) {
+    semex("Method must be declared inside a Type block");
+  }
+  Type *t = tagType(tag, e);
+  if (!t)
+    t = Type::int_type;
+  a_ptr<DeclSeq> decls(d_new<DeclSeq>());
+  params->proto(decls, e);
+  sem_type = d_new<FuncType>(t, decls.release(), false, false);
+  std::string m_name = mangle(ident, tag);
+  sem_decl = d->insertDecl(m_name, sem_type, DECL_METHOD);
+  if (!sem_decl) {
+    semex("duplicate method name");
+  }
+  e->types.push_back(sem_type);
+}
+
+void MethodDeclNode::semant(BCEnviron *e) {
+  std::cerr << "Debug: MethodDeclNode::semant for " << ident << std::endl;
+  if (!e->currStruct) {
+    std::cerr << "Debug: MethodDeclNode::semant - e->currStruct is null!"
+              << std::endl;
+  } else {
+    std::cerr << "Debug: MethodDeclNode::semant - e->currStruct: "
+              << e->currStruct << std::endl;
+  }
+  sem_env = d_new<BCEnviron>(genLabel(), sem_type->returnType, 1, e);
+  sem_env->currStruct = e->currStruct;
+  std::cerr << "Debug: MethodDeclNode::semant - sem_env->currStruct ok"
+            << std::endl;
+
+  int k;
+  for (k = 0; k < sem_type->params->size(); ++k) {
+    Decl *d = sem_type->params->decls[k];
+    if (!sem_env->decls->insertDecl(d->name, d->type, d->kind))
+      semex("duplicate parameter identifier");
+  }
+
+  stmts->semant(sem_env);
+}
+
 //////////////////////
 // Type Declaration //
 //////////////////////
@@ -126,10 +173,20 @@ void StructDeclNode::proto(DeclSeq *d, BCEnviron *e) {
 }
 
 void StructDeclNode::semant(BCEnviron *e) {
+  e->currStruct = sem_type;
   fields->proto(sem_type->fields, e);
+  fields->semant(e);
+
   int k;
-  for (k = 0; k < sem_type->fields->size(); ++k)
-    sem_type->fields->decls[k]->offset = k * 4;
+  int offset = 0;
+  for (k = 0; k < sem_type->fields->size(); ++k) {
+    Decl *d = sem_type->fields->decls[k];
+    if (d->kind == DECL_FIELD) {
+      d->offset = offset;
+      offset += 4;
+    }
+  }
+  e->currStruct = 0;
 }
 
 //////////////////////
@@ -183,3 +240,4 @@ void FuncDeclNode::accept(Visitor *v) { v->visit(this); }
 void StructDeclNode::accept(Visitor *v) { v->visit(this); }
 void DataDeclNode::accept(Visitor *v) { v->visit(this); }
 void VectorDeclNode::accept(Visitor *v) { v->visit(this); }
+void MethodDeclNode::accept(Visitor *v) { v->visit(this); }

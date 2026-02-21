@@ -62,6 +62,7 @@ private:
   DeclNode *parseVarDecl(int kind, bool constant);
   DimNode *parseArrayDecl();
   DeclNode *parseFuncDecl();
+  DeclNode *parseMethodDecl();
   DeclNode *parseStructDecl();
 
   ExprSeqNode *parseExprSeq();

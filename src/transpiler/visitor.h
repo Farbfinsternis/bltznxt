@@ -35,6 +35,8 @@ struct FuncDeclNode;
 struct StructDeclNode;
 struct DataDeclNode;
 struct VectorDeclNode;
+struct MethodDeclNode;
+struct MethodCallNode;
 
 struct ExprSeqNode;
 struct ExprNode;
@@ -54,6 +56,7 @@ struct BeforeNode;
 struct NullNode;
 struct ObjectCastNode;
 struct ObjectHandleNode;
+struct SelfNode;
 struct ConstNode;
 struct IntConstNode;
 struct FloatConstNode;
@@ -103,6 +106,7 @@ struct Visitor {
   virtual void visit(StructDeclNode *node) = 0;
   virtual void visit(DataDeclNode *node) = 0;
   virtual void visit(VectorDeclNode *node) = 0;
+  virtual void visit(MethodDeclNode *node) = 0;
 
   // Expressions
   virtual void visit(ExprSeqNode *node) = 0;
@@ -121,6 +125,8 @@ struct Visitor {
   virtual void visit(NullNode *node) = 0;
   virtual void visit(ObjectCastNode *node) = 0;
   virtual void visit(ObjectHandleNode *node) = 0;
+  virtual void visit(SelfNode *node) = 0;
+  virtual void visit(MethodCallNode *node) = 0;
 
   // Consts
   virtual void visit(IntConstNode *node) = 0;

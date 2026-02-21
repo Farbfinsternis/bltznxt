@@ -112,8 +112,11 @@ public:
   void visit(ExprSeqNode *node) override;
   void visit(DeclSeqNode *node) override;
   void visit(StructDeclNode *node) override;
+  void visit(MethodDeclNode *node) override;
+  void visit(MethodCallNode *node) override;
   void visit(FieldVarNode *node) override;
   void visit(NewNode *node) override;
+  void visit(SelfNode *node) override;
   void visit(FirstNode *node) override;
   void visit(LastNode *node) override;
   void visit(AfterNode *node) override;

@@ -24,6 +24,16 @@ TARGET    = $(BUILD_DIR)/bbc_cpp$(EXE_EXT)
 SOURCES   = main toker parser decl declnode environ exprnode node prognode stmtnode type varnode cpp_generator memory
 OBJECTS   = $(addprefix $(BUILD_DIR)/,$(addsuffix .o,$(SOURCES)))
 
+ifeq ($(OS),Windows_NT)
+    MKDIR = @if not exist $(subst /,\,$(1)) mkdir $(subst /,\,$(1))
+    RM = @if exist $(subst /,\,$(1)) rd /s /q $(subst /,\,$(1))
+    RM_F = @if exist $(subst /,\,$(1)) del /q $(subst /,\,$(1))
+else
+    MKDIR = mkdir -p $(1)
+    RM = rm -rf $(1)
+    RM_F = rm -f $(1)
+endif
+
 # Targets
 all: $(TARGET) lib/libbbruntime.a
 
@@ -33,7 +43,7 @@ debug:
 	@echo "SOURCES: $(SOURCES)"
 
 $(BUILD_DIR)/%.o: src/transpiler/%.cpp
-	@mkdir -p $(BUILD_DIR)
+	$(call MKDIR,$(BUILD_DIR))
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/main.o: src/commands.def
@@ -49,12 +59,14 @@ RT_SOURCES = $(wildcard src/runtime/*.cpp)
 RT_OBJECTS = $(patsubst src/runtime/%.cpp,$(BUILD_DIR)/rt_%.o,$(RT_SOURCES))
 
 $(BUILD_DIR)/rt_%.o: src/runtime/%.cpp
-	@mkdir -p $(BUILD_DIR)
+	$(call MKDIR,$(BUILD_DIR))
 	$(CXX) $(COMMON) -DBB_RUNTIME_COMPILING -Isrc/runtime -c $< -o $@
 
 lib/libbbruntime.a: $(RT_OBJECTS)
-	@mkdir -p lib
+	$(call MKDIR,lib)
 	$(AR) rcs $@ $^
 
 clean:
-	rm -rf _build/* lib/*.a $(TARGET)
+	$(call RM,$(BUILD_DIR))
+	$(call RM,lib)
+	$(call RM_F,$(TARGET))

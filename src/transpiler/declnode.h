@@ -67,6 +67,25 @@ struct FuncDeclNode : public DeclNode {
   void accept(Visitor *v);
 };
 
+struct MethodDeclNode : public DeclNode {
+  std::string ident, tag;
+  DeclSeqNode *params;
+  StmtSeqNode *stmts;
+  FuncType *sem_type;
+  BCEnviron *sem_env;
+  Decl *sem_decl;
+  MethodDeclNode(const std::string &i, const std::string &t, DeclSeqNode *p,
+                 StmtSeqNode *ss)
+      : ident(i), tag(t), params(p), stmts(ss), sem_decl(0) {}
+  ~MethodDeclNode() {
+    /*delete params;
+    delete stmts;*/
+  }
+  void proto(DeclSeq *d, BCEnviron *e);
+  void semant(BCEnviron *e);
+  void accept(Visitor *v);
+};
+
 struct StructDeclNode : public DeclNode {
   std::string ident;
   DeclSeqNode *fields;

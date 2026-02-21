@@ -26,7 +26,7 @@ This document tracks the progress towards a fully compatible, high-performance B
 - [x] String `$`
 - [x] Arrays `Dim` / `Undim`
 - [x] Custom Types `Type` / `Field`
-- [ ] **Task 1.2a**: Type Methods (`Method...End Method`) - *Planned v0.7.0*
+- [x] **Task 1.2a**: Type Methods (`Method...End Method`)
 - [x] Objects (Instance management)
 
 ### 1.3 Control Flow
@@ -241,13 +241,13 @@ This document tracks the progress towards a fully compatible, high-performance B
 - [ ] `FlushJoy`
 
 ### 4.3 Audio
-- [ ] `LoadSound` / `FreeSound`
-- [ ] `LoopSound`
-- [ ] `SoundPitch` / `SoundVolume` / `SoundPan`
-- [ ] `PlaySound`
+- [-] `LoadSound` / `FreeSound` (SDL_mixer optional)
+- [-] `LoopSound` (Partial)
+- [-] `SoundPitch` / `SoundVolume` / `SoundPan` (Partial)
+- [-] `PlaySound`
 - [ ] `PlayMusic`
 - [ ] `PlayCDTrack`
-- [ ] `StopChannel` / `PauseChannel` / `ResumeChannel`
+- [-] `StopChannel` / `PauseChannel` / `ResumeChannel` (Partial)
 - [ ] `ChannelPitch` / `ChannelVolume` / `ChannelPan`
 - [ ] `ChannelPlaying`
 - [ ] `Load3DSound`
@@ -327,7 +327,7 @@ This document tracks the progress towards a fully compatible, high-performance B
 #### 5.7.1 Collision System (Core)
 - [x] `EntityType` / `EntityRadius` / `EntityBox` (Shape definitions)
 - [x] `Collisions` (Interaction rules)
-- [-] `UpdateWorld` (Execution loop - Stubbed)
+- [x] `UpdateWorld` (Sphere-Sphere & Sphere-Mesh implemented)
 - [x] **Task 5.7.1a**: Sphere-Sphere collision detection & Stop response.
 - [x] **Task 5.7.1b**: Basic Sliding collision response.
 - [x] **Task 5.7.1c**: Sphere-Mesh collision detection.
@@ -336,7 +336,7 @@ This document tracks the progress towards a fully compatible, high-performance B
 - [ ] **Task 5.7.1f**: Box-collision support (Method 3).
 
 #### 5.7.2 Collision State & Queries
-- [-] `ResetEntity` (Clears prev-coordinates - Stubbed)
+- [x] `ResetEntity` (Records prev-coordinates)
 - [ ] **Task 5.7.2a**: Tracking previous entity positions for swept-testing.
 - [ ] **Task 5.7.2b**: `EntityCollided()` and `CountCollisions()`.
 - [x] **Task 5.7.2c**: `CollisionX/Y/Z/NX/NY/NZ` etc. (Result getters)
@@ -414,13 +414,13 @@ To ensure steady progress within development quotas, we balance technical **Hard
 - **Input**: Added `HidePointer` and `ShowPointer`.
 - **Hardening**: Resolved `bbToString` ambiguity and filename encoding issues.
 
-### 🚀 v0.6.0: "The Interaction Update"
+### 🚀 v0.6.0: "The Interaction Update" [COMPLETED]
 - **3D Core**: Full Sliding Collision Response (`Collisions`, `UpdateWorld`).
+- **Language**: **Type Methods** (`Method` / `End Method`) support.
 - **WOW**: Terrain Engine Basics (`CreateTerrain`, `ModifyTerrain`).
 - **WOW**: Basic animation loading (MD2/BSP loaders).
 
 ### 🎨 v0.7.0: "The Paradigms & Visuals Update"
-- **Language**: **Type Methods** (`Method` / `End Method`) support.
 - **Phase 7.1**: SDL_mixer integration for basic Audio.
 - **Phase 7.2**: Advanced Texture support (CubeMaps in hardware).
 - **Phase 7.3**: Multi-texturing support.
@@ -431,4 +431,4 @@ To ensure steady progress within development quotas, we balance technical **Hard
 
 ---
 
-*Last Updated: February 20, 2026*
+*Last Updated: February 21, 2026*

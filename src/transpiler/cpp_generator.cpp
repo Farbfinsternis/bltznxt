@@ -13,7 +13,7 @@ CppGenerator::CppGenerator(std::ostream &out)
 // AST Dispatcher
 void CppGenerator::generate(Node *node) {
   if (node) {
-
+    // std::cerr << "Debug: Generating node at " << node->pos << std::endl;
     node->accept(this);
   } else {
   }
@@ -21,8 +21,9 @@ void CppGenerator::generate(Node *node) {
 
 // Visitors
 void CppGenerator::emitVarDecls(BCEnviron *env, int kind) {
-  if (!env || !env->decls)
+  if (!env || !env->decls) {
     return;
+  }
   for (Decl *d : env->decls->decls) {
     if (d->kind == kind) {
       emitVarDecl(d);
@@ -634,11 +635,15 @@ void CppGenerator::visit(ExprSeqNode *node) {
 
 // --- Custom Types ---
 void CppGenerator::visit(StructDeclNode *node) {
+  std::cerr << "Debug: visit(StructDeclNode) for " << node->ident << std::endl;
   emitln("struct bb_type_" + node->ident + " {");
   incIndent();
   if (node->fields) {
+    std::cerr << "Debug: Struct has " << node->fields->decls.size()
+              << " fields/methods" << std::endl;
     for (auto *d : node->fields->decls) {
       if (auto *vdecl = dynamic_cast<VarDeclNode *>(d)) {
+        std::cerr << "Debug: Field " << vdecl->ident << std::endl;
         std::string type = "bb_int";
         std::string init = " = 0";
         if (vdecl->tag == "#") {
@@ -652,6 +657,8 @@ void CppGenerator::visit(StructDeclNode *node) {
           init = " = nullptr";
         }
         emitln(type + " " + vdecl->sem_var->sem_decl->name + init + ";");
+      } else if (auto *mdecl = dynamic_cast<MethodDeclNode *>(d)) {
+        generate(mdecl);
       }
     }
   }
@@ -915,6 +922,65 @@ void CppGenerator::visit(FuncDeclNode *node) {
   current_gosub_ids = old_gosub_ids;
   in_function = old_in_function;
 }
+
+void CppGenerator::visit(MethodDeclNode *node) {
+  std::cerr << "Debug: visit(MethodDeclNode) for " << node->ident << std::endl;
+  // Emit method as member function
+  std::string retType = mapType(node->sem_type->returnType);
+  std::cerr << "Debug: retType ok" << std::endl;
+  out << retType << " " << node->sem_decl->name << "(";
+
+  if (node->params) {
+    bool first = true;
+    for (int i = 0; i < (int)node->params->decls.size(); ++i) {
+      if (auto *p = dynamic_cast<VarDeclNode *>(node->params->decls[i])) {
+        if (!first)
+          out << ", ";
+        first = false;
+
+        Type *t = node->sem_type->params->decls[i]->type;
+        std::string pType = mapType(t);
+        out << pType << " " << node->sem_type->params->decls[i]->name;
+        if (p->expr) {
+          out << " = ";
+          generate(p->expr);
+        }
+      }
+    }
+  }
+
+  out << ") {\n";
+  incIndent();
+  emitln("std::vector<int> _bb_gosub_stack;");
+
+  // Pre-declare locals
+  emitVarDecls(node->sem_env, DECL_LOCAL);
+
+  if (node->stmts)
+    generate(node->stmts);
+
+  emitReturnLogic();
+
+  // Default return
+  if (retType == "bb_string")
+    emitln("return \"\";");
+  else if (retType == "bb_float")
+    emitln("return 0.0f;");
+  else if (retType != "void")
+    emitln("return 0;");
+
+  decIndent();
+  emitln("}");
+}
+
+void CppGenerator::visit(MethodCallNode *node) {
+  generate(node->expr);
+  out << "->" << node->ident << "(";
+  generate(node->exprs);
+  out << ")";
+}
+
+void CppGenerator::visit(SelfNode *node) { out << "this"; }
 std::string CppGenerator::mapType(Type *t) {
   if (!t)
     return "bb_int";

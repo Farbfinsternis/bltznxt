@@ -12,7 +12,8 @@ enum {
   DECL_GLOBAL = 8,
   DECL_LOCAL = 16,
   DECL_PARAM = 32,
-  DECL_FIELD = 64 // ARE vars
+  DECL_FIELD = 64, // ARE vars
+  DECL_METHOD = 128
 };
 
 struct Type;

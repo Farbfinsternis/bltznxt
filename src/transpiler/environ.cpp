@@ -4,7 +4,8 @@
 #include <vector>
 
 BCEnviron::BCEnviron(const std::string &f, Type *r, int l, BCEnviron *gs)
-    : funcLabel(f), returnType(r), level(l), globals(gs), typeHint(0) {
+    : funcLabel(f), returnType(r), level(l), globals(gs), typeHint(0),
+      currStruct(0) {
   decls = d_new<DeclSeq>();
   typeDecls = d_new<DeclSeq>();
   funcDecls = d_new<DeclSeq>();

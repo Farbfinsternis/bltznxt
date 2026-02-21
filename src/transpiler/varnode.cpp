@@ -1,6 +1,7 @@
+#include <iostream>
+#include <string>
 
 #include "nodes.h"
-#include "std.h"
 #include "visitor.h"
 
 //////////////////////////////////
@@ -28,7 +29,8 @@ void IdentVarNode::semant(BCEnviron *e) {
   if (!t)
     t = Type::int_type;
   std::string m_name = mangle(ident, tag);
-  if (sem_decl = e->findDecl(m_name)) {
+  sem_decl = e->findDecl(m_name); // Assignment moved out of condition
+  if (sem_decl) {                 // Condition check
     if (!(sem_decl->kind & (DECL_GLOBAL | DECL_LOCAL | DECL_PARAM))) {
       ex("Identifier '" + sem_decl->name + "' may not be used like this");
     }
@@ -37,13 +39,31 @@ void IdentVarNode::semant(BCEnviron *e) {
       ty = ty->constType()->valueType;
     if (tag.size() && t != ty)
       ex("Variable type mismatch");
-  } else {
-    // ugly auto decl!
-    // Auto-promote to Float if implied by assignment
-    if (tag.size() == 0 && e->typeHint == Type::float_type) {
-      t = Type::float_type;
-      m_name = mangle(ident, "#"); // Auto-decl as float
+  } else if (tag.empty()) {
+    // If tag is empty, search for any typed declaration of this identifier
+    // (e.g., p.Point mangles to p_v_Point)
+    std::string prefix = ident + "_v_";
+    for (BCEnviron *ee = e; ee; ee = ee->globals) {
+      for (size_t k = 0; k < ee->decls->size(); ++k) {
+        Decl *d = ee->decls->decls[k];
+        if (d->name.find(prefix) == 0) {
+          sem_decl = d;
+          break;
+        }
+      }
+      if (sem_decl)
+        break;
     }
+    if (!sem_decl) {
+      // ugly auto decl!
+      // Auto-promote to Float if implied by assignment
+      if (tag.size() == 0 && e->typeHint == Type::float_type) {
+        t = Type::float_type;
+        m_name = mangle(ident, "#"); // Auto-decl as float
+      }
+      sem_decl = e->decls->insertDecl(m_name, t, DECL_LOCAL);
+    }
+  } else {
     sem_decl = e->decls->insertDecl(m_name, t, DECL_LOCAL);
   }
   sem_type = sem_decl->type;
@@ -73,9 +93,12 @@ void ArrayVarNode::semant(BCEnviron *e) {
 ///////////////
 void FieldVarNode::semant(BCEnviron *e) {
   expr = expr->semant(e);
+  if (!expr->sem_type) {
+  }
   StructType *s = expr->sem_type->structType();
-  if (!s)
+  if (!s) {
     ex("Variable must be a Type");
+  }
   sem_field = s->fields->findDecl(ident);
   if (!sem_field)
     ex("Type field not found");

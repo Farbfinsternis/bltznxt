@@ -1,3 +1,5 @@
+# ![BLTZNXT Logo](logo.png)
+
 # BltzNxt
 **Version 0.6.0**
 
@@ -89,7 +91,8 @@ BLTZNXT is a modern, high-performance successor to the Blitz3D ecosystem. While 
 The project is currently in active development, with the core language and basic engine features firmly in place. Recent updates have focused on **3D Collisions**, **Font management**, and **IDE compatibility**.
 
 ### 🔹 Language Support
-- **Core Logic**: Fully supports Types, Functions, Global/Local variables, and Arrays.
+- **Core Logic**: Fully supports Types, Methods, Functions, Global/Local variables, and Arrays.
+- **Type Methods**: Define methods within `Type` blocks with `Self` support—the first steps towards OOP in BlitzBasic.
 - **Function Overloading**: Define multiple versions of a function for different data types—a feature exclusive to BltzNxt.
 - **Transpilation**: Seamless conversion of Blitz3D syntax to modern C++17.
 - **Stability**: Includes an automated regression test suite to ensure compiler accuracy.
@@ -130,6 +133,7 @@ Unlike the original Blitz3D, BLTZNXT offers:
 ### v0.6.0 (2026-02-20)
 - **IDE Compatibility**: Introduced the `blitzcc.exe` wrapper for seamless integration with external IDEs.
 - **3D Collision System**: Implemented Sphere-Sphere and Sphere-Mesh detection, sliding response, and full query API parity.
+- **Language Power-up**: Added **Type Methods** (`Method...End Method`) and `Self` keyword support.
 - **Advanced Font Support**: Dynamic system font loading and metrics calculation via `stb_truetype`.
 - **SDK Structure**: Reorganized binaries into a portable `bin/` directory.
 - **Cross-Platform**: Verified build support for Linux and macOS via updated `Makefile` and `build.py`.

@@ -1,7 +1,7 @@
 #include "parser.h"
 #include "std.h"
 #include <cstdlib>
-
+#include <filesystem>
 
 enum { STMTS_PROG, STMTS_BLOCK, STMTS_LINE };
 
@@ -145,12 +145,16 @@ void Parser::parseStmtSeq(StmtSeqNode *stmts, int scope) {
       toker = t_toker;
       incfile = t_inc;
     } break;
+    case SELF:
     case IDENT: {
+      int pos = toker->pos();
+      int c = toker->curr();
       std::string ident = toker->text();
       toker->next();
       std::string tag = parseTypeTag();
-      if (arrayDecls.find(ident) == arrayDecls.end() && toker->curr() != '=' &&
-          toker->curr() != '\\' && toker->curr() != '[') {
+      if (c == IDENT && arrayDecls.find(ident) == arrayDecls.end() &&
+          toker->curr() != '=' && toker->curr() != '\\' &&
+          toker->curr() != '[') {
         // must be a function
         ExprSeqNode *exprs;
         if (toker->curr() == '(') {
@@ -178,13 +182,70 @@ void Parser::parseStmtSeq(StmtSeqNode *stmts, int scope) {
         CallNode *call = createNode<CallNode>(pos, ident, tag, exprs);
         result = createNode<ExprStmtNode>(pos, call);
       } else {
-        // must be a var
-        a_ptr<VarNode> var(parseVar(ident, tag));
-        if (toker->curr() != '=')
-          exp("variable assignment");
-        toker->next();
-        ExprNode *expr = parseExpr(false);
-        result = createNode<AssNode>(pos, var.release(), expr);
+        // must be a var or method call
+        VarNode *var = nullptr;
+        if (c == SELF) {
+          if (toker->curr() != '\\' && toker->curr() != '[') {
+            ex("'Self' cannot be assigned to");
+          }
+          ExprNode *expr = createNode<SelfNode>(pos);
+          if (toker->curr() == '\\') {
+            toker->next();
+            std::string f_ident = parseIdent();
+            std::string f_tag = parseTypeTag();
+            var = createNode<FieldVarNode>(pos, expr, f_ident, f_tag);
+          } else {
+            toker->next();
+            a_ptr<ExprSeqNode> exprs(parseExprSeq());
+            if (exprs->size() != 1 || toker->curr() != ']')
+              exp("']'");
+            toker->next();
+            var = createNode<VectorVarNode>(pos, expr, exprs.release());
+          }
+          // Handle further trailers
+          for (;;) {
+            if (toker->curr() == '\\') {
+              toker->next();
+              std::string ident = parseIdent();
+              std::string tag = parseTypeTag();
+              ExprNode *expr = d_new<VarExprNode>(var);
+              var = d_new<FieldVarNode>(expr, ident, tag);
+            } else if (toker->curr() == '[') {
+              toker->next();
+              a_ptr<ExprSeqNode> exprs(parseExprSeq());
+              if (exprs->size() != 1 || toker->curr() != ']')
+                exp("']'");
+              toker->next();
+              ExprNode *expr = d_new<VarExprNode>(var);
+              var = d_new<VectorVarNode>(expr, exprs.release());
+            } else
+              break;
+          }
+        } else {
+          var = parseVar(ident, tag);
+        }
+        if (toker->curr() == '=') {
+          toker->next();
+          ExprNode *expr = parseExpr(false);
+          result = createNode<AssNode>(pos, var, expr);
+        } else if (toker->curr() == '(') {
+          // Method call or array access (but arrays don't appear here usually)
+          if (auto *fv = dynamic_cast<FieldVarNode *>((VarNode *)var)) {
+            toker->next();
+            a_ptr<ExprSeqNode> exprs(parseExprSeq());
+            if (toker->curr() != ')')
+              exp("')'");
+            toker->next();
+            ExprNode *call = d_new<MethodCallNode>(fv->expr, fv->ident, fv->tag,
+                                                   exprs.release());
+            fv->expr = 0; // Detach before delete fv via a_ptr
+            result = createNode<ExprStmtNode>(pos, call);
+          } else {
+            exp("variable assignment");
+          }
+        } else {
+          exp("variable assignment or method call");
+        }
       }
     } break;
     case IF: {
@@ -549,22 +610,57 @@ DeclNode *Parser::parseFuncDecl() {
                                   stmts.release());
 }
 
+DeclNode *Parser::parseMethodDecl() {
+  int pos = toker->pos();
+  std::string ident = parseIdent();
+  std::string tag = parseTypeTag();
+  if (toker->curr() != '(')
+    exp("'('");
+  a_ptr<DeclSeqNode> params(createNode<DeclSeqNode>(toker->pos()));
+  if (toker->next() != ')') {
+    for (;;) {
+      params->push_back(parseVarDecl(DECL_PARAM, false));
+      if (toker->curr() != ',')
+        break;
+      toker->next();
+    }
+    if (toker->curr() != ')')
+      exp("')'");
+  }
+  toker->next();
+  a_ptr<StmtSeqNode> stmts(parseStmtSeq(STMTS_BLOCK));
+  if (toker->curr() != ENDMETHOD)
+    exp("'End Method'");
+  StmtNode *ret = createNode<ReturnNode>(toker->pos(), nullptr);
+  stmts->push_back(ret);
+  toker->next();
+  return createNode<MethodDeclNode>(pos, ident, tag, params.release(),
+                                    stmts.release());
+}
+
 DeclNode *Parser::parseStructDecl() {
   int pos = toker->pos();
   std::string ident = parseIdent();
   while (toker->curr() == '\n')
     toker->next();
   a_ptr<DeclSeqNode> fields(createNode<DeclSeqNode>(toker->pos()));
-  while (toker->curr() == FIELD) {
-    do {
+  for (;;) {
+    if (toker->curr() == FIELD) {
+      do {
+        toker->next();
+        fields->push_back(parseVarDecl(DECL_FIELD, false));
+      } while (toker->curr() == ',');
+    } else if (toker->curr() == METHOD) {
       toker->next();
-      fields->push_back(parseVarDecl(DECL_FIELD, false));
-    } while (toker->curr() == ',');
+      fields->push_back(parseMethodDecl());
+    } else {
+      break;
+    }
     while (toker->curr() == '\n')
       toker->next();
   }
   if (toker->curr() != ENDTYPE)
-    exp("'Field' or 'End Type'");
+    exp("'Field', 'Method' or 'End Type'");
   toker->next();
   return createNode<StructDeclNode>(pos, ident, fields.release());
 }
@@ -830,11 +926,11 @@ ExprNode *Parser::parsePrimary(bool opt) {
     toker->next();
     break;
   case INTCONST:
-    result = d_new<IntConstNode>(atoi(toker->text()));
+    result = d_new<IntConstNode>(atoi(toker->text().c_str()));
     toker->next();
     break;
   case FLOATCONST:
-    result = d_new<FloatConstNode>(atof(toker->text()));
+    result = d_new<FloatConstNode>(atof(toker->text().c_str()));
     toker->next();
     break;
   case STRINGCONST:
@@ -845,7 +941,7 @@ ExprNode *Parser::parsePrimary(bool opt) {
   case BINCONST:
     n = 0;
     t = toker->text();
-    for (k = 1; k < t.size(); ++k)
+    for (k = 1; k < (int)t.size(); ++k)
       n = (n << 1) | (t[k] == '1');
     result = d_new<IntConstNode>(n);
     toker->next();
@@ -853,7 +949,7 @@ ExprNode *Parser::parsePrimary(bool opt) {
   case HEXCONST:
     n = 0;
     t = toker->text();
-    for (k = 1; k < t.size(); ++k)
+    for (k = 1; k < (int)t.size(); ++k)
       n = (n << 4) | (isdigit(t[k]) ? t[k] & 0xf : (t[k] & 7) + 9);
     result = d_new<IntConstNode>(n);
     toker->next();
@@ -870,24 +966,68 @@ ExprNode *Parser::parsePrimary(bool opt) {
     result = d_new<IntConstNode>(0);
     toker->next();
     break;
-  case IDENT:
-    ident = toker->text();
-    toker->next();
-    tag = parseTypeTag();
-    if (toker->curr() == '(' && arrayDecls.find(ident) == arrayDecls.end()) {
-      // must be a func
+  case SELF:
+  case IDENT: {
+    int c = toker->curr();
+    std::string ident, tag;
+    if (c == SELF) {
       toker->next();
-      a_ptr<ExprSeqNode> exprs(parseExprSeq());
-      if (toker->curr() != ')')
-        exp("')'");
-      toker->next();
-      result = d_new<CallNode>(ident, tag, exprs.release());
+      result = d_new<SelfNode>();
     } else {
-      // must be a var
-      VarNode *var = parseVar(ident, tag);
-      result = d_new<VarExprNode>(var);
+      ident = toker->text();
+      toker->next();
+      tag = parseTypeTag();
+      if (toker->curr() == '(' && arrayDecls.find(ident) == arrayDecls.end()) {
+        toker->next();
+        a_ptr<ExprSeqNode> exprs(parseExprSeq());
+        if (toker->curr() != ')')
+          exp("')'");
+        toker->next();
+        result = d_new<CallNode>(ident, tag, exprs.release());
+      } else {
+        VarNode *var = parseVar(ident, tag);
+        result = d_new<VarExprNode>(var);
+      }
+    }
+    // Handle trailers for Self or result of Call/Var
+    for (;;) {
+      if (toker->curr() == '\\') {
+        toker->next();
+        std::string ident = parseIdent();
+        std::string tag = parseTypeTag();
+        VarNode *v = d_new<FieldVarNode>(result, ident, tag);
+        result = d_new<VarExprNode>(v);
+      } else if (toker->curr() == '[') {
+        toker->next();
+        a_ptr<ExprSeqNode> exprs(parseExprSeq());
+        if (exprs->exprs.size() != 1 || toker->curr() != ']')
+          exp("']'");
+        toker->next();
+        VarNode *v = d_new<VectorVarNode>(result, exprs.release());
+        result = d_new<VarExprNode>(v);
+      } else if (toker->curr() == '(') {
+        // If the current result is a FieldVarNode, it might be a method call
+        if (VarExprNode *ve = dynamic_cast<VarExprNode *>(result)) {
+          if (FieldVarNode *fv = dynamic_cast<FieldVarNode *>(ve->var)) {
+            toker->next();
+            a_ptr<ExprSeqNode> exprs(parseExprSeq());
+            if (toker->curr() != ')')
+              exp("')'");
+            toker->next();
+            result = d_new<MethodCallNode>(fv->expr, fv->ident, fv->tag,
+                                           exprs.release());
+            fv->expr = 0; // Detach
+            // fv and ve will be cleaned up by MemoryManager eventually or we
+            // should delete them? For now, this is safer.
+            continue;
+          }
+        }
+        break;
+      } else
+        break;
     }
     break;
+  }
   default:
     if (!opt)
       exp("expression");

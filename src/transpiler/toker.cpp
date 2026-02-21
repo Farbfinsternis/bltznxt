@@ -3,7 +3,6 @@
 #include "std.h"
 #include <cctype>
 
-
 int Toker::chars_toked;
 
 static std::map<std::string, int> alphaTokes, lowerTokes;
@@ -35,6 +34,9 @@ static void makeKeywords() {
   alphaTokes["End Function"] = ENDFUNCTION;
   alphaTokes["Type"] = TYPE;
   alphaTokes["End Type"] = ENDTYPE;
+  alphaTokes["Method"] = METHOD;
+  alphaTokes["End Method"] = ENDMETHOD;
+  alphaTokes["Self"] = SELF;
   alphaTokes["Each"] = EACH;
   alphaTokes["Local"] = LOCAL;
   alphaTokes["Global"] = GLOBAL;

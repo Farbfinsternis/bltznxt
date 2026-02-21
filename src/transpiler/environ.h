@@ -14,7 +14,6 @@
 #include <list>
 #include <vector>
 
-
 class BCEnviron {
 public:
   int level;
@@ -27,6 +26,7 @@ public:
   std::vector<Label *> labels;
   BCEnviron *globals;
   Type *returnType;
+  StructType *currStruct; // Current struct for methods
   std::string funcLabel, breakLabel;
   std::list<BCEnviron *> children; // for delete!
 
