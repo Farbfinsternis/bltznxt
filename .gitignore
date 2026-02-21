@@ -1,0 +1,41 @@
+# BltzNxt Gitignore
+
+# Build Directories
+_build/
+dist/
+bin/
+lib/
+
+# Toolchain and Dependencies
+tools/
+libs/
+
+# Binary files
+*.exe
+*.dll
+*.a
+*.o
+*.obj
+*.pdb
+*.ilk
+
+# Python artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# IDE settings
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS specific files
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Temporary files
+temp/
+tmp/

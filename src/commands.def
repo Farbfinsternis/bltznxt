@@ -1,0 +1,336 @@
+// =============================================================================
+// commands.def — Single Source of Truth for all Blitz3D built-in commands.
+// =============================================================================
+//
+// This file is included by both the transpiler (main.cpp) and the runtime
+// (api.h) with different macro definitions, so that function signatures are
+// defined in exactly ONE place.
+//
+// Format: CMD(name, return_type, params)
+//   name        — lowercase function name (as used in Blitz3D source)
+//   return_type — T_INT, T_FLOAT, T_STRING, or T_VOID
+//   params      — space-separated P(name,type) or OP(name,type,default)
+//                  P  = required parameter
+//                  OP = optional parameter with default value
+//                  Leave empty for zero-arg commands.
+//
+// Types: T_INT (bb_int / int64_t), T_FLOAT (bb_float / double),
+//        T_STRING (bb_string / std::string), T_VOID (void, return only)
+//
+// =============================================================================
+
+// ---------------------------------------------------------------------------
+// Graphics (2D/3D)
+// ---------------------------------------------------------------------------
+CMD(graphics,       T_VOID,   P(w,T_INT) P(h,T_INT) OP(depth,T_INT,0) OP(mode,T_INT,0))
+CMD(graphics3d,     T_VOID,   P(w,T_INT) P(h,T_INT) OP(depth,T_INT,0) OP(mode,T_INT,0))
+CMD(graphicswidth,   T_INT,    )
+CMD(graphicsheight,  T_INT,    )
+CMD(totalvidmem,     T_INT,    )
+CMD(availvidmem,     T_INT,    )
+CMD(apptitle,       T_VOID,   P(title,T_STRING) OP(close_prompt,T_STRING,""))
+CMD(endgraphics,    T_VOID,   )
+CMD(setbuffer,      T_VOID,   P(buf,T_INT))
+CMD(backbuffer,     T_INT,    )
+CMD(frontbuffer,    T_INT,    )
+CMD(cls,            T_VOID,   )
+CMD(flip,           T_VOID,   OP(vwait,T_INT,0))
+CMD(color,          T_VOID,   P(r,T_INT) P(g,T_INT) P(b,T_INT))
+CMD(clscolor,       T_VOID,   P(r,T_INT) P(g,T_INT) P(b,T_INT))
+
+// ---------------------------------------------------------------------------
+// Images
+// ---------------------------------------------------------------------------
+CMD(loadimage,      T_INT,    P(file,T_STRING))
+CMD(drawimage,      T_VOID,   P(img,T_INT) P(x,T_INT) P(y,T_INT) OP(frame,T_INT,0))
+CMD(drawblock,      T_VOID,   P(img,T_INT) P(x,T_INT) P(y,T_INT) OP(frame,T_INT,0))
+CMD(maskimage,      T_VOID,   P(img,T_INT) P(r,T_INT) P(g,T_INT) P(b,T_INT))
+CMD(midhandle,      T_VOID,   P(img,T_INT))
+CMD(handleimage,    T_VOID,   P(img,T_INT) P(x,T_INT) P(y,T_INT))
+CMD(imagewidth,     T_INT,    P(img,T_INT))
+CMD(imageheight,    T_INT,    P(img,T_INT))
+CMD(imagesoverlap,  T_INT,    P(a,T_INT) P(ax,T_INT) P(ay,T_INT) P(b,T_INT) P(bx,T_INT) P(by,T_INT) P(bw,T_INT) P(bh,T_INT))
+CMD(rectsoverlap,   T_INT,    P(x1,T_INT) P(y1,T_INT) P(w1,T_INT) P(h1,T_INT) P(x2,T_INT) P(y2,T_INT) P(w2,T_INT) P(h2,T_INT))
+CMD(imagebuffer,    T_INT,    P(img,T_INT))
+CMD(freeimage,      T_VOID,   P(img,T_INT))
+CMD(scaleimage,     T_VOID,   P(img,T_INT) P(w,T_FLOAT) P(h,T_FLOAT))
+CMD(rotateimage,    T_VOID,   P(img,T_INT) P(angle,T_FLOAT))
+CMD(tformimage,     T_VOID,   P(img,T_INT) P(a,T_FLOAT) P(b,T_FLOAT) P(c,T_FLOAT) P(d,T_FLOAT))
+CMD(imagerectoverlap, T_INT,  P(img,T_INT) P(x,T_INT) P(rx,T_INT) P(ry,T_INT) P(rw,T_INT) P(rh,T_INT))
+
+// ---------------------------------------------------------------------------
+// Text & Shapes
+// ---------------------------------------------------------------------------
+CMD(text,           T_VOID,   P(x,T_INT) P(y,T_INT) P(txt,T_STRING) OP(cx,T_INT,0) OP(cy,T_INT,0))
+CMD(loadfont,       T_INT,    P(file,T_STRING) OP(size,T_INT,12) OP(bold,T_INT,0) OP(italic,T_INT,0) OP(underline,T_INT,0))
+CMD(setfont,        T_VOID,   P(font,T_INT))
+CMD(freefont,       T_VOID,   P(font,T_INT))
+CMD(stringwidth,    T_INT,    P(txt,T_STRING))
+CMD(stringheight,   T_INT,    P(txt,T_STRING))
+CMD(fontwidth,      T_INT,    )
+CMD(fontheight,     T_INT,    )
+CMD(rect,           T_VOID,   P(x,T_INT) P(y,T_INT) P(w,T_INT) P(h,T_INT) P(filled,T_INT))
+CMD(oval,           T_VOID,   P(x,T_INT) P(y,T_INT) P(w,T_INT) P(h,T_INT) P(filled,T_INT))
+CMD(line,           T_VOID,   P(x1,T_INT) P(y1,T_INT) P(x2,T_INT) P(y2,T_INT))
+CMD(plot,           T_VOID,   P(x,T_INT) P(y,T_INT))
+
+// ---------------------------------------------------------------------------
+// Input
+// ---------------------------------------------------------------------------
+CMD(keydown,        T_INT,    P(key,T_INT))
+CMD(keyhit,         T_INT,    P(key,T_INT))
+CMD(waitkey,        T_INT,    )
+CMD(mousex,         T_INT,    )
+CMD(mousey,         T_INT,    )
+CMD(mousedown,      T_INT,    P(btn,T_INT))
+CMD(mousehit,       T_INT,    P(btn,T_INT))
+CMD(flushkeys,      T_VOID,   )
+CMD(flushmouse,     T_VOID,   )
+CMD(hidepointer,    T_VOID,   )
+CMD(showpointer,    T_VOID,   )
+
+// ---------------------------------------------------------------------------
+// Time & Math
+// ---------------------------------------------------------------------------
+CMD(millisecs,      T_INT,    )
+CMD(delay,          T_VOID,   P(ms,T_INT))
+CMD(createtimer,    T_INT,    P(hertz,T_FLOAT))
+CMD(waittimer,      T_INT,    P(timer,T_INT))
+CMD(freetimer,      T_VOID,   P(timer,T_INT))
+CMD(rand,           T_INT,    P(lo,T_INT) OP(hi,T_INT,0))
+CMD(seedrnd,        T_VOID,   P(seed,T_INT))
+// Math functions — use CMATH instead of CMD because these names collide
+// with C stdlib <math.h>. In api.h, CMATH is a no-op (stdlib provides them).
+// In main.cpp, CMATH expands identically to CMD for transpiler registration.
+CMATH(sin,          T_FLOAT,  P(deg,T_FLOAT))
+CMATH(cos,          T_FLOAT,  P(deg,T_FLOAT))
+CMATH(tan,          T_FLOAT,  P(deg,T_FLOAT))
+CMATH(asin,         T_FLOAT,  P(val,T_FLOAT))
+CMATH(acos,         T_FLOAT,  P(val,T_FLOAT))
+CMATH(atan,         T_FLOAT,  P(val,T_FLOAT))
+CMATH(atan2,        T_FLOAT,  P(y,T_FLOAT) P(x,T_FLOAT))
+CMATH(sqr,          T_FLOAT,  P(val,T_FLOAT))
+CMATH(floor,        T_FLOAT,  P(val,T_FLOAT))
+CMATH(ceil,         T_FLOAT,  P(val,T_FLOAT))
+CMATH(abs,          T_FLOAT,  P(val,T_FLOAT))
+CMATH(abs,          T_INT,    P(val,T_INT))
+CMATH(sgn,          T_FLOAT,  P(val,T_FLOAT))
+CMATH(sgn,          T_INT,    P(val,T_INT))
+CMD(rnd,            T_FLOAT,  P(lo,T_FLOAT) OP(hi,T_FLOAT,0))
+
+// ---------------------------------------------------------------------------
+// Debug & System Control
+// ---------------------------------------------------------------------------
+CMD(print,          T_VOID,   OP(val,T_STRING,0))
+CMD(write,          T_VOID,   P(val,T_STRING))
+CMD(input,          T_STRING, OP(prompt,T_STRING,0))
+CMD(debuglog,       T_VOID,   P(msg,T_STRING))
+CMD(stop,           T_VOID,   )
+CMD(end,            T_VOID,   )
+CMD(runtimeerror,   T_VOID,   P(msg,T_STRING))
+
+// ---------------------------------------------------------------------------
+// 3D Entity Creation
+// ---------------------------------------------------------------------------
+CMD(createcube,     T_INT,    OP(parent,T_INT,0))
+CMD(createsphere,   T_INT,    OP(segs,T_INT,8) OP(parent,T_INT,0))
+CMD(createcamera,   T_INT,    OP(parent,T_INT,0))
+CMD(createlight,    T_INT,    OP(lightType,T_INT,2) OP(parent,T_INT,0))
+CMD(createpivot,    T_INT,    OP(parent,T_INT,0))
+CMD(createcylinder, T_INT,    OP(segs,T_INT,8) OP(solid,T_INT,1) OP(parent,T_INT,0))
+CMD(createcone,     T_INT,    OP(segs,T_INT,8) OP(solid,T_INT,1) OP(parent,T_INT,0))
+CMD(createplane,    T_INT,    OP(segs,T_INT,1) OP(parent,T_INT,0))
+
+// ---------------------------------------------------------------------------
+// 3D Entity Transform
+// ---------------------------------------------------------------------------
+CMD(positionentity, T_VOID,   P(ent,T_INT) P(x,T_FLOAT) P(y,T_FLOAT) P(z,T_FLOAT) OP(global,T_INT,0))
+CMD(turnentity,     T_VOID,   P(ent,T_INT) P(p,T_FLOAT) P(y,T_FLOAT) P(r,T_FLOAT) OP(global,T_INT,0))
+CMD(rotateentity,   T_VOID,   P(ent,T_INT) P(p,T_FLOAT) P(y,T_FLOAT) P(r,T_FLOAT) OP(global,T_INT,0))
+CMD(translateentity,T_VOID,   P(ent,T_INT) P(x,T_FLOAT) P(y,T_FLOAT) P(z,T_FLOAT) OP(global,T_INT,0))
+CMD(moveentity,     T_VOID,   P(ent,T_INT) P(x,T_FLOAT) P(y,T_FLOAT) P(z,T_FLOAT))
+CMD(pointentity,    T_VOID,   P(ent,T_INT) P(target,T_INT) OP(roll,T_FLOAT,0))
+CMD(scaleentity,    T_VOID,   P(ent,T_INT) P(x,T_FLOAT) P(y,T_FLOAT) P(z,T_FLOAT) OP(global,T_INT,0))
+
+// ---------------------------------------------------------------------------
+// 3D Entity Properties
+// ---------------------------------------------------------------------------
+CMD(entitycolor,    T_VOID,   P(ent,T_INT) P(r,T_FLOAT) P(g,T_FLOAT) P(b,T_FLOAT))
+CMD(entityalpha,    T_VOID,   P(ent,T_INT) P(alpha,T_FLOAT))
+CMD(entityshininess,T_VOID,   P(ent,T_INT) P(shininess,T_FLOAT))
+CMD(entitytexture,  T_VOID,   P(ent,T_INT) P(tex,T_INT) OP(frame,T_INT,0) OP(index,T_INT,0))
+CMD(loadtexture,    T_INT,    P(file,T_STRING) OP(flags,T_INT,1))
+CMD(freetexture,    T_VOID,   P(tex,T_INT))
+CMD(entityfx,       T_VOID,   P(ent,T_INT) P(fx,T_INT))
+CMD(freeentity,     T_VOID,   P(ent,T_INT))
+
+// ---------------------------------------------------------------------------
+// 3D Collision & Picking
+// ---------------------------------------------------------------------------
+CMD(entitypick,     T_INT,    P(ent,T_INT) P(range,T_FLOAT))
+CMD(linepick,       T_INT,    P(x,T_FLOAT) P(y,T_FLOAT) P(z,T_FLOAT) P(dx,T_FLOAT) P(dy,T_FLOAT) P(dz,T_FLOAT) OP(radius,T_FLOAT,0))
+CMD(camerapick,     T_INT,    P(cam,T_INT) P(x,T_FLOAT) P(y,T_FLOAT))
+CMD(entitypickmode, T_VOID,   P(ent,T_INT) P(mode,T_INT) OP(obs,T_INT,0))
+CMD(entitytype,     T_VOID,   P(ent,T_INT) P(type,T_INT) OP(recursive,T_INT,0))
+CMD(entityradius,   T_VOID,   P(ent,T_INT) P(x,T_FLOAT) OP(y,T_FLOAT,0))
+CMD(entitybox,      T_VOID,   P(ent,T_INT) P(x,T_FLOAT) P(y,T_FLOAT) P(z,T_FLOAT) P(w,T_FLOAT) P(h,T_FLOAT) P(d,T_FLOAT))
+CMD(resetentity,    T_VOID,   P(ent,T_INT))
+CMD(pickedentity,   T_INT,    )
+CMD(pickedx,        T_FLOAT,  )
+CMD(pickedy,        T_FLOAT,  )
+CMD(pickedz,        T_FLOAT,  )
+CMD(pickednx,       T_FLOAT,  )
+CMD(pickedny,       T_FLOAT,  )
+CMD(pickednz,       T_FLOAT,  )
+CMD(pickedtime,     T_FLOAT,  )
+CMD(pickedsurface,  T_INT,    )
+CMD(pickedtriangle, T_INT,    )
+
+CMD(collisions,     T_VOID,   P(src_type,T_INT) P(dest_type,T_INT) P(method,T_INT) P(response,T_INT))
+CMD(updateworld,    T_VOID,   OP(tween,T_FLOAT,1.0))
+CMD(resetentity,    T_VOID,   P(ent,T_INT))
+CMD(countcollisions,  T_INT,    P(ent,T_INT))
+CMD(collisionx,     T_FLOAT,  P(ent,T_INT) P(index,T_INT))
+CMD(collisiony,     T_FLOAT,  P(ent,T_INT) P(index,T_INT))
+CMD(collisionz,     T_FLOAT,  P(ent,T_INT) P(index,T_INT))
+CMD(collisionnx,    T_FLOAT,  P(ent,T_INT) P(index,T_INT))
+CMD(collisionny,    T_FLOAT,  P(ent,T_INT) P(index,T_INT))
+CMD(collisionnz,    T_FLOAT,  P(ent,T_INT) P(index,T_INT))
+CMD(collisionentity,  T_INT,    P(ent,T_INT) P(index,T_INT))
+CMD(collisionsurface, T_INT,    P(ent,T_INT) P(index,T_INT))
+CMD(collisiontriangle, T_INT,   P(ent,T_INT) P(index,T_INT))
+
+// ---------------------------------------------------------------------------
+// Audio (SDL_mixer)
+// ---------------------------------------------------------------------------
+CMD(loadsound,      T_INT,    P(file,T_STRING))
+CMD(playsound,      T_INT,    P(sound,T_INT))
+CMD(freesound,      T_VOID,   P(sound,T_INT))
+CMD(soundvolume,    T_VOID,   P(sound,T_INT) P(vol,T_FLOAT))
+CMD(soundpitch,     T_VOID,   P(sound,T_INT) P(pitch,T_INT))
+CMD(loopsound,      T_VOID,   P(sound,T_INT))
+
+CMD(entityparent,   T_VOID,   P(ent,T_INT) P(parent,T_INT) OP(global,T_INT,1))
+CMD(entityx,        T_FLOAT,  P(ent,T_INT) OP(global,T_INT,0))
+CMD(entityy,        T_FLOAT,  P(ent,T_INT) OP(global,T_INT,0))
+CMD(entityz,        T_FLOAT,  P(ent,T_INT) OP(global,T_INT,0))
+CMD(entitypitch,    T_FLOAT,  P(ent,T_INT) OP(global,T_INT,0))
+CMD(entityyaw,      T_FLOAT,  P(ent,T_INT) OP(global,T_INT,0))
+CMD(entityroll,     T_FLOAT,  P(ent,T_INT) OP(global,T_INT,0))
+
+// ---------------------------------------------------------------------------
+// 3D Mesh Manipulation
+// ---------------------------------------------------------------------------
+CMD(createmesh,     T_INT,    OP(parent,T_INT,0))
+CMD(createsurface,  T_INT,    P(mesh,T_INT))
+CMD(addvertex,      T_INT,    P(surf,T_INT) P(x,T_FLOAT) P(y,T_FLOAT) P(z,T_FLOAT) OP(u,T_FLOAT,0) OP(v,T_FLOAT,0))
+CMD(addtriangle,    T_INT,    P(surf,T_INT) P(v0,T_INT) P(v1,T_INT) P(v2,T_INT))
+CMD(countsurfaces,  T_INT,    P(mesh,T_INT))
+CMD(getsurface,     T_INT,    P(mesh,T_INT) P(index,T_INT))
+CMD(updatenormals,  T_VOID,   P(mesh,T_INT))
+CMD(rotatemesh,     T_VOID,   P(mesh,T_INT) P(p,T_FLOAT) P(y,T_FLOAT) P(r,T_FLOAT))
+CMD(scalemesh,      T_VOID,   P(mesh,T_INT) P(x,T_FLOAT) P(y,T_FLOAT) P(z,T_FLOAT))
+CMD(translatemesh,  T_VOID,   P(mesh,T_INT) P(x,T_FLOAT) P(y,T_FLOAT) P(z,T_FLOAT))
+CMD(fitmesh,        T_VOID,   P(mesh,T_INT) P(x,T_FLOAT) P(y,T_FLOAT) P(z,T_FLOAT) P(w,T_FLOAT) P(h,T_FLOAT) P(d,T_FLOAT) OP(uniform,T_INT,0))
+
+// ---------------------------------------------------------------------------
+// 3D Lighting & Camera
+// ---------------------------------------------------------------------------
+CMD(ambientlight,   T_VOID,   P(r,T_FLOAT) P(g,T_FLOAT) P(b,T_FLOAT))
+CMD(lightcolor,     T_VOID,   P(light,T_INT) P(r,T_FLOAT) P(g,T_FLOAT) P(b,T_FLOAT))
+CMD(camerazoom,     T_VOID,   P(cam,T_INT) P(zoom,T_FLOAT))
+CMD(camerarange,    T_VOID,   P(cam,T_INT) P(n,T_FLOAT) P(f,T_FLOAT))
+CMD(camerafogmode,  T_VOID,   P(cam,T_INT) P(mode,T_INT))
+CMD(camerafogcolor, T_VOID,   P(cam,T_INT) P(r,T_FLOAT) P(g,T_FLOAT) P(b,T_FLOAT))
+CMD(camerafogrange, T_VOID,   P(cam,T_INT) P(n,T_FLOAT) P(f,T_FLOAT))
+CMD(cameraviewport, T_VOID,   P(cam,T_INT) P(x,T_INT) P(y,T_INT) P(width,T_INT) P(height,T_INT))
+CMD(cameraclscolor, T_VOID,   P(cam,T_INT) P(r,T_FLOAT) P(g,T_FLOAT) P(b,T_FLOAT))
+CMD(cameraproject,  T_VOID,   P(cam,T_INT) P(x,T_FLOAT) P(y,T_FLOAT) P(z,T_FLOAT))
+CMD(projectedx,     T_FLOAT,  )
+CMD(projectedy,     T_FLOAT,  )
+CMD(projectedz,     T_FLOAT,  )
+CMD(renderworld,    T_VOID,   OP(tween,T_FLOAT,1.0))
+
+// ---------------------------------------------------------------------------
+// String Functions
+// ---------------------------------------------------------------------------
+CSTR(left,           T_STRING, P(str,T_STRING) P(n,T_INT))
+CSTR(right,          T_STRING, P(str,T_STRING) P(n,T_INT))
+CSTR(mid,            T_STRING, P(str,T_STRING) P(start,T_INT) OP(count,T_INT,-1))
+CSTR(replace,        T_STRING, P(str,T_STRING) P(find,T_STRING) P(rep,T_STRING))
+CSTR(instr,          T_INT,    P(str,T_STRING) P(find,T_STRING) OP(start,T_INT,1))
+CSTR(upper,          T_STRING, P(str,T_STRING))
+CSTR(lower,          T_STRING, P(str,T_STRING))
+CSTR(trim,           T_STRING, P(str,T_STRING))
+CSTR(lset,           T_STRING, P(str,T_STRING) P(n,T_INT))
+CSTR(rset,           T_STRING, P(str,T_STRING) P(n,T_INT))
+CSTR(chr,            T_STRING, P(code,T_INT))
+CSTR(asc,            T_INT,    P(str,T_STRING))
+CSTR(len,            T_INT,    P(str,T_STRING))
+CSTR(hex,            T_STRING, P(val,T_INT))
+CSTR(bin,            T_STRING, P(val,T_INT))
+CSTR(str,            T_STRING, P(val,T_INT))
+CMD(string,         T_STRING, P(str,T_STRING) P(count,T_INT))
+
+// ---------------------------------------------------------------------------
+// File I/O
+// ---------------------------------------------------------------------------
+CMD(openfile,       T_INT,    P(file,T_STRING))
+CMD(readfile,       T_INT,    P(file,T_STRING))
+CMD(writefile,      T_INT,    P(file,T_STRING))
+CMD(closefile,      T_VOID,   P(stream,T_INT))
+CMD(readbyte,       T_INT,    P(stream,T_INT))
+CMD(readshort,      T_INT,    P(stream,T_INT))
+CMD(readint,        T_INT,    P(stream,T_INT))
+CMD(readfloat,      T_FLOAT,  P(stream,T_INT))
+CMD(readstring,     T_STRING, P(stream,T_INT))
+CMD(readline,       T_STRING, P(stream,T_INT))
+CMD(writebyte,      T_VOID,   P(stream,T_INT) P(val,T_INT))
+CMD(writeshort,     T_VOID,   P(stream,T_INT) P(val,T_INT))
+CMD(writeint,       T_VOID,   P(stream,T_INT) P(val,T_INT))
+CMD(writefloat,     T_VOID,   P(stream,T_INT) P(val,T_FLOAT))
+CMD(writestring,    T_VOID,   P(stream,T_INT) P(str,T_STRING))
+CMD(writeline,      T_VOID,   P(stream,T_INT) P(str,T_STRING))
+CMD(filepos,        T_INT,    P(stream,T_INT))
+CMD(seekfile,       T_VOID,   P(stream,T_INT) P(pos,T_INT))
+CMD(eof,            T_INT,    P(stream,T_INT))
+CMD(filetype,       T_INT,    P(file,T_STRING))
+CMD(filesize,       T_INT,    P(file,T_STRING))
+CMD(readdir,        T_INT,    P(dir,T_STRING))
+CMD(closedir,       T_VOID,   P(dir,T_INT))
+CMD(nextfile,       T_STRING, P(dir,T_INT))
+
+// ---------------------------------------------------------------------------
+// Arrays (special — handled separately by parser, but registered for lookup)
+// ---------------------------------------------------------------------------
+CMD(dim,            T_VOID,   )
+
+// ---------------------------------------------------------------------------
+// System
+// ---------------------------------------------------------------------------
+CMD(commandline,    T_STRING, )
+CMD(systemproperty, T_STRING, P(prop,T_STRING))
+CMD(getenv,         T_STRING, P(var,T_STRING))
+CMD(setenv,         T_VOID,   P(var,T_STRING) P(val,T_STRING))
+CMD(currentdir,     T_STRING, )
+CMD(changedir,      T_VOID,   P(dir,T_STRING))
+CMD(createdir,      T_VOID,   P(dir,T_STRING))
+CMD(deletedir,      T_VOID,   P(dir,T_STRING))
+CMD(copyfile,       T_VOID,   P(src,T_STRING) P(dst,T_STRING))
+CMD(deletefile,     T_VOID,   P(file,T_STRING))
+
+// ---------------------------------------------------------------------------
+// Banks
+// ---------------------------------------------------------------------------
+CMD(createbank,     T_INT,    OP(size,T_INT,0))
+CMD(freebank,       T_VOID,   P(bank,T_INT))
+CMD(banksize,       T_INT,    P(bank,T_INT))
+CMD(resizebank,     T_VOID,   P(bank,T_INT) P(size,T_INT))
+CMD(peekbyte,       T_INT,    P(bank,T_INT) P(offset,T_INT))
+CMD(peekshort,      T_INT,    P(bank,T_INT) P(offset,T_INT))
+CMD(peekint,        T_INT,    P(bank,T_INT) P(offset,T_INT))
+CMD(peekfloat,      T_FLOAT,  P(bank,T_INT) P(offset,T_INT))
+CMD(pokebyte,       T_VOID,   P(bank,T_INT) P(offset,T_INT) P(val,T_INT))
+CMD(pokeshort,      T_VOID,   P(bank,T_INT) P(offset,T_INT) P(val,T_INT))
+CMD(pokeint,        T_VOID,   P(bank,T_INT) P(offset,T_INT) P(val,T_INT))
+CMD(pokefloat,      T_VOID,   P(bank,T_INT) P(offset,T_INT) P(val,T_FLOAT))
