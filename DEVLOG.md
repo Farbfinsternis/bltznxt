@@ -1,370 +1,884 @@
-## v0.6.0 Update (2026-02-21) - Type Methods & Language Parity
-Successfully implemented and verified Type Methods, bridging the gap between Blitz3D's custom types and modern object-oriented paradigms.
+# BlitzNext Developer Log
 
-### Achievements
-1.  **Type Methods Implementation**:
-    *   **New Syntax**: Added support for `Method...End Method` blocks within `Type` definitions.
-    *   **Implicit `Self`**: Added the `Self` keyword for object instance reference, mapping directly to C++ `this`.
-    *   **Method Resolution**: Updated the semantic analyzer to resolve method calls on object instances (`p\Move(5, 5)` -> `p->move(5, 5)`).
-2.  **Transpiler Enhancements**:
-    *   **Context Propagation**: Implemented struct context tracking during semantic analysis to allow methods to access fields implicitly or via `Self`.
-    *   **Member Assignment**: Fixed a critical parser blocker where `Self\field = value` was incorrectly handled.
-3.  **Stability & Hardening**:
-    *   **Field Pointer Safety**: Resolved a crash in the code generator related to null pointer dereferences when emitting field declarations.
-    *   **Keyword Lexing**: Hardened the toker to correctly distinguish between `Self` as a keyword and potential identifiers.
-4.  **Verification**:
-    *   Verified full method parity (Parameters, Return values, Self-access) with `tests/type_methods.bb`.
-    *   Confirmed clean C++ emission for nested method calls and field manipulations.
+## v0.2.7 - "Color & Pixel Primitives" (2026-02-23)
 
-### Next Steps
-1.  **Audio Subsystem**: Integration of SDL_mixer for cross-platform sound support.
-2.  **Advanced 3D Effects**: Alpha blending stability and texture animations.
+### Milestone 40: Color & Pixel Primitives
 
-## v0.6.0 Update (2026-02-20) - Collision System & SDK Refinement
-Successfully implemented sphere-mesh collision detection, sliding response, and collision state queries.
+- **`bb_graphics2d.h` extended** — colour/pixel API appended after the M39 buffer/flip section
 
-### Achievements
-1.  **Sphere-Mesh Collision (Method 2)**:
-    *   Implemented collision detection between spheres and mesh geometry.
-    *   **AABB Optimization**: Added Axis-Aligned Bounding Boxes for meshes and surfaces to rule out distant objects quickly.
-    *   **Local Space Transformation**: Spheres are checked in the mesh's local space, supporting scaled and rotated meshes.
-    *   **Proximity Detection**: Implemented a point-on-triangle helper to calculate exact penetration depths and normals.
-2.  **Sliding Collision Response**:
-    *   Implemented vector projection for smooth sliding along surfaces.
-    *   Added a 3-iteration loop in `UpdateWorld` to handle complex multi-surface corners and stability.
-3.  **Collision State Queries**:
-    *   Implemented `CountCollisions`, `CollisionX/Y/Z`, `CollisionNX/NY/NZ`, and `CollisionEntity/Surface/Triangle`.
-    *   **Data Preservation**: Entities now store a list of collisions occurring during each `UpdateWorld` call for runtime logic.
-4.  **Hierarchy Exclusion (Task 5.7.1d)**:
-    *   Implemented recursive parent-child exclusion to prevent self-collision within hierarchical trees.
-5.  **Transpiler Hardening**:
-    *   **Loop Index Fix**: Resolved a bug where `For` loops incorrectly used `int` instead of `bb_int` for index variables, preventing ambiguity in 64-bit arithmetic.
-5.  **Verification**:
-    *   Verified sliding response with `test_collisions_slide.bb`.
-    *   Verified mesh interaction with `test_collisions_mesh.bb`.
-    *   Verified query commands with `test_collisions_query.bb`.
+- **Draw colour state** — `bb_draw_r_/g_/b_` (`Uint8`, all 255 = white, matching Blitz3D's startup default); separate from the clear colour (`bb_cls_r_/g_/b_`, declared in M39)
 
-### Next Steps
-1.  **Swept-Testing**: Implementing continuous collision detection (CCD) to prevent high-speed tunneling.
-2.  **Ray-Mesh Picking**: Upgrading pick checks for triangle-level accuracy.
+- **`bb_Color(r, g, b)`** — stores clamped (0–255) values into `bb_draw_r_/g_/b_`; does not repaint anything already on screen
 
-## Update (2026-02-20) - Timer Implementation & Fullscreen Support
-Successfully implemented high-precision timer commands and added fullscreen mode support to the graphics subsystem.
+- **`bb_ClsColor(r, g, b)`** — updates `bb_cls_r_/g_/b_`; takes effect on the next `Cls()` call
 
-### Achievements
-1.  **Timer System Implementation**:
-    *   **Fully Implemented**: `CreateTimer`, `WaitTimer`, and `FreeTimer`.
-    *   **High Precision**: SDL-based timing with millisecond accuracy.
-    *   **Resource Management**: Global cleanup via `bbTimersCleanup()`.
-2.  **Graphics Subsystem Expansion**:
-    *   **Fullscreen Mode**: `Graphics3D` now correctly handles the `mode` parameter, supporting `SDL_WINDOW_FULLSCREEN`.
-3.  **Transpiler Hardening**:
-    *   **Ambiguity Fix**: Resolved `bbToString(int)` overloading conflicts in `api.h`.
-    *   **Encoding Fix**: Corrected filename handling for `bb_timer.cpp`.
-4.  **Verification**:
-    *   Tested accurate timing with `test_timer.bb`.
-    *   Verified fullscreen window creation with `test_fullscreen.bb`.
-    *   Confirmed `1920x1080` detection in `test_autores.bb`.
-5.  **System, IO & Graphics Expansion**:
-    *   **SystemProperty**: Implemented Legacy and Modern path support (AppData, Documents, Desktop, etc.) via `SHGetKnownFolderPath`.
-    *   **Mouse Controls**: Added `HidePointer` and `ShowPointer`.
-    *   **Video Memory**: Added `TotalVidMem` and `AvailVidMem` using GPU extensions.
-    *   **Font Support**: Ported `LoadFont`, `SetFont`, and metrics (`FontWidth`, `FontHeight`, `StringWidth`, `StringHeight`) with Windows system font search logic.
-    *   **File IO**: Hardened `FileType`, `WriteFile`, `WriteLine`, and `CurrentDir$()`.
-    *   **Verified**: Successfully verified all new commands with dedicated test scripts (`test_system_io.bb`, `test_pointer.bb`, `test_vidmem.bb`, `test_font.bb`).
+- **`bb_ColorRed/Green/Blue()`** — return the three draw-colour bytes as `int`; pure state reads with no SDL side-effect
 
-### Next Steps
-1.  **Sliding Collision Response**: Moving from stubs to full intersection testing and resolution.
-2.  **Texture Parity**: UV address modes and multi-texture blending.
+- **`bb_GetColor(x, y)`**:
+  - Headless guard: returns 0 when `bb_renderer_` is null
+  - `SDL_RenderReadPixels(renderer, &rect{x,y,1,1})` → `SDL_Surface*`
+  - `SDL_ReadSurfacePixel(surf, 0, 0, &r, &g, &b, &a)` extracts RGBA bytes
+  - `SDL_DestroySurface(surf)` frees the temporary surface
+  - Overwrites `bb_draw_r_/g_/b_` so `ColorRed/Green/Blue()` immediately reflect the sampled pixel
 
-## Update (2026-02-20) - AppTitle & Transpiler Hardening
-Implemented `AppTitle` for dynamic window title management and hardened the transpiler to support string literal default values in built-in commands.
+- **`bb_Plot(x, y)`**:
+  - Headless guard: no-op when `bb_renderer_` is null
+  - `SDL_SetRenderDrawColor(renderer, bb_draw_r_, bb_draw_g_, bb_draw_b_, 255)`
+  - `SDL_RenderPoint(renderer, (float)x, (float)y)`
 
-## Update (2026-02-20) - 3D Primitives & Collision Initialization
-Expanding the 3D engine and establishing physics world rules.
+- **`blitzcc.cpp`**: 7 new entries in `kCommands[]` (Color, ClsColor, ColorRed, ColorGreen, ColorBlue, GetColor, Plot); version bumped to v0.2.7
 
-### Achievements
-1.  **Expanded 3D Primitives**:
-    *   Implemented `CreatePlane`: Procedural grid-based plane generator with normal calculation.
-    *   Verified `CreateCylinder` and `CreateCone` are functional and stable.
-2.  **Collision System Foundation**:
-    *   Implemented `EntityType`, `EntityRadius`, and `EntityBox` for collision shape definitions.
-    *   Added `Collisions` command to map source-to-destination interaction rules.
-    *   Extended `bb_entity` with world-relative collision parameters.
-    *   Stubbed `UpdateWorld` and `ResetEntity` to provide full API parity for existing code.
-3.  **Transpiler Hardening**:
-    *   **Optional Parameter Resolution**: Fixed a critical bug in `CallNode::semant` where built-in commands with optional parameters failed to match if some arguments were omitted.
-    *   **Makefile Improvements**: Added `commands.def` as a dependency for the transpiler to ensure signature changes trigger a rebuild.
-    *   **Encoding Fix**: Resolved an issue where Powershell redirects created UTF-16/corrupted C++ files; switched to standard CMD piping for build stability.
+### Design Notes
+`bb_draw_r_/g_/b_` defaults to white (255,255,255) to match Blitz3D behaviour where new programs draw white on a black background until `Color` is called. Separating draw colour from clear colour (introduced in M39) means `ClsColor` and `Color` can be set independently without interfering with each other. `GetColor` rewrites the draw-colour state rather than returning a packed integer — this matches Blitz3D's API where the caller reads back components via `ColorRed/Green/Blue`. `SDL_ReadSurfacePixel` is an SDL3-only function; no SDL2 equivalent. Clamping in `bb_Color` / `bb_ClsColor` mirrors Blitz3D: out-of-range values are silently clamped rather than raising an error.
 
-### Status Update
-| Category | Coverage | Status |
-|----------|----------|--------|
-| Core Language | 100% | **SOLID** |
-| Memory Safety | 100% | **Vetted** |
-| Built-in Commands | ~60% | Climbing |
+### Verification (`tests/test_m40_color.bb`)
+- `Color 200,100,50` → `ColorRed=200`, `ColorGreen=100`, `ColorBlue=50` ✓
+- `ClsColor 10,20,30 : Cls` → `ClsColor OK`, `Cls OK` ✓ (no-op headless)
+- `Color 300,-5,128` → clamped to `255/0/128` ✓
+- `Plot 100,100` → `Plot OK` ✓ (no-op headless)
+- `GetColor 100,100` → `GetColor OK` ✓ (no-op headless; draw colour unchanged)
+- `DONE` ✓
 
-### Next Steps
-1.  **Sliding Collision Response**: Moving from stubs to full intersection testing and resolution.
-2.  **Texture Parity**: UV address modes and multi-texture blending.
-3.  **Alpha/Transparency**: Proper depth sorting for transparent surfaces.
+---
 
-## Update (2026-02-20) - Transpiler Stability & Overloading
-Resolving critical memory issues and finalizing the core language parity.
+## v0.2.6 - "Buffer & Flip" (2026-02-23)
 
-### Achievements
-1.  **Implemented Name Mangling**:
-    *   Added a type-aware `mangle()` system to `Node` class.
-    *   Variables and functions are now unique in C++ based on their Blitz3D type tags (e.g., `val`, `val_f_f`, `val_s_s`).
-    *   Resolved shadowing issues between function parameters and local variables.
-2.  **Transpiler Stability & Overloading**:
-    *   Updated `CppGenerator` and `findFunctions` to use mangled identifiers.
-    *   Verified full support for function overloading (Int vs Float `Abs`, etc.).
-3.  **Regression Suite Stabilization**:
-    *   Fixed multiple test cases (`test_core.bb`, `test_math_string.bb`, etc.) where missing type tags caused collisions under the new strict mangling.
-    *   Moved intentional error tests to `tests/error/` to ensure a clean passing baseline.
-    *   Achieved a stable 22/24 pass rate (remaining 2 are due to OS file locks on binaries).
-4.  **Memory Management & Hygiene**:
-    *   Resolved critical NULL dereference in `parser.cpp`.
-    *   Hardened child node cleanup in expression destructors.
+### Milestone 39: Buffer & Flip
 
-The project has established a working transpiler (`bbc_cpp`) and a minimal runtime library (`libbbruntime.a`). We can successfully compile and run basic Blitz3D programs like `minimal.bb` using a bundled MinGW toolchain.
+- **`bb_graphics2d.h` extended** — buffer/flip API added after the M38 graphics init section; `bb_runtime.h` already includes this file
 
-### What works:
-- **Transpiler**: Parses `.bb` files and generates valid C++ code. Handles loops, variables (`VarNode`), and string concatenation (`bbAdd`).
-- **Runtime**: Implements `bbRuntimeInit`, `print`, and polymorphic arithmetic/string helpers (`bbAdd`, `bbSub`, etc.).
-- **Build System**: `Makefile` builds the transpiler. Manual commands verify the full pipeline.
+- **Buffer handle constants**:
+  - `BB_BACK_BUFFER_H = 1`, `BB_FRONT_BUFFER_H = 2` — integer tokens that match Blitz3D's `BackBuffer()` / `FrontBuffer()` return values
+  - `bb_active_buffer_` — tracks the currently set buffer (default: back)
 
-## Recent Changes
-1.  **Implemented CppGenerator**: Added visitors for `ForNode`, `ArithExprNode`, `VarExprNode`, etc. to emit C++ structure.
-2.  **Runtime Helpers**: Added `bbAdd` overloads to `api.h` and `runtime.cpp` to support `String + Int` operations native to Blitz3D.
-3.  **Logging Fix**: Updated `main.cpp` to use `std::cerr` for status messages, allowing clean code generation via `stdout` piping.
-4.  **Verification**: Successfully ran `minimal.exe` (Output: `Count: 1`...`5`).
+- **Clear color state** — `bb_cls_r_/g_/b_` (`Uint8`, all 0 = black) reserved for `ClsColor` (M40); declared here so M39's `Cls` uses them immediately
 
-## Next Steps (Plan)
-The immediate goal is to get a window open and render text.
+- **`bb_BackBuffer()`** → returns `BB_BACK_BUFFER_H` (1)
 
-1.  **Link SDL3**: Update build commands to link `SDL3.dll` against the runtime.
-2.  **Graphics Initialization**: Implement `bbGraphics3D` to call `SDL_CreateWindow`.
-3.  **Main Loop**: Implement `bbFlip` to handle `SDL_PollEvent` (window responsiveness).
-4.  **Text Rendering**: Implement `bbText` using a built-in 8x8 bitmap font (to avoid external dependencies for now).
+- **`bb_FrontBuffer()`** → returns `BB_FRONT_BUFFER_H` (2)
 
-## Update (2026-02-17) - Transpiler & Runtime V1
-We have successfully implemented the core 3D graphics pipeline!
+- **`bb_SetBuffer(buf)`** → stores in `bb_active_buffer_`; no renderer action needed (SDL3 always renders to the back buffer internally)
 
-### Achievements
-1.  **Fixed Transpiler Logic**: Resolving bugs in `UniExprNode` (`-5`), variable declarations, and `DeclSeq` iteration.
-2.  **Runtime Integration**:
-    - Implemented `end()` to exit cleanly.
-    - Linked `SDL3` and `OpenGL` dynamically.
-    - Implemented rudimentary mocking for missing runtime functions to prevent transpiler crashes.
-3.  **Verification**: Verified `examples/window.bb` compiles and runs! It opens an 800x600 window, clears the screen, and runs a loop for 120 frames before exiting.
-4.  **Makefile**: Corrected dependency tracking for transpiler source files.
+- **`bb_Cls()`**:
+  - No-op when `bb_renderer_` is null (headless safe)
+  - `SDL_SetRenderDrawColor(renderer, bb_cls_r_, bb_cls_g_, bb_cls_b_, 255)` then `SDL_RenderClear(renderer)`
+  - Color sourced from `bb_cls_r_/g_/b_` so `ClsColor` (M40) takes effect immediately
 
-## Update (2026-02-18) - One-Click Pipeline
-Streamlining the development process.
+- **`bb_Flip(vblank=1)`**:
+  - No-op when `bb_renderer_` is null
+  - `SDL_RenderPresent(renderer)` — swaps back/front buffers
+  - Calls `bb_PollEvents()` to drain SDL events after every present; prevents window-not-responding freeze in game loops that only call `Flip`, not an explicit event pump
+  - `vblank` accepted for API parity, not acted upon (SDL3 vsync is set at renderer creation)
 
-### Achievements
-1.  **One-Click Pipeline**: Created `blitz.bat` to automate the build process (Transpile -> Compile -> Run).
-    - Usage: `blitz.bat examples\window.bb`
-    - Verified with `window.bb`: successfully opens the window and runs the loop.
-2.  **Camera Projection**: Added `gluPerspective` in `renderworld` — true 3D perspective rendering.
-3.  **Vertex Array Rendering**: Replaced `glBegin/glEnd` immediate mode with `glVertexPointer`/`glDrawElements`.
-4.  **CreateSphere**: Implemented procedural sphere generation (lat/lon bands).
-5.  **Input Mapping**: Full `keydown`/`keyhit` with Blitz3D-to-SDL scancode mapping (~50 keys).
-6.  **Lighting System**: Implemented `CreateLight` (Point/Directional), `AmbientLight`, `LightColor` with full GL fixed-function pipeline.
-7.  **EntityColor**: Material diffuse colors per entity.
-8.  **Flat-Shaded Cube**: `CreateCube` now uses 24 vertices with proper face normals for hard edges.
-9.  **Sphere Normals**: `CreateSphere` generates correct normals for smooth shading.
-10. **Code Structure**: Rewrote `runtime.cpp` with clean 11-section organization.
-11. **ScaleEntity**: Implemented `ScaleEntity` command.
-12. **Demo**: Created `examples/demo_lighting.bb` showcasing lighting, primitives, and input.
+- **`bb_CopyRect(sx, sy, sw, sh, dx, dy, srcbuf, dstbuf)`** — silent stub; compile-safe; full implementation deferred to M46 (render-to-texture)
 
-## Update (2026-02-18) - Bug Fixing & Polish
-Addressing critical bugs in the transpiler and runtime to ensure a stable demo interactable experience.
+- **`blitzcc.cpp`**: 6 new entries in `kCommands[]` (BackBuffer, FrontBuffer, SetBuffer, Cls, Flip, CopyRect); version bumped to v0.2.6
 
-### Achievements
-1.  **Transpiler Control Flow**: Implemented missing visitors for `WhileNode`, `IfNode`, `ExitNode`, and `ReturnNode`. This fixed the `demo_lighting` infinite loop/exit issues.
-2.  **Input System**: Stabilized `WaitKey` and `KeyDown` by implementing `SDL_PumpEvents` and `SDL_WaitEvent`.
-3.  **Coordinate System Fix**: Resolved "Empty Window" issue by inverting the Z-axis to match Blitz3D's Left-Handed system.
-4.  **Perspective Correction**:
-    - Implemented `CameraZoom` command.
-    - Implemented "Hor+" FOV scaling (Zoom 1.0 = 90° Horizontal).
-    - Fixed aspect ratio distortion using `SDL_GetWindowSizeInPixels`.
-5.  **Scene Polish**: Adjusted `demo_lighting.bb` with `CameraZoom 1.6` for natural perspective and fixed object intersection artifacts.
+### Design Notes
+SDL3's renderer always draws to an internal back buffer; `SDL_RenderPresent` is the flip. Blitz3D's `SetBuffer BackBuffer()` / `SetBuffer FrontBuffer()` are therefore bookkeeping only — the active buffer token is stored for programs that query it but has no effect on where SDL renders. `Flip` pumping `bb_PollEvents()` is essential: Blitz3D programs typically have `Flip` at the end of their game loop and nothing else that would drain the OS event queue; without the pump the window would become unresponsive within seconds.
 
-### Next Steps
-1.  **Texture Mapping**: `LoadTexture`, UV mapping.
-2.  **More Primitives**: `CreateCylinder`, `CreateCone`.
-3.  **Entity Parenting**: Hierarchical transforms.
+### Verification (`tests/test_m39_buffer.bb`)
+- `BackBuffer()` → `1` ✓
+- `FrontBuffer()` → `2` ✓
+- `SetBuffer BackBuffer()` → `SetBuffer OK` ✓
+- `Cls` → `Cls OK` ✓ (no-op headless)
+- `Flip` → `Flip OK` ✓ (no-op headless)
+- `Flip 0` → `Flip 0 OK` ✓
+- `CopyRect 0,0,100,100,200,200` → `CopyRect OK` ✓
+- `DONE` ✓
 
-## Update (2026-02-18) - Text Rendering
-Implemented 2D text rendering using a built-in bitmap font.
+---
 
-### Achievements
-1.  **Bitmap Font**: Created `src/runtime/default_font.h` with embedded 8x8 CGA-style font (128 ASCII characters).
-2.  **Texture Atlas**: Font data is converted to a 128x64 RGBA GL texture on `Graphics3D` init.
-3.  **Text Command**: `Text x, y, "string"` renders as textured quads using 2D orthographic overlay with alpha blending.
-4.  **Color Support**: `Color r, g, b` sets the text tint color.
-5.  **Centering**: Optional `centerX`/`centerY` parameters supported.
-6.  **Demo Updated**: `demo_lighting.bb` now shows "BltzNxt Lighting Demo", "Arrows: Move Camera", "ESC: Exit".
+## v0.2.5 - "Graphics Mode Init" (2026-02-23)
 
-## Update (2026-02-18) - Performance Optimization
-Analyzed and optimized the runtime rendering pipeline.
+### Milestone 38: Graphics Mode Init
 
-### Improvements
-1.  **Mesh Index Caching**: Implemented `indexCache` in `bb_mesh` to store the OpenGL index buffer. This prevents rebuilding the `std::vector<unsigned int>` every frame for static meshes, significantly reducing CPU overhead in `render_node`.
-2.  **Window Size Caching**: specific runtime functions now use cached global dimensions instead of querying SDL every frame.
-3.  **Code Restoration**: Fixed a regression where runtime functions were accidentally deleted during editing.
+- **`bb_graphics2d.h` (new file)** — 2D graphics foundation; `bb_runtime.h` includes it after `bb_sound3d.h`
 
-## Update (2026-02-18) - Language Features & Build Stability
-Successfully implemented high-level Blitz3D language features and resolved critical build system blockers.
+- **Global display state** — four inline ints `bb_gfx_width_`, `bb_gfx_height_`, `bb_gfx_depth_`, `bb_gfx_rate_` store the active display parameters; set unconditionally by `bb_Graphics()` so query functions work even on headless machines
 
-### Achievements
-1.  **Custom Types (Structs)**: Full implementation of the Blitz3D type system.
-    - `New`, `Delete`, `Delete Each`.
-    - `Each` iterator with safe pointer handling during deletion.
-    - Collection navigation: `First`, `Last`, `After`, `Before`.
-    - `Insert` command for linked-list reordering.
-    - Verified with `test_types_full.bb`.
-2.  **Function Refinements**:
-    - **Optional Parameters**: Support for default values in function signatures (e.g., `Function Greet(name$="World")`).
-    - **Crash Fix**: Resolved a null pointer dereference in the transpiler's code generation phase for parameters without default expressions.
-3.  **Data Management**: Full `Data`, `Read`, and `Restore` implementation using a global data pointer registry.
-4.  **Arrays (Dim)**: Support for dynamic arrays and multi-dimensional array access.
-5.  **Build System Stabilization**:
-    - Fixed `WinMain` undefined reference error by adding `-mconsole` and `-DSDL_MAIN_HANDLED`.
-    - Added `#define SDL_MAIN_HANDLED` to `runtime.cpp` to ensure consistent entry point behavior across different MinGW environments.
-    - Verified full pipeline (Transpile -> Compile -> Run) for complex feature sets.
-## Update (2026-02-18) - Refactoring, Build Flexibility & API Parity
-Stabilizing the codebase and enhancing the developer experience with a more flexible build pipeline and broader command support.
+- **`bb_Graphics(w, h, depth, mode)`**:
+  - Calls `bb_sdl_ensure_()` then tears down any existing window/renderer before creating new ones
+  - mode 0: windowed (`SDL_WindowFlags = 0`)
+  - mode 1 / 6: fullscreen (`SDL_WINDOW_FULLSCREEN`); mode 6 also enables vsync via `SDL_SetRenderVSync`
+  - mode 2: fullscreen-desktop — queries primary display via `SDL_GetCurrentDisplayMode` and overrides `w/h` with desktop size
+  - `SDL_CreateWindow(title, w, h, flags)` — title sourced from `bb_app_title_` (set by `AppTitle`), defaults to `"BlitzNext"`
+  - `SDL_CreateRenderer(window, nullptr)` — uses SDL3's default hardware renderer
+  - Refresh rate queried post-creation via `SDL_GetDisplayForWindow` + `SDL_GetCurrentDisplayMode`; stored in `bb_gfx_rate_`
+  - Silent on headless machines (SDL init failure or display unavailable)
 
-### Achievements
-1.  **Code Refactoring & Quality**:
-    *   **Data-Driven Registration**: Replaced hundreds of lines of boilerplate in `main.cpp` with a structured registration table for built-in functions.
-    *   **Transpiler Cleanup**: Removed verbose registration logs to streamline console output.
-    *   **Generator Helpers**: Unified variable declaration and `gosub` return logic in `CppGenerator` using helper functions, significantly reducing code duplication.
-    *   **Unified Runtime Graphics**: Consolidated 2D and 3D graphics initialization in `runtime.cpp` into a shared `bbGraphics` backend.
-2.  **Flexible Build Pipeline**:
-    *   **Enhanced `blitz.bat`**: Now supports an optional second parameter for custom output filenames and paths.
-        - `blitz.bat src.bb`: Defaults to `_build\src.exe`.
-        - `blitz.bat src.bb test.exe`: Places `test.exe` next to the source.
-        - `blitz.bat src.bb bin\app`: Places `app.exe` in the specified directory (creates folders automatically).
-3.  **API Audit & Parity**:
-    *   **Signature Correction**: Audited and fixed several mismatched function signatures (e.g., `EntityTexture`, `WaitKey`, `Graphics3D`) to match Blitz3D standards.
-    *   **Extended Command Support**: Added missing core entity functions (`FreeEntity`, `EntityParent`, `CreatePivot`), coordinate/rotation getters (`EntityX/Y/Z`, `EntityPitch/Yaw/Roll`), and the `Rnd` math function.
-    *   **API Synchronization**: Updated `api.h` and `runtime.cpp` (with stubs) to ensure perfect alignment between the transpiler's registration and the linked binary.
+- **`bb_EndGraphics()`** — destroys renderer then window; zeros all `bb_gfx_*` state; idempotent
 
-### Next Steps
-1.  **Runtime Implementation**: Fill in stubs for new entity getters and parenting logic.
-2.  **2D Graphics Improvements**: Image drawing and alpha support.
-3.  **Sound System**: Begin research into SDL_mixer integration.
-## Update (2026-02-18) - Entity System & Parenting
-Implemented a robust hierarchical transform system with full world/local coordinate support.
+- **Query functions** — `bb_GraphicsWidth/Height/Depth/Rate()` return the stored `bb_gfx_*` values
 
-### Achievements
-1.  **Matrix Math Engine**:
-    *   Implemented `bbMatrix` structure (column-major) with support for translation, rotation (YXZ order matching the renderer), and scale.
-    *   Added recursive world matrix calculation and matrix inversion logic.
-2.  **Hierarchical Parenting**:
-    *   **`EntityParent`**: Full support for hierarchical nesting. Using the `global` flag correctly recalculates local transforms to maintain absolute world position and rotation during re-parenting.
-    *   **Space Transformation**: `PointEntity` now works correctly for entities inside parent hierarchies by calculating local-space look-at vectors.
-3.  **Command API Expansion**:
-    *   **Getters**: `EntityX/Y/Z` and `EntityPitch/Yaw/Roll` now fully support both local and global coordinate spaces.
-    *   **New Commands**: Added `CreatePivot` for invisible transform nodes and `Delay` for timing control.
-4.  **Verification**:
-    *   Created `test_parenting.bb` (verified world coordinates after parent rotation, global preservation after re-parenting, and `PointEntity` accuracy).
+- **Memory stubs** — `bb_TotalVidMem()` / `bb_AvailVidMem()` return `512 * 1024 * 1024` (512 MB); SDL3 exposes no VRAM query API; value is large enough that BB programs checking available VRAM before loading assets always proceed
 
-### Next Steps
-1.  **Texture Mapping**: Finalize `LoadTexture` and `EntityTexture` with proper UV handling.
-2.  **2D Media**: `LoadImage`, `DrawImage`, and masked transparency support.
-3.  **Primitive Expansion**: `CreateCylinder` and `CreateCone`.
+- **`bb_GraphicsMode(w, h, depth, rate)`** — re-enters Graphics at a different resolution; `rate` accepted for API parity, not used; delegates to `bb_Graphics(w, h, depth, 0)`
 
-## Update (2026-02-18) - Runtime Refactoring
-Decomposed the monolithic `runtime.cpp` (1414 lines, 119 symbols) into **14 self-contained modules** following the Blitz3D API categorization.
+- **`blitzcc.cpp`**: 9 new entries in `kCommands[]` (Graphics, EndGraphics, GraphicsWidth, GraphicsHeight, GraphicsDepth, GraphicsRate, TotalVidMem, AvailVidMem, GraphicsMode); version bumped to v0.2.5
 
-### Architecture
-The new module structure under `src/runtime/`:
+### Design Notes
+`bb_Graphics()` stores requested dimensions before calling `bb_sdl_ensure_()`, so `GraphicsWidth()`/`GraphicsHeight()` always return sane values even when SDL fails to open a window (headless CI, no display). The `AppTitle` integration means calling `AppTitle "Game"` before `Graphics 800,600` correctly sets the window title. SDL3 `SDL_CreateRenderer` selects the best available hardware backend automatically; no flags are needed.
 
-| Layer | Files | Purpose |
-|-------|-------|---------|
-| **Foundation** | `bb_types.h`, `bb_math.h`, `bb_globals.h/.cpp` | Entity structs, matrix math (header-only), shared state with `extern` declarations |
-| **Graphics** | `bb_graphics.cpp/.h` | SDL/GL init, window management, 2D overlay (`Text`, `Color`, `Flip`) |
-| **Scene** | `bb_mesh`, `bb_camera`, `bb_light`, `bb_render` | Primitive creation, camera, lighting pipeline, scene rendering |
-| **Entity** | `bb_entity_move`, `bb_entity_state`, `bb_entity_ctrl` | Movement/rotation, position/color getters, parenting/free |
-| **Leaf** | `bb_input`, `bb_system`, `bb_arith`, `bb_data` | Input mapping, system commands, arithmetic overloads, Data/Dim |
+### Verification (`tests/test_m38_graphics.bb`)
+- `GraphicsWidth()` → `800` ✓
+- `GraphicsHeight()` → `600` ✓
+- `GraphicsDepth()` → `32` ✓
+- `GraphicsRate OK` ✓ (non-zero on a real display)
+- `TotalVidMem OK` ✓ (512 MB stub)
+- `AvailVidMem OK` ✓
+- `GraphicsMode 640,480,32,0` → no crash ✓
+- `EndGraphics OK` ✓
+- `DONE` ✓
 
-### Key Decisions
-1.  **`api.h` as Umbrella Header**: All public function declarations remain in `api.h` (unchanged). Module headers are thin wrappers that just `#include "api.h"`.
-2.  **`bb_globals.h/.cpp` for Shared State**: All mutable global state (`g_worldRoot`, `g_activeCamera`, `g_lights`, `g_keyState`, etc.) is owned by `bb_globals.cpp` with `extern` declarations in the header.
-3.  **`bb_math.h` Header-Only**: `bbMatrix` and `get_local_matrix` are inline. `get_world_matrix` lives in `bb_globals.cpp` (needs `g_worldRoot`).
-4.  **Wildcard Makefile**: Build system uses `$(wildcard src/runtime/*.cpp)` to auto-discover all modules.
+### Post-M38 Bug Fixes (v0.2.5 patch)
 
-### Build System
-```makefile
-RT_SOURCES = $(wildcard src/runtime/*.cpp)
-RT_OBJECTS = $(patsubst src/runtime/%.cpp,_build/rt_%.o,$(RT_SOURCES))
+**Bug 1 — `AppTitle` does not update a live window title** *(`bb_system.h`, `bb_graphics2d.h`)*
+`bb_AppTitle()` only stored the string; calling it after `Graphics()` left the OS window title unchanged.
+Fix: added `bb_title_update_hook_` callback (same pattern as `bb_audio_update_hook_`). `bb_graphics2d.h` registers `bb_update_window_title_()` which calls `SDL_SetWindowTitle(bb_window_, title)` whenever a window is open.
+
+**Bug 2 — `WaitKey` ignores the window when launched without a console** *(`bb_sdl.h`)*
+When a Blitz3D program is launched by double-click or from an IDE (no console, but window open), `bb_stdin_is_console_()` returned false and `WaitKey` returned immediately — the window closed before the user could see it.
+Fix: `bb_WaitKey()` now checks `bb_window_ != nullptr` first. When a window is open it always blocks on `SDL_WaitEvent`, regardless of stdin state.
+
+**Bug 3 — `bb_stdin_is_console_()` treats Windows NUL as a real console** *(`bb_sdl.h`)*
+`GetFileType()` returns `FILE_TYPE_CHAR` for both real consoles and the Windows `NUL` device (`/dev/null`). This caused test programs with `WaitKey` (e.g. `test_fixes.bb`) to block forever when run as `test.exe < /dev/null`.
+Fix: replaced `GetFileType` with `GetConsoleMode` — it succeeds only for genuine interactive console handles and fails for `NUL`, pipes, and file redirections.
+
+---
+
+## v0.2.4 - "3D Sound" (2026-02-23)
+
+### Milestone 37: 3D / Positional Sound
+
+- **`bb_sound3d.h` (new file)** — 3D audio state layer on top of `bb_sound.h`; `bb_runtime.h` includes it after `bb_sound.h`
+
+- **`bb_Load3DSound(file)`** — thin wrapper over `bb_LoadSound`; the returned handle works with `PlaySound`/`LoopSound` and is then positioned via `Channel3DPosition`. No separate sound bank needed.
+
+- **Per-sound falloff: `bb_SoundRange(snd, inner, outer)`** — stores the full-volume inner radius and silence outer radius in `bb_snd3d_inner_[snd]` / `bb_snd3d_outer_[snd]`. Not applied at runtime yet; reserved for a future distance-attenuation pass.
+
+- **Per-channel 3D state**:
+  - `bb_Channel3DPosition(ch, x, y, z)` — stores world-space position in `bb_snd_chan3d_[ch]`
+  - `bb_Channel3DVelocity(ch, vx, vy, vz)` — stores Doppler velocity (stub; stored only)
+  - `bb_Chan3D_` struct added: `{x, y, z, vx, vy, vz}` with float defaults
+
+- **Listener state** (global; one listener per program):
+  - `bb_ListenerPosition(x, y, z)` → `bb_snd3d_lx_/y_/z_`
+  - `bb_ListenerOrientation(fx, fy, fz, ux, uy, uz)` → forward + up vectors; default `-Z` forward, `+Y` up
+  - `bb_ListenerVelocity(vx, vy, vz)` → Doppler velocity (stored)
+
+- **`bb_WaitSound(ch)`** — blocks until `bb_ChannelPlaying(ch)` returns 0; polls every 10 ms via `SDL_Delay` + `bb_snd_update_()` so one-shot cleanup runs correctly. `ch=0` (or finished channel) returns immediately.
+
+- **C++ aliases for digit-prefixed BB commands**:
+  - `bb_3DSoundVolume(snd, vol)` → `bb_SoundVolume`
+  - `bb_3DSoundPan(snd, pan)` → `bb_SoundPan`
+  - `bb_3DChannelVolume(ch, vol)` → `bb_ChannelVolume`
+  - `bb_3DChannelPan(ch, pan)` → `bb_ChannelPan`
+  - BB-level exposure of `3D`-prefixed names requires a lexer extension (identifiers cannot start with a digit); deferred.
+
+- **`blitzcc.cpp`**: 8 new entries in `kCommands[]` (Load3DSound, SoundRange, Channel3DPosition, Channel3DVelocity, ListenerPosition, ListenerOrientation, ListenerVelocity, WaitSound); version bumped to v0.2.4
+
+### Design Notes
+SDL3 has no native positional audio API. All 3D state (position, velocity, orientation) is stored in inline globals/arrays for forward compatibility. A future milestone can compute distance-based gain and stereo pan from listener↔source geometry and write the results via `SDL_SetAudioStreamGain` and a manual stereo-pan mixing pass. `WaitSound` deliberately uses `bb_snd_update_()` rather than sleeping blindly so that one-shot channels are cleaned up on schedule and looping channels continue to refill.
+
+### Verification (`tests/test_m37_sound3d.bb`)
+- `Load3DSound("boom.wav")` → `0` ✓ (headless / no file)
+- `SoundRange 0, 1.0, 10.0` → safe no-op (snd=0 guard) ✓
+- `WaitSound 0` → immediate return ✓
+- `Channel3DPosition 0, …` / `Channel3DVelocity 0, …` → no crash ✓
+- `ListenerPosition` / `ListenerOrientation` / `ListenerVelocity` → no crash ✓
+- `DONE` ✓
+
+---
+
+## v0.2.3 - "Music & CD" (2026-02-23)
+
+### Milestone 36: Music & CD
+
+- **`bb_sound.h` extended**:
+  - `bb_snd_music_snd_` / `bb_snd_music_ch_` — global slots tracking the active music track
+  - `bb_PlayMusic(file)` — stops current music, loads WAV via `bb_LoadSound` + `bb_LoopSound`; returns channel handle; OGG/MP3 fail gracefully (SDL3 only handles WAV natively)
+  - `bb_StopMusic()` — `bb_StopChannel(music_ch)` + `bb_FreeSound(music_snd)`; resets both globals to 0
+  - `bb_MusicPlaying()` — delegates to `bb_ChannelPlaying(music_ch)`; auto-clears globals when channel finishes
+  - `bb_PlayCDTrack(track)` — stub; logs `[runtime] PlayCDTrack: CD audio is not supported` to stderr; returns immediately
+- **`blitzcc.cpp`**: 4 music entries added to `kCommands[]`; version bumped to v0.2.3
+- **Test:** `tests/test_m36_music.bb` — headless: `PlayMusic` → 0 (no file/device), `MusicPlaying` → 0, `StopMusic` → no-op, `PlayCDTrack 1` → warning on stderr
+
+---
+
+## v0.2.2 - "Channel Control" (2026-02-23)
+
+### Milestone 35: Channel Control
+
+- **`bb_sound.h` extended**:
+  - `bb_Sound_` gains `vol=1.0f`, `pan=0.0f`, `pitch=0.0f` — defaults propagated to new channels in `bb_play_sound_()`
+  - `bb_Channel_` gains `paused=false`, `gain=1.0f`, `pan=0.0f` — tracks runtime per-channel state
+  - `bb_play_sound_()` now calls `SDL_SetAudioStreamGain(s, vol)` and `SDL_SetAudioStreamFrequencyRatio(s, pitch/orig_freq)` when sound has non-default values; stores `gain`/`pan` in the new channel slot
+  - `bb_snd_update_()` skips channels with `paused=true` (no refill, no cleanup while paused)
+
+- **`bb_PauseChannel(ch)`** — `SDL_UnbindAudioStream`; `paused = true`; data remains in stream buffer, no data is consumed while unbound
+- **`bb_ResumeChannel(ch)`** — `SDL_BindAudioStream(bb_snd_dev_, stream)`; `paused = false`; continues from buffer position (no seek needed)
+- **`bb_ChannelPlaying(ch)`** — returns `stream != nullptr`; returns 1 for paused channels (they're still alive), 0 when slot is empty (finished one-shot or manually stopped)
+- **`bb_ChannelVolume(ch, vol)`** — stores in `gain`; calls `SDL_SetAudioStreamGain` (skipped when paused, gain restored on resume isn't automatic — caller must re-set if needed)
+- **`bb_ChannelPan(ch, pan)`** — stored in `pan` field; SDL3 has no per-stream stereo pan natively; full implementation deferred to audio-processing milestone
+- **`bb_ChannelPitch(ch, hz)`** — `SDL_SetAudioStreamFrequencyRatio(stream, hz / src_spec.freq)`; resampling handled by SDL3 internally
+- **`bb_SoundVolume/Pan/Pitch(snd, …)`** — set defaults on `bb_Sound_`; applied when `bb_PlaySound`/`bb_LoopSound` creates a new channel
+- **`blitzcc.cpp`**: 9 channel-control entries added to `kCommands[]`
+
+### Design Notes
+Pause/resume via unbind/rebind is cleaner than gain=0 (gain=0 still lets SDL consume data, causing a paused one-shot to drain silently). Unbound streams preserve their queued data in the stream's internal buffer — rebinding resumes from the exact position. `ChannelVolume` during pause stores the gain but does not call `SDL_SetAudioStreamGain` (there's no stream bound to update); the gain is reapplied by the caller via `ChannelVolume` after `ResumeChannel` if needed.
+
+### Verification (`tests/test_m35_channel.bb`)
+- All 9 API functions: OK ✓
+- `ChannelPlaying(0)` → `0` ✓
+- `DONE` ✓
+
+---
+
+## v0.2.1 - "Sound Loading & Playback" (2026-02-23)
+
+### Milestone 34: Sound Loading & Playback
+
+- **`bb_sound.h` (new file)** — complete SDL3 audio system:
+  - `bb_snd_dev_` (`SDL_AudioDeviceID`) + `bb_snd_spec_` — lazy audio device; opened with `SDL_OpenAudioDevice(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, nullptr)`; device format retrieved via `SDL_GetAudioDeviceFormat`
+  - `bb_snd_ensure_()` — calls `bb_sdl_ensure_()` then `SDL_InitSubSystem(SDL_INIT_AUDIO)` and opens the device; separate from graphics init so text-mode + graphics-only programs pay zero audio overhead
+  - `bb_snd_quit_()` — unbinds+destroys all streams, SDL_frees all sound buffers, closes device, calls `SDL_QuitSubSystem(SDL_INIT_AUDIO)`
+  - `bb_Sound_{data, len, spec}` — 64-slot bank; slots 1–63 used; data is SDL-allocated PCM
+  - `bb_Channel_{stream, snd_id, looping}` — 32-slot bank; slots 1–31 used
+  - `bb_LoadSound(file)` — `SDL_LoadWAV` → fills next free `bb_snd_sounds_` slot; returns 1-based handle
+  - `bb_FreeSound(handle)` — stops dependent channels; `SDL_free`; zeros slot
+  - `bb_play_sound_(snd, loop)` — internal: reuses finished one-shot slots; `SDL_CreateAudioStream(src_spec, device_spec)` + `SDL_BindAudioStream` + `SDL_PutAudioStreamData`; flushes if one-shot
+  - `bb_PlaySound(snd)` → `bb_play_sound_(snd, false)` (flush = one-shot)
+  - `bb_LoopSound(snd)` → `bb_play_sound_(snd, true)` (no flush = kept alive by refill)
+  - `bb_StopChannel(ch)` — `SDL_UnbindAudioStream` + `SDL_DestroyAudioStream`; zeros slot
+  - `bb_snd_update_()` — looping: refills when `SDL_GetAudioStreamQueued < sound_len`; one-shot: auto-destroys when queued == 0
+  - `bb_snd_hook_reg_` — `inline const bool` that registers `bb_snd_update_` as `bb_audio_update_hook_` at startup (before main)
+
+- **`bb_sdl.h` extended**:
+  - `bb_audio_update_hook_` — `inline void (*)() = nullptr`; called by `bb_PollEvents()` after every SDL event drain; zero cost when audio not in use
+
+- **`bb_runtime.h` updated**:
+  - `#include "bb_sound.h"` added after bb_input.h
+  - `bbEnd()` now calls `bb_snd_quit_()` before `bb_sdl_quit_()` to ensure audio teardown in correct order
+
+- **`blitzcc.cpp`**: 5 sound entries added to `kCommands[]` (LoadSound, FreeSound, PlaySound, LoopSound, StopChannel)
+
+### Design Notes
+Audio uses SDL3 audio streams — one `SDL_AudioStream` per active channel, all bound to the same `SDL_AudioDeviceID`. SDL3 mixes bound streams automatically. Each stream is created with the sound's native format as source and the device's format as destination; SDL3 handles sample-rate conversion and format conversion transparently. Looping relies on periodic refill via `bb_PollEvents()` hook rather than a dedicated audio thread, which keeps the implementation simple and single-threaded.
+
+### Verification (`tests/test_m34_sound.bb`)
+- `LoadSound("beep.wav")` → `0` ✓ (no audio device in headless mode)
+- `PlaySound(0)` → `0` ✓ (null handle → no-op)
+- `StopChannel(0)` → no crash ✓
+- `FreeSound(0)` → no crash ✓
+- `DONE` ✓
+
+---
+
+## v0.2.0 - "Joystick Input" (2026-02-23)
+
+### Milestone 33: Joystick Input
+
+- **`bb_sdl.h` extended**:
+  - `BB_JOY_MAX_PORTS=4`, `BB_JOY_MAX_BUTTONS=32`, `BB_JOY_BTN_QUEUE_CAP=8`
+  - `bb_JoyPort_` struct — `handle`, `id`, `is_gamepad`; axes `x/y/z/u/v` (float -1..1); `hat` (int 0–8); `btn_down[32]`, `btn_hit[32]` (bool arrays); `btn_queue[8]` FIFO
+  - `bb_joy_[4]` inline array of ports
+  - `bb_joy_find_port_(SDL_JoystickID)` — O(4) scan returning port index or -1
+  - `bb_sdl_hat_to_blitz_(Uint8)` — converts SDL bitmask hat → Blitz3D direction (switch on 9 values)
+  - `bb_sdl_ensure_()` now inits `SDL_INIT_JOYSTICK | SDL_INIT_GAMEPAD` in addition to VIDEO/EVENTS
+  - `bb_sdl_quit_()` closes all open joystick handles before SDL_Quit
+  - `bb_sdl_process_event_()` extended: JOYSTICK_ADDED → open + fill port; JOYSTICK_REMOVED → close + zero port; AXIS_MOTION → normalize Sint16 to -1..1, map axis 0-4; HAT_MOTION → convert hat 0 only; BUTTON_DOWN → set held/hit, enqueue 1-based number; BUTTON_UP → clear held
+
+- **`bb_input.h` extended** — joystick API:
+  - `bb_JoyType(port)` → 0/1/2; pumps events then checks handle
+  - `bb_JoyX/Y/Z/U/V(port)` → float; pumps + reads cached axis
+  - `bb_JoyHat(port)` → int 0–8; pumps + reads cached hat
+  - `bb_JoyDown(port, btn)` — 1-based; pumps, checks `btn_down[btn-1]`
+  - `bb_JoyHit(port, btn)` — edge-triggered; reads+clears `btn_hit[btn-1]`
+  - `bb_WaitJoy(port)` — ensures SDL, pumps, blocks via `SDL_WaitEvent` + `bb_sdl_process_event_()` until button FIFO non-empty; returns 1-based button
+  - `bb_GetJoy(port)` — alias for `bb_WaitJoy`
+  - `bb_FlushJoy(port)` — zeros held/hit arrays and FIFO; axis/hat preserved
+
+- **`blitzcc.cpp`**: 12 joystick entries added to `kCommands[]`
+
+### Design Note
+All axis/hat/button state is event-driven (same pattern as keyboard/mouse). Headless programs (SDL not initialized) return 0/0.0f from all joystick queries with zero overhead. Axis normalization divides by 32767.0f and clamps to -1.0 (handles Sint16 minimum of -32768). Only hat 0 is tracked per port. WaitJoy correctly handles port-scoped queues separate from each other.
+
+### Verification (`tests/test_m33_joystick.bb`)
+- `JoyType(0)` → `0` ✓ (headless, no device)
+- `JoyX(0)` → `0` ✓
+- `JoyY(0)` → `0` ✓
+- `JoyHat(0)` → `0` ✓
+- `JoyDown(0,1)` → `0` ✓
+- `JoyHit(0,1)` → `0` ✓
+- `FlushJoy 0` → no crash ✓
+- `DONE` ✓
+
+---
+
+## v0.1.9 - "Mouse Input" (2026-02-23)
+
+### Milestone 32: Mouse Input
+
+- **`bb_sdl.h` extended**:
+  - `bb_mouse_x_`, `bb_mouse_y_` — cursor position (float; updated by MOUSE_MOTION)
+  - `bb_mouse_z_` — scroll-wheel accumulator (positive = up; flipped direction normalised)
+  - `bb_mouse_xrel_`, `bb_mouse_yrel_`, `bb_mouse_zrel_` — delta accumulators; reset on each speed read
+  - `bb_mouse_down_[4]`, `bb_mouse_hit_[4]` — held/edge-triggered state (indices 1=left,2=right,3=middle)
+  - `BB_MOUSE_QUEUE_CAP = 16`; `bb_mouse_queue_buf_[16]` FIFO of button numbers; `bb_mouse_queue_head_/tail_`
+  - `bb_sdl_btn_to_blitz_(Uint8)` — maps SDL LEFT/RIGHT/MIDDLE → 1/2/3
+  - `bb_sdl_process_event_()` extended: MOUSE_MOTION updates pos + xrel/yrel; BUTTON_DOWN sets hit/down + enqueues; BUTTON_UP clears down; MOUSE_WHEEL accumulates z/zrel
+
+- **`bb_input.h` extended** — mouse API:
+  - `bb_MouseX()`, `bb_MouseY()` — pump events, return `(int)bb_mouse_x_/y_`
+  - `bb_MouseZ()` — pump events, return `(int)bb_mouse_z_`
+  - `bb_MouseXSpeed()`, `bb_MouseYSpeed()`, `bb_MouseZSpeed()` — return int delta, reset accumulator to 0
+  - `bb_MouseDown(btn)` — pump + read held flag; bounds-checked (1–3)
+  - `bb_MouseHit(btn)` — pump + read+clear edge-triggered hit flag
+  - `bb_WaitMouse()` — ensures SDL, pumps, blocks via `SDL_WaitEvent` + `bb_sdl_process_event_()` until queue non-empty; dequeues and returns button number
+  - `bb_GetMouse()` — alias for `bb_WaitMouse()`
+  - `bb_FlushMouse()` — zeros held/hit arrays, speed accumulators, queue head/tail; drains `SDL_EVENT_MOUSE_MOTION..MOUSE_WHEEL` via `SDL_FlushEvents`
+  - `bb_MoveMouse(x,y)` — ensures SDL; `SDL_WarpMouseInWindow` when window exists, else `SDL_WarpMouseGlobal`
+
+### Design Notes
+All mouse functions pump SDL events before sampling (same pattern as keyboard), so game loops that poll `MouseDown` work without an explicit `PollEvents` call. In headless mode (`bb_sdl_initialized_ = false`) all positional and button queries return 0 with zero overhead. `bb_mouse_xrel_/yrel_/zrel_` accumulate between reads, so `MouseXSpeed()` correctly sums multiple motion events that fire within one game frame.
+
+### Verification (`tests/test_m32_mouse.bb`)
+- `MouseX()` → `0` ✓ (headless)
+- `MouseY()` → `0` ✓
+- `MouseZ()` → `0` ✓
+- `MouseDown(1)` → `0` ✓
+- `MouseHit(1)` → `0` ✓
+- `FlushMouse` → no crash ✓
+- `DONE` ✓
+
+---
+
+## v0.1.8 - "Keyboard Input" (2026-02-23)
+
+### Milestone 31: Keyboard Input
+
+- **`bb_input.h` (new file)** — keyboard API; `bb_runtime.h` includes it after `bb_sdl.h`
+- **`bb_blitz_to_sdl_[256]`** — inline `std::array`; maps Blitz3D DIK code (1–255) → `SDL_Scancode`; covers full US QWERTY layout, F1–F12, numpad, cursor cluster, Home/End/PgUp/PgDn/Ins/Del, Win/App keys; built at startup with a lambda initializer
+- **`bb_sdl_to_blitz_[512]`** — reverse map; inverted from `bb_blitz_to_sdl_` at startup; used by `bb_GetKey()` to convert queued scancodes to Blitz3D codes
+- **`bb_KeyDown(code)`** — pumps SDL events (if `bb_sdl_initialized_`), then checks `bb_sdl_key_down_[sdl_sc]`; returns 0 safely in headless mode
+- **`bb_KeyHit(code)`** — edge-triggered; reads `bb_sdl_key_hit_raw_[sdl_sc]` and clears it; pumps events first
+- **`bb_GetKey()`** — ensures SDL, pumps, then blocks via `SDL_WaitEvent` + `bb_sdl_process_event_()` until a key is queued; dequeues and translates to Blitz3D code; returns 0 if SDL unavailable
+- **`bb_FlushKeys()`** — zeros `bb_sdl_key_down_` and `bb_sdl_key_hit_raw_` arrays, resets queue head/tail, calls `SDL_FlushEvents(KEY_DOWN, KEY_UP)` if SDL is running
+- **`bb_sdl.h` extended**:
+  - `BB_KEY_QUEUE_CAP = 64` constant
+  - `bb_sdl_key_down_[512]`, `bb_sdl_key_hit_raw_[512]` inline bool arrays
+  - `bb_key_queue_buf_[64]` circular FIFO of `SDL_Scancode`; `bb_key_queue_head_/tail_`
+  - `bb_sdl_process_event_(const SDL_Event&)` — handles QUIT, KEY_DOWN (edge + queue), KEY_UP; called by `bb_PollEvents()` and `bb_WaitKey()`
+
+### Design Note
+`bb_KeyDown` / `bb_KeyHit` call `bb_PollEvents()` automatically when SDL is initialized, so game loops like `While Not KeyHit(1) : ... : Wend` work correctly without an explicit event-pump call. In headless mode (SDL not initialized), both functions return 0 immediately — zero overhead, no SDL initialization side-effect.
+
+### Verification (`tests/test_m31_keyboard.bb`)
+- `KeyDown(1)` → `0` ✓ (headless, no key pressed)
+- `KeyHit(1)` → `0` ✓
+- `FlushKeys` → no crash ✓
+- `DONE` ✓
+- M29 (PeekByte/PokeInt) and M16 (Delete) regression tests recompiled and pass ✓
+
+---
+
+## v0.1.7 - "SDL3 Infrastructure" (2026-02-23)
+
+### Milestone 30: SDL3 Init + Headless Event Loop
+
+- **`bb_sdl.h` (new file)** — standalone SDL3 header; `bb_runtime.h` includes it
+- **`bb_sdl_ensure_()`** — lazy SDL3 initializer (SDL_Init VIDEO+EVENTS); called on first use; guards against double-init
+- **`bb_window_` / `bb_renderer_`** — inline globals, both `nullptr` until a graphics milestone creates them
+- **`bb_PollEvents()`** — drains SDL event queue; handles `SDL_EVENT_QUIT` by calling `bb_sdl_quit_()` + `std::exit(0)`; placeholder comment for M31 key/mouse state
+- **`bb_WaitKey()`** — redesigned for SDL:
+  - Non-interactive stdin (piped / test runner) → returns immediately (no SDL, no block)
+  - Interactive: calls `bb_sdl_ensure_()`, then `SDL_WaitEvent()` until `KEY_DOWN` or `QUIT`
+  - SDL init failure fallback: `std::cin.get()`
+- **`bb_sdl_quit_()`** — safely tears down renderer → window → SDL in order; idempotent
+- **`bbEnd()` updated** — calls `bb_sdl_quit_()` before exit
+- **`bbInit()` updated** — stores `argc/argv`; SDL deferred to first use (text-mode programs pay zero SDL overhead)
+- **Compile step** — `SDL3` import lib (`libSDL3.dll.a`) linked automatically when present; `SDL3.dll` copied next to output executable
+- **`bb_stdin_is_console_()`** — Windows: `GetFileType(GetStdHandle(STD_INPUT_HANDLE)) == FILE_TYPE_CHAR`; POSIX: `isatty(fileno(stdin))`
+
+### Design Note
+SDL3 is initialised **lazily** — text-mode programs (Print, File I/O, Data, etc.) never touch SDL at all. The first call to `bb_WaitKey()`, `bb_PollEvents()`, or a future graphics function triggers `bb_sdl_ensure_()`. This keeps non-graphical programs fast and dependency-free at runtime (no SDL3.dll needed unless the program actually uses it).
+
+### Verification (`tests/test_m30_sdl.bb`)
+- `Print "SDL OK"` → `SDL OK` ✓ (headless path: SDL never initialized, zero overhead)
+- Binary links SDL3 import library and copies `SDL3.dll` next to exe ✓
+- `bbEnd()` / `bb_sdl_quit_()` — no crash on clean exit ✓
+- All prior tests (M29 and earlier) still pass ✓
+
+---
+
+## v0.1.6 - "Delete Fix" (2026-02-22)
+
+### Bug Fix: Delete First / Delete Last No Longer Leaks or Corrupts the List
+
+**Root cause**: `visit(DeleteStmt)` only handled the `VarExpr` case via a direct
+`varObjectTypes` lookup. Any other expression (`FirstExpr`, `LastExpr`,
+`BeforeExpr`, `AfterExpr`) hit the fallback that set the pointer to `nullptr`
+but never called `bb_TypeName_Delete()` → memory leak + object remained in the
+intrusive linked list (list corruption).
+
+**Fix — `emitter.h`**:
+1. `getExprTypeName()` extended with `BeforeExpr`/`AfterExpr` arms (recurse into
+   `be->object` / `ae->object` to inherit the object type).
+2. `visit(DeleteStmt)` rewritten to call `getExprTypeName()` — type now resolved
+   for `VarExpr`, `FirstExpr`, `LastExpr`, `BeforeExpr`, `AfterExpr`.
+3. `bb_TypeName_Delete(expr)` emitted directly; pointer passed as-is.
+4. Local variable nulled only when object is a `VarExpr`.
+
+**Generated C++ before / after** (`Delete First Node`):
+```cpp
+// before — fallback, broken:
+__bb_Node_head__ = nullptr; // Delete (type unknown)
+
+// after — correct:
+bb_Node_Delete(__bb_Node_head__);
 ```
-Produces 14 `.o` files archived into `libbbruntime.a`.
+
+### Verification (`tests/test_delete.bb`)
+- 4 nodes created; count = 4 ✓
+- `Delete First Node` → count = 3; new first val = 20 ✓
+- `Delete Last Node`  → count = 2; new last val  = 30 ✓
+- `Delete b` (VarExpr) → count = 1; only remaining = 30 ✓
+- Deletion-safe `For Each` + `Delete n` inside loop → count = 0 ✓
+
+---
+
+## v0.1.5 - "Global Scope Fix" (2026-02-22)
+
+### Bug Fix: Global Variables Now Visible Inside Functions
+
+**Root cause**: `visit(VarDecl)` previously emitted all variable declarations
+(Local *and* Global) inside `main()`. User functions are emitted before `main()`,
+so any variable declared Global was invisible to them → C++ compile error.
+
+**Fix — two-pass approach in `emitter.h`**:
+1. New `collectGlobals()` pass scans the full AST (including function bodies,
+   since Blitz3D allows `Global` anywhere) for `VarDecl` nodes with
+   `scope == GLOBAL` and emits them at C++ file scope, after type struct
+   definitions and before user functions.
+2. `visit(VarDecl)` modified: for `GLOBAL` scope, skip the declaration (already
+   at file scope) and only emit the initializer assignment in the main body.
+
+**Emit order** (guaranteed by `emit()`):
+```
+#include "bb_runtime.h"
+[type struct + helpers]
+[global var declarations]   ← NEW
+[user function bodies]
+int main(...) {
+    [global initializer assignments]
+    [main body statements]
+}
+```
+
+**Parser fix (bonus)**: `Name()` in statement position was crashing. The
+statement parser had no paren-call path — it fell into the whitespace-arg loop,
+tried to parse `(` as an expression, then choked on `)`.
+Fix: added explicit paren-call branch in `parseStatement()` before the
+whitespace-arg loop.
+
+### Verification (`tests/test_global.bb`)
+- `Greet()` (reads `Global name$`) → `Hello, world!` ✓
+- Three `Increment()` calls (mutate `Global counter%`) → `Counter: 3` ✓
+- Two `AddScore()` calls (accumulate `Global score#`) → `Score: 4` ✓
+- `name = "BlitzNext"` in main + `Greet()` → `Hello, BlitzNext!` ✓
+
+---
+
+## v0.1.4 - "String Transformation" (2026-02-22)
+
+### Milestone 20: String Transformation & Encoding
+
+- **`bb_Upper(s)` / `bb_Lower(s)`** — case conversion via `std::transform` with lambda `(unsigned char c)` to avoid UB on signed char
+- **`bb_Trim(s)`** — strips `' '`, `\t`, `\r`, `\n` from both ends
+- **`bb_LSet(s, n)`** — left-aligned pad/truncate; **`bb_RSet(s, n)`** — right-aligned pad/truncate
+- **`bb_Chr(n)`** → single-char string; **`bb_Asc(s)`** → unsigned ASCII of first char, 0 for empty
+- **`bb_Hex(n)`** → uppercase hex, no prefix; negatives treated as unsigned 32-bit
+- **`bb_Bin(n)`** → binary string, no leading zeros, minimum `"0"`
+- **`bb_String(s, n)`** → repeat string n times
 
 ### Verification
--   ✅ `libbbruntime.a` builds with zero errors
--   ✅ `demo_lighting.bb` end-to-end pipeline (transpile → compile → link) produces working `demo_lighting.exe`
--   ✅ No API changes — fully backward compatible
+- `Upper("Hello World")` → `HELLO WORLD` ✓ / `Lower(...)` → `hello world` ✓
+- `Trim("  hello  ")` → `hello` ✓
+- `LSet("Hi", 8)` → `Hi      ` ✓ / `RSet("Hi", 8)` → `      Hi` ✓
+- `Chr(65)` → `A` ✓ / `Asc("Hello")` → `72` ✓
+- `Hex(255)` → `FF` ✓ / `Bin(255)` → `11111111` ✓
+- `String("ab", 3)` → `ababab` ✓
+- Regressions (M19, M17-M18, all prior tests) pass ✓
 
-### Next Steps
-1.  **Texture Mapping**: `LoadTexture`, `EntityTexture` with UV handling.
-2.  **2D Media**: `LoadImage`, `DrawImage`, masked transparency.
-3.  **Primitive Expansion**: `CreateCylinder`, `CreateCone`.
+---
 
-## Update (2026-02-18) - Compiler Modernization & Stability
-Major refactoring of the transpiler core to improve maintainability, type safety, and build stability.
+## v0.1.3 - "String Runtime" (2026-02-22)
 
-### Achievements
-1.  **Visitor Pattern Implementation**:
-    *   Refactored `CppGenerator` to use the **Visitor Pattern**, replacing the fragile and inefficient `dynamic_cast` cascade (previously 130+ lines of `if/else`).
-    *   Updated all 40+ AST Node classes to implement `accept(Visitor *v)`.
-    *   Polymorphic dispatch now handles code generation cleanly and efficiently.
-2.  **Codebase Hygiene**:
-    *   **Namespace Cleanup**: Removed `using namespace std;` from `std.h`.
-    *   **Explicit Qualification**: Updated all core transpiler files (`parser`, `toker`, `codegen`, `node`) to use `std::` prefix.
-    *   **File Rewrite**: Completely rewrote `src/transpiler/decl.cpp` to fix compilation errors and modernize style.
-3.  **Build System Fixes**:
-    *   Resolved `WinMain` undefined reference by ensuring `SDL_MAIN_HANDLED` is defined and linked correctly.
-    *   Fixed `vtable` linking errors by implementing missing virtual methods in `CppGenerator`.
-4.  **Verification**:
-    *   Successfully transpiled, compiled, and ran `examples/demo_lighting.bb` with the new architecture.
-    *   Confirmed binary integrity with a clean build.
+### Milestone 19: String Extraction & Search
 
-## Update (2026-02-18) - Stability Health Check & Console I/O
-Post-refactoring stability audit and missing core language features.
+- **`bb_string.h` (new file)** — standalone string header; `bb_runtime.h` includes it
+- **`bbString` typedef** moved from `bb_runtime.h` to `bb_string.h` (its natural home)
+- **`bb_Left(s, n)`** — first n characters; **`bb_Right(s, n)`** — last n characters
+- **`bb_Mid(s, pos)`** — from 1-based pos to end; **`bb_Mid(s, pos, n)`** — n chars at pos (two overloads)
+- **`bb_Instr(s, sub)`** — 1-based index of first match, or 0; **`bb_Instr(s, sub, start)`** — search from pos
+- **`bb_Replace(s, from, to)`** — replaces all occurrences (safe against empty `from`)
+- **`bb_Str`, `bb_Int(bbString)`, `bb_Float`, `bb_Len`** — moved from `bb_runtime.h`
+- **`bb_Str(double)`** — overload changed from `float` to `double` to resolve C++ double-literal ambiguity; `%g` format trims trailing zeros
 
-### Stability Fixes
-1.  **Integer `Abs`**: Added `bb_abs(bb_int)` overload — `Abs(-42)` now returns `bb_int` without float promotion.
-2.  **Named Constants**: Replaced magic numbers in trig functions with `DEG_TO_RAD` / `RAD_TO_DEG`.
-3.  **Resource Cleanup**: `End` now calls `bbBanksCleanup()` and `bbFilesCleanup()` to free all allocated banks and file handles.
-4.  **Redundancy Removal**: Removed duplicate `bbToString(bb_value&)` overload (const reference covers both cases).
-5.  **Restored `debuglog`**: Fixed accidental deletion during earlier editing.
-
-### Console I/O
-1.  **`Print`**: Output + newline. Accepts any type (auto-converts via `bbToString`). No argument = empty line.
-2.  **`Write`**: Output without newline.
-3.  **`Input`**: Optional prompt + `std::getline` for user input.
-4.  All three registered via `commands.def` with automatic type coercion through the semantic analyzer.
+### Design Note
+`bb_string.h` has no dependency on `bb_math.h` or `bb_runtime.h` — self-contained (`<string>`, `<algorithm>`, `<cstdio>` only). Umbrella `bb_runtime.h` includes `bb_string.h` first (provides `bbString`), then `bb_math.h`.
 
 ### Verification
--   ✅ `tests/test_print.bb` — String, Int, Float, empty line, variables
--   ✅ `tests/test_core.bb` — Full regression pass (strings, math, banks, files, arrays)
+- `Print Left("Hello World", 5)` → `Hello` ✓
+- `Print Right("Hello World", 5)` → `World` ✓
+- `Print Mid("Hello World", 7)` → `World` ✓ / `Mid(..., 7, 3)` → `Wor` ✓
+- `Print Instr("Hello World", "World")` → `7` ✓ / `Instr("abcabc","b",3)` → `5` ✓
+- `Print Replace("Hello World", "World", "Blitz")` → `Hello Blitz` ✓
+- `Print Str(3.14)` → `3.14` ✓ (no trailing zeros via `%g`)
+- Regressions (M17 math, M18 random, all prior tests) still pass ✓
 
-### Language Feature Status (Non-3D)
-| Category | Coverage |
-|----------|----------|
-| Control Flow | 95% |
-| Variables & Scoping | 100% |
-| Type System (OOP) | 100% |
-| Operators & Expressions | 95% |
-| Built-in Commands | 95% |
-| Console I/O | 100% |
-| Data / Arrays | 100% |
-| File I/O | 100% |
-| **Overall** | **~95%** |
+---
+
+## v0.1.2 - "Random Numbers" (2026-02-22)
+
+### Milestone 18: Random Number Functions
+
+- **`bb_Rnd()`** — float in [0, 1); **`bb_Rnd(max)`** — float in [0, max); **`bb_Rnd(min, max)`** — float in [min, max)
+- **`bb_Rand(max)`** — int in [1, max]; **`bb_Rand(min, max)`** — int in [min, max]
+- **`bb_SeedRnd(seed)`** — calls `std::srand(seed)`; stores seed in inline global `__bb_rnd_seed__`
+- **`bb_RndSeed()`** — returns `__bb_rnd_seed__` as int
+- All overloads live in `bb_math.h`; no parser or emitter changes needed (standard `bb_` call convention)
+- `inline` global for seed storage requires C++17 — consistent with rest of project
+
+### Verification
+- `SeedRnd 42 : Print RndSeed()` → `42` ✓
+- `SeedRnd 1234 : Print RndSeed()` → `1234` ✓
+- `Rnd()` → values in [0, 1) (e.g. 0.00186, 0.53167) ✓
+- `Rnd(100.0)` → value in [0, 100) ✓
+- `Rnd(10.0, 20.0)` → value in [10, 20) ✓
+- `Rand(6)` → int in [1, 6] ✓
+- `Rand(3, 9)` → int in [3, 9] ✓
+- Same seed produces identical sequence (deterministic) ✓
+
+---
+
+## v0.1.1 - "Math Runtime" (2026-02-22)
+
+### Milestone 17: Math Completeness — Trig Inverse & Utility
+
+- **`bb_math.h` (new file)** — standalone math header; `bb_runtime.h` includes it; all math symbols now live in one place
+- **`bb_Pi`** — `constexpr float` (3.14159265…); `Pi` as a Blitz3D identifier emits `bb_Pi` via special-case in `Emitter::visit(VarExpr*)`
+- **`bb_ASin(x)`** → `asin(x)` in radians → degrees; **`bb_ACos(x)`**, **`bb_ATan(x)`** — same pattern
+- **`bb_ATan2(y, x)`** → `atan2(y, x)` → degrees; matches Blitz3D argument order (y first)
+- **`bb_Sgn(x)`** → `-1`, `0`, or `1` (sign of x)
+- **`bb_Log10(x)`** → base-10 logarithm
+- **`bb_Int(float)`** → truncate toward zero (C++ overload alongside existing `bb_Int(bbString)` for string-to-int)
+- **Internal helpers** `_bb_d2r()` / `_bb_r2d()` keep trig conversion DRY without polluting global scope
+- **`bb_runtime.h` refactored** — math block removed; `#include "bb_math.h"` added; `<cmath>` dependency moved to `bb_math.h`
+
+### Design Note
+`Pi` is a Blitz3D built-in constant (used without parentheses). Since the lexer tokenises it as `ID`, it becomes a `VarExpr` in the AST. The Emitter's `visit(VarExpr*)` special-cases `pi` (case-insensitive) → emits `bb_Pi` instead of `var_pi`. No parser changes needed.
+
+### Verification
+- `Print Pi` → `3.14159` ✓
+- `Print ATan2(1.0, 1.0)` → `45` ✓
+- `Print ASin(1.0)` → `90` ✓
+- `Print ACos(1.0)` → `0` ✓
+- `Print ATan(1.0)` → `45` ✓
+- `Print Sgn(-42.5)` → `-1`, `Sgn(0)` → `0`, `Sgn(7.3)` → `1` ✓
+- `Print Log10(100.0)` → `2`, `Log10(1000.0)` → `3` ✓
+- `Print Int(3.9)` → `3`, `Int(-3.9)` → `-3` ✓
+- Regressions (Floor, Ceil, Sqr, Abs, Sin, Cos, Tan, all prior tests) still pass ✓
+
+---
+
+## v0.1.0 - "Type Iteration" (2026-02-22)
+
+### Milestone 16: Type Iteration — First, Last, Before, After, Insert, Each
+
+- **6 new AST nodes** — `FirstExpr`, `LastExpr`, `BeforeExpr`, `AfterExpr`, `InsertStmt`, `ForEachStmt`
+- **`ASTVisitor`** — 6 new pure-virtual `visit()` overloads added
+- **Parser — `For Each`** — detected at statement level (peek-ahead after `FOR`); dispatched to `parseForEach()` which consumes `FOR EACH var.TypeName ... NEXT`
+- **Parser — `Insert`** — `INSERT expr BEFORE/AFTER expr` → `InsertStmt`
+- **Parser — `First/Last/Before/After`** — all handled in `parsePrimary()` as expressions; `First TypeName`/`Last TypeName` take a type name token; `Before`/`After` take a sub-expression
+- **Emitter — `FirstExpr`** → `__bb_TypeName_head__`
+- **Emitter — `LastExpr`** → `__bb_TypeName_tail__`
+- **Emitter — `BeforeExpr`** → `(obj)->__prev__`
+- **Emitter — `AfterExpr`** → `(obj)->__next__`
+- **Emitter — `InsertStmt`** → `bb_TypeName_InsertBefore(obj, tgt)` / `bb_TypeName_InsertAfter(obj, tgt)`; type resolved via `getExprTypeName()` helper (checks `varObjectTypes` map and `FirstExpr`/`LastExpr` nodes)
+- **Emitter — `ForEachStmt`** → deletion-safe while-loop: caches `__next__` before body runs; iteration variable auto-registered in `varObjectTypes` for nested field access
+- **`emitTypeDecl()`** — now also emits `bb_T_Unlink()`, `bb_T_InsertBefore()`, `bb_T_InsertAfter()` helpers for each Type
+
+### Design Note
+`For Each` uses a deletion-safe loop pattern:
+```cpp
+auto *_fe_cur_p_ = __bb_TypeName_head__;
+while (_fe_cur_p_) {
+    auto *var_p = _fe_cur_p_;
+    _fe_cur_p_ = _fe_cur_p_->__next__;  // cached before body
+    // body
+}
+```
+This allows `Delete p` inside the loop body without corrupting iteration, matching Blitz3D's semantics.
+
+### Verification
+- `For Each n.Node : Print n\val : Next` → `10  20  30` ✓
+- `First Node`, `Last Node` → correct head/tail pointers ✓
+- `After First Node`, `Before Last Node` → middle element ✓
+- `Insert c Before b` → reordering `10 30 20` ✓
+- `Insert a After b` → reordering `30 20 10` ✓
+- `Delete b` then `For Each` → skips deleted element safely ✓
+- `(First Node)\val`, `(Last Node)\val` → field access on First/Last ✓
+- All prior tests (M14/M15 type instances, M12 data) still pass ✓
+
+---
+
+## v0.0.9 - "Type Instances + Field Access" (2026-02-22)
+
+### Milestone 14: Type Instances — New, Delete
+
+- **`NewExpr` AST node** — `typeName`; emits `bb_TypeName_New()`
+- **`DeleteStmt` AST node** — `object` expr; emits `bb_TypeName_Delete(var); var = nullptr;`
+- **`Local v.TypeName`** — `.TypeName` type annotation parsed in `parseVarDecl()` as `typeHint = ".TypeName"`; emitter maps to `bb_TypeName *var = nullptr;`
+- **`emitTypeDecl()`** — emits C++17 struct with field members + intrusive doubly-linked list: `__next__`, `__prev__`, head/tail globals, `bb_T_New()`, `bb_T_Delete()`
+- **Emitter** — TypeDecl emitted before function definitions; `typeNames` and `varObjectTypes` maps track types/instances for code-gen; TypeDecl excluded from main body loop
+
+### Milestone 15: Type Field Access (`\` operator)
+
+- **`FieldAccess` AST node** — `object` + `fieldName`; emits `obj->var_field`
+- **`FieldAssignStmt` AST node** — `object` + `fieldName` + `value`; emits `obj->var_field = expr;`
+- **`parsePostfix()`** — new parsing level between `parsePrimary()` and `parsePower()`; handles chained `\` access (`a\b\c`)
+- **Statement context** — `var\field = expr` detected after type-hint consumption in identifier-led branch
+
+### Design Note
+Each `Type` declaration generates a standalone C++ struct `bb_T` with intrusive doubly-linked list pointers. `New` allocates and appends to the tail; `Delete` unlinks from the list and frees. This matches Blitz3D's reference semantics and prepares for `First`, `Last`, `Each` iteration (M16).
+
+### Verification
+- `Local v.Vec = New Vec : v\x = 10 : v\y = 20 : Print v\x + v\y` → `30` ✓
+- Float fields, multiple instances, chained field writes all pass ✓
+- `Delete v2` → frees instance, sets pointer to nullptr ✓
+- All prior tests still pass ✓
+
+---
+
+## v0.0.8 - "Type Declaration (Struct Parsing)" (2026-02-22)
+
+### Milestone 13: Type Declaration (Struct Parsing)
+
+- **`TypeDecl` AST node** — `name` (string) + `std::vector<Field>` where `Field = {name, typeHint}`
+- **`ASTVisitor`** — added `visit(TypeDecl*)` pure virtual
+- **Parser** — `TYPE` keyword dispatched to `parseTypeDecl()`; multi-line and colon-separated forms supported; multiple fields per `Field` line (`Field left%, top%, right%, bottom%`); `End Type` and `EndType` both accepted; `TYPE` added to `END` secondary-keyword list
+- **Emitter** — `visit(TypeDecl*)` no-op stub; full C++ struct emission deferred to M14
+
+### Design Note
+`Field` declarations support one or more comma-separated names on a single line, each with an optional type hint. A `TypeDecl` with no `Field` lines is also valid. The `End Type` terminator can appear on the same line as the last field (colon-separated) or on its own line.
+
+### Verification
+- `Type Player : Field x%, y% : End Type` → no crash ✓
+- `Type Vec2 : Field dx!, dy! : End Type` → no crash ✓
+- `Type Rect : Field left%, top%, right%, bottom% : End Type` → no crash ✓
+- `Print "Types parsed OK"` → `Types parsed OK` ✓
+- All prior tests still pass ✓
+
+---
+
+## v0.0.7 - "Data / Read / Restore" (2026-02-22)
+
+### Milestone 12: Data, Read, Restore
+
+- **`DataStmt` AST node** — `std::vector<Token> values`; supports signed numeric literals (`-3`, `-1.5`)
+- **`ReadStmt` AST node** — `name` + `typeHint`; used by emitter for correct type cast + implicit declaration
+- **`RestoreStmt` AST node** — optional `label` field; bare `Restore` resets to index 0
+- **Parser** — `DATA`, `READ`, `RESTORE` keywords dispatched; `parseData()` handles signed literals and comma-separated values; `parseRead()` consumes optional type hint; `parseRestore()` accepts plain and dot-label forms
+- **Runtime (`bb_runtime.h`)** — `bb_DataVal` tagged struct with `operator int/float/double/bbString()`; inline globals `__bb_data_pool__` + `__bb_data_idx__`; `bb_DataRead()` / `bb_DataRestore(size_t idx=0)`
+- **Emitter** — `collectData()` recursive first-pass fills pool before any `Read`; `visit(DataStmt*)` is no-op; `visit(ReadStmt*)` auto-declares undeclared variables (Blitz3D implicit decl); `visit(RestoreStmt*)` emits `bb_DataRestore()`; `declaredVars` set prevents re-declaration
+
+### Design Note
+All `Data` statements across the entire program form **one flat sequential pool** — this is correct Blitz3D behaviour. `Read` advances a single pointer through this pool regardless of where the `Data` statement appears in source.
+
+### Verification
+- `Data 10,20,30 : Read a : Read b : Print a + b` → `30` ✓
+- `Read c : Print c` → `30` (next item in pool) ✓
+- `Read s$ : Read t$ : Print s$ + " " + t$` → `Hello World` ✓
+- `Restore : Read x : Print x` → `10` (pool reset) ✓
+- `Read n% : Read m% : Print n% + m%` → `30` (typed hint) ✓
+- All prior tests still pass ✓
+
+---
+
+## v0.0.6 - "Goto / Gosub / Labels" (2026-02-22)
+
+### Milestone 11: Goto, Gosub, Return (Legacy Flow)
+
+- **`LabelStmt` AST node** — stores lowercase label name; handles both `.labelname` and `labelname:` syntax
+- **`GotoStmt` AST node** — stores lowercase label name
+- **`GosubStmt` AST node** — stores lowercase label name
+- **Parser — `:` separator** — `skipNewlines()` now also skips `OPERATOR(":")` tokens; call-arg loop and `parseReturn()` stop at `:`
+- **Parser — label detection** — at statement level: `OPERATOR(".")` + ID → dot-label; ID + `OPERATOR(":")` → colon-label
+- **Parser — GOTO / GOSUB** — both accept `Goto label` and `Goto .label` forms
+- **Emitter — LabelStmt** → `lbl_name:;` (null statement satisfies C++ label grammar)
+- **Emitter — GotoStmt** → `goto lbl_name;`
+- **Emitter — GosubStmt** → GCC computed-goto trick: `__gosub_ret__ = &&_gosub_ret_N_; goto lbl_X; _gosub_ret_N_:;`
+- **Emitter — ReturnStmt** — new `inFunctionBody` flag: bare `Return` in main → `goto *__gosub_ret__`; in function → `return;`
+
+### Verification
+- `Goto skip : Print "SKIP" : skip: Print "OK"` → `OK` ✓
+- `Goto .done : Print "SKIP2" : .done : Print "OK2"` → `OK2` ✓
+- `Gosub greet` / `greet:` / `Return` → `Hello from Gosub` / `Back from Gosub` ✓
+- All prior tests (arrays, consts, fixes) still pass ✓
+
+---
+
+## v0.0.5 - "Phase B Language Core" (2026-02-22)
+
+### Milestone 10: Array Indexing
+
+- **`DimStmt` AST node** — `name`, `typeHint`, `dims` (vector of ExprNodes for each dimension)
+- **`ArrayAccess` AST node** — `name`, `indices` (vector) for expression-context reads
+- **`ArrayAssignStmt` AST node** — `name`, `indices`, `value` for array element writes
+- **Parser** — `parseDim()` registers array names in `dimmedArrays` set; disambiguates `name(i)` as `ArrayAccess` vs `CallExpr` in `parsePrimary()`; detects `name(i) = expr` as `ArrayAssignStmt` in statement context
+- **Emitter** — `%`→`int`, `#`/`!`→`float`, `$`→`bbString`, no hint→`int`; 1D: `std::vector<T>(n+1)`; multi-dim: nested `std::vector`; Blitz3D size semantics: `Dim a(N)` → indices 0..N → C++ size N+1
+- **`bb_runtime.h`** — added `#include <vector>`
+
+### Verification
+- `Dim arr%(5) : arr(2) = 42 : Print arr(2)` → `42` ✓
+- `Dim scores#(3) : scores(0) = 1.5 : scores(1) = 2.5 : Print scores(0) + scores(1)` → `4` ✓
+- `Dim grid%(3,3) : grid(1,1) = 99 : Print grid(1,1)` → `99` ✓
+- Array in For loop: `vals(i) = i * 10 : Print vals(3)` → `30` ✓
+
+---
+
+### Milestone 9: Const Declarations
+
+- **`ConstDecl` AST node** — `name`, `typeHint`, `value` (ExprNode)
+- **Parser** — `Const name[hint] = expr`; multiple declarations per line via comma separator
+- **Emitter** — `%`→`constexpr int`, `#`/`!`→`constexpr float`, no hint→`constexpr auto`, `$`→`const bbString`
+- Constants use `var_` prefix for seamless `VarExpr` resolution (no parser changes needed at call sites)
+
+### Verification
+- `Const MaxHP% = 100` → `constexpr int var_MaxHP = 100;` ✓
+- `Const Pi# = 3.14159` → `constexpr float var_Pi = 3.14159;` ✓
+- `Const Greeting$ = "Hello"` → `const bbString var_Greeting = "Hello";` ✓
+- `Const A% = 10, B% = 20` → two constexpr declarations ✓
+- Full output: `100 / 3.14159 / Hello / 30 / HP is high` ✓
+
+---
+
+## v0.0.4 - "Structured Errors & CLI Parity" (2026-02-22)
+
+### Milestone 7: Structured Error Reporting
+
+- **GCC-compatible error format** — Parser now emits `filename:line:col: error: message` on stderr
+- **Unified `error()` method** in `Parser` — replaces three separate `std::cerr` sites (`expect()`, `parseRepeat()`, `parsePrimary()`)
+- **Filename propagation** — `parse()` accepts `const std::string& fname`; passed from `blitzcc.cpp` as `cfg.inputPath`
+- **Error tracking** — `errorCount` member + `hasErrors()` method; pipeline aborts before emit when parse errors exist
+- **Exit codes** — `transpile()` now returns `int`: 0 = success, 1 = parse error, 2 = compile error; `main()` forwards it
+- **Compile-step error** also follows structured format: `filename:0:0: error: compilation failed`
+
+### Milestone 8: CLI Parity
+
+- **`-k` flag** — lists all 17 known built-in command names to stdout (one per line)
+- **`+k` flag** — lists `name(signature)` per line; usable by IDEal for autocomplete
+- **`kCommands[]` table** — static array of `{name, sig}` in `blitzcc.cpp`; single source of truth
+- **`BLITZPATH` env var** — `resolvePath()` now checks `$BLITZPATH/rel` as a third fallback after CWD and `../`
+- **`-release` flag** — accepted without error, ensures `debug = false` (compatibility with older IDEs that pass `-release`)
+- **Version bump** — `-v` and help now report `v0.0.4`
+
+### Verification
+- `blitzcc -k` → 17 command names listed ✓
+- `blitzcc +k` → `Print(value)`, `Sin(deg#)`, etc. ✓
+- `blitzcc -release tests/test_fixes.bb` → exit 0 ✓
+- `BLITZPATH=... blitzcc tests/hello.bb` → resolves toolchain via env var ✓
+- `tests/bad.bb` → `tests/bad.bb:3:9: error: unexpected token 'THEN'`, exit 1 ✓
+- `tests/test_fixes.bb` → `Success: … created.`, exit 0 ✓
+
+---
+
+## v0.0.3 - "Correctness & IDE Foundation" (2026-02-21)
+A correctness overhaul that fixes critical compiler bugs, completes the core language, and lays the foundation for IDE integration.
+
+### Language & Compiler Fixes (13 critical bugs resolved)
+- **Assignments** (`x = expr`) now correctly emit `AssignStmt` instead of returning `nullptr`
+- **Logical operators** `And`, `Or`, `Xor`, `Not`, `Mod`, `Shl`, `Shr`, `Sar` added to keyword table — were silently dropped before
+- **`expect()`** now advances on mismatch; previously caused infinite loops on parse errors
+- **`ElseIf` chains** fully implemented via recursive `parseIfTail()`; were fundamentally broken
+- **`For...Step -1`** (negative step) fixed with block + ternary condition in emitter
+- **Type hint `!`** (float) now correctly emits `float`; was falling through to `auto`
+- **Function declarations** (`Function name%(param%)...End Function`) fully implemented with return type hint consumption
+- **Preprocessor** `#Include` now resolves paths relative to the including file, not CWD; word boundary check prevents matching `INCLUDEFILES`
+
+### New AST Nodes
+- `AssignStmt` — explicit assignment statement
+- `FunctionDecl` — user function with typed parameters
+- `ReturnStmt` — bare or value-returning return
+- `ExitStmt` — loop break
+- `EndStmt` — program termination
+
+### Runtime (bb_runtime.h)
+- `bb_Print` upgraded to template (any printable type)
+- Added: `bb_Input`, `bb_Str`, `bb_Int`, `bb_Float`, `bb_Len`
+- Added math: `bb_Sin`, `bb_Cos`, `bb_Tan`, `bb_Sqr`, `bb_Abs`, `bb_Log`, `bb_Exp`, `bb_Floor`, `bb_Ceil`
+- Added: `bb_Delay` (Windows/Linux platform-aware)
+
+### Emitter (emitter.h)
+- `indentLevel` tracking for properly nested output
+- `inExprCtx` flag distinguishes `CallExpr` as statement vs. expression
+- `userFunctions` set: first-pass collects declared function names; controls `bb_` prefix
+- Operator mapping: `=`→`==`, `<>`→`!=`, `AND`→`&&`, `OR`→`||`, `MOD`→`%`, `SHL`→`<<`, `^`→`std::pow()`
+
+### Cleanup
+- Removed `commands.json` and all related scaffolding (`-k`/`+k` flags, `loadCommands()`, `listCommands()`, `nlohmann/json` dependency) — runtime is now the single source of truth for known commands
+- `resolvePath()` helper in `blitzcc.cpp` replaces 4× duplicated path logic
+- SDL3 linking made conditional on import library presence
+- `-std=c++17` flag added to the g++ invocation
+
+### IDE Foundation (Milestone 6)
+- `Token` struct already carried `line` and `col` from the lexer
+- Added `int line = 0` to `ASTNode` base class
+- Parser now stores `token.line` on every constructed node (all statement and expression types)
+- Parser errors already show `at line:col`; full IDE-compatible format follows in Milestone 7
+
+### Roadmap
+- Expanded from 12 coarse milestones to **70 atomic milestones** across 21 phases — each scoped to a single AI-session context window
+- Parity table corrected: `Function`, `Return`, `True`, `False`, `Null`, `Include`, `Xor` operator now marked complete
+
+### Verification
+- `tests/test_fixes.bb` → `test_fixes.exe` ✓ (assignments, AND/NOT/OR, ElseIf, For Step -1, float hint, functions, single-line If)
+- `tests/bad.bb` → parser errors with correct line numbers, no crash ✓
+
+---
+
+## v0.0.2 - "The Blitz3D Experience" (2026-02-21)
+A major usability update that transforms the transpiler into a seamless build orchestrator.
+
+### Features
+- **One-Click Build Automation**: `blitzcc` now automatically invokes the MinGW toolchain.
+- **Auto-Deployment**: Required runtime DLLs (like `SDL3.dll`) are automatically copied to the output folder.
+- **Smart Output Placement**: Executables are created in the source directory by default, keeping the project root clean.
+- **Ultra-Portable Linking**: Refined the linking strategy to bake `winpthread` statically into the executable.
+- **Single-DLL Runtime**: Only `SDL3.dll` remains as an external dependency; `libwinpthread-1.dll` is no longer required.
+- **Clutter Control**: Intermediate `.cpp` files are automatically cleaned up after successful compilation.
+
+## v0.0.1 - Hello World Milestone (2026-02-21)
+The first functional end-to-end transpilation pipeline.
+
+### Milestone 1-5 Completion
+- **Toolchain**: Robust `build_windows.bat` for automatic MinGW, CMake, and SDL3 setup.
+- **Lexer**: Case-insensitive tokenization with support for keywords, identifiers, and literals.
+- **Preprocessor**: Support for `#include` directives with circular inclusion protection.
+- **Parser**: 
+    - Full operator precedence matching Blitz3D.
+    - Variable declarations (`Global`, `Local`, `Dim`) with type hints (#, %, !, $).
+    - Control flow structures: `If/Else/EndIf`, `While/Wend`, `Repeat/Until/Forever`, `For/Next`, and `Select/Case`.
+- **Emitter**: 
+    - AST Visitor-based C++17 code generation.
+    - Seamless integration with the local MinGW toolchain.
+    - Automatic deployment of required runtime DLLs (`SDL3.dll`, `libstdc++`, etc.).
+
+### Verification
+- **Test Case**: `tests/hello.bb` successfully transpiles to `output.exe.cpp` and compiles to a native `hello_world.exe`.
+- **Output**: "[DEBUG] blitzcc starting... / Hello from BlitzNext!"
+
+---
+*Devlog started by BlitzNext AI (Antigravity)*

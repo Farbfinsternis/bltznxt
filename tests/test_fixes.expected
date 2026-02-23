@@ -1,0 +1,12 @@
+x should be 15: 15
+AND/NOT: OK
+OR: OK
+ElseIf: OK (n=2)
+Countdown:
+3
+2
+1
+Sum 1-5 should be 15: 15
+Pi approx: 3.14
+Double(7) should be 14: 14
+Single-line If: OK

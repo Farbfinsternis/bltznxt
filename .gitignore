@@ -1,41 +1,69 @@
-# BltzNxt Gitignore
+# ============================================================
+# BltzNxt — .gitignore
+# ============================================================
 
-# Build Directories
-_build/
-dist/
+# ---- Build output ------------------------------------------
+# CMake build directory (Zwischenartefakte, neu generierbar)
+build/
+
+# Compiler-Binary und alle deploy-Dateien in bin/
+# (blitzcc.exe, SDL3.dll, libgcc*.dll, test-Executables, ...)
 bin/
-lib/
 
-# Toolchain and Dependencies
+# ---- Toolchain ---------------------------------------------
+# MinGW-Toolchain (re-installierbar via build_windows.bat / build_linux.sh)
 tools/
+
+# ---- Libraries ---------------------------------------------
+# SDL3 und weitere Drittanbieter-Binaries (re-downloadbar via build-Skripte)
 libs/
 
-# Binary files
-*.exe
-*.dll
-*.a
-*.o
-*.obj
-*.pdb
-*.ilk
+# ---- Test-Artefakte ----------------------------------------
+# Kompilierte Test-Executables, generierte C++-Zwischendateien, Temp-Dateien
+tests/*.exe
+tests/*.dll
+tests/*.cpp
+tests/*.dat
+tests/content.txt
 
-# Python artifacts
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-
-# IDE settings
+# ---- IDE & Editor ------------------------------------------
 .vscode/
 .idea/
-*.swp
-*.swo
+*.suo
+*.user
+*.sln.docinfo
 
-# OS specific files
+# ---- Windows -----------------------------------------------
 Thumbs.db
-Desktop.ini
+desktop.ini
+
+# ---- macOS -------------------------------------------------
 .DS_Store
 
-# Temporary files
-temp/
-tmp/
+# ---- Sonstiges ---------------------------------------------
+*.log
+*.tmp
+*.bak
+
+# userlibs/ ist lokal (user-spezifische Libraries, nicht Teil des Repos)
+userlibs/
+
+# src/libs/ content.txt ist nur ein Platzhalter
+src/libs/content.txt
+
+site/
+
+# ============================================================
+# Explizit NICHT ignoriert — auf GitHub sichtbar:
+# ============================================================
+# DEVLOG.md       — vollständige Entwicklungshistorie
+# roadmap.md      — Milestone-Roadmap (M6–M70)
+# REFACTOR.md     — technische Schulden & Qualitätsplan
+# src/compiler/   — Quellcode (Compiler + Runtime-Header)
+# src/thirdparty/ — vendored Dependencies (nlohmann/json)
+# tests/*.bb      — Testquellen (Blitz3D)
+# tests/run_tests.sh
+# tests/*.expected
+# site/           — Projektwebsite
+# CMakeLists.txt
+# build_windows.bat / build_linux.sh

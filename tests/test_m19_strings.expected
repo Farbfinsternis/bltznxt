@@ -1,0 +1,34 @@
+=== Left ===
+Hello
+Hi
+
+=== Right ===
+World
+Hi
+
+=== Mid(s,pos) ===
+World
+Hello
+=== Mid(s,pos,n) ===
+Wor
+ell
+=== Instr(s,sub) ===
+7
+0
+2
+=== Instr(s,sub,start) ===
+5
+=== Replace ===
+Hello Blitz
+aaXXcc
+=== Len ===
+5
+0
+=== Str/Int/Float ===
+42
+3.14
+99
+1.5
+=== Concatenation ===
+Score: 100
+DONE

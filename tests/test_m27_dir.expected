@@ -1,0 +1,11 @@
+FileType dir OK
+FileType file OK
+FileType none OK
+FileSize OK
+CurrentDir OK
+CreateDir OK
+DeleteDir OK
+CopyFile OK
+DeleteFile OK
+ReadDir/NextFile OK
+DONE

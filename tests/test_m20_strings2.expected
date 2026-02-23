@@ -1,0 +1,35 @@
+=== Upper/Lower ===
+HELLO WORLD
+hello world
+=== Trim ===
+hello
+no spaces
+
+=== LSet/RSet ===
+Hi      
+      Hi
+Trunc
+Trunc
+=== Chr/Asc ===
+A
+a
+65
+72
+=== Hex ===
+FF
+10
+0
+FFFF
+=== Bin ===
+0
+1
+101
+11111111
+=== String ===
+ababab
+-----
+
+=== Combos ===
+0xFF
+    42
+DONE

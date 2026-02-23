@@ -1,0 +1,20 @@
+=== SeedRnd / RndSeed ===
+42
+1234
+=== Rnd() ===
+0.00186157
+0.531677
+=== Rnd(max) ===
+1.10168
+=== Rnd(min,max) ===
+10.0665
+=== Rand(max) ===
+2
+=== Rand(min,max) ===
+3
+=== Deterministic ===
+42
+42
+468
+468
+DONE

@@ -1,0 +1,8 @@
+WriteFile OK
+FilePos OK
+Eof empty OK
+ReadAvail empty OK
+CloseFile OK
+ReadFile OK
+SeekFile OK
+DONE

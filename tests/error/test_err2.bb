@@ -1,3 +1,0 @@
-
-; Strong Error
-If EndIf

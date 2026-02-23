@@ -1,0 +1,9 @@
+Write OK
+ReadByte OK
+ReadShort OK
+ReadInt OK
+ReadFloat OK
+ReadString OK
+ReadLine OK
+Eof after read OK
+DONE
