@@ -11,6 +11,24 @@
 
 ---
 
+## In Memory of Mark Sibly
+
+Blitz3D was the work of one person. Mark Sibly built a language that let thousands of people make their first game, write their first loop, see something move on screen for the first time. It was direct, it was fast, and it got out of the way. No engine before it was quite so honest about what programming could feel like when the barrier was low enough.
+
+Mark passed away in 2025. BlitzNext exists to carry his idea forward — the belief that making something should be simple, and that simple things can still be powerful.
+
+---
+
+## Who Is This For?
+
+**Blitz3D veterans** — Your old `.bb` projects deserve to run on modern hardware. BlitzNext brings the language you know forward without changing its feel. No rewrites, no ports — just compile and go.
+
+**Retro enthusiasts** — Blitz3D had a charm that modern engines don't replicate: instant results, no boilerplate, a game on screen in ten lines of code. That philosophy is alive here.
+
+**Beginners** — Blitz3D was one of the friendliest ways to learn programming ever made. `Print "Hello"` works. No classes, no frameworks, no build configuration. BlitzNext keeps that low floor intact while targeting modern Windows natively.
+
+---
+
 ## Compatibility Progress
 
 | Area | Done | Goal | Coverage |
