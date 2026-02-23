@@ -53,12 +53,17 @@ src/libs/content.txt
 
 site/
 
+# Claude AI — lokale Kontext- und Memory-Dateien
+.claude/
+
+# Internes Refactoring-Dokument (technische Schulden, nicht für Endnutzer)
+REFACTOR.md
+
 # ============================================================
 # Explizit NICHT ignoriert — auf GitHub sichtbar:
 # ============================================================
 # DEVLOG.md       — vollständige Entwicklungshistorie
 # roadmap.md      — Milestone-Roadmap (M6–M70)
-# REFACTOR.md     — technische Schulden & Qualitätsplan
 # src/compiler/   — Quellcode (Compiler + Runtime-Header)
 # src/thirdparty/ — vendored Dependencies (nlohmann/json)
 # tests/*.bb      — Testquellen (Blitz3D)
