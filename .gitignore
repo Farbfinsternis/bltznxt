@@ -59,6 +59,9 @@ site/
 # Internes Refactoring-Dokument (technische Schulden, nicht für Endnutzer)
 REFACTOR.md
 
+# Internes Promotion-Dokument (Strategie, nicht für Endnutzer)
+promotion.md
+
 # ============================================================
 # Explizit NICHT ignoriert — auf GitHub sichtbar:
 # ============================================================

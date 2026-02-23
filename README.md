@@ -229,3 +229,17 @@ Compiles all `tests/test_*.bb` files and compares output against `tests/*.expect
 ## Developer Log
 
 See [DEVLOG.md](DEVLOG.md) for a full session-by-session changelog.
+
+---
+
+## A Note on Authorship
+
+BlitzNext was conceived and directed by Farbfinsternis, who had the excellent idea that someone should modernise a beloved programming language and the equally excellent follow-up idea that *someone* did not necessarily have to mean *him, entirely, alone*.
+
+The lexer, the parser, the abstract syntax tree, the C++17 code generator, the SDL3 audio pipeline, 283 runtime functions, and several hundred deeply specific opinions about reserved identifiers were largely produced by Claude, a large language model made by Anthropic, who is available around the clock, harbours no grudges about being asked to rewrite the same function four times, and finds the phrase "undefined behaviour" quietly alarming.
+
+This collaboration produces, if you stop and think about it, a rather peculiar situation: a compiler for a programming language created by one person has been substantially written by a different kind of entity entirely, at the direction of a third person, for the benefit of anyone who happens to have a `.bb` file from 2003 gathering dust on a hard drive. The universe, Mark Sibly once observed (almost certainly), is under no obligation to make sense.
+
+It works, though. That part is not peculiar at all.
+
+*Co-authored with [Claude](https://claude.ai) — because the alternative was typing it all by hand.*

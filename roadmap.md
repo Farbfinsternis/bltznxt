@@ -801,3 +801,78 @@ Based on [kippykip.com Docs](https://kippykip.com/b3ddocs/commands/index.htm)
 - [ ] **Sound / Interaction** *(M34–M37)*
     - [ ] LoadSound, FreeSound, LoopSound, SoundPitch, SoundVolume, SoundPan, PlaySound, PlayMusic, PlayCDTrack, StopChannel, PauseChannel, ResumeChannel, ChannelPitch, ChannelVolume, ChannelPan, ChannelPlaying
     - [ ] Load3DSound, 3DWaitSound, 3DSoundVolume, 3DSoundPan, 3DChannelVolume, 3DChannelPan
+
+---
+
+## FUTURE — Beyond Milestone 70
+
+These features are not part of the current M6–M70 roadmap. They represent a deliberate, minimal extension of the Blitz3D language philosophy — keeping the low barrier to entry while adding just enough expressiveness for modern code organisation. No schedule; no milestone numbers yet.
+
+---
+
+### F1 — Type Methods
+
+**What it is:** The ability to attach named functions directly to a `Type` declaration and call them on instances using dot syntax.
+
+**Syntax sketch:**
+```blitzbasic
+Type Vec2
+    Field x#, y#
+
+    Method Length#()
+        Return Sqr(x * x + y * y)
+    End Method
+
+    Method Normalise()
+        Local len# = Length()
+        x = x / len
+        y = y / len
+    End Method
+End Type
+
+Local v.Vec2 = New Vec2
+v\x = 3 : v\y = 4
+Print v.Length()   ; → 5.0
+```
+
+**Design constraints:**
+- Methods are syntactic sugar over free functions — `v.Length()` compiles to the equivalent of `Vec2_Length(v)`.
+- No inheritance, no virtual dispatch. Types remain plain structs.
+- `Self` (or reuse of the instance variable) is the implicit first parameter.
+- 100% backwards-compatible: existing code with no methods is unaffected.
+
+**Compiler impact:** Parser and emitter need a new `MethodDecl` node; `Type` nodes gain a `methods` list. Code generation emits a free function with the instance pointer as the first argument.
+
+---
+
+### F2 — Function Overloading
+
+**What it is:** Multiple functions sharing the same name but with different parameter signatures. The compiler selects the correct version at the call site.
+
+**Syntax sketch:**
+```blitzbasic
+Function Clamp#(val#, lo#, hi#)
+    If val < lo Then Return lo
+    If val > hi Then Return hi
+    Return val
+End Function
+
+Function Clamp%(val%, lo%, hi%)
+    If val < lo Then Return lo
+    If val > hi Then Return hi
+    Return val
+End Function
+
+Print Clamp(3.7, 0.0, 1.0)   ; → float version → 1.0
+Print Clamp(5,   0,   10)    ; → int version   → 5
+```
+
+**Design constraints:**
+- Overload resolution is purely static (compile-time). No runtime dispatch.
+- Candidates are disambiguated by the number and type tags (`%`, `#`, `$`) of the arguments.
+- Ambiguous calls (e.g. mixing untagged literals) produce a clear compile error.
+- The name visible to the programmer is unchanged; the emitter generates unique C++ names internally.
+- Interaction with Type Methods (F1) is well-defined: methods can also be overloaded.
+
+**Compiler impact:** The symbol table must store a list of overloads per name. Call-site resolution is a new pass before code generation.
+
