@@ -2,6 +2,8 @@
 #define BLITZNEXT_BB_GRAPHICS2D_H
 
 #include <iostream>
+#include <cmath>
+#include <vector>
 #include "bb_sdl.h"     // bb_window_, bb_renderer_, bb_sdl_ensure_(), bb_sdl_initialized_
 #include "bb_system.h"  // bb_app_title_
 #include "bb_string.h"  // bbString
@@ -299,6 +301,94 @@ inline void bb_Plot(int x, int y) {
   if (!bb_renderer_) return;
   SDL_SetRenderDrawColor(bb_renderer_, bb_draw_r_, bb_draw_g_, bb_draw_b_, 255);
   SDL_RenderPoint(bb_renderer_, (float)x, (float)y);
+}
+
+// ==========================================================================
+// MILESTONE 41 — Line & Shape Primitives
+// ==========================================================================
+
+// ---- Line(x1, y1, x2, y2) ----
+//
+// Draws a straight line from (x1,y1) to (x2,y2) in the current draw colour.
+
+inline void bb_Line(int x1, int y1, int x2, int y2) {
+  if (!bb_renderer_) return;
+  SDL_SetRenderDrawColor(bb_renderer_, bb_draw_r_, bb_draw_g_, bb_draw_b_, 255);
+  SDL_RenderLine(bb_renderer_, (float)x1, (float)y1, (float)x2, (float)y2);
+}
+
+// ---- Rect(x, y, w, h [, solid]) ----
+//
+// Draws a rectangle with top-left at (x,y), dimensions w×h.
+//   solid = 1 (default) : filled rectangle
+//   solid = 0           : outline only
+
+inline void bb_Rect(int x, int y, int w, int h, int solid = 1) {
+  if (!bb_renderer_) return;
+  SDL_SetRenderDrawColor(bb_renderer_, bb_draw_r_, bb_draw_g_, bb_draw_b_, 255);
+  SDL_FRect r = { (float)x, (float)y, (float)w, (float)h };
+  if (solid)
+    SDL_RenderFillRect(bb_renderer_, &r);
+  else
+    SDL_RenderRect(bb_renderer_, &r);
+}
+
+// ---- Oval(x, y, w, h [, solid]) ----
+//
+// Draws an ellipse whose bounding box has top-left (x,y) and size w×h.
+//   solid = 1 (default) : filled with horizontal scanlines
+//   solid = 0           : outline via parametric point loop
+//
+// SDL3 has no native ellipse primitive; both paths are software-computed.
+
+inline void bb_Oval(int x, int y, int w, int h, int solid = 1) {
+  if (!bb_renderer_) return;
+  if (w <= 0 || h <= 0) return;
+  SDL_SetRenderDrawColor(bb_renderer_, bb_draw_r_, bb_draw_g_, bb_draw_b_, 255);
+
+  const float cx = x + w * 0.5f;
+  const float cy = y + h * 0.5f;
+  const float rx = w * 0.5f;
+  const float ry = h * 0.5f;
+
+  if (solid) {
+    // Fill: one horizontal scanline per pixel row inside the bounding box.
+    for (int sy = y; sy <= y + h; ++sy) {
+      const float dy = sy - cy;
+      if (std::fabs(dy) > ry) continue;
+      const float t  = dy / ry;
+      const float dx = rx * std::sqrt(1.0f - t * t);
+      SDL_RenderLine(bb_renderer_, cx - dx, (float)sy, cx + dx, (float)sy);
+    }
+  } else {
+    // Outline: parametric ellipse, enough steps for a smooth curve.
+    const int steps = static_cast<int>(2.0f * 3.14159265f * std::fmax(rx, ry)) + 4;
+    const int N     = steps < 16 ? 16 : steps;
+    std::vector<SDL_FPoint> pts(N + 1);
+    for (int i = 0; i <= N; ++i) {
+      const float angle = 2.0f * 3.14159265f * i / N;
+      pts[i] = { cx + rx * std::cos(angle), cy + ry * std::sin(angle) };
+    }
+    SDL_RenderLines(bb_renderer_, pts.data(), (int)pts.size());
+  }
+}
+
+// ---- Poly(x0, y0, x1, y1, x2, y2) ----
+//
+// Draws a filled triangle.  Blitz3D Poly has no solid parameter — it always
+// fills.  Uses SDL_RenderGeometry so the triangle is hardware-accelerated.
+
+inline void bb_Poly(int x0, int y0, int x1, int y1, int x2, int y2) {
+  if (!bb_renderer_) return;
+  const float r = bb_draw_r_ / 255.0f;
+  const float g = bb_draw_g_ / 255.0f;
+  const float b = bb_draw_b_ / 255.0f;
+  SDL_Vertex verts[3] = {
+    { {(float)x0, (float)y0}, {r, g, b, 1.0f}, {0.0f, 0.0f} },
+    { {(float)x1, (float)y1}, {r, g, b, 1.0f}, {0.0f, 0.0f} },
+    { {(float)x2, (float)y2}, {r, g, b, 1.0f}, {0.0f, 0.0f} },
+  };
+  SDL_RenderGeometry(bb_renderer_, nullptr, verts, 3, nullptr, 0);
 }
 
 #endif // BLITZNEXT_BB_GRAPHICS2D_H
