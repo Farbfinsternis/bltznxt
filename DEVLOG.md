@@ -1,5 +1,66 @@
 # BlitzNext Developer Log
 
+## v0.3.7 - "Audio Formats + Fullscreen Scaling" (2026-02-24)
+
+**Files touched:** `src/compiler/bb_sound.h`, `src/compiler/bb_graphics2d.h`,
+`src/thirdparty/dr_libs/dr_mp3.h` (new), `src/thirdparty/stb/stb_vorbis.c` (new)
+
+`PlayMusic` and `LoadSound` previously only accepted WAV files via `SDL_LoadWAV`.
+Attempting to load MP3 or OGG returned 0 silently (no error, no sound).
+
+### MP3 support — dr_mp3
+
+Integrated **dr_mp3** (David Reid, public domain, single-header) at
+`src/thirdparty/dr_libs/dr_mp3.h`. New internal `bb_load_mp3_()` decodes
+MP3 → float32 PCM via `drmp3_open_file_and_read_pcm_frames_f32`; constructs an
+SDL3 audio stream with `SDL_AUDIO_F32LE`. SDL3 handles sample-rate conversion
+transparently at bind time.
+
+### OGG Vorbis support — stb_vorbis
+
+Integrated **stb_vorbis** (Sean Barrett, public domain) at
+`src/thirdparty/stb/stb_vorbis.c`. New internal `bb_load_ogg_()` decodes
+OGG → int16 PCM via `stb_vorbis_decode_filename`; constructs an SDL3 audio
+stream with `SDL_AUDIO_S16LE`.
+
+**Macro collision fix:** `stb_vorbis.c` leaks single-character macros
+`L`, `C`, `R` (channel routing flags) into the TU. These collide with the
+variable `L` inside `stb_image.h` (JPEG marker parser). Fixed by
+`#undef L`, `#undef C`, `#undef R` immediately after the stb_vorbis include.
+
+### Extension dispatch in `bb_LoadSound`
+
+`bb_LoadSound` now detects the file extension (case-insensitive) and routes:
+- `.mp3` → `bb_load_mp3_()`
+- `.ogg` → `bb_load_ogg_()`
+- everything else → `SDL_LoadWAV` (WAV, AIFF)
+
+`bb_PlayMusic` is unchanged — it delegates to `bb_LoadSound`, so WAV / MP3 / OGG
+all work transparently.
+
+### Bug fix — Fullscreen resolution ignored (`bb_graphics2d.h`)
+
+`Graphics 640,480,0,1` was opening the window at desktop resolution and ignoring
+the requested 640×480. Root cause: in SDL3, `SDL_WINDOW_FULLSCREEN` does not
+change the display mode — it creates a fullscreen window at the current desktop
+resolution by default. A previous attempt to fix this via
+`SDL_SetWindowFullscreenMode` was reverted because modern GPUs rarely expose
+640×480 as a native display mode, making the approach unreliable.
+
+**Fix — renderer-side logical presentation (Godot approach):**
+
+- For fullscreen (mode 1, 6): window is created at desktop resolution (`0,0`).
+- After renderer creation, `SDL_SetRenderLogicalPresentation(renderer, w, h,
+  SDL_LOGICAL_PRESENTATION_LETTERBOX)` is called. SDL3 then maps all drawing
+  commands from the virtual `w×h` coordinate space onto the physical screen,
+  scaling up and letterboxing if the aspect ratio differs (e.g. 4:3 game on a
+  16:9 monitor gets black bars left and right).
+- `GraphicsWidth()` / `GraphicsHeight()` still return the requested values —
+  game code is unaffected.
+- No display mode change, no flicker, no dependency on driver-supported modes.
+
+---
+
 ## v0.3.6 - "Phase K Complete: 2D Graphics" (2026-02-24)
 
 Phase K (2D Graphics, Milestones 41–46b) completed in full. 42 of 66 milestones done.

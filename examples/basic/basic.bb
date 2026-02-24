@@ -1,11 +1,16 @@
 ; Simple Blitz2D Example
-Graphics 640,480,0,2
+Graphics 640,480,0,1
 SetBuffer BackBuffer()
 AppTitle "Blitz2D Basic Example"
+
 ; Load a player image
 player = LoadImage("ship.png")
+MidHandle player
+
 x = 320
 y = 240
+
+PlayMusic("Sternenfeuer.ogg")
 
 ; Main Game Loop
 While Not KeyHit(1)

@@ -243,6 +243,26 @@ See [DEVLOG.md](DEVLOG.md) for a full session-by-session changelog.
 
 ---
 
+## Third-Party Libraries
+
+BlitzNext bundles the following open-source libraries. Their source files are included in `src/thirdparty/` and `libs/`.
+
+| Library | Author | License | Purpose |
+|---------|--------|---------|---------|
+| [SDL3](https://libsdl.org) | Sam Lantinga & contributors | zlib | Window, renderer, audio device, events |
+| [SDL3_ttf](https://github.com/libsdl-org/SDL_ttf) | Sam Lantinga & contributors | zlib | TrueType font rendering |
+| [stb_image](https://github.com/nothings/stb) | Sean Barrett | Public Domain / MIT | PNG, JPEG, BMP, TGA image loading |
+| [stb_image_write](https://github.com/nothings/stb) | Sean Barrett | Public Domain | Image saving (PNG, BMP, TGA) |
+| [stb_vorbis](https://github.com/nothings/stb) | Sean Barrett | Public Domain / MIT | OGG Vorbis audio decoding |
+| [dr_mp3](https://github.com/mackron/dr_libs) | David Reid | Public Domain / MIT-0 | MP3 audio decoding |
+| [MinGW-w64](https://www.mingw-w64.org) | Various | GCC Runtime Exception + LGPL | C++ toolchain (bundled, downloaded at build time) |
+
+The SDL3 and SDL3_ttf zlib licenses require that the license text is preserved in source and binary distributions and that the libraries are not misrepresented as original work. The stb libraries and dr_mp3 are public domain — no attribution is legally required, though it is given here as a matter of courtesy.
+
+License texts for SDL3 and SDL3_ttf are included in `libs/sd3/LICENSE.txt` and `libs/sdl3_ttf/LICENSE.txt`. License statements for the stb libraries and dr_mp3 are embedded at the end of each respective header file.
+
+---
+
 ## A Note on Authorship
 
 BlitzNext was conceived and directed by Farbfinsternis, who had the excellent idea that someone should modernise a beloved programming language and the equally excellent follow-up idea that *someone* did not necessarily have to mean *him, entirely, alone*.

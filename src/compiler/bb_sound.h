@@ -3,8 +3,22 @@
 
 #include <SDL3/SDL.h>
 #include <iostream>
+#include <string>
+#include <cctype>
 #include "bb_sdl.h"    // bb_sdl_ensure_(), bb_sdl_initialized_, bb_audio_update_hook_
 #include "bb_string.h" // bbString
+
+// ---- dr_mp3 (single-header MP3 decoder, public domain, David Reid) ----
+#define DR_MP3_IMPLEMENTATION
+#include "../thirdparty/dr_libs/dr_mp3.h"
+
+// ---- stb_vorbis (single-file OGG Vorbis decoder, public domain, Sean Barrett) ----
+#include "../thirdparty/stb/stb_vorbis.c"
+// stb_vorbis leaks single-char macros L/C/R (channel routing flags) — undefine
+// them immediately so they don't corrupt stb_image.h which uses L as a variable.
+#undef L
+#undef C
+#undef R
 
 // ---- Audio device ----
 
@@ -116,16 +130,98 @@ inline const bool bb_snd_hook_reg_ = (bb_audio_update_hook_ = bb_snd_update_, tr
 
 // ---- Sound API ----
 
-// Load a WAV file; returns a sound handle (1-based, 0 on failure).
+// Internal: detect file extension (lowercase, no dot).
+inline std::string bb_snd_ext_(const std::string& path) {
+  auto dot = path.rfind('.');
+  if (dot == std::string::npos) return "";
+  std::string ext = path.substr(dot + 1);
+  for (auto& c : ext) c = (char)std::tolower((unsigned char)c);
+  return ext;
+}
+
+// Internal: load OGG Vorbis via stb_vorbis; decodes to int16 PCM.
+// Returns a free sound slot index (1-based), 0 on failure.
+inline int bb_load_ogg_(const char* path) {
+  int channels = 0, sample_rate = 0;
+  short* pcm = nullptr;
+  int samples = stb_vorbis_decode_filename(path, &channels, &sample_rate, &pcm);
+  if (samples < 0 || !pcm) {
+    std::cerr << "[runtime] PlayMusic/LoadSound: failed to decode OGG: " << path << "\n";
+    return 0;
+  }
+  Uint32 len = (Uint32)(samples * channels * sizeof(short));
+  Uint8* buf = (Uint8*)SDL_malloc(len);
+  if (!buf) { free(pcm); return 0; }
+  memcpy(buf, pcm, len);
+  free(pcm);
+
+  SDL_AudioSpec spec{};
+  spec.format   = SDL_AUDIO_S16LE;
+  spec.channels = channels;
+  spec.freq     = sample_rate;
+
+  for (int i = 1; i < BB_MAX_SOUNDS; ++i) {
+    if (!bb_snd_sounds_[i].data) {
+      bb_snd_sounds_[i] = bb_Sound_{ buf, len, spec };
+      return i;
+    }
+  }
+  SDL_free(buf);
+  return 0;
+}
+
+// Internal: load MP3 via dr_mp3; decodes to float32 PCM.
+// Returns a free sound slot index (1-based), 0 on failure.
+inline int bb_load_mp3_(const char* path) {
+  drmp3_config cfg{};
+  drmp3_uint64 frameCount = 0;
+  float* pcm = drmp3_open_file_and_read_pcm_frames_f32(path, &cfg, &frameCount, nullptr);
+  if (!pcm) {
+    std::cerr << "[runtime] PlayMusic/LoadSound: failed to decode MP3: " << path << "\n";
+    return 0;
+  }
+  Uint32 len = (Uint32)(frameCount * cfg.channels * sizeof(float));
+  Uint8* buf = (Uint8*)SDL_malloc(len);
+  if (!buf) { drmp3_free(pcm, nullptr); return 0; }
+  memcpy(buf, pcm, len);
+  drmp3_free(pcm, nullptr);
+
+  SDL_AudioSpec spec{};
+  spec.format   = SDL_AUDIO_F32LE;
+  spec.channels = (int)cfg.channels;
+  spec.freq     = (int)cfg.sampleRate;
+
+  for (int i = 1; i < BB_MAX_SOUNDS; ++i) {
+    if (!bb_snd_sounds_[i].data) {
+      bb_snd_sounds_[i] = bb_Sound_{ buf, len, spec };
+      return i;
+    }
+  }
+  SDL_free(buf);
+  return 0;
+}
+
+// Load a sound file (WAV or MP3); returns a sound handle (1-based, 0 on failure).
 inline int bb_LoadSound(const bbString& file) {
   bb_snd_ensure_();
   if (!bb_snd_dev_) return 0;
+
+  std::string ext = bb_snd_ext_(file);
+
+  if (ext == "mp3")       return bb_load_mp3_(file.c_str());
+  if (ext == "ogg")       return bb_load_ogg_(file.c_str());
+
+  // WAV (and any format SDL_LoadWAV supports)
   for (int i = 1; i < BB_MAX_SOUNDS; ++i) {
     if (!bb_snd_sounds_[i].data) {
       SDL_AudioSpec spec{};
       Uint8*  buf = nullptr;
       Uint32  len = 0;
-      if (!SDL_LoadWAV(file.c_str(), &spec, &buf, &len)) return 0;
+      if (!SDL_LoadWAV(file.c_str(), &spec, &buf, &len)) {
+        std::cerr << "[runtime] LoadSound: SDL_LoadWAV failed for '" << file << "': "
+                  << SDL_GetError() << "\n";
+        return 0;
+      }
       bb_snd_sounds_[i] = bb_Sound_{ buf, len, spec };
       return i;
     }
@@ -274,9 +370,9 @@ inline void bb_StopMusic() {
   }
 }
 
-// Play a WAV file as looping background music.
+// Play a WAV, MP3, or OGG file as looping background music.
 // Returns the channel handle (>0) on success, 0 on failure.
-// OGG/MP3 require SDL_mixer which is not bundled — they fail gracefully.
+// MP3: dr_mp3 (bundled). OGG: stb_vorbis (bundled). WAV: SDL_LoadWAV.
 inline int bb_PlayMusic(const bbString& file) {
   bb_StopMusic();  // stop previous track first
   int snd = bb_LoadSound(file);

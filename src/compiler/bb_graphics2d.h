@@ -64,21 +64,22 @@ inline void bb_Graphics(int width, int height, int depth = 32, int mode = 0) {
   SDL_WindowFlags flags = 0;
 
   // Blitz3D Graphics mode parameter:
-  //   0 = auto (windowed in debug, fullscreen in release — we always use windowed)
-  //   1 = fullscreen
+  //   0 = windowed
+  //   1 = fullscreen  (window at desktop res; game content scaled via logical presentation)
   //   2 = windowed
-  //   3 = scaled window (windowed, SDL handles scaling)
-  //   6 = fullscreen with vsync (BlitzNext extension)
-  if (mode == 1) {
-    flags |= SDL_WINDOW_FULLSCREEN;
-  } else if (mode == 6) {
-    flags |= SDL_WINDOW_FULLSCREEN;
-  }
-  // mode 0, 2, 3: windowed — no extra flags
+  //   3 = windowed
+  //   6 = fullscreen + vsync (BlitzNext extension; same scaling approach as mode 1)
+  const bool fullscreen = (mode == 1 || mode == 6);
+  if (fullscreen) flags |= SDL_WINDOW_FULLSCREEN;
 
   const char* title = bb_app_title_.empty() ? "BlitzNext" : bb_app_title_.c_str();
 
-  bb_window_ = SDL_CreateWindow(title, width, height, flags);
+  // Fullscreen: create at desktop resolution (0,0 → SDL picks current mode).
+  // Windowed: create at the exact requested size.
+  int win_w = fullscreen ? 0 : width;
+  int win_h = fullscreen ? 0 : height;
+
+  bb_window_ = SDL_CreateWindow(title, win_w, win_h, flags);
   if (!bb_window_) {
     std::cerr << "[runtime] Graphics: SDL_CreateWindow failed: " << SDL_GetError() << "\n";
     return;
@@ -92,13 +93,23 @@ inline void bb_Graphics(int width, int height, int depth = 32, int mode = 0) {
     return;
   }
 
+  // Fullscreen: set a logical presentation so all drawing commands use the
+  // game's virtual resolution (width × height).  SDL3 scales to the screen
+  // and letterboxes if the aspect ratio differs — same approach as Godot's
+  // stretch mode.  GraphicsWidth()/Height() still return width/height so
+  // game code sees the expected values.
+  if (fullscreen) {
+    SDL_SetRenderLogicalPresentation(bb_renderer_, width, height,
+                                     SDL_LOGICAL_PRESENTATION_LETTERBOX);
+  }
+
   // Query the refresh rate from the display the window landed on.
   SDL_DisplayID disp = SDL_GetDisplayForWindow(bb_window_);
   const SDL_DisplayMode* dm = SDL_GetCurrentDisplayMode(disp);
   if (dm && dm->refresh_rate > 0.0f)
     bb_gfx_rate_ = static_cast<int>(dm->refresh_rate);
 
-  // Enable vsync when mode == 6 (or as a default — smooth rendering).
+  // Enable vsync when mode == 6.
   if (mode == 6)
     SDL_SetRenderVSync(bb_renderer_, 1);
 }
