@@ -111,6 +111,14 @@ inline int bb_sdl_hat_to_blitz_(Uint8 v) {
   }
 }
 
+// ---- Quit hooks (forward declarations) ----
+//
+// Declared before bb_sdl_quit_() so the function body can reference them.
+// Set by bb_graphics2d.h (TTF) and bb_image.h (image textures) at startup.
+
+inline void (*bb_ttf_quit_hook_)()   = nullptr;
+inline void (*bb_image_quit_hook_)() = nullptr;
+
 // ---- Lifecycle ----
 
 // Called lazily the first time a graphics or input function needs SDL.
@@ -128,6 +136,8 @@ inline void bb_sdl_ensure_() {
 inline void bb_sdl_init_() { bb_sdl_ensure_(); }
 
 inline void bb_sdl_quit_() {
+  if (bb_ttf_quit_hook_)   { bb_ttf_quit_hook_();   bb_ttf_quit_hook_   = nullptr; }
+  if (bb_image_quit_hook_) { bb_image_quit_hook_(); bb_image_quit_hook_ = nullptr; }
   for (int i = 0; i < BB_JOY_MAX_PORTS; ++i) {
     if (bb_joy_[i].handle) {
       SDL_CloseJoystick(bb_joy_[i].handle);
@@ -286,6 +296,14 @@ inline void bb_sdl_process_event_(const SDL_Event &ev) {
 // Null until bb_sound.h is included; called after every SDL event drain.
 
 inline void (*bb_audio_update_hook_)() = nullptr;
+
+// ---- TTF quit hook ----
+//
+// Set by bb_graphics2d.h (M43) when SDL3_ttf is compiled in.
+// Called from bb_sdl_quit_() before SDL itself shuts down so that all
+// open TTF_Font* handles are closed and TTF_Quit() is called in the
+// correct order (TTF → Sound → SDL).
+// (Variable declared earlier, before bb_sdl_quit_().)
 
 // ---- Event pump ----
 //

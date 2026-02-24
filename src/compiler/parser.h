@@ -208,10 +208,11 @@ private:
       }
 
       // Optional type-hint suffix on the variable name (x#, s$, n%, f!)
+      std::string assignHint;
       if (peek().type == TokenType::OPERATOR &&
           (peek().value == "#" || peek().value == "%" ||
            peek().value == "!" || peek().value == "$"))
-        advance(); // consume — same variable regardless of hint
+        assignHint = advance().value; // consume and remember for auto-decl
 
       // Field assignment: var\field = expr  (Blitz3D \ field separator)
       if (peek().type == TokenType::OPERATOR && peek().value == "\\") {
@@ -252,7 +253,7 @@ private:
       if (peek().type == TokenType::OPERATOR && peek().value == "=") {
         advance(); // consume "="
         auto val = parseExpr();
-        auto a = std::make_unique<AssignStmt>(nameTok.value, std::move(val));
+        auto a = std::make_unique<AssignStmt>(nameTok.value, assignHint, std::move(val));
         a->line = nameTok.line;
         return a;
       }

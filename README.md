@@ -6,7 +6,7 @@
 
 **BlitzNext** is a modern compiler that converts Blitz3D (`.bb`) source files directly into native Windows executables via a C++17 transpilation pipeline. It targets 100% command parity with the original Blitz3D engine, using a bundled MinGW toolchain and SDL3 for audio and graphics.
 
-> **Status: active development — 35 of 65 milestones complete.**
+> **Status: active development — 42 of 66 milestones complete.**
 > See [roadmap.md](roadmap.md) for the full milestone list and [DEVLOG.md](DEVLOG.md) for the changelog.
 
 ---
@@ -34,12 +34,12 @@ Mark passed away in 2025. BlitzNext exists to carry his idea forward — the bel
 | Area | Done | Goal | Coverage |
 |------|------|------|----------|
 | **Language features** | Grammar, types, control flow, functions, arrays, includes, operators | 100% Blitz3D language spec | ~90% |
-| **Runtime (built-in commands)** | 283 functions across 11 modules | ~480 total projected | ~59% |
-| **Roadmap milestones** | 35 of 65 | 65 | 54% |
+| **Runtime (built-in commands)** | ~340 functions across 12 modules | ~480 total projected | ~71% |
+| **Roadmap milestones** | 42 of 66 | 66 | 64% |
 
 **Language** is nearly complete — all core constructs (variables, types, functions, control flow, operators, `#Include`, `Data/Read`, `Dim`, `Goto/Gosub`) are implemented. Remaining gaps are edge cases in the parser, not missing constructs.
 
-**Runtime** coverage grows phase by phase. The non-graphical half (math, strings, files, banks, input, audio) is done. 2D graphics is partially complete (window, buffer, color, pixel operations). The 3D graphics layer (Phases L–T, Milestones 47–70) makes up the bulk of what remains.
+**Runtime** coverage grows phase by phase. The non-graphical half (math, strings, files, banks, input, audio) is done. The entire 2D graphics layer is now complete — window, buffer, color, shapes, text, fonts, images (single-frame and animated), pixel buffer access, and all image manipulation functions. The 3D graphics layer (Phases L–T, Milestones 47–70) makes up the bulk of what remains.
 
 ---
 
@@ -99,7 +99,7 @@ bin\blitzcc.exe hello.bb
 | `#Include` with circular dependency protection | ✓ |
 | Operators: `And`, `Or`, `Xor`, `Not`, `Mod`, `Shl`, `Shr`, `Sar`, `^` | ✓ |
 
-### Built-in Commands (103 total)
+### Built-in Commands (~340 total)
 
 **Math** — `Sin`, `Cos`, `Tan`, `ASin`, `ACos`, `ATan`, `ATan2`, `Sqr`, `Abs`, `Log`, `Log10`, `Exp`, `Floor`, `Ceil`, `Sgn`, `Pi`
 
@@ -113,11 +113,21 @@ bin\blitzcc.exe hello.bb
 
 **Banks** — `CreateBank`, `FreeBank`, `BankSize`, `ResizeBank`, `CopyBank`, `PeekByte`, `PeekShort`, `PeekInt`, `PeekFloat`, `PokeByte`, `PokeShort`, `PokeInt`, `PokeFloat`
 
-**Input** — `KeyDown`, `KeyHit`, `WaitKey`, `FlushKeys`, `Input`, `MouseX`, `MouseY`, `MouseZ`, `MouseXSpeed`, `MouseYSpeed`, `MouseDown`, `MouseHit`, `WaitMouse`, `FlushMouse`, `MoveMouse`, `JoyType`, `JoyX`, `JoyY`, `JoyDown`, `JoyHit`
+**Input** — `KeyDown`, `KeyHit`, `WaitKey`, `FlushKeys`, `Input`, `MouseX`, `MouseY`, `MouseZ`, `MouseXSpeed`, `MouseYSpeed`, `MouseDown`, `MouseHit`, `WaitMouse`, `FlushMouse`, `MoveMouse`, `JoyType`, `JoyX`, `JoyY`, `JoyZ`, `JoyU`, `JoyV`, `JoyHat`, `JoyDown`, `JoyHit`, `WaitJoy`, `GetJoy`, `FlushJoy`
 
-**Audio** — `LoadSound`, `FreeSound`, `PlaySound`, `LoopSound`, `StopChannel`, `ChannelPlaying`, `ChannelVolume`, `ChannelPan`, `ChannelPitch`, `PauseChannel`, `ResumeChannel`, `PlayMusic`, `StopMusic`, `MusicPlaying`, `Load3DSound`, `Channel3DPosition`, `ListenerPosition`
+**Audio** — `LoadSound`, `FreeSound`, `PlaySound`, `LoopSound`, `StopChannel`, `ChannelPlaying`, `ChannelVolume`, `ChannelPan`, `ChannelPitch`, `PauseChannel`, `ResumeChannel`, `SoundVolume`, `SoundPan`, `SoundPitch`, `PlayMusic`, `StopMusic`, `MusicPlaying`, `PlayCDTrack`, `Load3DSound`, `SoundRange`, `Channel3DPosition`, `Channel3DVelocity`, `ListenerPosition`, `ListenerOrientation`, `ListenerVelocity`, `WaitSound`
 
-**2D Graphics** — `Graphics`, `EndGraphics`, `GraphicsWidth`, `GraphicsHeight`, `Cls`, `Flip`, `BackBuffer`, `FrontBuffer`, `SetBuffer`, `CopyRect`, `Color`, `ClsColor`, `GetColor`, `Plot`, `TotalVidMem`, `AvailVidMem`
+**2D Graphics — Window & Buffer** — `Graphics`, `EndGraphics`, `GraphicsWidth`, `GraphicsHeight`, `GraphicsDepth`, `GraphicsRate`, `GraphicsMode`, `TotalVidMem`, `AvailVidMem`, `BackBuffer`, `FrontBuffer`, `SetBuffer`, `Cls`, `Flip`, `CopyRect`
+
+**2D Graphics — Color & Drawing** — `Color`, `ClsColor`, `ColorRed`, `ColorGreen`, `ColorBlue`, `GetColor`, `Rgb`, `Plot`, `Line`, `Rect`, `Oval`, `Poly`
+
+**2D Graphics — Text & Fonts** — `Write`, `Locate`, `Text`, `LoadFont`, `SetFont`, `FreeFont`, `FontWidth`, `FontHeight`, `StringWidth`, `StringHeight`
+
+**2D Graphics — Images** — `LoadImage`, `LoadAnimImage`, `CreateImage`, `FreeImage`, `DrawImage`, `DrawImageRect`, `DrawBlock`, `DrawBlockRect`, `GrabImage`, `CopyImage`, `SaveImage`, `ImageWidth`, `ImageHeight`
+
+**2D Graphics — Image Manipulation** — `HandleImage`, `MidHandle`, `AutoMidHandle`, `ImageXHandle`, `ImageYHandle`, `ScaleImage`, `RotateImage`, `FlipImage`, `MirrorImage`, `MaskImage`, `TileImage`, `TileBlock`, `DrawImageEllipse`, `ImagesOverlap`, `ImageRectOverlap`, `ImagesCollide`, `ImageRectCollide`, `ImagesColl`, `ImageXColl`, `ImageYColl`
+
+**2D Graphics — Pixel Buffer** — `ImageBuffer`, `LockBuffer`, `UnlockBuffer`, `ReadPixel`, `WritePixel`, `ReadPixelFast`, `WritePixelFast`, `CopyPixel`, `CopyPixelFast`, `LoadBuffer`, `SaveBuffer`, `BufferWidth`, `BufferHeight`
 
 ### Compiler & Tooling
 - **One-step build**: `blitzcc myfile.bb` → transpile to C++ → compile → `myfile.exe`
@@ -173,7 +183,8 @@ src/compiler/
   bb_input.h        ← keyboard, mouse, joystick
   bb_sound.h        ← audio playback
   bb_sound3d.h      ← 3D positional audio
-  bb_graphics2d.h   ← 2D graphics
+  bb_graphics2d.h   ← 2D graphics (window, buffer, color, shapes, text, fonts)
+  bb_image.h        ← image loading, drawing, manipulation, pixel buffer (M44–M46b)
 ```
 
 The runtime is **header-only** — the generated `.cpp` file `#include`s only what it needs, then gets compiled by the bundled MinGW g++.
@@ -182,7 +193,7 @@ The runtime is **header-only** — the generated `.cpp` file `#include`s only wh
 
 ## Roadmap Overview
 
-35 of 65 milestones complete. See [roadmap.md](roadmap.md) for full detail.
+42 of 66 milestones complete. See [roadmap.md](roadmap.md) for full detail.
 
 | Phase | Scope | Status |
 |-------|-------|--------|
@@ -196,7 +207,7 @@ The runtime is **header-only** — the generated `.cpp` file `#include`s only wh
 | H — SDL3 | Window init, event loop | ✓ Done |
 | I — Input | Keyboard, Mouse, Joystick | ✓ Done |
 | J — Audio | Sound, Music, 3D audio | ✓ Done |
-| K — 2D Graphics | Window, buffer, color, pixel, shapes, text, images | **In progress** (M38–40 ✓, M41–46 open) |
+| K — 2D Graphics | Window, buffer, color, shapes, text, fonts, images, pixel buffer | ✓ Done |
 | L–T — 3D Graphics | Scene, textures, mesh, entities, camera, collision, animation | Planned |
 
 ---

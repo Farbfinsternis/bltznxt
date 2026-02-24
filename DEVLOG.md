@@ -1,5 +1,147 @@
 # BlitzNext Developer Log
 
+## v0.3.6 - "Phase K Complete: 2D Graphics" (2026-02-24)
+
+Phase K (2D Graphics, Milestones 41–46b) completed in full. 42 of 66 milestones done.
+**Files primarily touched:** `src/compiler/bb_graphics2d.h`, `src/compiler/bb_image.h`,
+`src/compiler/bb_sdl.h`, `src/compiler/emitter.h`, `src/compiler/blitzcc.cpp`,
+`src/compiler/ast.h`, `src/compiler/parser.h`, `src/compiler/bb_runtime.h`
+
+---
+
+### Milestone 41: Line & Shape Primitives
+
+- `bb_Line(x1,y1,x2,y2)` — `SDL_RenderLine`, coords cast to float
+- `bb_Rect(x,y,w,h,solid=1)` — `SDL_RenderFillRect` / `SDL_RenderRect`
+- `bb_Oval(x,y,w,h,solid=1)` — filled: scanline half-chord; outline: parametric
+  loop, `steps = max(16, ⌈2π·max(rx,ry)⌉ + 4)`, closed `SDL_RenderLines`
+- `bb_Poly(x0,y0,x1,y1,x2,y2)` — hardware triangle via `SDL_RenderGeometry`
+
+**Bug fix — Type/function name collision** (`emitter.h`): adding `bb_Rect()` to the
+runtime caused `Type Rect` → `struct bb_Rect` to be shadowed by the function.
+Fix: `hintToType()` returns `"struct bb_TypeName *"` (elaborated type specifier);
+`emitTypeDecl()` uses `spname = "struct " + sname + " *"` throughout. Zero-cost,
+standard-conforming, permanently prevents `bb_`-namespace collisions.
+
+---
+
+### Milestone 42: Text & Console Output
+
+- `bb_Write<T>` — no-newline output via `std::cout << val << std::flush`
+- `bb_Locate(x,y)` — ANSI cursor (`\x1b[row;colH`); no-op when not a TTY
+- `bb_Text(x,y,s,cx=0,cy=0)` — pixel-perfect 8×8 bitmap font renderer;
+  `static constexpr uint8_t bb_font8x8_[128][8]` baked into the header (CP437)
+
+---
+
+### Milestone 43: Font System + SDL3_ttf
+
+- `bb_Font_` struct (`height`, `width`, `valid`, `ttf`); slot 0 = built-in 8×8 default
+- `LoadFont` / `SetFont` / `FreeFont` / `FontWidth` / `FontHeight` / `StringWidth` / `StringHeight`
+- **SDL3_ttf 3.2.2** integrated: `build_windows.bat` downloads it automatically;
+  `blitzcc.cpp` detects presence → `-DBB_HAS_SDL3_TTF -I<inc>` + links `libSDL3_ttf.dll.a`
+- `bb_find_font_file_()` resolves system font names (`%WINDIR%\Fonts\*.ttf`)
+- `bb_Text()` dispatches to TTF path (`TTF_RenderText_Blended` → texture → render → free)
+  or falls back to built-in bitmap
+- API note: `TTF_GetStringSize(TTF_Font*, ...)` used — not `TTF_GetTextSize(TTF_Text*, ...)`
+
+---
+
+### Milestone 44: Image Loading & Drawing
+
+New file `src/compiler/bb_image.h`; embedded **stb_image** (public domain, `src/thirdparty/stb/`)
+
+- `bb_LoadImage(file)` — stb_image → RGBA32 surface → SDL_Texture; headless-safe
+- `bb_CreateImage(w,h)` — `SDL_TEXTUREACCESS_TARGET` texture
+- `bb_FreeImage`, `bb_ImageWidth`, `bb_ImageHeight`
+- `bb_DrawImage`, `bb_DrawImageRect`, `bb_DrawBlock`, `bb_DrawBlockRect` — `SDL_RenderTexture`
+- `bb_image_quit_hook_` registered before `bb_sdl_quit_()` (teardown order)
+
+---
+
+### Milestone 45: Image Manipulation
+
+- `HandleImage` / `MidHandle` / `AutoMidHandle` / `ImageXHandle` / `ImageYHandle`
+- `ScaleImage` / `RotateImage` / `MaskImage`
+- `TileImage` / `TileBlock` / `DrawImageEllipse`
+- `SaveImage` (stb_image_write, PNG)
+- `ImagesOverlap` / `ImageRectOverlap` / `ImagesColl` / `ImageXColl` / `ImageYColl`
+
+---
+
+### Milestone 46: Pixel Buffer Access
+
+- `bb_ImageBuffer(img)` → handle (`img+2`); `BackBuffer()=1`, `FrontBuffer()=2`
+- `LockBuffer` / `UnlockBuffer` — in-memory RGBA pixel arrays; flush to SDL texture on unlock
+- `ReadPixel` / `WritePixel` — bounds-checked ARGB; `*Fast` variants unchecked
+- `CopyPixel` / `CopyPixelFast` — cross-buffer
+- `LoadBuffer` / `SaveBuffer` — stb_image load; stb_image_write PNG save (no renderer needed)
+- `BufferWidth` / `BufferHeight`
+- `bb_Rgb(r,g,b)` → `(r<<16)|(g<<8)|b` colour helper added to `bb_graphics2d.h`
+
+**Bug fix** (`emitter.h`): `AND`/`OR` emitted as `&&`/`||` (logical, 0 or 1) instead of
+`&`/`|` (bitwise). Fixed in `mapOp()`.
+
+---
+
+### Milestone 46b: Animated Images & Image API Completion
+
+Complete rewrite of `bb_image.h` for multi-frame support:
+
+- `bb_FrameData_` — per-frame: `tex`, `pixels`, `handle_x/y`, `scale_x/y`, `rotation`
+- `bb_Image_` → `{width, height, valid, std::vector<bb_FrameData_> frames}`
+- All M44/M45/M46 functions gain optional `frame%=0` parameter
+- Buffer handle: `ImageBuffer(img,frame) = (img-1) + frame*65536 + 3`
+  (for `frame=0` equals old `img+2` — fully backward compatible)
+- `bb_LoadAnimImage(file,fw,fh,first,count)` — sprite strip slicer
+- `bb_GrabImage(h,x,y,frame)` — screen → image frame capture
+- `bb_CopyImage(h)` — deep copy of all frames
+- `bb_FlipImage` / `bb_MirrorImage` — vertical / horizontal pixel flip
+- `bb_ImagesCollide` / `bb_ImageRectCollide` — AABB (pixel-perfect stub)
+
+---
+
+### Bug Fix: Toolchain path resolution (`blitzcc.cpp`)
+
+`resolvePath()` failed when `blitzcc.exe` was invoked from a subdirectory.
+`argv[0]` now sets `g_exeDir_`; search order: CWD → exe-dir → **exe-dir/..** → `../CWD` → `$BLITZPATH`.
+
+---
+
+### Bug Fix: Implicit global variable declarations (`ast.h`, `parser.h`, `emitter.h`)
+
+Bare `x = value` without `Local`/`Global` (standard Blitz3D) caused "undeclared variable"
+in the generated C++. `AssignStmt` gains `typeHint`; emitter auto-declares on first use.
+`collectGlobals()` now also populates `declaredVars` to block re-declaration in function bodies.
+
+---
+
+### Bug Fix: `Graphics` mode parameter (`bb_graphics2d.h`)
+
+Mode `2` (windowed) was incorrectly opening a fullscreen-desktop window.
+Correct: 0/2/3 = windowed, 1/6 = fullscreen (6 also enables vsync).
+
+---
+
+### Bug Fix: `Flip(vblank)` — vsync ignored (`bb_graphics2d.h`)
+
+`vblank` parameter was discarded. Now calls `SDL_SetRenderVSync(renderer, 1/0)` on change
+(tracked in `bb_vsync_mode_`). `Flip` / `Flip 1` = vsync on; `Flip 0` = vsync off.
+
+---
+
+### Bug Fix: `WaitTimer` precision on Windows (`bb_runtime.h`, `blitzcc.cpp`)
+
+Windows default timer resolution ~15.6 ms caused ±8 ms jitter at 60 Hz.
+`bbInit()` calls `timeBeginPeriod(1)` (1 ms resolution); `bbEnd()` restores it.
+Link command adds `-lwinmm`.
+
+---
+
+- **Tests:** 42 PASS, 0 FAIL ✓
+
+---
+
 ## v0.2.7 - "Color & Pixel Primitives" (2026-02-23)
 
 ### Milestone 40: Color & Pixel Primitives

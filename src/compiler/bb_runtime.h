@@ -14,6 +14,7 @@
 #include "bb_sound.h"   // Sound loading, playback, looping, channel control
 #include "bb_sound3d.h"    // 3D/positional sound stubs, WaitSound, listener state
 #include "bb_graphics2d.h" // Graphics(), GraphicsWidth/Height/Depth/Rate, VidMem stubs
+#include "bb_image.h"      // LoadImage, CreateImage, DrawImage, ImageWidth/Height
 
 // ---- Lifecycle ----
 
@@ -21,8 +22,16 @@ inline void bbInit(int argc = 0, char** argv = nullptr) {
   bb_argc_ = argc;
   bb_argv_ = argv;
   // SDL is initialised lazily by bb_sdl_ensure_() when a window is first needed.
+#ifdef _WIN32
+  // Set Windows timer resolution to 1ms so WaitTimer / sleep_until are accurate.
+  // Default Windows resolution is ~15.6ms (64Hz), causing WaitTimer jitter.
+  timeBeginPeriod(1);
+#endif
 }
 inline void bbEnd() {
+#ifdef _WIN32
+  timeEndPeriod(1);
+#endif
   bb_snd_quit_();   // close audio device + free sounds/channels
   bb_sdl_quit_();   // close joysticks, window, renderer, SDL
 }

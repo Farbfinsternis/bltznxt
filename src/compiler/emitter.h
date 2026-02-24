@@ -178,11 +178,25 @@ public:
   }
 
   void visit(AssignStmt *node) override {
-    output << ind() << "var_" << node->name << " = ";
-    bool prev = inExprCtx; inExprCtx = true;
-    node->value->accept(this);
-    inExprCtx = prev;
-    output << ";\n";
+    std::string lo = node->name;
+    std::transform(lo.begin(), lo.end(), lo.begin(),
+                   [](unsigned char c){ return (char)std::tolower(c); });
+    if (declaredVars.count(lo) == 0) {
+      // Implicit global — Blitz3D allows bare assignment without Local/Global
+      auto [type, defVal] = hintToType(node->typeHint);
+      output << ind() << type << " var_" << node->name << " = ";
+      bool prev = inExprCtx; inExprCtx = true;
+      node->value->accept(this);
+      inExprCtx = prev;
+      output << ";\n";
+      declaredVars.insert(lo);
+    } else {
+      output << ind() << "var_" << node->name << " = ";
+      bool prev = inExprCtx; inExprCtx = true;
+      node->value->accept(this);
+      inExprCtx = prev;
+      output << ";\n";
+    }
   }
 
   void visit(IfStmt *node) override {
@@ -647,23 +661,30 @@ private:
   void emitTypeDecl(TypeDecl *td) {
     const std::string sname = "bb_" + td->name;
 
+    // Use "struct bb_TypeName *" (elaborated type specifier) throughout so that
+    // user-defined types like "Type Rect" don't collide with runtime functions
+    // that share the same bb_ prefix (e.g. bb_Rect from bb_graphics2d.h).
+    // In C++, a struct tag can always be named unambiguously via "struct X" even
+    // when a function named X is in scope.
+    const std::string spname = "struct " + sname + " *";  // pointer type
+
     // Struct definition
     output << "struct " << sname << " {\n";
     for (auto &f : td->fields) {
       auto [ftype, fdefault] = hintToType(f.typeHint);
       output << "    " << ftype << " var_" << f.name << " = " << fdefault << ";\n";
     }
-    output << "    " << sname << " *__next__ = nullptr;\n";
-    output << "    " << sname << " *__prev__ = nullptr;\n";
+    output << "    " << spname << "__next__ = nullptr;\n";
+    output << "    " << spname << "__prev__ = nullptr;\n";
     output << "};\n";
 
     // Global linked-list head/tail
-    output << "inline " << sname << " *bb_" << td->name << "_head_ = nullptr;\n";
-    output << "inline " << sname << " *bb_" << td->name << "_tail_ = nullptr;\n";
+    output << "inline " << spname << "bb_" << td->name << "_head_ = nullptr;\n";
+    output << "inline " << spname << "bb_" << td->name << "_tail_ = nullptr;\n";
 
     // bb_TypeName_New() — allocate + append to tail of list
-    output << "inline " << sname << " *bb_" << td->name << "_New() {\n";
-    output << "    auto *p = new " << sname << ";\n";
+    output << "inline " << spname << "bb_" << td->name << "_New() {\n";
+    output << "    struct " << sname << " *p = new struct " << sname << ";\n";
     output << "    p->__prev__ = bb_" << td->name << "_tail_;\n";
     output << "    p->__next__ = nullptr;\n";
     output << "    if (bb_" << td->name << "_tail_) bb_" << td->name << "_tail_->__next__ = p;\n";
@@ -673,7 +694,7 @@ private:
     output << "}\n";
 
     // bb_TypeName_Delete(p) — unlink from list + free
-    output << "inline void bb_" << td->name << "_Delete(" << sname << " *p) {\n";
+    output << "inline void bb_" << td->name << "_Delete(" << spname << "p) {\n";
     output << "    if (!p) return;\n";
     output << "    if (p->__prev__) p->__prev__->__next__ = p->__next__;\n";
     output << "    else bb_" << td->name << "_head_ = p->__next__;\n";
@@ -684,7 +705,7 @@ private:
 
     // Helper: unlink p from wherever it currently sits in the list
     // (shared logic used by InsertBefore / InsertAfter)
-    output << "inline void bb_" << td->name << "_Unlink(" << sname << " *p) {\n";
+    output << "inline void bb_" << td->name << "_Unlink(" << spname << "p) {\n";
     output << "    if (p->__prev__) p->__prev__->__next__ = p->__next__;\n";
     output << "    else bb_" << td->name << "_head_ = p->__next__;\n";
     output << "    if (p->__next__) p->__next__->__prev__ = p->__prev__;\n";
@@ -693,7 +714,7 @@ private:
     output << "}\n";
 
     // bb_TypeName_InsertBefore(obj, target) — place obj immediately before target
-    output << "inline void bb_" << td->name << "_InsertBefore(" << sname << " *obj, " << sname << " *target) {\n";
+    output << "inline void bb_" << td->name << "_InsertBefore(" << spname << "obj, " << spname << "target) {\n";
     output << "    if (!obj || !target || obj == target) return;\n";
     output << "    bb_" << td->name << "_Unlink(obj);\n";
     output << "    obj->__next__ = target;\n";
@@ -704,7 +725,7 @@ private:
     output << "}\n";
 
     // bb_TypeName_InsertAfter(obj, target) — place obj immediately after target
-    output << "inline void bb_" << td->name << "_InsertAfter(" << sname << " *obj, " << sname << " *target) {\n";
+    output << "inline void bb_" << td->name << "_InsertAfter(" << spname << "obj, " << spname << "target) {\n";
     output << "    if (!obj || !target || obj == target) return;\n";
     output << "    bb_" << td->name << "_Unlink(obj);\n";
     output << "    obj->__prev__ = target;\n";
@@ -828,6 +849,7 @@ private:
                [](unsigned char c){ return (char)std::tolower(c); });
         if (globalVarNames.count(lo)) continue; // skip duplicates
         globalVarNames.insert(lo);
+        declaredVars.insert(lo); // prevent implicit re-declaration inside functions
         auto [type, defVal] = hintToType(vd->typeHint);
         output << type << " var_" << vd->name << " = " << defVal << ";\n";
       }
@@ -862,7 +884,7 @@ private:
     if (hint == "#" || hint == "!")
       return {"float", "0.0f"};
     if (!hint.empty() && hint[0] == '.')
-      return {"bb_" + hint.substr(1) + " *", "nullptr"};
+      return {"struct bb_" + hint.substr(1) + " *", "nullptr"};
     return {"int", "0"}; // "%" or empty → int
   }
 
@@ -870,8 +892,8 @@ private:
   static std::string mapOp(const std::string &op) {
     if (op == "=")   return "==";
     if (op == "<>")  return "!=";
-    if (op == "AND") return "&&";
-    if (op == "OR")  return "||";
+    if (op == "AND") return "&";
+    if (op == "OR")  return "|";
     if (op == "XOR") return "^";
     if (op == "MOD") return "%";
     if (op == "SHL") return "<<";

@@ -22,16 +22,29 @@ struct Config {
 };
 
 // ---- Path helper -----------------------------------------------------------
-// Search order: CWD-relative → "../"-relative → $BLITZPATH-relative.
+// Search order:
+//   1. CWD-relative
+//   2. exe-dir-relative          (blitzcc.exe is in bin/, so bin/rel)
+//   3. exe-dir/../relative       (one level up from bin/ = project root)
+//   4. "../" CWD-relative        (legacy fallback)
+//   5. $BLITZPATH-relative
+static fs::path g_exeDir_;
+
 static fs::path resolvePath(const std::string &rel) {
   fs::path p = fs::absolute(rel);
   if (fs::exists(p)) return p;
-  fs::path p2 = fs::absolute("../" + rel);
-  if (fs::exists(p2)) return p2;
+  if (!g_exeDir_.empty()) {
+    fs::path p2 = g_exeDir_ / rel;
+    if (fs::exists(p2)) return p2;
+    fs::path p3 = g_exeDir_ / ".." / rel;
+    if (fs::exists(p3)) return p3;
+  }
+  fs::path p4 = fs::absolute("../" + rel);
+  if (fs::exists(p4)) return p4;
   const char *bp = std::getenv("BLITZPATH");
   if (bp) {
-    fs::path p3 = fs::path(bp) / rel;
-    if (fs::exists(p3)) return p3;
+    fs::path p5 = fs::path(bp) / rel;
+    if (fs::exists(p5)) return p5;
   }
   return p; // not found — caller checks existence
 }
@@ -108,6 +121,74 @@ static const CmdInfo kCommands[] = {
   { "ColorBlue",   ""             },
   { "GetColor",    "x%, y%"       },
   { "Plot",        "x%, y%"       },
+  { "Rgb",         "r%, g%, b%"   },
+  // 2D Graphics — shapes (M41)
+  { "Line",        "x1%, y1%, x2%, y2%"              },
+  { "Rect",        "x%, y%, w%, h% [,solid%]"         },
+  { "Oval",        "x%, y%, w%, h% [,solid%]"         },
+  { "Poly",        "x0%, y0%, x1%, y1%, x2%, y2%"    },
+  // 2D Graphics — text (M42)
+  { "Write",       "val"                                          },
+  { "Locate",      "x%, y%"                                      },
+  { "Text",        "x%, y%, s$ [,centerX%] [,centerY%]"          },
+  // 2D Graphics — fonts (M43)
+  { "LoadFont",    "name$, height% [,bold%] [,italic%] [,underline%]" },
+  { "SetFont",     "handle%"                                      },
+  { "FreeFont",    "handle%"                                      },
+  { "FontWidth",   ""                                             },
+  { "FontHeight",  ""                                             },
+  { "StringWidth", "s$"                                          },
+  { "StringHeight","s$"                                          },
+  // 2D Graphics — images (M44)
+  { "LoadImage",       "file$"                                                    },
+  { "CreateImage",     "w%, h% [,frames%=1]"                                      },
+  { "FreeImage",       "handle%"                                                   },
+  { "ImageWidth",      "handle% [,frame%=0]"                                      },
+  { "ImageHeight",     "handle% [,frame%=0]"                                      },
+  { "DrawImage",       "handle%, x%, y% [,frame%=0]"                              },
+  { "DrawImageRect",   "handle%, x%, y%, sx%, sy%, sw%, sh% [,frame%=0]"          },
+  { "DrawBlock",       "handle%, x%, y% [,frame%=0]"                              },
+  { "DrawBlockRect",   "handle%, x%, y%, sx%, sy%, sw%, sh% [,frame%=0]"          },
+  // 2D Graphics — image manipulation (M45)
+  { "HandleImage",     "handle%, x%, y% [,frame%=0]"                              },
+  { "MidHandle",       "handle% [,frame%=0]"                                      },
+  { "AutoMidHandle",   "on%"                                                       },
+  { "ImageXHandle",    "handle% [,frame%=0]"                                      },
+  { "ImageYHandle",    "handle% [,frame%=0]"                                      },
+  { "ScaleImage",      "handle%, sx#, sy# [,frame%=0]"                            },
+  { "RotateImage",     "handle%, deg# [,frame%=0]"                                },
+  { "MaskImage",       "handle%, r%, g%, b% [,frame%=0]"                          },
+  { "TileImage",       "handle%, x%, y% [,frame%=0]"                              },
+  { "TileBlock",       "handle%, x%, y% [,frame%=0]"                              },
+  { "DrawImageEllipse","handle%, x%, y%, rx%, ry% [,frame%=0]"                    },
+  { "SaveImage",       "handle%, file$ [,frame%=0]"                               },
+  { "ImagesOverlap",   "h1%, x1%, y1%, h2%, x2%, y2%"                             },
+  { "ImageRectOverlap","handle%, x%, y%, rx%, ry%, rw%, rh%"                      },
+  { "ImagesColl",      "h1%, x1%, y1%, h2%, x2%, y2%"                             },
+  { "ImageXColl",      "h1%, x1%, y1%, h2%, x2%, y2%"                             },
+  { "ImageYColl",      "h1%, x1%, y1%, h2%, x2%, y2%"                             },
+  // 2D Graphics — animated images & new image API (M46b)
+  { "LoadAnimImage",   "file$, fw%, fh%, first%, count%"                           },
+  { "GrabImage",       "handle%, x%, y% [,frame%=0]"                              },
+  { "CopyImage",       "handle%"                                                   },
+  { "FlipImage",       "handle% [,frame%=0]"                                      },
+  { "MirrorImage",     "handle% [,frame%=0]"                                      },
+  { "ImagesCollide",   "h1%, x1%, y1%, f1%, h2%, x2%, y2%, f2%"                  },
+  { "ImageRectCollide","handle%, x%, y%, frame%, rx%, ry%, rw%, rh%"              },
+  // 2D Graphics — pixel buffer access (M46)
+  { "ImageBuffer",      "handle% [,frame%=0]"                                      },
+  { "LockBuffer",       "buf%"                                             },
+  { "UnlockBuffer",     "buf%"                                             },
+  { "ReadPixel",        "x%, y%, buf%"                                     },
+  { "WritePixel",       "x%, y%, color%, buf%"                             },
+  { "ReadPixelFast",    "x%, y%, buf%"                                     },
+  { "WritePixelFast",   "x%, y%, color%, buf%"                             },
+  { "CopyPixel",        "sx%, sy%, sbuf%, dx%, dy%, dbuf%"                 },
+  { "CopyPixelFast",    "sx%, sy%, sbuf%, dx%, dy%, dbuf%"                 },
+  { "LoadBuffer",       "buf%, file$"                                      },
+  { "SaveBuffer",       "buf%, file$"                                      },
+  { "BufferWidth",      "buf%"                                             },
+  { "BufferHeight",     "buf%"                                             },
   // 2D Graphics — buffer & flip (M39)
   { "BackBuffer",  ""                                              },
   { "FrontBuffer", ""                                              },
@@ -187,11 +268,17 @@ public:
       return false;
     }
 
-    fs::path includeDir = resolvePath("src/compiler");
-    fs::path sdlBase    = resolvePath("libs/sd3/x86_64-w64-mingw32");
-    fs::path sdlInc     = sdlBase / "include";
-    fs::path libDir     = sdlBase / "lib";
-    fs::path sdlImport  = libDir / "libSDL3.dll.a";
+    fs::path includeDir  = resolvePath("src/compiler");
+    fs::path sdlBase     = resolvePath("libs/sd3/x86_64-w64-mingw32");
+    fs::path sdlInc      = sdlBase / "include";
+    fs::path libDir      = sdlBase / "lib";
+    fs::path sdlImport   = libDir / "libSDL3.dll.a";
+
+    // SDL3_ttf (optional — present after build_windows.bat has run)
+    fs::path ttfBase     = resolvePath("libs/sdl3_ttf/x86_64-w64-mingw32");
+    fs::path ttfInc      = ttfBase / "include";
+    fs::path ttfImport   = ttfBase / "lib" / "libSDL3_ttf.dll.a";
+    const bool haveTtf   = fs::exists(ttfImport);
 
     std::string gpp      = gppPath.make_preferred().string();
     std::string finalCpp = fs::absolute(cppPath).make_preferred().string();
@@ -202,13 +289,25 @@ public:
 
     std::string cmd = "\"" + gpp + "\" -std=c++17 -static"
                       " -I\"" + incDir + "\""
-                      " -I\"" + sdlIncDir + "\""
-                      " \"" + finalCpp + "\""
-                      " -o \"" + finalOut + "\"";
+                      " -I\"" + sdlIncDir + "\"";
 
-    // Only link SDL3 when the import library is present
+    if (haveTtf)
+      cmd += " -I\"" + ttfInc.make_preferred().string() + "\""
+             " -DBB_HAS_SDL3_TTF";
+
+    cmd += " \"" + finalCpp + "\""
+           " -o \"" + finalOut + "\"";
+
+    // Link SDL3 (required for graphics/audio/input)
     if (fs::exists(sdlImport))
       cmd += " \"" + sdlImport.make_preferred().string() + "\"";
+
+    // Link SDL3_ttf when available
+    if (haveTtf)
+      cmd += " \"" + ttfImport.make_preferred().string() + "\"";
+
+    // Link winmm for timeBeginPeriod/timeEndPeriod (high-res timer on Windows)
+    cmd += " -lwinmm";
 
     if (debug) cmd += " -g";
 
@@ -226,6 +325,17 @@ public:
                       fs::copy_options::overwrite_existing);
       } catch (...) {}
     }
+
+    // Copy SDL3_ttf.dll next to the executable (non-fatal if absent)
+    fs::path ttfDll = ttfBase / "bin" / "SDL3_ttf.dll";
+    if (fs::exists(ttfDll)) {
+      try {
+        fs::copy_file(ttfDll,
+                      fs::path(outputPath).parent_path() / "SDL3_ttf.dll",
+                      fs::copy_options::overwrite_existing);
+      } catch (...) {}
+    }
+
     return true;
   }
 
@@ -306,6 +416,9 @@ static void showHelp() {
 }
 
 int main(int argc, char **argv) {
+  if (argc > 0)
+    g_exeDir_ = fs::absolute(argv[0]).parent_path();
+
   Config cfg;
 
   for (int i = 1; i < argc; ++i) {

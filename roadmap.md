@@ -399,64 +399,99 @@ Each milestone is scoped to fit within a single AI-session context window:
 - [x] `bb_Plot(x, y)` → `SDL_SetRenderDrawColor` + `SDL_RenderPoint`; safe no-op headless
 - **Test:** `tests/test_m40_color.bb` → headless OK ✓
 
-### Milestone 41: Line & Shape Primitives
+### Milestone 41: Line & Shape Primitives ✓ COMPLETE
 *Touch: `bb_graphics2d.h`*
-- [ ] `bb_Line(x1,y1, x2,y2)`
-- [ ] `bb_Rect(x,y,w,h, solid)` → filled or outline
-- [ ] `bb_Oval(x,y,w,h, solid)`
-- [ ] `bb_Poly(x0,y0, x1,y1, x2,y2)` → triangle
-- **Test:** `Line 0,0,100,100 : Rect 50,50,40,40,1`
+- [x] `bb_Line(x1,y1, x2,y2)`
+- [x] `bb_Rect(x,y,w,h, solid)` → filled or outline
+- [x] `bb_Oval(x,y,w,h, solid)` — software-computed scanline fill / parametric outline
+- [x] `bb_Poly(x0,y0, x1,y1, x2,y2)` → filled triangle via `SDL_RenderGeometry`
+- **Test:** `tests/test_m41_shapes.bb` → headless OK ✓
 
-### Milestone 42: Text & Console Output
+### Milestone 42: Text & Console Output ✓ COMPLETE
 *Touch: `bb_graphics2d.h`*
-- [ ] `bb_Locate(x, y)` → cursor position for `Print`/`Write`
-- [ ] `bb_Write(s)` → print without newline at cursor pos
-- [ ] `bb_Text(x, y, s, centerX, centerY)` → SDL_RenderText or bitmap font
-- [ ] Basic built-in bitmap font (8×8 baked into header as array)
-- **Test:** `Text 100,100,"Hello World"`
+- [x] `bb_Write(val)` → template, prints without newline (`std::cout << val << std::flush`)
+- [x] `bb_Locate(x, y)` → ANSI escape cursor positioning; no-op when stdout is not a TTY (headless-safe)
+- [x] `bb_Text(x, y, s, centerX, centerY)` → bitmap font renderer using built-in 8×8 glyph array
+- [x] `static constexpr uint8_t bb_font8x8_[128][8]` — classic VGA/CP437 8×8 font baked into header
+- **Test:** `tests/test_m42_text.bb` → headless OK ✓
 
-### Milestone 43: Fonts
-*Touch: `bb_graphics2d.h`*
-- [ ] `bb_LoadFont(name, height, bold, italic, underline)` → font handle
-- [ ] `bb_SetFont(handle)` → sets active font
-- [ ] `bb_FreeFont(handle)`
-- [ ] `bb_FontWidth()`, `bb_FontHeight()`
-- [ ] `bb_StringWidth(s)`, `bb_StringHeight(s)`
-- [ ] SDL3_ttf integration (or stb_truetype as fallback)
-- **Test:** `SetFont LoadFont("arial", 16) : Text 10,10,"Hello"`
+### Milestone 43: Fonts ✓ COMPLETE
+*Touch: `bb_graphics2d.h`, `bb_sdl.h`, `blitzcc.cpp`, `build_windows.bat`*
+- [x] **SDL3_ttf 3.2.2** integrated: `build_windows.bat` downloads `SDL3_ttf-devel-3.2.2-mingw.tar.gz` → `libs/sdl3_ttf/`
+- [x] `bb_LoadFont(name, height, bold, italic, underline)` → real TTF via `TTF_OpenFont`; graceful fallback to 8×8 when font not found
+- [x] `bb_find_font_file_()` — resolves name: as-is → +.ttf → `%WINDIR%\Fonts\` (Windows) / `/usr/share/fonts/` (Linux)
+- [x] `bb_SetFont(handle)` / `bb_FreeFont(handle)` — lifecycle with `TTF_CloseFont`; resets to bitmap on free
+- [x] `bb_FontWidth()` / `bb_FontHeight()` — real TTF metrics via `TTF_GetFontHeight` + `TTF_GetStringSize("M")`
+- [x] `bb_StringWidth(s)` / `bb_StringHeight(s)` — `TTF_GetStringSize(font, s, 0, &w, &h)` when TTF active
+- [x] `bb_Text()` dispatches: TTF path (`TTF_RenderText_Blended` → `SDL_CreateTextureFromSurface` → `SDL_RenderTexture`) or built-in bitmap
+- [x] `bb_ttf_quit_hook_` in `bb_sdl.h` — TTF closed in correct order (TTF → Sound → SDL) in `bb_sdl_quit_()`
+- [x] `blitzcc.cpp compile()` — adds `-I<ttf_include> -DBB_HAS_SDL3_TTF libSDL3_ttf.dll.a` + copies `SDL3_ttf.dll` when `libs/sdl3_ttf/` exists
+- **Test:** `tests/test_m43_fonts.bb` → 39 PASS, 0 FAIL ✓ (non-existent font name → deterministic 8×8 fallback)
 
-### Milestone 44: Image Loading & Drawing
-*Touch: `bb_image.h` (new file)*
-- [ ] `bb_LoadImage(file)` → SDL3 texture handle
-- [ ] `bb_CreateImage(w, h)` → blank texture
-- [ ] `bb_FreeImage(handle)`
-- [ ] `bb_ImageWidth(handle)`, `bb_ImageHeight(handle)`
-- [ ] `bb_DrawImage(img, x, y)`, `bb_DrawImageRect(img, x, y, sx, sy, sw, sh)`
-- [ ] `bb_DrawBlock(img, x, y)`, `bb_DrawBlockRect(img, x, y, sx, sy, sw, sh)`
-- **Test:** `Local img = LoadImage("player.png") : DrawImage img,100,100`
+### Milestone 44: Image Loading & Drawing ✓ COMPLETE
+*Touch: `bb_image.h` (new), `bb_runtime.h`, `bb_sdl.h`, `blitzcc.cpp`*
+- [x] **stb_image** embedded (`src/thirdparty/stb/stb_image.h`, public domain) — PNG/JPG/BMP/TGA/GIF/PSD/HDR
+- [x] `bb_LoadImage(file)` — stb_image decode → `SDL_CreateSurfaceFrom(RGBA32)` → `SDL_CreateTextureFromSurface`; returns 0 on failure
+- [x] `bb_CreateImage(w, h)` — `SDL_CreateTexture(TEXTUREACCESS_TARGET, RGBA32)`; stores dimensions even in headless mode *(⚠ adapt M46b: +`[,frames%=1]`)*
+- [x] `bb_FreeImage(handle)` — `SDL_DestroyTexture`, resets slot; bounds-checked
+- [x] `bb_ImageWidth(handle)` / `bb_ImageHeight(handle)` — returns stored dimensions; 0 for invalid/freed handles *(⚠ adapt M46b: +`[,frame%=0]`)*
+- [x] `bb_DrawImage(handle, x, y)` — `SDL_RenderTexture`; no-op in headless mode *(⚠ adapt M46b: +`[,frame%=0]`)*
+- [x] `bb_DrawImageRect(handle, x, y, sx, sy, sw, sh)` — partial-rect blit; no-op headless *(⚠ adapt M46b: +`[,frame%=0]`)*
+- [x] `bb_DrawBlock` / `bb_DrawBlockRect` — aliases for Draw*; M45 will add handle-offset distinction *(⚠ adapt M46b: +`[,frame%=0]`)*
+- [x] `bb_image_quit_hook_` in `bb_sdl.h` — textures destroyed before SDL renderer teardown
+- **Test:** `tests/test_m44_image.bb` → 40 PASS, 0 FAIL ✓ (headless: CreateImage stores dims, LoadImage missing file → 0)
 
-### Milestone 45: Image Manipulation
-*Touch: `bb_image.h`*
-- [ ] `bb_MaskImage(img, r, g, b)` → transparent color keying
-- [ ] `bb_HandleImage(img, x, y)` / `bb_MidHandle(img)` / `bb_AutoMidHandle(on)`
-- [ ] `bb_ScaleImage(img, sx, sy)`, `bb_RotateImage(img, deg)`
-- [ ] `bb_TileImage(img, x, y)`, `bb_TileBlock(img, x, y)`
-- [ ] `bb_DrawImageEllipse(img, x, y, rx, ry)`
-- [ ] `bb_SaveImage(img, file)` → PNG via SDL3
-- [ ] Overlap/collision: `bb_ImagesOverlap`, `bb_ImageRectOverlap`, `bb_ImagesColl`, `bb_ImageXColl`, `bb_ImageYColl`
-- **Test:** `MidHandle img : DrawImage img, 400,300`
+### Milestone 45: Image Manipulation ✓ COMPLETE
+*Touch: `bb_image.h`, `blitzcc.cpp`*
+- [x] `bb_HandleImage(img, x, y)` / `bb_MidHandle(img)` — sets image hot-spot; affects DrawImage position *(⚠ adapt M46b: +`[,frame%=0]`)*
+- [x] `bb_AutoMidHandle(on)` — global flag; auto-applies MidHandle to new CreateImage/LoadImage
+- [x] `bb_ImageXHandle(img)` / `bb_ImageYHandle(img)` — returns stored hot-spot coordinates *(⚠ adapt M46b: +`[,frame%=0]`)*
+- [x] `bb_ScaleImage(img, sx, sy)` — per-image scale factors, applied on DrawImage/DrawBlock *(⚠ adapt M46b: +`[,frame%=0]`)*
+- [x] `bb_RotateImage(img, deg)` — rotation in degrees; uses `SDL_RenderTextureRotated` *(⚠ adapt M46b: +`[,frame%=0]`)*
+- [x] `bb_MaskImage(img, r, g, b)` — sets matching pixels transparent; re-uploads texture; loaded images only (pixels copy) *(⚠ adapt M46b: +`[,frame%=0]`)*
+- [x] `bb_TileImage(img, x, y)` / `bb_TileBlock(img, x, y)` — tiles to fill graphics viewport with scroll offset *(⚠ adapt M46b: +`[,frame%=0]`)*
+- [x] `bb_DrawImageEllipse(img, x, y, rx, ry)` — SDL clip-rect to bounding ellipse rect; pixel-perfect deferred to M46 *(⚠ adapt M46b: +`[,frame%=0]`)*
+- [x] `bb_SaveImage(img, file)` — PNG via stb_image_write; loaded images: stored pixel copy; created images: SDL render-target readback *(⚠ adapt M46b: +`[,frame%=0]`)*
+- [x] `stb_image_write.h` embedded (`src/thirdparty/stb/stb_image_write.h`, public domain)
+- [x] `DrawImage` updated: subtracts handle offset, applies scale, uses `SDL_RenderTextureRotated` for rotation
+- [x] `DrawBlock` updated: no handle offset, applies scale + rotation
+- [x] Overlap/collision (bounding-box): `bb_ImagesOverlap`, `bb_ImageRectOverlap`, `bb_ImagesColl`, `bb_ImageXColl`, `bb_ImageYColl`
+- **Test:** `tests/test_m45_image_manip.bb` → 41 PASS, 0 FAIL ✓
 
-### Milestone 46: Pixel Buffer Access
-*Touch: `bb_image.h`*
-- [ ] `bb_ImageBuffer(img)` → buffer handle for direct pixel access
-- [ ] `bb_LockBuffer(buf)`, `bb_UnlockBuffer(buf)`
-- [ ] `bb_ReadPixel(x, y, buf)` → packed ARGB int
-- [ ] `bb_WritePixel(x, y, color, buf)`
-- [ ] `bb_ReadPixelFast(x, y, buf)` (no bounds check), `bb_WritePixelFast`
-- [ ] `bb_CopyPixel(sx, sy, sbuf, dx, dy, dbuf)`, `bb_CopyPixelFast`
-- [ ] `bb_LoadBuffer(buf, file)`, `bb_SaveBuffer(buf, file)`
-- [ ] `bb_BufferWidth(buf)`, `bb_BufferHeight(buf)`
-- **Test:** `LockBuffer BackBuffer() : WritePixelFast 10,10,Rgb(255,0,0),BackBuffer()`
+### Milestone 46: Pixel Buffer Access ✓ COMPLETE
+*Touch: `bb_image.h`, `bb_graphics2d.h`, `blitzcc.cpp`, `emitter.h`*
+- [x] `bb_ImageBuffer(img)` → buffer handle for direct pixel access (img + 2) *(⚠ adapt M46b: +`[,frame%=0]`)*
+- [x] `bb_LockBuffer(buf)`, `bb_UnlockBuffer(buf)` — copies pixels into/from a locked RGBA array; headless-safe
+- [x] `bb_ReadPixel(x, y, buf)` → packed ARGB int (bounds-checked)
+- [x] `bb_WritePixel(x, y, color, buf)` — bounds-checked; alpha=0 treated as opaque (Rgb() compat)
+- [x] `bb_ReadPixelFast(x, y, buf)` (no bounds check), `bb_WritePixelFast`
+- [x] `bb_CopyPixel(sx, sy, sbuf, dx, dy, dbuf)`, `bb_CopyPixelFast`
+- [x] `bb_LoadBuffer(buf, file)` — loads image into locked pixel array; `bb_SaveBuffer` writes PNG via stb
+- [x] `bb_BufferWidth(buf)`, `bb_BufferHeight(buf)`
+- [x] `bb_Rgb(r, g, b)` — added to `bb_graphics2d.h` (M40 section); packed colour helper
+- [x] **Bug fixed:** `AND`/`OR` emitted as `&&`/`||` (logical); corrected to `&`/`|` (bitwise) in `emitter.h`
+- **Test:** `tests/test_m46_pixel_buffer.bb` → 42 PASS, 0 FAIL ✓
+
+### Milestone 46b: Animated Images & Image API Completion ✓ COMPLETE
+*Touch: `bb_image.h`, `blitzcc.cpp`*
+
+**Multi-frame support:**
+- [x] `bb_Image_` erhält `std::vector<bb_FrameData_> frames` (je Frame: `tex`, `pixels`, `handle_x/y`, `scale_x/y`, `rotation`); Single-Frame-Nutzung = Frame 0; `bb_images_` behält Index-Schema
+- [x] Alle mit *(⚠ adapt M46b)* markierten Funktionen in M44/M45/M46 erhalten optionalen `frame%=0`-Parameter; Standard-Frame-0 bleibt rückwärtskompatibel
+- [x] Buffer-Handle-Encoding aktualisiert: `ImageBuffer(img, frame)` → `(img-1) + frame * 65536 + 3`; für frame=0 identisch mit altem `img + 2` (voll rückwärtskompatibel)
+- [x] `bb_decode_img_buf_()` Helper in `bb_LockBuffer`/`bb_UnlockBuffer`; `bb_BufLock_` erhält `img_frame`-Feld
+- [x] `bb_img_frame_()` — frame-clamping Helper; `bb_img_reupload_frame_()` — Pixel → Texture
+
+**Neue Funktionen:**
+- [x] `bb_LoadAnimImage(file$, fw%, fh%, first%, count%)` → handle% — schneidet Sprite-Strip in `count` Frames à `fw×fh`; ab Zell-Index `first`; Zellen links-rechts-dann-unten
+- [x] `bb_GrabImage(img%, x%, y% [,frame%=0])` — liest `ImageWidth×ImageHeight` Pixel aus dem Back-Buffer bei (x,y) via `SDL_RenderReadPixels`
+- [x] `bb_CopyImage(img%)` → handle% — Deep-Copy aller Frames inkl. Pixel-Neuupload (auch Render-Target-Frames via Readback)
+- [x] `bb_FlipImage(img% [,frame%=0])` — vertikaler Flip in-place (Row-Swap + Reupload)
+- [x] `bb_MirrorImage(img% [,frame%=0])` — horizontaler Mirror in-place (Column-Swap + Reupload)
+- [x] `bb_ImagesCollide(h1%, x1%, y1%, f1%, h2%, x2%, y2%, f2%)` → AABB-Stub (pixel-perfect deferred)
+- [x] `bb_ImageRectCollide(h%, x%, y%, f%, rx%, ry%, rw%, rh%)` → AABB-Stub (pixel-perfect deferred)
+- [ ] `bb_TFormImage(img%, a11#, a12#, a21#, a22# [,srcimg%=0 ,srcframe%=0])` — affine Transformation (niedrige Prio, noch offen)
+- **Test:** `tests/test_m46b_anim_image.bb` — TODO
 
 ---
 
@@ -465,7 +500,7 @@ Each milestone is scoped to fit within a single AI-session context window:
 ### Milestone 47: Graphics3D Init & Scene Control
 *Touch: `bb_graphics3d.h` (new file), `bb_sdl.h`*
 - [ ] `bb_Graphics3D(w, h, depth, mode)` → SDL3 + OpenGL/Vulkan context
-- [ ] `bb_UpdateWorld()`, `bb_RenderWorld()`, `bb_ClearWorld()`
+- [ ] `bb_UpdateWorld()`, `bb_RenderWorld()`, `bb_ClearWorld()` *(⚠ RenderWorld: SDL_RenderFlush() vor glClear; respektiert CameraClsMode → 2D-before-3D Pattern)*
 - [ ] `bb_CaptureWorld()` → snapshot scene state
 - [ ] `bb_TrisRendered()` → triangle count from last frame
 - [ ] `bb_Dither(on)`, `bb_WBuffer(on)`, `bb_AntiAlias(on)`, `bb_Wireframe(on)`
@@ -634,7 +669,7 @@ Each milestone is scoped to fit within a single AI-session context window:
 - [ ] `bb_CameraRange(cam, near, far)`
 - [ ] `bb_CameraZoom(cam, zoom)`
 - [ ] `bb_CameraViewport(cam, x, y, w, h)`
-- [ ] `bb_CameraClsMode(cam, cls_color, cls_zbuf)`
+- [ ] `bb_CameraClsMode(cam, cls_color, cls_zbuf)` *(⚠ 2D/3D-Komposition: RenderWorld muss SDL_RenderFlush() aufrufen, bevor GL rendert; cls_color=False lässt 2D-Hintergrund erhalten)*
 - [ ] `bb_CameraClsColor(cam, r, g, b)`
 - **Test:** `Local cam = CreateCamera() : CameraRange cam, 1, 1000`
 

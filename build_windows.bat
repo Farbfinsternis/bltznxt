@@ -79,7 +79,7 @@ set "SDL_ZIP=%LIBS_DIR%\sdl3.zip"
 
 if exist "%SDL_DIR%" (
     echo [INFO] SDL3 found at %SDL_DIR%
-    goto BUILD_START
+    goto SDL_TTF_CHECK
 )
 
 echo [INFO] SDL3 not found. Downloading...
@@ -89,6 +89,25 @@ tar -xf "%SDL_ZIP%" -C "%LIBS_DIR%"
 for /d %%i in ("%LIBS_DIR%\SDL3-*") do move "%%i" "%SDL_DIR%"
 if exist "%SDL_ZIP%" del "%SDL_ZIP%"
 echo [INFO] SDL3 setup complete.
+
+:SDL_TTF_CHECK
+REM --- 5. SDL3_ttf ---
+set "SDL_TTF_DIR=%LIBS_DIR%\sdl3_ttf"
+set "SDL_TTF_URL=https://github.com/libsdl-org/SDL_ttf/releases/download/release-3.2.2/SDL3_ttf-devel-3.2.2-mingw.tar.gz"
+set "SDL_TTF_TAR=%LIBS_DIR%\sdl3_ttf.tar.gz"
+
+if exist "%SDL_TTF_DIR%" (
+    echo [INFO] SDL3_ttf found at %SDL_TTF_DIR%
+    goto BUILD_START
+)
+
+echo [INFO] SDL3_ttf not found. Downloading...
+curl -L "%SDL_TTF_URL%" -o "%SDL_TTF_TAR%"
+echo [INFO] Extracting SDL3_ttf...
+tar -xzf "%SDL_TTF_TAR%" -C "%LIBS_DIR%"
+for /d %%i in ("%LIBS_DIR%\SDL3_ttf-*") do move "%%i" "%SDL_TTF_DIR%"
+if exist "%SDL_TTF_TAR%" del "%SDL_TTF_TAR%"
+echo [INFO] SDL3_ttf setup complete.
 
 :BUILD_START
 if "%SETUP_ONLY%"=="1" (

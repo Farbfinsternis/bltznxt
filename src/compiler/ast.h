@@ -167,9 +167,10 @@ public:
 class AssignStmt : public StmtNode {
 public:
   std::string name;
+  std::string typeHint; // % # ! $ or "" — used for implicit auto-declaration
   std::unique_ptr<ExprNode> value;
-  AssignStmt(std::string n, std::unique_ptr<ExprNode> v)
-      : name(std::move(n)), value(std::move(v)) {}
+  AssignStmt(std::string n, std::string th, std::unique_ptr<ExprNode> v)
+      : name(std::move(n)), typeHint(std::move(th)), value(std::move(v)) {}
   void accept(ASTVisitor *v) override { v->visit(this); }
 };
 
