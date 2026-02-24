@@ -15,7 +15,7 @@
 
 Blitz3D was the work of one person. Mark Sibly built a language that let thousands of people make their first game, write their first loop, see something move on screen for the first time. It was direct, it was fast, and it got out of the way. No engine before it was quite so honest about what programming could feel like when the barrier was low enough.
 
-Mark passed away in 2025. BlitzNext exists to carry his idea forward — the belief that making something should be simple, and that simple things can still be powerful.
+Mark passed away in 2024. BlitzNext exists to carry his idea forward — the belief that making something should be simple, and that simple things can still be powerful.
 
 ---
 
