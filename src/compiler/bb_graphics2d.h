@@ -70,12 +70,14 @@ inline void bb_Graphics(int width, int height, int depth = 32, int mode = 0) {
   //   1 = fullscreen  (window at desktop res; game content scaled via logical presentation)
   //   2 = windowed
   //   3 = windowed
-  //   5 = windowed 2× scaled (BLTZNXT extension; physical window = width*2 × height*2,
-  //       SDL logical presentation maps game coords to window pixels)
+  //   5 = windowed 2× scaled, resizable (BLTZNXT extension; physical window starts at
+  //       width*2 × height*2; SDL_WINDOW_RESIZABLE + logical presentation letterbox
+  //       so the game scales to any window size the user drags or maximises to)
   //   6 = fullscreen + vsync (BLTZNXT extension; same scaling approach as mode 1)
   const bool fullscreen      = (mode == 1 || mode == 6);
   const bool scaled_windowed = (mode == 5);
-  if (fullscreen) flags |= SDL_WINDOW_FULLSCREEN;
+  if (fullscreen)      flags |= SDL_WINDOW_FULLSCREEN;
+  if (scaled_windowed) flags |= SDL_WINDOW_RESIZABLE;
 
   const char* title = bb_app_title_.empty() ? "BLTZNXT" : bb_app_title_.c_str();
 
