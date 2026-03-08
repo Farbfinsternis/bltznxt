@@ -79,11 +79,39 @@ public:
     f << output.str();
   }
 
+  // ------------------------------------------------------------------ helpers
+
+  // Escapes a raw Blitz3D string value for embedding in a C++ string literal.
+  // In Blitz3D strings are byte-literal (no escape processing), so any
+  // backslash or double-quote in the source must be escaped for C++.
+  static std::string escapeCppString(const std::string &s) {
+    std::string out;
+    out.reserve(s.size());
+    for (unsigned char c : s) {
+      switch (c) {
+        case '\\': out += "\\\\"; break;
+        case '"':  out += "\\\""; break;
+        case '\r': out += "\\r";  break;
+        case '\t': out += "\\t";  break;
+        default:
+          if (c < 0x20) {
+            // Other control characters → \xNN
+            char buf[5];
+            std::snprintf(buf, sizeof(buf), "\\x%02x", c);
+            out += buf;
+          } else {
+            out += static_cast<char>(c);
+          }
+      }
+    }
+    return out;
+  }
+
   // ------------------------------------------------------------------ visitors
 
   void visit(LiteralExpr *node) override {
     if (node->token.type == TokenType::STRING_LIT)
-      output << "\"" << node->token.value << "\"";
+      output << "\"" << escapeCppString(node->token.value) << "\"";
     else
       output << node->token.value;
   }
@@ -99,6 +127,13 @@ public:
       output << ", ";
       node->right->accept(this);
       output << ")";
+    } else if (node->op == "SHR") {
+      // SHR is a logical (unsigned) right shift — cast left operand to unsigned
+      output << "((int)((unsigned int)(";
+      node->left->accept(this);
+      output << ") >> (";
+      node->right->accept(this);
+      output << ")))";
     } else {
       output << "(";
       node->left->accept(this);
@@ -383,10 +418,28 @@ public:
     }
     output << ") {\n";
 
+    // Save outer declaredVars, start fresh for this function scope.
+    // Parameters are pre-registered so that assignments to them inside
+    // the body are emitted as plain assignments, not re-declarations.
+    auto savedDeclaredVars = declaredVars;
+    declaredVars.clear();
+    // Preserve global variable names so assignments to globals inside
+    // functions are plain assignments, not local re-declarations.
+    for (auto &gname : globalVarNames) declaredVars.insert(gname);
+    for (auto &[pname, phint] : node->params) {
+      std::string lo = pname;
+      std::transform(lo.begin(), lo.end(), lo.begin(),
+                     [](unsigned char c){ return (char)std::tolower(c); });
+      declaredVars.insert(lo);
+    }
+
     inFunctionBody = true;
     indentLevel = 1;
     for (auto &n : node->body) n->accept(this);
     inFunctionBody = false;
+
+    // Restore outer scope's declared vars.
+    declaredVars = savedDeclaredVars;
 
     output << "}\n\n";
     indentLevel = 1; // reset for next function / main
@@ -897,7 +950,7 @@ private:
     if (op == "XOR") return "^";
     if (op == "MOD") return "%";
     if (op == "SHL") return "<<";
-    if (op == "SHR") return ">>";
+    // SHR is handled as a special case in visit(BinaryExpr*) — not reached here
     if (op == "SAR") return ">>";
     return op; // +  -  *  /  <  >  <=  >=
   }

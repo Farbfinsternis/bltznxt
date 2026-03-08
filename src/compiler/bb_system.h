@@ -164,4 +164,28 @@ inline int bb_CallDLL(const bbString &dll, const bbString &func,
   return 0;
 }
 
+// ---- Message Dialogs (Blitz2D) ----
+// Notify: info box (OK only).
+// Confirm: Yes/No — returns true if Yes.
+// Proceed: OK/Cancel — returns true if OK.
+
+#ifdef _WIN32
+inline void bb_Notify(const bbString &msg) {
+  MessageBoxA(nullptr, msg.c_str(), bb_app_title_.c_str(),
+              MB_OK | MB_ICONINFORMATION);
+}
+inline bool bb_Confirm(const bbString &msg) {
+  return MessageBoxA(nullptr, msg.c_str(), bb_app_title_.c_str(),
+                     MB_YESNO | MB_ICONQUESTION) == IDYES;
+}
+inline bool bb_Proceed(const bbString &msg) {
+  return MessageBoxA(nullptr, msg.c_str(), bb_app_title_.c_str(),
+                     MB_OKCANCEL | MB_ICONQUESTION) == IDOK;
+}
+#else
+inline void bb_Notify (const bbString &msg) { std::cerr << "[Notify] "  << msg << "\n"; }
+inline bool bb_Confirm(const bbString &msg) { std::cerr << "[Confirm] " << msg << "\n"; return true; }
+inline bool bb_Proceed(const bbString &msg) { std::cerr << "[Proceed] " << msg << "\n"; return true; }
+#endif
+
 #endif // BLITZNEXT_BB_SYSTEM_H

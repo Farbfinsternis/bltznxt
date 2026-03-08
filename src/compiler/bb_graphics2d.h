@@ -184,6 +184,54 @@ inline void bb_SetBuffer(int buf) {
   bb_active_buffer_ = buf;
 }
 
+// ---- Origin / Viewport ----
+//
+// Origin(x,y)       — offsets all draw coordinates by (x,y).
+// Viewport(x,y,w,h) — clips rendering to the screen rectangle [x,y,w,h].
+// Both are implemented via SDL_SetRenderViewport: it translates the draw
+// coordinate origin AND clips to the viewport bounds in one call.
+// Cls() respects the viewport — it only clears the viewport area (Blitz2D-correct).
+
+inline int  bb_origin_x_ = 0, bb_origin_y_ = 0;
+inline bool bb_viewport_active_ = false;
+inline SDL_Rect bb_viewport_rect_ = {0, 0, 0, 0};
+
+inline void bb_apply_viewport_() {
+  if (!bb_renderer_) return;
+  if (bb_origin_x_ == 0 && bb_origin_y_ == 0 && !bb_viewport_active_) {
+    SDL_SetRenderViewport(bb_renderer_, nullptr);
+    return;
+  }
+  SDL_Rect vp;
+  if (bb_viewport_active_) {
+    vp = { bb_origin_x_ + bb_viewport_rect_.x,
+           bb_origin_y_ + bb_viewport_rect_.y,
+           bb_viewport_rect_.w,
+           bb_viewport_rect_.h };
+  } else {
+    int w = 0, h = 0;
+    SDL_GetRenderOutputSize(bb_renderer_, &w, &h);
+    vp = { bb_origin_x_, bb_origin_y_,
+           w - bb_origin_x_, h - bb_origin_y_ };
+  }
+  SDL_SetRenderViewport(bb_renderer_, &vp);
+}
+
+inline void bb_Origin(int x, int y) {
+  bb_origin_x_ = x; bb_origin_y_ = y;
+  bb_apply_viewport_();
+}
+
+inline void bb_Viewport(int x, int y, int w, int h) {
+  if (w <= 0 || h <= 0) {
+    bb_viewport_active_ = false;
+  } else {
+    bb_viewport_active_ = true;
+    bb_viewport_rect_ = { x, y, w, h };
+  }
+  bb_apply_viewport_();
+}
+
 // ---- Cls() ----
 //
 // Clears the current render target to bb_cls_r_/g_/b_ (default black).
@@ -929,7 +977,7 @@ inline void bb_Text(int x, int y, const bbString& s,
         for (int row = 0; row < charH; ++row) {
             const uint8_t bits = glyph[row];
             for (int col = 0; col < charW; ++col) {
-                if (bits & (0x80u >> col)) {
+                if (bits & (1u << col)) {
                     SDL_RenderPoint(bb_renderer_,
                                    static_cast<float>(drawX + ci * charW + col),
                                    static_cast<float>(drawY + row));

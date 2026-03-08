@@ -493,6 +493,24 @@ Each milestone is scoped to fit within a single AI-session context window:
 - [ ] `bb_TFormImage(img%, a11#, a12#, a21#, a22# [,srcimg%=0 ,srcframe%=0])` — affine Transformation (niedrige Prio, noch offen)
 - **Test:** `tests/test_m46b_anim_image.bb` — TODO
 
+### Milestone 46c: Blitz2D Quick-Win Additions ✓ COMPLETE
+*Touch: `bb_math.h`, `bb_system.h`, `bb_graphics2d.h`, `blitzcc.cpp`*
+
+**Math:**
+- [x] `Min(a, b)` / `Max(a, b)` — template, works for int/float/double (`bb_math.h`)
+
+**System / Dialogs:**
+- [x] `Notify(msg$)` — info MessageBox (Windows: `MB_OK`; non-Windows: stderr stub)
+- [x] `Confirm(msg$)` → bool — Yes/No MessageBox (`MB_YESNO`)
+- [x] `Proceed(msg$)` → bool — OK/Cancel MessageBox (`MB_OKCANCEL`)
+
+**2D Graphics — draw modifiers:**
+- [x] `Origin(x%, y%)` — offsets all draw coordinates via `SDL_SetRenderViewport`
+- [x] `Viewport(x%, y%, w%, h%)` — clips rendering to screen rect; `w≤0 || h≤0` resets
+- [x] Combined Origin+Viewport: single `SDL_SetRenderViewport` call; `Cls` correctly clears only the viewport area (Blitz2D-correct behavior)
+
+**Blitz2D compatibility impact:** +8 missing commands covered; estimated ~80% Blitz2D coverage (up from ~70%).
+
 ---
 
 ## PHASE L — 3D Graphics: Foundation (bb_graphics3d.h)

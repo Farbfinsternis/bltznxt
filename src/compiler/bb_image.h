@@ -137,7 +137,10 @@ inline void bb_img_reupload_frame_(int handle, bb_FrameData_* fd) {
 inline int bb_LoadImage(const bbString& file) {
     int w = 0, h = 0, ch = 0;
     unsigned char* data = stbi_load(file.c_str(), &w, &h, &ch, 4);
-    if (!data) return 0;
+    if (!data) {
+        std::cerr << "[runtime] LoadImage: cannot load '" << file << "'\n";
+        return 0;
+    }
 
     bb_Image_ img;
     img.width  = w;

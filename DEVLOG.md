@@ -1,5 +1,51 @@
 # BlitzNext Developer Log
 
+## v0.3.8 - "Asteroids + Syntax + Renderer Fixes" (2026-03-08)
+
+**Files touched:** `src/compiler/lexer.h`, `src/compiler/emitter.h`,
+`src/compiler/bb_graphics2d.h`, `examples/asteroids/asteroids.bb` (new)
+
+### New example — Asteroids clone
+
+Added `examples/asteroids/asteroids.bb`: a self-contained Asteroids clone
+(~450 lines) that exercises the full 2D graphics and input stack. Pure vector
+graphics, no external assets. Features: main menu, three-tier asteroid
+splitting, bullet collision, level scaling, hi-score tracking, and a game-over
+screen.
+
+### Bug fix — Two-word `End X` syntax (`lexer.h`)
+
+Blitz3D uses both single-word (`EndIf`, `EndFunction`) and two-word (`End If`,
+`End Function`) forms interchangeably. The parser only recognised the
+single-word forms, so any program using `End If`, `End Function`, `End Type`,
+or `End Select` would fail to parse.
+
+Fixed with a post-tokenisation merge pass at the end of `Lexer::tokenize()`:
+adjacent tokens `END` + `IF/FUNCTION/TYPE/SELECT` on the same line are
+collapsed into a single compound token (`ENDIF`, `ENDFUNCTION`, etc.) before
+the parser runs. All 42 test cases still pass.
+
+### Bug fix — Bitmap font characters mirrored (`bb_graphics2d.h`)
+
+The built-in 8×8 bitmap font stores glyph data LSB-first (bit 0 = leftmost
+pixel). The renderer was extracting bits MSB-first (`0x80u >> col`), producing
+horizontally mirrored glyphs. Fixed by switching to `1u << col`.
+
+### Bug fix — Infinite loop on parameter assignment (`emitter.h`)
+
+Function parameters were not pre-registered in `declaredVars`. The first
+assignment to a parameter inside the function body was therefore emitted as a
+new local declaration (e.g., `float var_v = ...`) instead of a plain assignment
+(`var_v = ...`). This shadowed the parameter, leaving the original untouched and
+causing any loop that modified a parameter to spin forever.
+
+Fixed by saving/restoring `declaredVars` around each function body, seeding it
+from `globalVarNames` (so global assignments inside functions remain plain
+assignments), then pre-registering each parameter name before processing the
+body.
+
+---
+
 ## v0.3.7 - "Audio Formats + Fullscreen Scaling" (2026-02-24)
 
 **Files touched:** `src/compiler/bb_sound.h`, `src/compiler/bb_graphics2d.h`,

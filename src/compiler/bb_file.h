@@ -74,26 +74,32 @@ inline void bb_SeekFile(int handle, int pos) {
 
 // ---- Status ----
 
-// Returns true if the current position is at or past end-of-file.
-inline bool bb_Eof(int handle) {
-  FILE *f = bb_file_get_(handle);
-  if (!f) return true;
+// Internal helper: bytes remaining from current position to end of file.
+inline long bb_file_remaining_(FILE *f) {
   long cur = std::ftell(f);
   std::fseek(f, 0, SEEK_END);
   long end = std::ftell(f);
   std::fseek(f, cur, SEEK_SET);
-  return cur >= end;
+  return end - cur;
+}
+
+// Returns true if the current position is at or past end-of-file.
+// Uses fgetc+ungetc (peek) — correct for both binary and text mode,
+// and avoids the two-fseek overhead on every call.
+inline bool bb_Eof(int handle) {
+  FILE *f = bb_file_get_(handle);
+  if (!f) return true;
+  int c = std::fgetc(f);
+  if (c == EOF) return true;
+  std::ungetc(c, f);
+  return false;
 }
 
 // Returns the number of bytes remaining from current position to end.
 inline int bb_ReadAvail(int handle) {
   FILE *f = bb_file_get_(handle);
   if (!f) return 0;
-  long cur = std::ftell(f);
-  std::fseek(f, 0, SEEK_END);
-  long end = std::ftell(f);
-  std::fseek(f, cur, SEEK_SET);
-  return static_cast<int>(end - cur);
+  return static_cast<int>(bb_file_remaining_(f));
 }
 
 // ---- Write Primitives (M26) ----

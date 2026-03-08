@@ -65,9 +65,36 @@ public:
         continue;
       }
 
+      if (c == '$') { tokens.push_back(lexHexLiteral()); continue; }
+      if (c == '%') { tokens.push_back(lexBinLiteral()); continue; }
       tokens.push_back(lexOperator());
     }
     tokens.push_back({TokenType::EOF_TOKEN, "", line, col});
+
+    // Merge two-word "End X" forms into single compound tokens so that
+    // "End If", "End Function", "End Type", "End Select" are equivalent to
+    // the single-word forms "EndIf", "EndFunction", "EndType", "EndSelect".
+    // Requirement: both tokens on the same source line, no newline between them.
+    static const std::unordered_map<std::string,std::string> kEndMerge = {
+      {"IF",       "ENDIF"},
+      {"FUNCTION", "ENDFUNCTION"},
+      {"TYPE",     "ENDTYPE"},
+      {"SELECT",   "ENDSELECT"},
+    };
+    for (size_t i = 0; i + 1 < tokens.size(); ++i) {
+      if (tokens[i].type  == TokenType::KEYWORD &&
+          tokens[i].value == "END"              &&
+          tokens[i+1].type == TokenType::KEYWORD &&
+          tokens[i+1].line == tokens[i].line) {
+        auto it = kEndMerge.find(tokens[i+1].value);
+        if (it != kEndMerge.end()) {
+          tokens[i].value = it->second;
+          tokens.erase(tokens.begin() + i + 1);
+          // don't advance i — recheck the new tokens[i+1]
+        }
+      }
+    }
+
     return tokens;
   }
 
@@ -99,6 +126,38 @@ private:
     }
     return {isFloat ? TokenType::FLOAT_LIT : TokenType::INT_LIT, value, line,
             startCol};
+  }
+
+  // $FF, $1A2B etc. — Blitz3D hex literals.
+  // Falls back to OPERATOR "$" if not followed by a hex digit (e.g. string type-hint a$).
+  Token lexHexLiteral() {
+    int startCol = col;
+    pos++; col++; // skip '$'
+    std::string digits;
+    while (pos < source.length() && std::isxdigit((unsigned char)source[pos])) {
+      digits += source[pos++];
+      col++;
+    }
+    if (digits.empty())
+      return {TokenType::OPERATOR, "$", line, startCol};
+    long val = std::stol(digits, nullptr, 16);
+    return {TokenType::INT_LIT, std::to_string(val), line, startCol};
+  }
+
+  // %1010 etc. — Blitz3D binary literals.
+  // Falls back to OPERATOR "%" if not followed by 0/1 (e.g. integer type-hint a%, Mod operator).
+  Token lexBinLiteral() {
+    int startCol = col;
+    pos++; col++; // skip '%'
+    std::string digits;
+    while (pos < source.length() && (source[pos] == '0' || source[pos] == '1')) {
+      digits += source[pos++];
+      col++;
+    }
+    if (digits.empty())
+      return {TokenType::OPERATOR, "%", line, startCol};
+    long val = std::stol(digits, nullptr, 2);
+    return {TokenType::INT_LIT, std::to_string(val), line, startCol};
   }
 
   Token lexString() {

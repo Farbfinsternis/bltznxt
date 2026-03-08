@@ -63,7 +63,12 @@ inline float bb_Rnd(float max)               { return bb_Rnd() * max; }
 inline float bb_Rnd(float min, float max)    { return min + bb_Rnd() * (max - min); }
 
 // Rand(max) → [1, max]   Rand(min, max) → [min, max]
-inline int   bb_Rand(int max)                { return 1 + (std::rand() % max); }
-inline int   bb_Rand(int min, int max)       { return min + (std::rand() % (max - min + 1)); }
+inline int   bb_Rand(int max)                { if (max < 1) max = 1; return 1 + (std::rand() % max); }
+inline int   bb_Rand(int min, int max)       { if (min > max) std::swap(min, max); return min + (std::rand() % (max - min + 1)); }
+
+// ---- Min / Max ----
+
+template<typename T> inline T bb_Min(T a, T b) { return a < b ? a : b; }
+template<typename T> inline T bb_Max(T a, T b) { return a > b ? a : b; }
 
 #endif // BLITZNEXT_BB_MATH_H

@@ -11,14 +11,17 @@
 
 class Parser {
 public:
-  Parser() : pos(0), errorCount(0) {}
+  static constexpr int kMaxErrors = 20;
+
+  Parser() : pos(0), errorCount(0), tooManyErrors_(false) {}
 
   std::unique_ptr<Program> parse(const std::vector<Token> &toks,
                                  const std::string &fname = "") {
-    tokens       = toks;
-    pos          = 0;
-    filename     = fname;
-    errorCount   = 0;
+    tokens         = toks;
+    pos            = 0;
+    filename       = fname;
+    errorCount     = 0;
+    tooManyErrors_ = false;
     dimmedArrays.clear();
     auto prog = std::make_unique<Program>();
 
@@ -45,11 +48,16 @@ private:
   void error(int line, int col, const std::string &msg) {
     std::cerr << filename << ":" << line << ":" << col << ": error: "
               << msg << "\n";
-    ++errorCount;
+    if (++errorCount == kMaxErrors) {
+      std::cerr << filename << ": fatal: too many errors (" << kMaxErrors
+                << "), aborting parse.\n";
+      tooManyErrors_ = true;
+    }
   }
 
   bool atEnd() const {
-    return pos >= tokens.size() || tokens[pos].type == TokenType::EOF_TOKEN;
+    return tooManyErrors_ || pos >= tokens.size() ||
+           tokens[pos].type == TokenType::EOF_TOKEN;
   }
 
   Token peek() const {
@@ -1104,6 +1112,7 @@ private:
   size_t                          pos;
   std::string                     filename;
   int                             errorCount;
+  bool                            tooManyErrors_;
   std::unordered_set<std::string> dimmedArrays; // lowercase names of Dim'd arrays
 };
 
