@@ -109,8 +109,8 @@ Function DrawAsteroid(dax#, day#, daangle#, daradius#, datier%)
 	For i = 0 To sides - 1
 		Local da1# = daangle + (i * 360.0 / sides)
 		Local da2# = daangle + ((i + 1) * 360.0 / sides)
-		Local dr1# = daradius * (0.78 + 0.22 * Sin(da1 * 2.3 + datier * 47))
-		Local dr2# = daradius * (0.78 + 0.22 * Sin(da2 * 2.3 + datier * 47))
+		Local dr1# = daradius * (0.78 + 0.22 * Sin(da1 * 2 + datier * 47))
+		Local dr2# = daradius * (0.78 + 0.22 * Sin(da2 * 2 + datier * 47))
 		Local dx1# = dax + Cos(da1) * dr1
 		Local dy1# = day - Sin(da1) * dr1
 		Local dx2# = dax + Cos(da2) * dr2
