@@ -1,7 +1,11 @@
 ; =============================================================
-;  asteroids.bb - Asteroids Clone for BlitzNext
+;  asteroids.bb - Asteroids Clone for BLTZNXT
 ;
 ;  Pure vector graphics, no external assets required.
+;  Runs at 400x300 logical resolution, upscaled 2x to 800x600
+;  via BLTZNXT mode 5 — demonstrating integer-scaled windowed
+;  rendering without any changes to game coordinates.
+;
 ;  Controls:
 ;    LEFT / RIGHT - rotate ship
 ;    UP            - thrust
@@ -9,8 +13,8 @@
 ;    ESC           - menu / quit
 ; =============================================================
 
-Global SCREEN_W% = 800
-Global SCREEN_H% = 600
+Global SCREEN_W% = 400
+Global SCREEN_H% = 300
 
 Const STATE_MENU     = 0
 Const STATE_GAME     = 1
@@ -224,8 +228,8 @@ End Function
 ;  MAIN
 ; =============================================================
 
-AppTitle "Asteroids - BlitzNext Edition"
-Graphics SCREEN_W, SCREEN_H, 0, 2
+AppTitle "Asteroids - BLTZNXT Edition"
+Graphics SCREEN_W, SCREEN_H, 0, 5
 SetBuffer BackBuffer()
 
 gstate  = STATE_MENU
@@ -245,7 +249,7 @@ While running
 		Text SCREEN_W / 2, 110, "A S T E R O I D S", 1, 1
 
 		Color 160, 200, 255
-		Text SCREEN_W / 2, 168, "BlitzNext Edition", 1, 1
+		Text SCREEN_W / 2, 168, "BLTZNXT Edition", 1, 1
 
 		Color 255, 255, 80
 		Text SCREEN_W / 2, 290, "SPACE  -  New Game", 1, 1

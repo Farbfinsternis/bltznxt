@@ -36,11 +36,13 @@ inline int bb_gfx_rate_   = 0;
 //
 // Opens an SDL3 window and hardware renderer.
 //
-//  width, height : desired framebuffer size in pixels
+//  width, height : desired framebuffer size in pixels (logical resolution)
 //  depth         : colour depth in bits (stored for API parity; SDL3 is always 32-bit)
 //  mode          : 0 = windowed
 //                  1 = fullscreen (display-mode change)
 //                  2 = fullscreen desktop (current desktop resolution)
+//                  5 = windowed 2× scaled (BLTZNXT extension — physical window is
+//                      width*2 × height*2; game draws at logical resolution)
 //                  6 = fullscreen + vsync hint
 //                  other values treated as windowed
 //
@@ -68,16 +70,20 @@ inline void bb_Graphics(int width, int height, int depth = 32, int mode = 0) {
   //   1 = fullscreen  (window at desktop res; game content scaled via logical presentation)
   //   2 = windowed
   //   3 = windowed
-  //   6 = fullscreen + vsync (BlitzNext extension; same scaling approach as mode 1)
-  const bool fullscreen = (mode == 1 || mode == 6);
+  //   5 = windowed 2× scaled (BLTZNXT extension; physical window = width*2 × height*2,
+  //       SDL logical presentation maps game coords to window pixels)
+  //   6 = fullscreen + vsync (BLTZNXT extension; same scaling approach as mode 1)
+  const bool fullscreen      = (mode == 1 || mode == 6);
+  const bool scaled_windowed = (mode == 5);
   if (fullscreen) flags |= SDL_WINDOW_FULLSCREEN;
 
-  const char* title = bb_app_title_.empty() ? "BlitzNext" : bb_app_title_.c_str();
+  const char* title = bb_app_title_.empty() ? "BLTZNXT" : bb_app_title_.c_str();
 
   // Fullscreen: create at desktop resolution (0,0 → SDL picks current mode).
+  // Windowed scaled: physical window is 2× the logical size.
   // Windowed: create at the exact requested size.
-  int win_w = fullscreen ? 0 : width;
-  int win_h = fullscreen ? 0 : height;
+  int win_w = fullscreen ? 0 : (scaled_windowed ? width  * 2 : width);
+  int win_h = fullscreen ? 0 : (scaled_windowed ? height * 2 : height);
 
   bb_window_ = SDL_CreateWindow(title, win_w, win_h, flags);
   if (!bb_window_) {
@@ -93,12 +99,12 @@ inline void bb_Graphics(int width, int height, int depth = 32, int mode = 0) {
     return;
   }
 
-  // Fullscreen: set a logical presentation so all drawing commands use the
-  // game's virtual resolution (width × height).  SDL3 scales to the screen
-  // and letterboxes if the aspect ratio differs — same approach as Godot's
-  // stretch mode.  GraphicsWidth()/Height() still return width/height so
-  // game code sees the expected values.
-  if (fullscreen) {
+  // Fullscreen / windowed-scaled: set a logical presentation so all drawing
+  // commands use the game's virtual resolution (width × height).  SDL3 scales
+  // to fill the physical window and letterboxes if the aspect ratio differs.
+  // GraphicsWidth()/Height() still return width/height so game code sees the
+  // expected logical values regardless of the physical window size.
+  if (fullscreen || scaled_windowed) {
     SDL_SetRenderLogicalPresentation(bb_renderer_, width, height,
                                      SDL_LOGICAL_PRESENTATION_LETTERBOX);
   }
