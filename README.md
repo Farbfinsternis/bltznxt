@@ -6,7 +6,7 @@
 
 **BlitzNext** is a modern compiler that converts Blitz3D (`.bb`) source files directly into native Windows executables via a C++17 transpilation pipeline. It targets 100% command parity with the original Blitz3D engine, using a bundled MinGW toolchain and SDL3 for audio and graphics.
 
-> **Status: active development — 42 of 66 milestones complete.**
+> **Status: active development — v0.3.9 — 42 of 66 milestones complete.**
 > See [roadmap.md](roadmap.md) for the full milestone list and [DEVLOG.md](DEVLOG.md) for the changelog.
 
 ---
@@ -34,12 +34,15 @@ Mark passed away in 2024. BlitzNext exists to carry his idea forward — the bel
 | Area | Done | Goal | Coverage |
 |------|------|------|----------|
 | **Language features** | Grammar, types, control flow, functions, arrays, includes, operators | 100% Blitz3D language spec | ~90% |
-| **Runtime (built-in commands)** | ~340 functions across 12 modules | ~480 total projected | ~71% |
+| **Runtime (built-in commands)** | ~355 functions across 12 modules | ~480 total projected | ~74% |
 | **Roadmap milestones** | 42 of 66 | 66 | 64% |
+| **Blitz2D compatibility** | Core language, full 2D graphics, audio, input, file I/O | 100% Blitz2D | ~80% |
 
 **Language** is nearly complete — all core constructs (variables, types, functions, control flow, operators, `#Include`, `Data/Read`, `Dim`, `Goto/Gosub`) are implemented. Remaining gaps are edge cases in the parser, not missing constructs.
 
 **Runtime** coverage grows phase by phase. The non-graphical half (math, strings, files, banks, input, audio) is done. The entire 2D graphics layer is now complete — window, buffer, color, shapes, text, fonts, images (single-frame and animated), pixel buffer access, and all image manipulation functions. The 3D graphics layer (Phases L–T, Milestones 47–70) makes up the bulk of what remains.
+
+**Blitz2D compatibility** is a practical secondary target. Most Blitz2D games and demos compile today. Known remaining gaps: `Handle`/`Object` type reflection, `WaitKey$`/`GetKey$` string variants, `CountGFXModes` mode enumeration, and `Len` on arrays. See `Buglist.md` for the full gap list.
 
 ---
 
@@ -81,7 +84,7 @@ bin\blitzcc.exe hello.bb
 
 | Feature | Status |
 |---------|--------|
-| `If / ElseIf / Else / EndIf` | ✓ |
+| `If / ElseIf / Else / EndIf` (also `End If`, `End Function` etc.) | ✓ |
 | `While / Wend` | ✓ |
 | `Repeat / Until / Forever` | ✓ |
 | `For / Next` (with `Step`, including negative) | ✓ |
@@ -101,13 +104,13 @@ bin\blitzcc.exe hello.bb
 
 ### Built-in Commands (~340 total)
 
-**Math** — `Sin`, `Cos`, `Tan`, `ASin`, `ACos`, `ATan`, `ATan2`, `Sqr`, `Abs`, `Log`, `Log10`, `Exp`, `Floor`, `Ceil`, `Sgn`, `Pi`
+**Math** — `Sin`, `Cos`, `Tan`, `ASin`, `ACos`, `ATan`, `ATan2`, `Sqr`, `Abs`, `Log`, `Log10`, `Exp`, `Floor`, `Ceil`, `Sgn`, `Pi`, `Min`, `Max`
 
 **Random** — `Rnd`, `Rand`, `SeedRnd`, `RndSeed`
 
 **Strings** — `Str`, `Int`, `Float`, `Len`, `Left`, `Right`, `Mid`, `Instr`, `Replace`, `Upper`, `Lower`, `Trim`, `LSet`, `RSet`, `Chr`, `Asc`, `Hex`, `Bin`, `String`
 
-**Time & System** — `MilliSecs`, `CreateTimer`, `WaitTimer`, `FreeTimer`, `AppTitle`, `SystemProperty`, `RuntimeError`, `ExecFile`, `Delay`
+**Time & System** — `MilliSecs`, `CreateTimer`, `WaitTimer`, `FreeTimer`, `AppTitle`, `SystemProperty`, `RuntimeError`, `ExecFile`, `Delay`, `Notify`, `Confirm`, `Proceed`
 
 **File I/O** — `OpenFile`, `ReadFile`, `WriteFile`, `CloseFile`, `SeekFile`, `FilePos`, `FileSize`, `ReadLine`, `ReadByte`, `ReadShort`, `ReadInt`, `ReadFloat`, `ReadString`, `WriteLine`, `WriteByte`, `WriteShort`, `WriteInt`, `WriteFloat`, `WriteString`, `FileType`, `CurrentDir`, `ChangeDir`, `CreateDir`, `DeleteDir`, `DeleteFile`, `NextFile`, `FirstFile`, `CopyFile`
 
@@ -117,7 +120,7 @@ bin\blitzcc.exe hello.bb
 
 **Audio** — `LoadSound`, `FreeSound`, `PlaySound`, `LoopSound`, `StopChannel`, `ChannelPlaying`, `ChannelVolume`, `ChannelPan`, `ChannelPitch`, `PauseChannel`, `ResumeChannel`, `SoundVolume`, `SoundPan`, `SoundPitch`, `PlayMusic`, `StopMusic`, `MusicPlaying`, `PlayCDTrack`, `Load3DSound`, `SoundRange`, `Channel3DPosition`, `Channel3DVelocity`, `ListenerPosition`, `ListenerOrientation`, `ListenerVelocity`, `WaitSound`
 
-**2D Graphics — Window & Buffer** — `Graphics`, `EndGraphics`, `GraphicsWidth`, `GraphicsHeight`, `GraphicsDepth`, `GraphicsRate`, `GraphicsMode`, `TotalVidMem`, `AvailVidMem`, `BackBuffer`, `FrontBuffer`, `SetBuffer`, `Cls`, `Flip`, `CopyRect`
+**2D Graphics — Window & Buffer** — `Graphics`, `EndGraphics`, `GraphicsWidth`, `GraphicsHeight`, `GraphicsDepth`, `GraphicsRate`, `GraphicsMode`, `TotalVidMem`, `AvailVidMem`, `BackBuffer`, `FrontBuffer`, `SetBuffer`, `Cls`, `Flip`, `CopyRect`, `Origin`, `Viewport`
 
 **2D Graphics — Color & Drawing** — `Color`, `ClsColor`, `ColorRed`, `ColorGreen`, `ColorBlue`, `GetColor`, `Rgb`, `Plot`, `Line`, `Rect`, `Oval`, `Poly`
 
@@ -135,6 +138,15 @@ bin\blitzcc.exe hello.bb
 - **Exit codes**: 0 = success, 1 = parse error, 2 = compile error
 - **`-k` / `+k`**: dumps all known built-in names / signatures (Blitz3D IDE compatible)
 - **`BLITZPATH`** env var: fallback toolchain root for non-standard installs
+
+### BLTZNXT Extensions to `Graphics`
+
+`Graphics width, height, depth, mode` supports two BLTZNXT-specific modes beyond the Blitz3D originals:
+
+| Mode | Behaviour |
+|------|-----------|
+| `5` | **Windowed, scaled, resizable.** Physical window opens at `width×2 / height×2`. All drawing uses the logical `width × height` grid — game coordinates need no changes. Drag or maximise the window and SDL3 scales the content automatically, letterboxing to preserve the aspect ratio. |
+| `6` | Fullscreen + vsync. Same logical-presentation scaling as mode 1, with vsync enabled. |
 
 ---
 

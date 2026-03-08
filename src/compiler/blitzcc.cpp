@@ -634,7 +634,7 @@ public:
 
 static void showHelp() {
   std::cout
-      << "BlitzNext Compiler (blitzcc) v0.3.8\n"
+      << "BlitzNext Compiler (blitzcc) v0.3.9\n"
       << "Usage: blitzcc [options] <file.bb>\n\n"
       << "  -h          Show this help\n"
       << "  -q          Quiet mode\n"
@@ -666,7 +666,7 @@ int main(int argc, char **argv) {
     else if (arg == "-c")                  cfg.compileOnly = true;
     else if (arg == "-d")                  cfg.debug       = true;
     else if (arg == "-release")            cfg.debug       = false;
-    else if (arg == "-v") { std::cout << "BlitzNext v0.3.8\n"; return 0; }
+    else if (arg == "-v") { std::cout << "BlitzNext v0.3.9\n"; return 0; }
     else if (arg == "-o" && i + 1 < argc)  cfg.outputName  = argv[++i];
     else if (arg[0] != '-' && arg[0] != '+') cfg.inputPath = arg;
   }

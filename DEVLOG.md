@@ -1,5 +1,38 @@
 # BlitzNext Developer Log
 
+## v0.3.9 - "Scaling + Branding" (2026-03-08)
+
+**Files touched:** `src/compiler/bb_graphics2d.h`, `src/compiler/blitzcc.cpp`,
+`examples/asteroids/asteroids.bb`
+
+### New `Graphics` mode 5 — windowed scaled + resizable (`bb_graphics2d.h`)
+
+Added **mode 5** as a BLTZNXT-specific extension to the `Graphics` command:
+
+```
+Graphics width, height, depth, 5
+```
+
+Opens a physical window at `width×2 / height×2` with `SDL_WINDOW_RESIZABLE`
+set. `SDL_SetRenderLogicalPresentation` (letterbox) maps all drawing commands to
+the logical `width × height` grid, so game coordinates require no changes.
+Dragging or maximising the window causes SDL3 to scale the content automatically,
+preserving the aspect ratio with black bars.
+
+The default fallback window title (used when `AppTitle` is not called) was
+renamed from "BlitzNext" to "BLTZNXT".
+
+### Asteroids example — retro scaling demo + branding
+
+- Reduced logical resolution from 800×600 to **400×300**; opened with mode 5 →
+  800×600 physical window, freely resizable.
+- Fixed asteroid polygon closure: factor `2.3` in `Sin(angle × 2.3)` gave a
+  non-integer period (828° mod 360° = 108° ≠ 0), leaving a gap between the
+  first and last vertex. Changed to integer factor `2` (period = 720° = 2×360°).
+- All "BlitzNext" references in the example renamed to **BLTZNXT**.
+
+---
+
 ## v0.3.8 - "Asteroids + Syntax + Renderer Fixes" (2026-03-08)
 
 **Files touched:** `src/compiler/lexer.h`, `src/compiler/emitter.h`,
