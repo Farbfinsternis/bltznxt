@@ -17,7 +17,8 @@ inline std::string toUpper(std::string s) {
 
 class Lexer {
 public:
-  Lexer(const std::string &source) : source(source), pos(0), line(1), col(1) {}
+  Lexer(const std::string &source, const std::string &filename = "")
+      : source(source), filename(filename), pos(0), line(1), col(1), lexErrors_(0) {}
 
   std::vector<Token> tokenize() {
     std::vector<Token> tokens;
@@ -171,7 +172,9 @@ private:
     if (pos < source.length() && source[pos] == '"') {
       pos++; col++; // skip closing "
     } else {
-      std::cerr << "warning: unclosed string literal at line " << line << "\n";
+      std::cerr << filename << ":" << line << ":" << startCol
+                << ": error: unclosed string literal\n";
+      ++lexErrors_;
     }
     return {TokenType::STRING_LIT, value, line, startCol};
   }
@@ -226,8 +229,13 @@ private:
   }
 
   std::string source;
+  std::string filename;
   size_t pos;
   int line, col;
+  int lexErrors_;
+
+public:
+  bool hasErrors() const { return lexErrors_ > 0; }
 };
 
 #endif // BLITZNEXT_LEXER_H

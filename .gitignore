@@ -51,6 +51,7 @@ userlibs/
 # src/libs/ content.txt ist nur ein Platzhalter
 src/libs/content.txt
 
+# Projektwebsite — extern gehostet auf bltznxt.com, nicht im Repo
 site/
 
 # Claude AI — lokale Kontext- und Memory-Dateien

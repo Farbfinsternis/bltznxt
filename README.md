@@ -6,7 +6,7 @@
 
 **BlitzNext** is a modern compiler that converts Blitz3D (`.bb`) source files directly into native Windows executables via a C++17 transpilation pipeline. It targets 100% command parity with the original Blitz3D engine, using a bundled MinGW toolchain and SDL3 for audio and graphics.
 
-> **Status: active development — v0.3.9 — 42 of 66 milestones complete.**
+> **Status: active development — v0.4.0 — 42 of 66 milestones complete.**
 > See [roadmap.md](roadmap.md) for the full milestone list and [DEVLOG.md](DEVLOG.md) for the changelog.
 
 ---

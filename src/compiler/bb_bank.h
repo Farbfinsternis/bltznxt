@@ -154,4 +154,9 @@ inline void bb_ReadBytes(int fileHandle, int bankHandle, int offset, int count) 
   std::fread(b->data() + offset, 1, static_cast<size_t>(count), f);
 }
 
+// Cleanup hook — called by bbEnd().  Frees all remaining bank handles.
+inline void bb_bank_quit_() {
+  bb_bank_handles_.clear();
+}
+
 #endif // BLITZNEXT_BB_BANK_H

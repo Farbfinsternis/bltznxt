@@ -45,7 +45,15 @@ public:
 
     // Emit global variable declarations at file scope (visible to all functions)
     collectGlobals(prog->nodes);
-    if (!globalVarNames.empty()) output << "\n";
+
+    // Forward-declare all Dim'd arrays as empty vectors at file scope so they
+    // are visible to user functions (like globals) and forward references
+    // (array used before its Dim in the token stream) compile correctly in C++.
+    // The actual size-initialisation is emitted at the original Dim position
+    // inside main() by visit(DimStmt*) as an assignment.
+    hoistedDims_.clear();
+    collectDims(prog->nodes);
+    if (!globalVarNames.empty() || !hoistedDims_.empty()) output << "\n";
 
     // Emit user function bodies before main()
     for (auto &n : prog->nodes)
@@ -54,7 +62,7 @@ public:
 
     output << "int main(int argc, char** argv) {\n";
     output << "    bbInit(argc, argv);\n";
-    output << "    void* __gosub_ret__ = nullptr;\n";
+    output << "    int __gosub_ret__ = 0;\n";
 
     // Emit Data pool initialisation + label index constants.
     size_t dataIdx = 0;
@@ -68,6 +76,16 @@ public:
 
     output << "    bbEnd();\n";
     output << "    return 0;\n";
+    // Gosub return dispatch table — only emitted when Gosub is used.
+    // Placed after return 0 so it never executes via fall-through;
+    // only reachable via "goto __gosub_dispatch__" from a bare Return.
+    if (gosubCount > 0) {
+      output << "    __gosub_dispatch__:\n";
+      output << "    switch (__gosub_ret__) {\n";
+      for (int i = 1; i <= gosubCount; ++i)
+        output << "      case " << i << ": goto _gosub_ret_" << i << "_;\n";
+      output << "    }\n";
+    }
     output << "}\n";
 
     std::ofstream f(outputPath + ".cpp");
@@ -456,7 +474,7 @@ public:
       output << ";\n";
     } else {
       // Bare Return in main body = jump back to Gosub call site
-      output << ind() << "goto *__gosub_ret__;\n";
+      output << ind() << "goto __gosub_dispatch__;\n";
     }
   }
 
@@ -477,29 +495,39 @@ public:
 
   void visit(DimStmt *node) override {
     auto [elemType, defVal] = hintToType(node->typeHint);
-    // % → int, no hint → int (handled by hintToType)
-
     size_t ndim = node->dims.size();
-    output << ind() << buildVecType(elemType, ndim) << " var_" << node->name;
-    emitVectorCtor(node->dims, elemType, 0);
-    output << ";\n";
+    std::string lo = node->name;
+    std::transform(lo.begin(), lo.end(), lo.begin(), ::tolower);
+    if (hoistedDims_.count(lo)) {
+      // Already forward-declared at top of main() — emit re-initialisation
+      // (handles both the original Dim and any subsequent re-Dim calls).
+      output << ind() << "var_" << node->name << " = "
+             << buildVecType(elemType, ndim);
+      emitVectorCtor(node->dims, elemType, 0);
+      output << ";\n";
+    } else {
+      // Dim inside a block (if/for/while) — no hoisting, emit full declaration.
+      output << ind() << buildVecType(elemType, ndim) << " var_" << node->name;
+      emitVectorCtor(node->dims, elemType, 0);
+      output << ";\n";
+    }
   }
 
   void visit(ArrayAccess *node) override {
     output << "var_" << node->name;
     for (auto &idx : node->indices) {
-      output << "[";
+      output << ".at(";
       emitExpr(idx.get());
-      output << "]";
+      output << ")";
     }
   }
 
   void visit(ArrayAssignStmt *node) override {
     output << ind() << "var_" << node->name;
     for (auto &idx : node->indices) {
-      output << "[";
+      output << ".at(";
       emitExpr(idx.get());
-      output << "]";
+      output << ")";
     }
     output << " = ";
     emitExpr(node->value.get());
@@ -666,9 +694,10 @@ public:
 
   void visit(GosubStmt *node) override {
     int n = ++gosubCount;
-    // Computed-goto trick (GCC extension, supported by MinGW):
-    //   __gosub_ret__ holds the address of the unique return label.
-    output << ind() << "__gosub_ret__ = &&_gosub_ret_" << n << "_;\n";
+    // Portable Gosub: store return-site ID, jump to subroutine.
+    // A bare Return emits "goto __gosub_dispatch__" which dispatches back
+    // via a switch table emitted at the end of main().
+    output << ind() << "__gosub_ret__ = " << n << ";\n";
     output << ind() << "goto lbl_" << node->label << ";\n";
     output << ind() << "_gosub_ret_" << n << "_:;\n";
   }
@@ -691,6 +720,7 @@ private:
   std::unordered_set<std::string> typeNames;          // registered Type names
   std::unordered_set<std::string> declaredVars;       // lowercase declared var names
   std::unordered_set<std::string> globalVarNames;     // lowercase names of file-scope globals
+  std::unordered_set<std::string> hoistedDims_;       // lowercase names of forward-declared Dim arrays
   std::unordered_map<std::string, std::string> varObjectTypes; // lowercase var → TypeName
   int  indentLevel    = 1;
   bool inExprCtx      = false;
@@ -882,6 +912,29 @@ private:
         collectData(sel->defaultBlock, idx);
       } else if (auto *fe = dynamic_cast<ForEachStmt *>(n.get())) {
         collectData(fe->block, idx);
+      }
+    }
+  }
+
+  // Forward-declare all top-level Dim'd arrays as default-constructed (empty)
+  // vectors at the beginning of main(), so that forward references (array used
+  // before its Dim in the token stream) compile correctly in C++.
+  // Recurses into Program sub-nodes (from preprocessor include inlining).
+  // The actual size initialisation is emitted at the original Dim position by
+  // visit(DimStmt*) as an assignment instead of a declaration.
+  void collectDims(const std::vector<std::unique_ptr<ASTNode>> &nodes) {
+    for (auto &n : nodes) {
+      if (auto *prog = dynamic_cast<Program *>(n.get())) {
+        collectDims(prog->nodes);
+      } else if (auto *ds = dynamic_cast<DimStmt *>(n.get())) {
+        std::string lo = ds->name;
+        std::transform(lo.begin(), lo.end(), lo.begin(),
+               [](unsigned char c){ return (char)std::tolower(c); });
+        if (hoistedDims_.count(lo)) continue; // already forward-declared
+        hoistedDims_.insert(lo);
+        auto [elemType, defVal] = hintToType(ds->typeHint);
+        output << ind() << buildVecType(elemType, ds->dims.size())
+               << " var_" << ds->name << ";\n";
       }
     }
   }

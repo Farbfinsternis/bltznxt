@@ -1,5 +1,89 @@
 # BlitzNext Developer Log
 
+## v0.4.0 - "Bugfix & Hardening" (2026-03-09)
+
+**Files touched:** `src/compiler/parser.h`, `src/compiler/emitter.h`,
+`src/compiler/lexer.h`, `src/compiler/blitzcc.cpp`, `src/compiler/bb_runtime.h`,
+`src/compiler/bb_math.h`, `src/compiler/bb_file.h`, `src/compiler/bb_bank.h`,
+`CMakeLists.txt`, `Buglist.md`, `tests/`
+
+This release works through the entire Buglist (WEAK-05 through WEAK-12 + one parser
+bug discovered during the colon-separator analysis). No new milestones — pure quality.
+
+### Parser: Dim forward-reference fix (WEAK-05)
+
+`Dim`'d arrays are now recognised everywhere, even when the `Dim` statement
+appears *after* the first use in the token stream (e.g. a function declared before
+its array, or an include file ordered after the usage code).
+
+- **Parser** (`parser.h`): new `preScanDims()` pre-pass — walks all tokens before
+  parsing begins and registers every `Dim`-declared array name in `dimmedArrays`.
+  Forward references are now correctly parsed as array accesses, not function calls.
+- **Emitter** (`emitter.h`): new `collectDims()` — analogous to `collectGlobals()`.
+  All top-level `Dim` arrays are forward-declared as empty `std::vector<T>` at
+  **file scope** (visible to user functions). `visit(DimStmt*)` emits a re-assignment
+  at the original position, preserving re-Dim semantics.
+
+### Emitter: portable Gosub/Return (WEAK-06)
+
+Removed GCC-only computed-goto extension (`&&label` / `goto *ptr`).
+Replaced with a portable `int __gosub_ret__` variable + a `switch`-based dispatch
+table emitted at the end of `main()`. Generated programs now compile with any
+standard C++17 compiler.
+
+### Emitter: array bounds checking (WEAK-07)
+
+`[index]` → `.at(index)` in `visit(ArrayAccess*)` and `visit(ArrayAssignStmt*)`.
+Out-of-bounds access now throws `std::out_of_range` with a clear message
+(index + array size) instead of undefined behaviour. Applies to all dimensions.
+
+### Runtime: resource cleanup on exit (WEAK-08)
+
+Added `bb_file_quit_()` (`bb_file.h`) and `bb_bank_quit_()` (`bb_bank.h`).
+Both called from `bbEnd()` before the SDL/audio shutdown, ensuring all open file
+handles and bank allocations are released on normal program exit.
+
+### CMake: remove spurious SDL3 linkage (WEAK-09)
+
+`target_link_libraries(blitzcc PRIVATE SDL3::SDL3)` removed. `blitzcc` is a
+source transpiler — it never calls SDL3 functions. `find_package(SDL3)` kept
+(optional) for informational purposes only.
+
+### Runtime: `bb_Int()` overload set hardened (WEAK-10)
+
+`bb_Int(float)` → `bb_Int(double)` + new `bb_Int(int)` overload in `bb_math.h`.
+Eliminates the real ambiguity that caused `bb_Int(3.9)` (double literal) to fail
+to compile. Three unambiguous candidates: `bb_Int(double)`, `bb_Int(int)`,
+`bb_Int(const bbString&)`.
+
+### Runtime: `bb_DataVal` long-literal safety (WEAK-11)
+
+Added `explicit bb_DataVal(long v)` constructor to `bb_runtime.h`. Prevents
+theoretical ambiguity if the emitter ever produces `bb_DataVal(42L)`.
+
+### Lexer: unclosed string is now a hard error (WEAK-12)
+
+`lexString()` previously emitted a bare `std::cerr` warning (no filename, no
+IDE-parseable format) and returned a partial token, letting the parser continue
+silently. Now:
+- GCC-format error: `file:line:col: error: unclosed string literal`
+- `Lexer` tracks `lexErrors_`; `blitzcc.cpp` checks `lexer.hasErrors()` and
+  returns exit code 1 immediately.
+- New negative test: `tests/neg_unclosed_string.bb`.
+
+### Parser: colon as statement separator — If/Else bug fixed
+
+Colon (`:`) already worked as a statement separator in the main loop via
+`skipNewlines()`. However, `If`/`Else` blocks with colons were mis-parsed:
+`If x = 0 : Print "zero" : Else : Print "nonzero" : End If` produced wrong output
+because the single-line-If detection checked only for `NEWLINE`, not for `:`.
+
+**Fix** (`parser.h`): single-line form is now only taken when `THEN` is explicitly
+present *and* the next token is neither `NEWLINE` nor `:`. Colon-separated
+If/Else/End-If blocks are correctly handled as the multi-line block form.
+
+---
+
 ## v0.3.9 - "Scaling + Branding" (2026-03-08)
 
 **Files touched:** `src/compiler/bb_graphics2d.h`, `src/compiler/blitzcc.cpp`,

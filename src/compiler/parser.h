@@ -23,6 +23,7 @@ public:
     errorCount     = 0;
     tooManyErrors_ = false;
     dimmedArrays.clear();
+    preScanDims(toks); // forward-reference fix: collect all Dim names first
     auto prog = std::make_unique<Program>();
 
     while (!atEnd()) {
@@ -42,6 +43,52 @@ public:
   bool hasErrors() const { return errorCount > 0; }
 
 private:
+  // ------------------------------------------------------------------ pre-scan
+
+  // Pre-scan pass: walk all tokens and register every Dim'd array name so that
+  // forward references work correctly (e.g. an array declared in an Include
+  // that appears after the first use, or simply used before its Dim).
+  void preScanDims(const std::vector<Token> &toks) {
+    for (size_t i = 0; i < toks.size(); ++i) {
+      if (toks[i].type != TokenType::KEYWORD || toks[i].value != "DIM")
+        continue;
+      ++i; // skip DIM
+      // Scan one or more "name[hint]( dims )" on this Dim line
+      while (i < toks.size() &&
+             toks[i].type != TokenType::NEWLINE &&
+             toks[i].type != TokenType::EOF_TOKEN) {
+        if (toks[i].type != TokenType::ID) break;
+        // Register array name (lowercase)
+        std::string lo = toks[i].value;
+        std::transform(lo.begin(), lo.end(), lo.begin(), ::tolower);
+        dimmedArrays.insert(lo);
+        ++i;
+        // Skip optional type hint (#, %, !, $)
+        if (i < toks.size() && toks[i].type == TokenType::OPERATOR &&
+            (toks[i].value == "#" || toks[i].value == "%" ||
+             toks[i].value == "!" || toks[i].value == "$"))
+          ++i;
+        // Skip balanced parentheses: ( dims... )
+        if (i < toks.size() && toks[i].type == TokenType::OPERATOR &&
+            toks[i].value == "(") {
+          int depth = 1;
+          ++i;
+          while (i < toks.size() && depth > 0) {
+            if (toks[i].type == TokenType::OPERATOR && toks[i].value == "(") ++depth;
+            else if (toks[i].type == TokenType::OPERATOR && toks[i].value == ")") --depth;
+            ++i;
+          }
+        }
+        // Comma between multiple arrays on same Dim line — continue
+        if (i < toks.size() && toks[i].type == TokenType::OPERATOR &&
+            toks[i].value == ",")
+          ++i;
+        else
+          break;
+      }
+    }
+  }
+
   // ------------------------------------------------------------------ utils
 
   // Emits an IDE-parseable diagnostic (GCC format: file:line:col: error: msg)
@@ -350,12 +397,18 @@ private:
   // Shared between IF and ELSEIF (both parse condition + body + tail).
   std::unique_ptr<IfStmt> parseIfTail() {
     auto cond = parseExpr();
-    if (peekKw() == "THEN") advance(); // optional THEN
+    bool hasThen = (peekKw() == "THEN");
+    if (hasThen) advance(); // consume THEN
 
     auto stmt = std::make_unique<IfStmt>(std::move(cond));
 
-    // Single-line form: "If cond Then stmt [Else stmt]"
-    if (peek().type != TokenType::NEWLINE && !atEnd()) {
+    // Single-line form requires explicit THEN and a real statement on the same line
+    // (not just a newline or colon). Examples:
+    //   If x = 0 Then Print "zero"            → single-line
+    //   If x = 0 Then Print "zero" Else Print "y"  → single-line
+    //   If x = 0 : Print "zero" : End If      → block form (colon acts like newline)
+    bool isColon = (peek().type == TokenType::OPERATOR && peek().value == ":");
+    if (hasThen && peek().type != TokenType::NEWLINE && !isColon && !atEnd()) {
       auto s = parseStatement();
       if (s) stmt->thenBlock.push_back(std::move(s));
       if (peekKw() == "ELSE") {

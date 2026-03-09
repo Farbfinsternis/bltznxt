@@ -85,39 +85,45 @@ Vollständige Analyse des Compiler-Quellcodes. Behobene Einträge sind mit ✅ m
 - **Problem:** Die Compiler-Befehlszeile wird per String-Verkettung gebaut und mit `std::system()` aufgerufen. Dateinamen mit Sonderzeichen (`;`, `&`, `|`) können Shell-Injection verursachen.
 - **Behoben:** `std::system()` durch `CreateProcessW()` ersetzt — g++ wird direkt gestartet ohne Shell-Umweg. `WaitForSingleObject` + `GetExitCodeProcess` liefern den Exit-Code. `#include <windows.h>` ans Ende der Includes gesetzt (nach allen Projekt-Headern), damit `windows.h`-Makros (`BOOL`, `ERROR`, `min/max`) nicht in `token.h`/`parser.h` einbluten.
 
-### WEAK-05: `dimmedArrays` wird zwischen `parse()`-Aufrufen nicht zurückgesetzt
-- **Datei:** [parser.h](file:///g:/dev/projects/bltznxt/src/compiler/parser.h#L22)
-- **Problem:** `parse()` ruft `dimmedArrays.clear()` auf L22 auf — das ist korrekt. Aber der State `dimmedArrays` überlebt Include-Grenzen nicht, weil jede Include-Datei separat verarbeitet wird, nicht als Teil des gleichen Parse-Laufs. Dim'd Arrays aus inkludierten Dateien werden nicht erkannt.
+### ✅ WEAK-05: `dimmedArrays` — Dim-Forward-Referenzen nicht erkannt
+- **Dateien:** [parser.h](file:///g:/dev/projects/bltznxt/src/compiler/parser.h), [emitter.h](file:///g:/dev/projects/bltznxt/src/compiler/emitter.h)
+- **Problem:** `dimmedArrays` wurde während des Parsens erst beim Erreichen des `Dim`-Statements befüllt. Arrays, die vor ihrer `Dim`-Deklaration im Token-Stream genutzt wurden (typisch: Funktion deklariert vor dem Top-Level-`Dim`, oder Include-Struktur mit use-before-include), wurden als Funktionsaufrufe geparst statt als Array-Zugriffe. Außerdem waren Dim'd Arrays als Locals von `main()` deklariert — nicht auf File-Scope — und daher in User-Functions nicht zugänglich.
+- **Behoben (Parser):** `preScanDims()` Pre-Scan-Pass in `parser.h` — scannt alle Tokens nach `DIM`-Keywords vor dem eigentlichen Parse-Lauf und registriert alle Array-Namen in `dimmedArrays`. Forward-Referenzen werden korrekt als Array-Zugriffe erkannt.
+- **Behoben (Emitter):** `collectDims()` in `emitter.h` — analog zu `collectGlobals()`: deklariert alle Top-Level-Dim-Arrays als leere `std::vector<T>` auf **File-Scope** (vor den User-Functions). `visit(DimStmt*)` emittiert bei bereits gehoistetem Array eine Zuweisung (`var_name = VecType(dims)`) statt einer Neu-Deklaration — Re-Dim bleibt korrekt erhalten.
 
-### WEAK-06: Gosub verwendet GCC computed-goto Extension
-- **Datei:** [emitter.h](file:///g:/dev/projects/bltznxt/src/compiler/emitter.h#L614-L621)
+### ✅ WEAK-06: Gosub verwendet GCC computed-goto Extension
+- **Datei:** [emitter.h](file:///g:/dev/projects/bltznxt/src/compiler/emitter.h)
 - **Problem:** `&&label` und `goto *ptr` sind GCC/MinGW-spezifisch. Code ist nicht portabel zu MSVC oder anderen Compilern.
+- **Behoben:** GCC-Extension durch portable `int __gosub_ret__`-Variable + Dispatch-Switch ersetzt. `GosubStmt` emittiert `__gosub_ret__ = N; goto lbl_X; _gosub_ret_N_:;`. Bare `Return` emittiert `goto __gosub_dispatch__`. Nach `return 0;` in `main()` wird ein Dispatch-Switch (`case N: goto _gosub_ret_N_`) emittiert — nur wenn Gosub-Statements vorhanden sind.
 
-### WEAK-07: Keine Bounds-Checking bei Array-Zugriff
+### ✅ WEAK-07: Keine Bounds-Checking bei Array-Zugriff
 - **Problem:** `Dim`-Arrays werden als `std::vector` emittiert, und der Zugriff erfolgt per `[index]` ohne Bound-Check. Out-of-Bounds-Zugriffe sind undefined behavior.
-- **Empfehlung:** `.at(index)` verwenden, oder optionaler Debug-Modus mit Bounds-Checks.
+- **Behoben:** `[index]` → `.at(index)` in `visit(ArrayAccess*)` und `visit(ArrayAssignStmt*)` in `emitter.h`. Bei Out-of-Bounds wirft `std::vector::at()` `std::out_of_range` mit klarer Fehlermeldung (Index + Arraygröße) statt UB. Gilt für alle Dimensionen (z.B. `var_grid.at(x).at(y)`). Kein Compile-Zeit-Flag nötig.
 
-### WEAK-08: `bb_file_handles_` lecken bei Programmende
-- **Datei:** [bb_file.h](file:///g:/dev/projects/bltznxt/src/compiler/bb_file.h)
+### ✅ WEAK-08: `bb_file_handles_` lecken bei Programmende
+- **Datei:** [bb_file.h](file:///g:/dev/projects/bltznxt/src/compiler/bb_file.h), [bb_bank.h](file:///g:/dev/projects/bltznxt/src/compiler/bb_bank.h)
 - **Problem:** Es gibt kein `bb_file_quit_()` in `bbEnd()`. Offene Dateien werden nie automatisch geschlossen. Gleiches gilt für `bb_dir_handles_` und `bb_bank_handles_`.
+- **Behoben:** `bb_file_quit_()` in `bb_file.h` — schließt alle offenen `FILE*`-Handles und löscht `bb_dir_handles_`. `bb_bank_quit_()` in `bb_bank.h` — löscht alle Bank-Handles. Beide werden in `bbEnd()` (`bb_runtime.h`) vor `bb_snd_quit_()`/`bb_sdl_quit_()` aufgerufen.
 
-### WEAK-09: CMakeLists verlinkt SDL3 zur Compile-Tool — nicht zum User-Programm
-- **Datei:** [CMakeLists.txt](file:///g:/dev/projects/bltznxt/CMakeLists.txt#L34)
+### ✅ WEAK-09: CMakeLists verlinkt SDL3 zur Compile-Tool — nicht zum User-Programm
+- **Datei:** [CMakeLists.txt](file:///g:/dev/projects/bltznxt/CMakeLists.txt)
 - **Problem:** `target_link_libraries(blitzcc PRIVATE SDL3::SDL3)` verlinkt SDL3 zum Compiler-Binary selbst. Der Compiler braucht kein SDL — nur die generierten Programme. Das ist architektonisch falsch und unnötig.
+- **Behoben:** `target_link_libraries(blitzcc PRIVATE SDL3::SDL3)` entfernt. `find_package(SDL3 REQUIRED)` → `find_package(SDL3)` (optional, für informatorische Zwecke). Kommentar erklärt, dass SDL3 nur von den generierten Programmen genutzt wird.
 
-### WEAK-10: `bb_Int()` Namens-Kollision zwischen `bb_math.h` und `bb_string.h`
-- **Dateien:** [bb_math.h:46](file:///g:/dev/projects/bltznxt/src/compiler/bb_math.h#L46), [bb_string.h:27](file:///g:/dev/projects/bltznxt/src/compiler/bb_string.h#L27)
-- **Problem:** `bb_Int(float)` in `bb_math.h` und `bb_Int(const bbString&)` in `bb_string.h` bilden eine Überladung. Das funktioniert dank C++-Overloading, ist aber fragil. Ein `bb_Int(0)` call wäre ambig zwischen `float` und `const std::string&`.
+### ✅ WEAK-10: `bb_Int()` Namens-Kollision zwischen `bb_math.h` und `bb_string.h`
+- **Dateien:** [bb_math.h](file:///g:/dev/projects/bltznxt/src/compiler/bb_math.h), [bb_string.h](file:///g:/dev/projects/bltznxt/src/compiler/bb_string.h)
+- **Problem:** `bb_Int(float)` in `bb_math.h` und `bb_Int(const bbString&)` in `bb_string.h` bilden eine fragile Überladung. In der Praxis war `bb_Int(3.9)` (double-Literal) tatsächlich ambig zwischen `float` und `int`.
+- **Behoben:** `bb_Int(float)` → `bb_Int(double)` (akzeptiert double-Literale direkt, float via Promotion) + `bb_Int(int)` (exact match für int-Argumente). Drei überladeungsfreie Kandidaten: `bb_Int(double)`, `bb_Int(int)`, `bb_Int(const bbString&)` — keine Ambiguität mehr.
 
-### WEAK-11: `bb_DataVal` — theoretische Konstruktor-Ambiguität bei `long`-Literalen
-- **Datei:** [bb_runtime.h:69-74](file:///g:/dev/projects/bltznxt/src/compiler/bb_runtime.h#L69-L74)
-- **Problem:** Alle drei `bb_DataVal`-Konstruktoren sind `explicit`, weshalb implizite Konversionen ausgeschlossen sind. Aktuell emittiert der Emitter stets `bb_DataVal(42)` (plain `int`-Literal), sodass kein Ambiguitätsfehler auftritt. Würde der Emitter jedoch jemals `bb_DataVal(42L)` erzeugen, wäre der Aufruf zwischen `bb_DataVal(int)` und `bb_DataVal(float)` ambig, da `long → int` und `long → float` gleichrangige Standardkonversionen sind. Kein expliziter `long`-Konstruktor vorhanden.
-- **Auswirkung:** Kein aktiver Bug — theoretisches Risiko bei zukünftiger Emitter-Änderung.
+### ✅ WEAK-11: `bb_DataVal` — theoretische Konstruktor-Ambiguität bei `long`-Literalen
+- **Datei:** [bb_runtime.h](file:///g:/dev/projects/bltznxt/src/compiler/bb_runtime.h)
+- **Problem:** Alle drei `bb_DataVal`-Konstruktoren sind `explicit`. Würde der Emitter `bb_DataVal(42L)` erzeugen, wäre der Aufruf zwischen `bb_DataVal(int)` und `bb_DataVal(float)` ambig.
+- **Behoben:** `explicit bb_DataVal(long v)` hinzugefügt — long-Literale werden als KIND_INT behandelt. Kein Ambiguitäts-Risiko mehr.
 
-### WEAK-12: `lexString()` — unclosed String erzeugt nur Warning, keinen Fehler
-- **Datei:** [lexer.h:104-118](file:///g:/dev/projects/bltznxt/src/compiler/lexer.h#L104)
-- **Problem:** Trifft `lexString()` auf ein Zeilenende `\n` bevor das schließende `"` gefunden wird, gibt es nur eine `std::cerr`-Warnung und gibt trotzdem einen `STRING_LIT`-Token mit dem bisher gelesen Inhalt zurück. Der Parser bekommt einen unvollständigen Token und kann weiter parsen, ohne von einem echten Fehler zu wissen — mit unvorhersehbaren Folgefehlern.
-- **Auswirkung:** Tippfehler (fehlendes `"`) führt zu kryptischen Parser-Fehlern statt einer klaren Fehlermeldung.
+### ✅ WEAK-12: `lexString()` — unclosed String erzeugt nur Warning, keinen Fehler
+- **Datei:** [lexer.h](file:///g:/dev/projects/bltznxt/src/compiler/lexer.h)
+- **Problem:** Trifft `lexString()` auf `\n` ohne schließendes `"`, gab es nur eine `std::cerr`-Warnung (ohne Dateiname, nicht IDE-parseable) und der Parse lief weiter mit einem unvollständigen Token.
+- **Behoben:** `Lexer` erhält `filename`-Parameter und `lexErrors_`-Zähler. `lexString()` emittiert GCC-Format-Fehler (`file:line:col: error: unclosed string literal`) und inkrementiert `lexErrors_`. `blitzcc.cpp` übergibt den Dateinamen und prüft `lexer.hasErrors()` — gibt Exit-Code 1 zurück. Negativtest `neg_unclosed_string.bb` hinzugefügt.
 
 ---
 
@@ -168,7 +174,7 @@ Vollständige Analyse des Compiler-Quellcodes. Behobene Einträge sind mit ✅ m
 | Kategorie     | Anzahl | Änderung |
 |:-------------|:------:|:--------|
 | 🔴 Bugs       |   7    | BUG-05 Beschreibung korrigiert; BUG-08 → WEAK-11 |
-| 🟡 Schwachstellen | 12 | +WEAK-11 (ehem. BUG-08, theoretisch), +WEAK-12 (Lexer-String) |
+| 🟡 Schwachstellen | 12 | WEAK-05 ✅; +WEAK-11 (ehem. BUG-08, theoretisch), +WEAK-12 (Lexer-String) |
 | 🟠 Redundanz   |   8    | +RED-08 (bb_ReadAvail Duplikat) |
 | **Gesamt**     | **27** | |
 

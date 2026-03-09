@@ -32,6 +32,8 @@ inline void bbEnd() {
 #ifdef _WIN32
   timeEndPeriod(1);
 #endif
+  bb_file_quit_();  // close open file + dir handles
+  bb_bank_quit_();  // free remaining bank handles
   bb_snd_quit_();   // close audio device + free sounds/channels
   bb_sdl_quit_();   // close joysticks, window, renderer, SDL
 }
@@ -68,6 +70,8 @@ struct bb_DataVal {
 
   explicit bb_DataVal(int v)
       : kind(KIND_INT), ival(v), fval(static_cast<float>(v)) {}
+  explicit bb_DataVal(long v)    // prevents long-literal ambiguity (long→int vs long→float)
+      : kind(KIND_INT), ival(static_cast<int>(v)), fval(static_cast<float>(v)) {}
   explicit bb_DataVal(float v)
       : kind(KIND_FLOAT), ival(static_cast<int>(v)), fval(v) {}
   explicit bb_DataVal(const bbString &v)

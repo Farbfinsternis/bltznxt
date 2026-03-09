@@ -236,6 +236,14 @@ inline void bb_CloseDir(int handle) {
   bb_dir_handles_.erase(handle);
 }
 
+// Cleanup hook — called by bbEnd().  Closes all open file and dir handles.
+inline void bb_file_quit_() {
+  for (auto &[id, f] : bb_file_handles_)
+    if (f) std::fclose(f);
+  bb_file_handles_.clear();
+  bb_dir_handles_.clear();
+}
+
 // ---- Directory & File Operations (M27) ----
 
 inline bbString bb_CurrentDir() {

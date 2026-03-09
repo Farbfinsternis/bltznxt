@@ -42,8 +42,12 @@ inline float bb_Exp(float x)   { return std::exp(x); }
 inline int   bb_Floor(float x) { return static_cast<int>(std::floor(x)); }
 inline int   bb_Ceil(float x)  { return static_cast<int>(std::ceil(x)); }
 
-// Int(float) — truncate toward zero (distinct from Int(string) in bb_string.h)
-inline int   bb_Int(float x)   { return static_cast<int>(x); }
+// Int(double/int) — truncate toward zero (distinct from Int(string) in bb_string.h).
+// double overload: handles both float (implicit float→double) and double literals.
+// int overload: exact match for integer arguments, avoids int→double promotion.
+// Together these eliminate any ambiguity with bb_Int(const bbString&) from bb_string.h.
+inline int   bb_Int(double x)  { return static_cast<int>(x); }
+inline int   bb_Int(int x)     { return x; }
 
 // Sgn — returns sign of x as -1, 0, or 1
 inline int   bb_Sgn(float x)   { return (x > 0.0f) - (x < 0.0f); }

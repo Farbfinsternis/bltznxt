@@ -27,12 +27,17 @@ endif()
 set_target_properties(blitzcc PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/bin")
 
 # SDL3 (SD3) configuration
+# NOTE: blitzcc itself does NOT link SDL3 — it is a source transpiler that
+# generates C++ code. SDL3 is only linked to the programs that blitzcc produces.
+# find_package is kept here so CMake can locate SDL3 for informational purposes,
+# but no target_link_libraries call is made for blitzcc.
 set(SDL3_DIR "${CMAKE_CURRENT_SOURCE_DIR}/libs/sd3" CACHE PATH "Path to SDL3")
 if(EXISTS "${SDL3_DIR}")
     list(APPEND CMAKE_PREFIX_PATH "${SDL3_DIR}")
-    find_package(SDL3 REQUIRED)
-    target_link_libraries(blitzcc PRIVATE SDL3::SDL3)
-    message(STATUS "SDL3 found at: ${SDL3_DIR}")
+    find_package(SDL3)
+    if(SDL3_FOUND)
+        message(STATUS "SDL3 found at: ${SDL3_DIR} (used by generated programs, not by blitzcc itself)")
+    endif()
 else()
     message(WARNING "SDL3 not found at ${SDL3_DIR}. Run build_windows.bat or build_linux.sh first.")
 endif()
