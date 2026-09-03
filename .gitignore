@@ -67,6 +67,9 @@ src/libs/content.txt
 # Internes Promotion-Dokument (Strategie, nicht für Endnutzer)
 /promotion.md
 
+# Interne Bug- und Review-Liste (Arbeitsdokument, nicht für Endnutzer)
+/Buglist.md
+
 # ============================================================
 # Explizit NICHT ignoriert — auf GitHub sichtbar:
 # ============================================================
