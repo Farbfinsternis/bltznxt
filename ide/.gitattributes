@@ -1,0 +1,21 @@
+# Zeilenenden für das IDE-Unterprojekt.
+#
+# Das Repository steht auf core.autocrlf=true, was für die Compiler-Seite
+# passt: deren Quellen liegen im Arbeitsbaum als CRLF. Für ein Node-Projekt
+# ist das die falsche Voreinstellung — package-lock.json und die JS-Dateien
+# würden bei jedem Checkout umgeschrieben, und Werkzeuge, die Prüfsummen über
+# Dateien bilden, sehen jedes Mal eine Änderung.
+#
+# Hier gilt deshalb LF, im Repository wie im Arbeitsbaum. Die Regel wirkt nur
+# unterhalb von ide/ und lässt den Compiler unberührt.
+
+* text=auto eol=lf
+
+# Binärdateien nie anfassen
+*.png binary
+*.jpg binary
+*.ico binary
+*.exe binary
+*.ttf binary
+*.woff  binary
+*.woff2 binary
