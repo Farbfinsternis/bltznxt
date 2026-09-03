@@ -180,6 +180,41 @@ Environment:
 
 ---
 
+## Repository Layout
+
+This repository holds two deliberately independent subprojects:
+
+```
+bltznxt/
+  src/compiler/   ← the compiler and its header-only runtime
+  bin/ tests/ examples/ libs/ tools/
+  CMakeLists.txt  build_windows.bat  build_linux.sh
+  ide/            ← BLTZNXT IDE (Electron + Vite + Monaco)
+```
+
+**They have no dependency on each other, and that is a rule, not an accident.**
+
+The only contract between them is the `blitzcc` command line — a process boundary:
+arguments in, stdout/stderr and an exit code out. Concretely:
+
+- The IDE never includes, links against, or reads anything under `src/compiler/`.
+- The IDE never hard-codes a path to `bin/blitzcc.exe`. The compiler location is
+  configuration, resolved in this order: IDE setting → `BLITZPATH` → `PATH` →
+  optionally `../bin/blitzcc.exe` as a developer convenience. The IDE runs against
+  any installed BlitzNext, and starts fine with no compiler present at all.
+- The IDE never freezes the built-in command list into its own source. It calls
+  `blitzcc +k` at runtime, so autocomplete stays correct against a compiler that is
+  newer than the IDE. Copying `kCommands[]` into the IDE would create a silent,
+  versioned coupling — don't.
+- Each side builds on its own: CMake / `build_windows.bat` for the compiler, npm for
+  the IDE. Neither build script references the other. They version independently.
+
+The compiler is IDE-agnostic by design and predates the IDE: the GCC-style error
+format (`file:line:col: error: message`), the exit-code contract, and the `-k` / `+k`
+flags exist precisely so that *any* editor can drive it.
+
+---
+
 ## Architecture
 
 BlitzNext is a single-pass transpiler. The entire compiler fits in `src/compiler/`:
