@@ -4,19 +4,19 @@
 
 # ---- Build output ------------------------------------------
 # CMake build directory (Zwischenartefakte, neu generierbar)
-build/
+/build/
 
 # Compiler-Binary und alle deploy-Dateien in bin/
 # (blitzcc.exe, SDL3.dll, libgcc*.dll, test-Executables, ...)
-bin/
+/bin/
 
 # ---- Toolchain ---------------------------------------------
 # MinGW-Toolchain (re-installierbar via build_windows.bat / build_linux.sh)
-tools/
+/tools/
 
 # ---- Libraries ---------------------------------------------
 # SDL3 und weitere Drittanbieter-Binaries (re-downloadbar via build-Skripte)
-libs/
+/libs/
 
 # ---- Test-Artefakte ----------------------------------------
 # Kompilierte Test-Executables, generierte C++-Zwischendateien, Temp-Dateien
@@ -25,6 +25,10 @@ tests/*.dll
 tests/*.cpp
 tests/*.dat
 tests/content.txt
+
+# Testartefakte, die die Testsuite im Repo-Wurzelverzeichnis erzeugt
+# (test_m45/m46 schreiben ihre PNG-Ausgabe ins CWD)
+/__test_*.png
 
 # ---- IDE & Editor ------------------------------------------
 .vscode/
@@ -46,22 +50,22 @@ desktop.ini
 *.bak
 
 # userlibs/ ist lokal (user-spezifische Libraries, nicht Teil des Repos)
-userlibs/
+/userlibs/
 
 # src/libs/ content.txt ist nur ein Platzhalter
 src/libs/content.txt
 
 # Projektwebsite — extern gehostet auf bltznxt.com, nicht im Repo
-site/
+/site/
 
 # Claude AI — lokale Kontext- und Memory-Dateien
 .claude/
 
 # Internes Refactoring-Dokument (technische Schulden, nicht für Endnutzer)
-REFACTOR.md
+/REFACTOR.md
 
 # Internes Promotion-Dokument (Strategie, nicht für Endnutzer)
-promotion.md
+/promotion.md
 
 # ============================================================
 # Explizit NICHT ignoriert — auf GitHub sichtbar:
