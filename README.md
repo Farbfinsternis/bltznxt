@@ -6,8 +6,8 @@
 
 **BlitzNext** is a modern compiler that converts Blitz3D (`.bb`) source files directly into native Windows executables via a C++17 transpilation pipeline. It targets 100% command parity with the original Blitz3D engine, using a bundled MinGW toolchain and SDL3 for audio and graphics.
 
-> **Status: active development — v0.4.0 — 42 of 66 milestones complete.**
-> See [roadmap.md](roadmap.md) for the full milestone list and [DEVLOG.md](DEVLOG.md) for the changelog.
+> **Status: active development — v0.4.3 — 46 of 70 milestones complete.**
+> See [roadmap.md](roadmap.md) and [ROADMAP3D.md](ROADMAP3D.md) for the full milestone list and [DEVLOG.md](DEVLOG.md) for the changelog.
 
 ---
 
@@ -34,8 +34,8 @@ Mark passed away in 2024. BlitzNext exists to carry his idea forward — the bel
 | Area | Done | Goal | Coverage |
 |------|------|------|----------|
 | **Language features** | Grammar, types, control flow, functions, arrays, includes, operators | 100% Blitz3D language spec | ~90% |
-| **Runtime (built-in commands)** | ~355 functions across 12 modules | ~480 total projected | ~74% |
-| **Roadmap milestones** | 42 of 66 | 66 | 64% |
+| **Runtime (built-in commands)** | ~395 functions across 13 modules | ~480 total projected | ~82% |
+| **Roadmap milestones** | 46 of 70 | 70 | 66% |
 | **Blitz2D compatibility** | Core language, full 2D graphics, audio, input, file I/O | 100% Blitz2D | ~80% |
 
 **Language** is nearly complete — all core constructs (variables, types, functions, control flow, operators, `#Include`, `Data/Read`, `Dim`, `Goto/Gosub`) are implemented. Remaining gaps are edge cases in the parser, not missing constructs.
@@ -132,6 +132,14 @@ bin\blitzcc.exe hello.bb
 
 **2D Graphics — Pixel Buffer** — `ImageBuffer`, `LockBuffer`, `UnlockBuffer`, `ReadPixel`, `WritePixel`, `ReadPixelFast`, `WritePixelFast`, `CopyPixel`, `CopyPixelFast`, `LoadBuffer`, `SaveBuffer`, `BufferWidth`, `BufferHeight`
 
+**3D Graphics — Context & Scene** — `Graphics3D`, `UpdateWorld`, `RenderWorld`, `ClearWorld`, `CaptureWorld`, `TrisRendered`, `AmbientLight`, `Wireframe`, `Dither`, `WBuffer`, `AntiAlias`, `HWMultiTex`, `CameraClsMode`, `CameraClsColor`
+
+**3D Graphics — Entities** — `CreatePivot`, `FreeEntity`, `HideEntity`, `ShowEntity`, `NameEntity`, `EntityName`, `EntityClass`, `EntityParent`, `GetParent`, `CountChildren`, `GetChild`, `FindChild`, `EntityOrder`
+
+**3D Graphics — Transforms** — `PositionEntity`, `MoveEntity`, `TranslateEntity`, `RotateEntity`, `TurnEntity`, `ScaleEntity`, `PointEntity`, `AlignToVector`, `ResetEntity`, `EntityX`, `EntityY`, `EntityZ`, `EntityPitch`, `EntityYaw`, `EntityRoll`, `EntityDistance`
+
+**3D Graphics — Camera** — `CreateCamera`, `CameraRange`, `CameraZoom`, `CameraProjMode`, `CameraViewport`, `CameraClsMode`, `CameraClsColor`
+
 ### Compiler & Tooling
 - **One-step build**: `blitzcc myfile.bb` → transpile to C++ → compile → `myfile.exe`
 - **GCC-compatible error format**: `file:line:col: error: message` (parseable by any IDE)
@@ -197,6 +205,13 @@ src/compiler/
   bb_sound3d.h      ← 3D positional audio
   bb_graphics2d.h   ← 2D graphics (window, buffer, color, shapes, text, fonts)
   bb_image.h        ← image loading, drawing, manipulation, pixel buffer (M44–M46b)
+  bb_gl_ctx.h       ← OpenGL 3.3 Core loader (60 fn pointers via SDL_GL_GetProcAddress)
+  bb_entity_core.h  ← entity handle system, scene graph, transforms, hierarchy (3D-03–05)
+  bb_camera.h       ← camera entity, view/projection matrices (3D-06)
+  bb_shader.h       ← three built-in GLSL 3.3 shaders (unlit, textured, lit) (3D-07)
+  bb_mesh_core.h    ← VAO/VBO/EBO upload + draw, interleaved vertex format (3D-08)
+  bb_mesh.h         ← mesh entity, primitive generators, RenderWorld pass (3D-09)
+  bb_graphics3d.h   ← Graphics3D, UpdateWorld, RenderWorld, scene globals (3D-01–09)
 ```
 
 The runtime is **header-only** — the generated `.cpp` file `#include`s only what it needs, then gets compiled by the bundled MinGW g++.
@@ -205,7 +220,7 @@ The runtime is **header-only** — the generated `.cpp` file `#include`s only wh
 
 ## Roadmap Overview
 
-42 of 66 milestones complete. See [roadmap.md](roadmap.md) for full detail.
+46 of 70 milestones complete. See [roadmap.md](roadmap.md) and [ROADMAP3D.md](ROADMAP3D.md) for full detail.
 
 | Phase | Scope | Status |
 |-------|-------|--------|
@@ -220,7 +235,8 @@ The runtime is **header-only** — the generated `.cpp` file `#include`s only wh
 | I — Input | Keyboard, Mouse, Joystick | ✓ Done |
 | J — Audio | Sound, Music, 3D audio | ✓ Done |
 | K — 2D Graphics | Window, buffer, color, shapes, text, fonts, images, pixel buffer | ✓ Done |
-| L–T — 3D Graphics | Scene, textures, mesh, entities, camera, collision, animation | Planned |
+| L — 3D Foundation | GL context, UpdateWorld/RenderWorld, entity system, camera (3D-01–06) | ✓ Done |
+| M–T — 3D Graphics | Shaders, meshes, textures, lighting, collision, animation, terrain | In Progress |
 
 ---
 

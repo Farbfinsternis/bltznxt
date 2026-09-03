@@ -17,6 +17,11 @@
 
 namespace fs = std::filesystem;
 
+// ---- Version ---------------------------------------------------------------
+// Single source of truth for -h and -v output (Buglist BUG-02 / REFACTOR R12).
+
+static constexpr const char *kVersion = "0.4.3";
+
 // ---- Config ----------------------------------------------------------------
 
 struct Config {
@@ -216,6 +221,67 @@ static const CmdInfo kCommands[] = {
   { "TotalVidMem",      ""                                     },
   { "AvailVidMem",      ""                                     },
   { "GraphicsMode",     "w%, h%, depth%, rate%"                },
+  // 3D Graphics — init & scene control (3D-01 / 3D-02)
+  { "Graphics3D",       "width%, height%, depth%=32, mode%=0" },
+  { "UpdateWorld",      ""                                     },
+  { "RenderWorld",      ""                                     },
+  { "ClearWorld",       ""                                     },
+  { "CaptureWorld",     ""                                     },
+  { "TrisRendered",     ""                                     },
+  { "Dither",           "on%"                                  },
+  { "WBuffer",          "on%"                                  },
+  { "AntiAlias",        "on%"                                  },
+  { "Wireframe",        "on%"                                  },
+  { "HWMultiTex",       "on%"                                  },
+  { "AmbientLight",     "r%, g%, b%"                           },
+  { "CameraClsMode",    "camera%, cls_color%=1, cls_zbuf%=1"   },
+  { "CameraClsColor",   "camera%, r%, g%, b%"                  },
+  // 3D Camera entity (3D-06)
+  { "CreateCamera",     "parent%=0"                            },
+  { "CameraRange",      "camera%, near#, far#"                 },
+  { "CameraZoom",       "camera%, zoom#"                       },
+  { "CameraProjMode",   "camera%, mode%"                       },
+  { "CameraViewport",   "camera%, x%, y%, w%, h%"              },
+  // 3D Primitive Meshes (3D-09)
+  { "CreateCube",       "parent%=0"                            },
+  { "CreateSphere",     "segs%=8, parent%=0"                   },
+  { "CreateCylinder",   "segs%=8, open%=0, parent%=0"         },
+  { "CreateCone",       "segs%=8, open%=0, parent%=0"         },
+  { "MeshWidth",        "mesh%"                                },
+  { "MeshHeight",       "mesh%"                                },
+  { "MeshDepth",        "mesh%"                                },
+  // 3D Entity system (3D-03)
+  { "CreatePivot",      "parent%=0"                            },
+  { "FreeEntity",       "entity%"                              },
+  { "HideEntity",       "entity%"                              },
+  { "ShowEntity",       "entity%"                              },
+  { "NameEntity",       "entity%, name$"                       },
+  { "EntityName",       "entity%"                              },
+  // 3D Transform system (3D-04)
+  { "PositionEntity",   "entity%, x#, y#, z#, global%=0"      },
+  { "MoveEntity",       "entity%, dx#, dy#, dz#"              },
+  { "TranslateEntity",  "entity%, dx#, dy#, dz#, global%=0"   },
+  { "RotateEntity",     "entity%, rx#, ry#, rz#, global%=0"   },
+  { "TurnEntity",       "entity%, rx#, ry#, rz#, global%=0"   },
+  { "ScaleEntity",      "entity%, sx#, sy#, sz#, global%=0"   },
+  { "PointEntity",      "entity%, target%, roll#=0"           },
+  { "AlignToVector",    "entity%, nx#, ny#, nz#, axis%, rate#=1" },
+  { "ResetEntity",      "entity%"                              },
+  { "EntityX",          "entity%, global%=0"                  },
+  { "EntityY",          "entity%, global%=0"                  },
+  { "EntityZ",          "entity%, global%=0"                  },
+  { "EntityPitch",      "entity%, global%=0"                  },
+  { "EntityYaw",        "entity%, global%=0"                  },
+  { "EntityRoll",       "entity%, global%=0"                  },
+  { "EntityDistance",   "entity1%, entity2%"                  },
+  // 3D Hierarchy (3D-05)
+  { "EntityParent",     "entity%, parent%, global%=0"         },
+  { "GetParent",        "entity%"                             },
+  { "FindChild",        "entity%, name$"                      },
+  { "CountChildren",    "entity%"                             },
+  { "GetChild",         "entity%, index%"                     },
+  { "EntityOrder",      "entity%, order%"                     },
+  { "EntityClass",      "entity%"                             },
   // 3D Sound (M37)
   { "Load3DSound",        "file$"                        },
   { "SoundRange",         "snd%, inner#, outer#"         },
@@ -528,6 +594,9 @@ public:
     // Link winmm for timeBeginPeriod/timeEndPeriod (high-res timer on Windows)
     cmd += " -lwinmm";
 
+    // Link opengl32 for OpenGL (3D programs via bb_gl_ctx.h)
+    cmd += " -lopengl32";
+
     if (debug) cmd += " -g";
 
     // Launch g++ directly via CreateProcessW — no shell, no injection risk.
@@ -635,7 +704,7 @@ public:
 
 static void showHelp() {
   std::cout
-      << "BlitzNext Compiler (blitzcc) v0.4.0\n"
+      << "BlitzNext Compiler (blitzcc) v" << kVersion << "\n"
       << "Usage: blitzcc [options] <file.bb>\n\n"
       << "  -h          Show this help\n"
       << "  -q          Quiet mode\n"
@@ -667,7 +736,7 @@ int main(int argc, char **argv) {
     else if (arg == "-c")                  cfg.compileOnly = true;
     else if (arg == "-d")                  cfg.debug       = true;
     else if (arg == "-release")            cfg.debug       = false;
-    else if (arg == "-v") { std::cout << "BlitzNext v0.4.0\n"; return 0; }
+    else if (arg == "-v") { std::cout << "BlitzNext v" << kVersion << "\n"; return 0; }
     else if (arg == "-o" && i + 1 < argc)  cfg.outputName  = argv[++i];
     else if (arg[0] != '-' && arg[0] != '+') cfg.inputPath = arg;
   }

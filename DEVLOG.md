@@ -1,5 +1,179 @@
 # BlitzNext Developer Log
 
+## v0.4.3 - "3D Shader, Geometry Buffers & Primitive Meshes" (2026-03-10)
+
+**Files touched:** `src/compiler/bb_shader.h` (new), `src/compiler/bb_mesh_core.h` (new),
+`src/compiler/bb_mesh.h` (new), `src/compiler/bb_graphics3d.h`, `src/compiler/bb_sdl.h`,
+`src/compiler/blitzcc.cpp`, `README.md`, `ROADMAP3D.md`, `tests/`
+
+Completes 3D-07 through 3D-09 — the rendering half of the 3D foundation. After v0.4.2
+the scene graph existed but nothing reached the screen; this release closes that gap.
+`CreateCube` now produces visible geometry.
+
+**3D-07 · Shader Infrastructure**
+- `bb_shader.h`: `bb_Shader_` wraps a linked GL program plus a uniform-location cache
+  (`std::unordered_map<std::string, GLint>`), so repeated `glGetUniformLocation` calls
+  cost one hash lookup instead of a driver round-trip.
+- `bb_shader_compile_(vert, frag)` → `bb_Shader_*` or `nullptr`; `bb_shader_check_()`
+  prints the GL info log to stderr on compile or link failure.
+- Three GLSL 3.30 Core shaders embedded as raw string literals:
+  - **UNLIT** — solid `u_color`, no lighting
+  - **TEXTURED** — `sampler2D` × `u_color`, no lighting
+  - **LIT** — Blinn-Phong, up to 8 lights, optional texture; degrades to ambient-only
+    when `u_light_count == 0`, so it is safe to bind before lights exist (3D-12)
+- Light types in the LIT shader: 0 = directional (`u_light_pos` is a direction),
+  1 = point (`u_light_pos` is a world position, `u_light_range` the falloff radius).
+  Colour uniforms are pre-normalised to [0,1] by the caller. Normals are transformed
+  with `mat3(u_model)` — correct for rotation and uniform scale.
+- `bb_shaders_init_()` runs lazily on the first `RenderWorld` call, not at startup:
+  a GL context must be current, and text-mode programs must never touch GL.
+- `bb_shader_bind_()` skips a redundant `glUseProgram` when the program is already active.
+- `bb_shader_quit_hook_` registered in `bb_sdl.h`; programs are deleted before the
+  GL context is destroyed.
+
+**3D-08 · Geometry Buffers (VAO/VBO/EBO)**
+- `bb_mesh_core.h`: `bb_MeshData_` holds CPU-side vertices and indices, the three GL
+  handles, a `dirty` flag and `triCount`.
+- Interleaved vertex format, 11 floats per vertex, stride 44 bytes:
+  position (0), normal (12), texcoord (24), colour (32). Attribute locations
+  0–3 match `bb_shader.h` exactly — the two files are a matched pair and must be
+  changed together.
+- `bb_mesh_upload_()` creates or refreshes VAO/VBO/EBO; `bb_mesh_draw_()` re-uploads
+  when dirty, sets MVP, model matrix, colour, texture and view position, then calls
+  `glDrawElements`; `bb_mesh_free_gpu_()` releases GPU objects but leaves the CPU
+  geometry intact, so a mesh can be re-uploaded after a context loss.
+
+**3D-09 · Primitive Meshes**
+- `bb_mesh.h`: `bb_MeshEntity_` extends `bb_Entity_` with a `std::vector<bb_MeshData_>`
+  — one surface per draw call. The destructor frees the GPU buffers.
+- Four generators, all unit-sized around the origin so `ScaleEntity` behaves predictably:
+  - `bb_gen_cube_()` — 6 quads, flat outward normals
+  - `bb_gen_sphere_(segs)` — UV sphere, smooth normals
+  - `bb_gen_cylinder_(segs, open)` — smooth normals on the mantle, flat caps
+  - `bb_gen_cone_(segs, open)` — slanted mantle normals, flat cap
+- Commands: `CreateCube`, `CreateSphere`, `CreateCylinder`, `CreateCone`,
+  `MeshWidth/Height/Depth` (AABB of the CPU geometry).
+- `bb_render_meshes_(shader, view, proj)` is called from `bb_RenderWorld()` inside the
+  per-camera loop after the view and projection matrices are built. It currently binds
+  the UNLIT shader for every mesh; the TEXTURED and LIT paths activate with 3D-11 and 3D-12.
+- `glEnable(GL_DEPTH_TEST)` moved into the render pass.
+
+**`kCommands[]`:** 55 new 3D entries registered across v0.4.1–v0.4.3 (scene, camera,
+entity, transform, hierarchy and mesh commands) — these feed `-k` / `+k` and therefore
+IDE autocomplete.
+
+**Version string:** `blitzcc.cpp` carried a hard-coded `v0.4.0` in two places while the
+documentation had already moved to v0.4.2. Both replaced by a single
+`static constexpr const char *kVersion` — closes BUG-02 / REFACTOR R12.
+
+**Tests:** `tests/test_3d09_primitives.bb` (rotating cube). Full suite: 51 passed,
+0 failed, 1 skipped (`test_m16_iteration`, known pre-existing parser bug).
+
+---
+
+## v0.4.2 - "3D Entity System & Camera" (2026-03-10)
+
+**Files touched:** `src/compiler/bb_entity_core.h` (new), `src/compiler/bb_camera.h` (new),
+`src/compiler/bb_graphics3d.h`, `src/compiler/bb_sdl.h`, `ROADMAP3D.md`, `tests/`
+
+Implements the core 3D scene graph (3D-03 through 3D-06) on top of the GL infrastructure
+from v0.4.1. Entities, transforms, hierarchy, and camera are now fully operational.
+Also fixes a perspective projection bug found during code review.
+
+**3D-03 · Entity Handle System & Pivot**
+- `bb_entity_core.h`: polymorphic `bb_Entity_` base with handle map
+  (`std::unordered_map<int, std::unique_ptr<bb_Entity_>>`), counter, `bb_entity_get_()`.
+- `bb_PivotEntity_` as first concrete entity type.
+- `bb_CreatePivot(parent=0)`, `bb_FreeEntity(h)` (recursive child teardown),
+  `bb_HideEntity`, `bb_ShowEntity`, `bb_NameEntity`, `bb_EntityName`.
+- `bb_entity_quit_hook_` registered at startup; `bb_sdl_quit_()` calls it before GL teardown.
+
+**3D-04 · Transform System & Scene Graph**
+- Column-major 4×4 matrix helpers: `mat4_identity_`, `mat4_mul_`, `mat4_make_translate_`,
+  `mat4_make_scale_`, `mat4_make_euler_YXZ_` (analytically derived — YXZ Blitz3D convention),
+  `mat4_inverse_` (Mesa GLU algorithm), `mat4_extract_euler_YXZ_`, `mat4_xform_pt_`.
+- `bb_entity_update_all_()`: DFS from all root entities — `world = parent.world × local_TRS`.
+- `bb_PositionEntity`, `bb_MoveEntity`, `bb_TranslateEntity` (local + world-space),
+  `bb_RotateEntity`, `bb_TurnEntity`, `bb_ScaleEntity`, `bb_PointEntity`, `bb_AlignToVector`,
+  `bb_ResetEntity`.
+- Queries: `bb_EntityX/Y/Z`, `bb_EntityPitch/Yaw/Roll`, `bb_EntityDistance`.
+
+**3D-05 · Entity Hierarchy**
+- `bb_EntityParent(h, new_parent, glob=0)`: re-parents with optional world-coord preservation
+  (decomposes new local matrix from `inv(new_parent.world) × old_world`).
+- `bb_GetParent`, `bb_CountChildren`, `bb_GetChild` (1-based), `bb_FindChild` (recursive DFS),
+  `bb_EntityOrder`, `bb_EntityClass`.
+
+**3D-06 · Camera Entity**
+- `bb_CameraEntity_` with `projMode`, `near_/far_`, `zoom`, per-camera viewport and cls state,
+  `view[16]` + `proj[16]` computed each frame in RenderWorld.
+- `bb_CreateCamera`, `bb_CameraRange`, `bb_CameraZoom`, `bb_CameraProjMode`,
+  `bb_CameraViewport`, `bb_CameraClsMode`, `bb_CameraClsColor`.
+- `bb_RenderWorld()` upgraded: collects all visible cameras (sorted by `order`), flips
+  Blitz3D-to-GL viewport Y, builds per-camera view + projection matrices each frame.
+- Global fallback clear state retained for programs without a camera entity (3D-02 compat).
+
+**Bugfix: perspective projection aspect ratio**
+- `aspect = vw/vh` (width ÷ height) instead of `vh/vw`.
+  Previously VFOV ≈ 106° on 800×600 with zoom=1 (wider than HFOV). Now VFOV ≈ 74° (correct).
+
+**Tests:** `test_3d03_pivot.bb`, `test_3d04_transform.bb`, `test_3d05_hierarchy.bb`,
+`test_3d06_camera.bb` — all pass.
+
+---
+
+## v0.4.1 - "3D Foundation: OpenGL Context & Scene Control" (2026-03-09)
+
+**Files touched:** `src/compiler/bb_gl_ctx.h` (new), `src/compiler/bb_graphics3d.h` (new),
+`src/compiler/bb_sdl.h`, `src/compiler/bb_graphics2d.h`, `src/compiler/bb_runtime.h`,
+`src/compiler/blitzcc.cpp`, `ROADMAP3D.md` (new), `tests/`
+
+Kicks off Phase L — 3D graphics. Establishes the OpenGL 3.3 Core infrastructure
+and wires it cleanly into the existing SDL3 + 2D pipeline.
+
+**3D-01 · OpenGL Context Bootstrap**
+- `bb_gl_ctx.h`: self-contained GL 3.3 Core loader — 60 function pointers declared via
+  `BB_GL_DECL` macro, loaded at runtime via `SDL_GL_GetProcAddress`. No GLAD needed:
+  SDL3 ships `SDL_opengl_glext.h` with all `PFNGL*` typedefs.
+- `bb_Graphics3D(w,h,depth,mode)`: creates SDL3 window with `SDL_WINDOW_OPENGL`,
+  requests Core 3.3 + 24-bit depth buffer, creates GL context, loads all function
+  pointers, creates SDL_Renderer on the same window for future 2D coexistence.
+- `bb_Flip()` updated: detects `bb_gl_active_` → `SDL_FlushRenderer` +
+  `SDL_GL_SwapWindow` instead of `SDL_RenderPresent`.
+- Quit hook wired into `bb_sdl_quit_()` with correct order: Renderer → GL context → Window.
+- `-lopengl32` added to the generated compile command.
+
+**3D-02 · UpdateWorld / RenderWorld / Scene State**
+- `bb_graphics3d.h`: main 3D coordination header; `bb_runtime.h` now includes this
+  instead of `bb_gl_ctx.h` directly.
+- `bb_RenderWorld()`: `SDL_FlushRenderer` → `SDL_GL_MakeCurrent` → `glViewport` →
+  `glClearColor/Depth/glClear` according to `CameraClsMode` state.
+- `bb_CameraClsMode(cam, cls_color, cls_zbuf)` and `bb_CameraClsColor(cam, r, g, b)`:
+  global state now, per-camera fields arrive in 3D-06.
+- `bb_Wireframe(on)`: `glPolygonMode(GL_FRONT_AND_BACK, GL_LINE/GL_FILL)`.
+- `bb_AmbientLight(r,g,b)`, `bb_TrisRendered()`, scene-level stubs all in place.
+- `Graphics3D`, `UpdateWorld`, `RenderWorld`, `CameraClsMode`, `CameraClsColor` and
+  friends added to `kCommands[]`.
+
+**Architecture decisions documented in `ROADMAP3D.md`:**
+- Forward Rendering initially; render-backend abstraction (`bb_RenderBackend_` struct
+  with function pointers) allows Deferred Renderer to be swapped in later without
+  touching Entity/Camera/Light systems.
+- 2D + 3D coexistence strategy: SDL_Renderer for 2D, raw GL for 3D, synced via
+  `SDL_FlushRenderer` before each GL render pass.
+- 23 granular milestones (3D-01 through 3D-23) replacing the 7 coarse milestones
+  in the main roadmap.
+
+**Test results:**
+```
+[GL] Vendor:   NVIDIA Corporation
+[GL] Renderer: NVIDIA GeForce RTX 2080/PCIe/SSE2
+[GL] Version:  3.3.0 NVIDIA 591.86
+```
+Window opens with GL-cleared background, no crash, correct quit sequence.
+
+---
+
 ## v0.4.0 - "Bugfix & Hardening" (2026-03-09)
 
 **Files touched:** `src/compiler/parser.h`, `src/compiler/emitter.h`,

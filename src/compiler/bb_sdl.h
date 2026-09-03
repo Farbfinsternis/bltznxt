@@ -21,6 +21,8 @@
 
 inline SDL_Window*   bb_window_          = nullptr;
 inline SDL_Renderer* bb_renderer_        = nullptr;
+inline SDL_GLContext bb_gl_ctx_          = nullptr;
+inline bool          bb_gl_active_       = false;
 inline bool          bb_sdl_initialized_ = false;
 
 // ---- Keyboard state (raw SDL scancodes; read by bb_input.h) ----
@@ -114,10 +116,14 @@ inline int bb_sdl_hat_to_blitz_(Uint8 v) {
 // ---- Quit hooks (forward declarations) ----
 //
 // Declared before bb_sdl_quit_() so the function body can reference them.
-// Set by bb_graphics2d.h (TTF) and bb_image.h (image textures) at startup.
+// Set by bb_graphics2d.h (TTF), bb_image.h (image textures), and
+// bb_gl_ctx.h (OpenGL context) at startup.
 
+inline void (*bb_gl_quit_hook_)()     = nullptr;
 inline void (*bb_ttf_quit_hook_)()   = nullptr;
 inline void (*bb_image_quit_hook_)() = nullptr;
+inline void (*bb_entity_quit_hook_)() = nullptr;
+inline void (*bb_shader_quit_hook_)() = nullptr;
 
 // ---- Lifecycle ----
 
@@ -136,8 +142,10 @@ inline void bb_sdl_ensure_() {
 inline void bb_sdl_init_() { bb_sdl_ensure_(); }
 
 inline void bb_sdl_quit_() {
-  if (bb_ttf_quit_hook_)   { bb_ttf_quit_hook_();   bb_ttf_quit_hook_   = nullptr; }
-  if (bb_image_quit_hook_) { bb_image_quit_hook_(); bb_image_quit_hook_ = nullptr; }
+  if (bb_ttf_quit_hook_)    { bb_ttf_quit_hook_();    bb_ttf_quit_hook_    = nullptr; }
+  if (bb_image_quit_hook_)  { bb_image_quit_hook_();  bb_image_quit_hook_  = nullptr; }
+  if (bb_entity_quit_hook_) { bb_entity_quit_hook_(); bb_entity_quit_hook_ = nullptr; }
+  if (bb_shader_quit_hook_) { bb_shader_quit_hook_(); bb_shader_quit_hook_ = nullptr; }
   for (int i = 0; i < BB_JOY_MAX_PORTS; ++i) {
     if (bb_joy_[i].handle) {
       SDL_CloseJoystick(bb_joy_[i].handle);
@@ -145,6 +153,7 @@ inline void bb_sdl_quit_() {
     }
   }
   if (bb_renderer_) { SDL_DestroyRenderer(bb_renderer_); bb_renderer_ = nullptr; }
+  if (bb_gl_quit_hook_)    { bb_gl_quit_hook_();    bb_gl_quit_hook_    = nullptr; }
   if (bb_window_)   { SDL_DestroyWindow(bb_window_);     bb_window_   = nullptr; }
   if (bb_sdl_initialized_) { SDL_Quit(); bb_sdl_initialized_ = false; }
 }

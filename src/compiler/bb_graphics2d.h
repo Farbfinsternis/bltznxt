@@ -261,8 +261,19 @@ inline void bb_Cls() {
 // even when the program does not call PollEvent() explicitly.
 
 inline void bb_Flip(int vblank = 1) {
-  if (!bb_renderer_) return;
   int want = vblank ? 1 : 0;
+  if (bb_gl_active_) {
+    // 3D mode: flush pending 2D draws, then swap the GL backbuffer.
+    if (bb_renderer_) SDL_FlushRenderer(bb_renderer_);
+    if (want != bb_vsync_mode_) {
+      SDL_GL_SetSwapInterval(want);
+      bb_vsync_mode_ = want;
+    }
+    SDL_GL_SwapWindow(bb_window_);
+    bb_PollEvents();
+    return;
+  }
+  if (!bb_renderer_) return;
   if (want != bb_vsync_mode_) {
     SDL_SetRenderVSync(bb_renderer_, want);
     bb_vsync_mode_ = want;
