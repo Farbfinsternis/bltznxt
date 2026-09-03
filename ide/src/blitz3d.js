@@ -3,54 +3,86 @@ import * as monaco from 'monaco-editor';
 // 1. Eigene Sprache registrieren
 monaco.languages.register({ id: 'blitz3d' });
 
+// Keywords sind für die Ablaufsteuerung (control flow) — die stehen fest,
+// sie gehören zur Sprache und nicht zur Runtime.
+const KEYWORDS = [
+	'Function', 'End', 'End Function', 'EndFunction',
+	'If', 'Then', 'Else', 'ElseIf', 'End If', 'EndIf',
+	'While', 'Wend', 'For', 'To', 'Next', 'Step', 'Each',
+	'Repeat', 'Until', 'Forever', 'Exit',
+	'Global', 'Local', 'Const', 'Dim',
+	'Select', 'Case', 'Default', 'End Select', 'EndSelect',
+	'Type', 'End Type', 'EndType', 'Field', 'New', 'Delete',
+	'First', 'Last', 'Before', 'After', 'Insert',
+	'Data', 'Read', 'Restore', 'Goto', 'Gosub', 'Return',
+	'True', 'False', 'Null',
+	'And', 'Or', 'Xor', 'Not', 'Mod', 'Shl', 'Shr', 'Sar'
+];
+
+// Die eingebauten Befehle kommen vom Compiler, nicht von hier. Bis
+// setCommands() sie nachliefert, bleibt die Liste leer — lieber keine
+// Vervollständigung als eine falsche.
+//
+// Diese Liste NICHT mit einer Kopie von kCommands[] füllen: sie würde still
+// veralten, sobald der Compiler neue Befehle bekommt. Siehe README.md,
+// Abschnitt "Repository Layout".
+let commands = [];
+
 // 2. Syntax Highlighting mit Monarch definieren
-monaco.languages.setMonarchTokensProvider('blitz3d', {
-	// Keywords sind für die Ablaufsteuerung (control flow)
-	keywords: [
-		'Function', 'End', 'End Function', 'EndFunction',
-		'If', 'Then', 'Else', 'End If', 'EndIf',
-		'While', 'Wend', 'For', 'To', 'Next', 'Step',
-		'Global', 'Local', 'Const',
-		'Select', 'Case', 'Default', 'End Select', 'EndSelect',
-		'Type', 'End Type', 'EndType', 'Field'
-	],
-	// Commands sind eingebaute Befehle/Funktionen
-	commands: [
-		'Print', 'Graphics', 'Graphics3D', 'RenderWorld', 'Flip', 'Cls'
-	],
+function registerTokens() {
+	monaco.languages.setMonarchTokensProvider('blitz3d', {
+		ignoreCase: true,
+		keywords: KEYWORDS,
+		commands: commands.map((c) => c.name),
 
-	tokenizer: {
-		root: [
-			// Identifier, Keywords und Commands
-			[/[a-zA-Z_][\w]*/, {
-				cases: {
-					'@keywords': 'keyword',
-					'@commands': 'type.identifier', // Ein üblicher Token für eingebaute Funktionen
-					'@default': 'identifier'
-				}
-			}],
+		tokenizer: {
+			root: [
+				// Kommentare (beginnen mit ;)
+				[/;.*/, 'comment'],
 
-			// Kommentare (beginnen mit ;)
-			[/;.*/, 'comment'],
+				// Preprocessor
+				[/^\s*#\w+/, 'keyword.directive'],
 
-			// Strings
-			[/"([^"\\]|\\.)*$/, 'string.invalid'], // nicht geschlossener String
-			[/"/, 'string', '@string'],
+				// Label: .name am Zeilenanfang
+				[/^\s*\.[a-zA-Z_]\w*/, 'type.identifier'],
 
-			// Zahlen
-			[/\d*\.\d+([eE][\-+]?\d+)?/, 'number.float'],
-			[/\d+/, 'number'],
-		],
+				// Hex- und Binärliterale ($FF, %1010) vor den Type-Hints
+				[/\$[0-9a-fA-F]+/, 'number.hex'],
+				[/%[01]+/, 'number.binary'],
 
-		string: [
-			[/[^\\"]+/, 'string'],
-			[/\\./, 'string.escape.invalid'],
-			[/"/, 'string', '@pop']
-		],
-	},
-});
+				// Identifier mit optionalem Type-Hint (%, #, !, $)
+				[/[a-zA-Z_]\w*[%#!$]?/, {
+					cases: {
+						'@keywords': 'keyword',
+						'@commands': 'type.identifier',
+						'@default': 'identifier'
+					}
+				}],
 
-// 3. (Optional) Einfache Autovervollständigung bereitstellen
+				// Feldzugriff auf Typen
+				[/\\/, 'operator'],
+
+				// Strings
+				[/"([^"\\]|\\.)*$/, 'string.invalid'], // nicht geschlossener String
+				[/"/, 'string', '@string'],
+
+				// Zahlen
+				[/\d*\.\d+([eE][\-+]?\d+)?/, 'number.float'],
+				[/\d+/, 'number']
+			],
+
+			string: [
+				[/[^\\"]+/, 'string'],
+				[/\\./, 'string.escape.invalid'],
+				[/"/, 'string', '@pop']
+			]
+		}
+	});
+}
+
+registerTokens();
+
+// 3. Autovervollständigung
 monaco.languages.registerCompletionItemProvider('blitz3d', {
 	provideCompletionItems: (model, position) => {
 		// Hole das Wort an der aktuellen Position, um es zu ersetzen
@@ -62,33 +94,38 @@ monaco.languages.registerCompletionItemProvider('blitz3d', {
 			endColumn: word.endColumn
 		};
 
-		// Vorschläge für Keywords
-		const keywordSuggestions = [
-			'Function', 'End', 'End Function', 'EndFunction',
-			'If', 'Then', 'Else', 'End If', 'EndIf',
-			'While', 'Wend', 'For', 'To', 'Next', 'Step',
-			'Global', 'Local', 'Const',
-			'Select', 'Case', 'Default', 'End Select', 'EndSelect',
-			'Type', 'End Type', 'EndType', 'Field'
-		].map(k => ({
+		const keywordSuggestions = KEYWORDS.map((k) => ({
 			label: k,
 			kind: monaco.languages.CompletionItemKind.Keyword,
 			insertText: k,
-			range: range
+			range
 		}));
 
-		// Vorschläge für Commands
-		const commandSuggestions = [
-			'Print', 'Graphics', 'Graphics3D', 'RenderWorld', 'Flip', 'Cls'
-		].map(c => ({
-			label: c,
-			kind: monaco.languages.CompletionItemKind.Function, // 'Function' für Befehle
-			insertText: c,
-			range: range
+		// Signatur aus `blitzcc +k` als Detailzeile; die Parameter werden zu
+		// Tabstops, damit man nach dem Einfügen direkt weitertippen kann.
+		const commandSuggestions = commands.map((c) => ({
+			label: c.name,
+			kind: monaco.languages.CompletionItemKind.Function,
+			detail: c.signature ? `${c.name}(${c.signature})` : `${c.name}()`,
+			insertText: c.params.length
+				? `${c.name} ${c.params.map((p, i) => `\${${i + 1}:${p}}`).join(', ')}`
+				: c.name,
+			insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+			range
 		}));
 
-		return {
-			suggestions: [...keywordSuggestions, ...commandSuggestions]
-		};
+		return { suggestions: [...keywordSuggestions, ...commandSuggestions] };
 	}
 });
+
+/**
+ * Befehlsliste aus `blitzcc +k` übernehmen.
+ * Registriert das Highlighting neu, damit die Befehle auch eingefärbt werden.
+ *
+ * @param {Array<{name: string, signature: string, params: string[]}>} list
+ */
+export function setCommands(list) {
+	commands = Array.isArray(list) ? list : [];
+	registerTokens();
+	return commands.length;
+}

@@ -7,7 +7,8 @@
 		"dev": "concurrently \"npm run vite\" \"npm run electron\"",
 		"vite": "vite",
 		"electron": "wait-on tcp:5173 && cross-env NODE_ENV=development electron .",
-		"build": "vite build"
+		"build": "vite build",
+		"test:smoke": "electron test/smoke.js"
 	},
 	"dependencies": {
 		"electron": "^34.0.0",
