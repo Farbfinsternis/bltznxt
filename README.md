@@ -306,6 +306,39 @@ See [DEVLOG.md](DEVLOG.md) for a full session-by-session changelog.
 
 ---
 
+## The Blitz3D Source as a Reference
+
+Blitz3D was released as open source under the zlib/libpng license and is archived at
+[blitz-research/blitz3d](https://github.com/blitz-research/blitz3d). BlitzNext consults it as a
+**behavioural reference**: when a question comes up about what the language actually does, the answer
+is read out of the original compiler rather than guessed at.
+
+That distinction matters, because guessing turned out to be expensive. A review that reconstructed
+the language from intuition alone got several rules wrong in ways that produced silently incorrect
+programs — and got two *bug reports* wrong as well, describing correct behaviour as broken. Reading
+the original settled each of them in minutes:
+
+| Question | Answer in `blitz-research/blitz3d` |
+|----------|-----------------------------------|
+| Operator precedence | `compiler/parser.cpp`: primary → unary → `^` → `*` `/` `Mod` → `Shl` `Shr` `Sar` → `+` `-` → comparisons → `And` `Or` `Xor` → `Not` |
+| Is `^` right-associative? | No — left-associative, so `2^3^2` is 64 |
+| Do `And` and `Or` have separate levels? | No — one level, evaluated left to right |
+| Are `a$` and `a%` two variables? | No — the name alone identifies the variable; a contradicting tag is a `Variable type mismatch` error (`compiler/varnode.cpp`) |
+| Is `"text" + n` an error? | No — a `+` with a string on either side makes the whole expression a string and converts the other side (`compiler/exprnode.cpp`) |
+| Is an undeclared variable an error? | No — it is created on first use (the `//ugly auto decl!` branch in `varnode.cpp`) |
+| What are the argument-count errors called? | `Too many parameters` / `Not enough parameters` (`ExprSeqNode::castTo`) |
+
+**No source code is copied.** The rules above were read and re-implemented; `src/compiler/semant.h`
+names the original file for each rule it enforces, so any of them can be checked against the source.
+The command table in `src/compiler/commands.h` is generated from BlitzNext's *own* runtime headers by
+`scripts/gen_commands.py`, not from Blitz3D's — it has to describe what this runtime accepts, which is
+not always the same set.
+
+The zlib license permits far more than this. The acknowledgement is here because the work deserves it:
+a language design that is still worth reading twenty-five years later, and a compiler whose structure
+makes whole classes of mistake impossible — which is a lesson this project keeps relearning.
+
+---
 ## Third-Party Libraries
 
 BlitzNext bundles the following open-source libraries. Their source files are included in `src/thirdparty/` and `libs/`.

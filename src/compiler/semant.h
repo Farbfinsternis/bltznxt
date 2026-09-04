@@ -2,6 +2,7 @@
 #define BLITZNEXT_SEMANT_H
 
 #include "ast.h"
+#include "commands.h"
 #include "lexer.h" // toLower
 #include <iostream>
 #include <string>
@@ -423,15 +424,18 @@ private:
       return uf->second.ret;
     }
 
-    // Built-in commands are deliberately not checked here. kCommands[] in
-    // commands.h is hand-maintained prose, not a type contract: "Print" is
-    // declared as "value" with no type at all, "Rand" as one parameter where
-    // Blitz3D takes one or two, "Text" as five required where two of them are
-    // optional. Checking against it rejected 49 of 63 valid test programs and
-    // both examples. Arity and parameter types for built-ins become possible
-    // once that table is derived from the reference (WEAK-17) — until then a
-    // built-in call has an unknown type, which keeps every dependent check
-    // silent.
+    // Built-in commands: kCommands[] is generated from the runtime headers
+    // (tools/gen_commands.py), so what is checked here is exactly what the
+    // emitted C++ will call — a rejection can never be a false positive
+    // against our own runtime.
+    for (const auto &c : kCommands) {
+      if (toLower(c.name) != toLower(ce->name)) continue;
+      Sig sig = signature(c);
+      checkArity(ce, args.size(), sig.required, sig.total);
+      for (size_t i = 0; i < args.size() && i < sig.params.size(); ++i)
+        checkAssign(sig.params[i], args[i], "parameter", ce->line, ce->col);
+      return sig.ret;
+    }
     return Ty();
   }
 
@@ -447,6 +451,55 @@ private:
                                    std::to_string(given));
   }
 
+  // ---- the generated command table ---------------------------------------
+  // Entry format (see commands.h): ret is "%", "#", "$", "" for void or "."
+  // when overloads disagree; params is a comma list of "name<type>[?]", where a
+  // missing type character means "any" and '?' marks an optional parameter.
+  struct Sig {
+    Ty ret;
+    std::vector<Ty> params;
+    size_t required = 0, total = 0;
+  };
+
+  static Ty fromTypeChar(char c) {
+    switch (c) {
+      case '%': return mk(Ty::INT);
+      case '#': return mk(Ty::FLOAT);
+      case '$': return mk(Ty::STR);
+      default:  return Ty(); // '.' or none — any type, checked nowhere
+    }
+  }
+
+  Sig signature(const CmdInfo &c) {
+    auto cached = sigCache_.find(c.name);
+    if (cached != sigCache_.end()) return cached->second;
+
+    Sig sig;
+    sig.ret = fromTypeChar(c.ret[0] ? c.ret[0] : ' ');
+
+    std::string params = c.params;
+    size_t pos = 0;
+    while (pos < params.size()) {
+      size_t comma = params.find(',', pos);
+      std::string tok = params.substr(pos, comma == std::string::npos
+                                               ? std::string::npos
+                                               : comma - pos);
+      pos = (comma == std::string::npos) ? params.size() : comma + 1;
+      if (tok.empty()) continue;
+
+      bool optional = tok.back() == '?';
+      if (optional) tok.pop_back();
+      char type = tok.empty() ? ' ' : tok.back();
+      if (type != '%' && type != '#' && type != '$') type = ' ';
+
+      sig.params.push_back(fromTypeChar(type));
+      ++sig.total;
+      if (!optional) ++sig.required;
+    }
+    sigCache_[c.name] = sig;
+    return sig;
+  }
+
   // ------------------------------------------------------------------ state
   std::string filename_;
   int         errors_ = 0;
@@ -458,6 +511,7 @@ private:
   Scope                                     *scope_ = nullptr;
   Ty                                         returnType_;
   bool                                       inFunction_ = false;
+  std::unordered_map<std::string, Sig>       sigCache_;
 };
 
 #endif // BLITZNEXT_SEMANT_H

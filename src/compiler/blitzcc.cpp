@@ -69,7 +69,7 @@ static fs::path resolvePath(const std::string &rel) {
 static void listCommands(bool withSigs) {
   for (const auto &c : kCommands) {
     if (withSigs)
-      std::cout << c.name << "(" << c.sig << ")\n";
+      std::cout << c.name << "(" << commandSignature(c) << ")\n";
     else
       std::cout << c.name << "\n";
   }
