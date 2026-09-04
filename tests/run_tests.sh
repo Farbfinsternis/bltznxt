@@ -6,7 +6,7 @@
 PASS=0; FAIL=0; SKIP=0
 
 # Tests mit bekannten pre-existing Bugs (nicht Refactor-Scope):
-KNOWN_FAIL="test_m16_iteration"
+KNOWN_FAIL=""
 
 # ---- Positive Tests ----
 for f in tests/test_*.bb; do

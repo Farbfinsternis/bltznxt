@@ -124,6 +124,23 @@ private:
     return (t.type == TokenType::KEYWORD) ? t.value : "";
   }
 
+  // True if the token can continue an expression to its left (binary operator
+  // or field separator). Used to tell a parenthesised argument list apart from
+  // a parenthesised sub-expression:  Print(a, b)  vs  Print (a + b) * 3
+  static bool continuesExpr(const Token &t) {
+    if (t.type == TokenType::OPERATOR)
+      return t.value == "+"  || t.value == "-"  || t.value == "*" ||
+             t.value == "/"  || t.value == "^"  || t.value == "\\" ||
+             t.value == "="  || t.value == "<>" || t.value == "<"  ||
+             t.value == ">"  || t.value == "<=" || t.value == ">=" ||
+             t.value == ",";
+    if (t.type == TokenType::KEYWORD)
+      return t.value == "AND" || t.value == "OR"  || t.value == "XOR" ||
+             t.value == "MOD" || t.value == "SHL" || t.value == "SHR" ||
+             t.value == "SAR";
+    return false;
+  }
+
   void skipNewlines() {
     while (!atEnd() && (peek().type == TokenType::NEWLINE ||
                         (peek().type == TokenType::OPERATOR &&
@@ -318,7 +335,15 @@ private:
       call->line = nameTok.line;
 
       // Parenthesised call form: Name(arg1, arg2)  or  Name()
+      //
+      // The parentheses are only an argument list if the statement ends with
+      // the closing ')'. In  Print (1 + 2) * 3  or  Print (First Node)\val
+      // the group is merely the start of the first argument, so the tentative
+      // parse is rolled back and the un-parenthesised form below re-parses the
+      // whole rest of the line as one expression.
       if (peek().type == TokenType::OPERATOR && peek().value == "(") {
+        const size_t savedPos    = pos;
+        const int    savedErrors = errorCount;
         advance(); // consume (
         if (!(peek().type == TokenType::OPERATOR && peek().value == ")")) {
           while (true) {
@@ -330,7 +355,16 @@ private:
           }
         }
         expect(TokenType::OPERATOR, "Expected ')'", ")");
-        return call;
+
+        // A single group followed by an operator was a sub-expression, not an
+        // argument list — rewind and let the loop below parse it in full.
+        if (call->args.size() == 1 && errorCount == savedErrors &&
+            continuesExpr(peek())) {
+          pos = savedPos;
+          call->args.clear();
+        } else {
+          return call;
+        }
       }
 
       // Blitz3D-style call without parens: Name arg1, arg2
