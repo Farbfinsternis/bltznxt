@@ -936,7 +936,21 @@ private:
 
   // ------------------------------------------------------------------ expressions
 
-  std::unique_ptr<ExprNode> parseExpr()           { return parseLogical(); }
+  // Not binds loosest of all, as in Blitz3D: "Not a And b" is "Not (a And b)",
+  // not "(Not a) And b". Blitz3D parses NOT only here, at the top of an
+  // expression; parseNot() below additionally accepts it in operand position
+  // ("a And Not b"), where Blitz3D would want parentheses — accepting more
+  // than the reference is harmless, misreading it is not.
+  std::unique_ptr<ExprNode> parseExpr() {
+    if (peek().type == TokenType::KEYWORD && peek().value == "NOT") {
+      int ln = peek().line;
+      advance();
+      auto ue  = std::make_unique<UnaryExpr>("NOT", parseLogical());
+      ue->line = ln;
+      return ue;
+    }
+    return parseLogical();
+  }
 
   std::unique_ptr<ExprNode> parseLogical() {
     auto left = parseNot();
@@ -985,18 +999,36 @@ private:
   }
 
   std::unique_ptr<ExprNode> parseAdditive() {
-    auto left = parseMultiplicative();
+    auto left = parseShift();
     while (peek().type == TokenType::OPERATOR) {
       const std::string &op = peek().value;
       if (op == "+" || op == "-") {
         int ln = peek().line;
         advance();
-        auto right = parseMultiplicative();
+        auto right = parseShift();
         auto be    = std::make_unique<BinaryExpr>(op, std::move(left),
                                                    std::move(right));
         be->line = ln;
         left = std::move(be);
       } else break;
+    }
+    return left;
+  }
+
+  // Shl / Shr / Sar sit on their own level between + - and * / Mod, as in
+  // Blitz3D: "1 Shl 2 * 3" is "1 Shl (2 * 3)", not "(1 Shl 2) * 3".
+  std::unique_ptr<ExprNode> parseShift() {
+    auto left = parseMultiplicative();
+    while (peek().type == TokenType::KEYWORD) {
+      const std::string &op = peek().value;
+      if (op != "SHL" && op != "SHR" && op != "SAR") break;
+      int ln = peek().line;
+      advance();
+      auto right = parseMultiplicative();
+      auto be    = std::make_unique<BinaryExpr>(op, std::move(left),
+                                                 std::move(right));
+      be->line = ln;
+      left = std::move(be);
     }
     return left;
   }
@@ -1007,9 +1039,7 @@ private:
       Token t = peek();
       bool isOpMul = (t.type == TokenType::OPERATOR &&
                       (t.value == "*" || t.value == "/"));
-      bool isKwMul = (t.type == TokenType::KEYWORD &&
-                      (t.value == "MOD" || t.value == "SHL" ||
-                       t.value == "SHR" || t.value == "SAR"));
+      bool isKwMul = (t.type == TokenType::KEYWORD && t.value == "MOD");
       if (!isOpMul && !isKwMul) break;
       int ln = t.line;
       advance();
