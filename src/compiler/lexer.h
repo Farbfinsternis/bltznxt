@@ -2,6 +2,8 @@
 #define BLITZNEXT_LEXER_H
 
 #include "token.h"
+#include <iostream>
+#include <stdexcept>
 #include <algorithm>
 #include <cctype>
 #include <string>
@@ -129,6 +131,31 @@ private:
             startCol};
   }
 
+  // Converts the digit part of a hex/bin literal into a Blitz3D integer.
+  // Blitz3D integers are 32 bit and wrap, so $FFFFFFFF is -1. Anything that
+  // does not fit in 32 bits (or overflows the conversion itself) is reported
+  // as an error and yields 0 — std::stol used to throw here and abort the
+  // whole compiler with exit code 3.
+  std::string literalToInt(const std::string &digits, int base,
+                           const char *kind, char sigil, int startCol) {
+    unsigned long long val = 0;
+    bool tooBig = false;
+    try {
+      val = std::stoull(digits, nullptr, base);
+    } catch (const std::exception &) {
+      tooBig = true;
+    }
+    if (tooBig || val > 0xFFFFFFFFull) {
+      std::cerr << filename << ":" << line << ":" << startCol
+                << ": error: " << kind << " literal " << sigil << digits
+                << " does not fit in a 32-bit integer\n";
+      ++lexErrors_;
+      return "0";
+    }
+    return std::to_string(
+        static_cast<int>(static_cast<unsigned int>(val)));
+  }
+
   // $FF, $1A2B etc. — Blitz3D hex literals.
   // Falls back to OPERATOR "$" if not followed by a hex digit (e.g. string type-hint a$).
   Token lexHexLiteral() {
@@ -141,8 +168,8 @@ private:
     }
     if (digits.empty())
       return {TokenType::OPERATOR, "$", line, startCol};
-    long val = std::stol(digits, nullptr, 16);
-    return {TokenType::INT_LIT, std::to_string(val), line, startCol};
+    return {TokenType::INT_LIT,
+            literalToInt(digits, 16, "hex", '$', startCol), line, startCol};
   }
 
   // %1010 etc. — Blitz3D binary literals.
@@ -157,8 +184,8 @@ private:
     }
     if (digits.empty())
       return {TokenType::OPERATOR, "%", line, startCol};
-    long val = std::stol(digits, nullptr, 2);
-    return {TokenType::INT_LIT, std::to_string(val), line, startCol};
+    return {TokenType::INT_LIT,
+            literalToInt(digits, 2, "binary", '%', startCol), line, startCol};
   }
 
   Token lexString() {

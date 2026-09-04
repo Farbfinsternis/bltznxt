@@ -48,9 +48,12 @@ public:
       std::transform(upper.begin(), upper.end(), upper.begin(),
                      [](unsigned char c){ return (char)std::toupper(c); });
 
+      // Both spellings are Blitz3D: "Include" and the documented "#Include".
+      size_t kwStart = (!upper.empty() && upper[0] == '#') ? 1 : 0;
+
       // Match the INCLUDE keyword as a whole word (not e.g. INCLUDEFILES)
-      if (upper.find("INCLUDE") == 0) {
-        size_t afterKw = 7; // length of "INCLUDE"
+      if (upper.compare(kwStart, 7, "INCLUDE") == 0) {
+        size_t afterKw = kwStart + 7; // past "INCLUDE"
         // Must be followed by whitespace or a quote — not another identifier char
         bool isWord = (afterKw >= upper.size()) ||
                       (!std::isalnum((unsigned char)upper[afterKw]) &&
