@@ -145,8 +145,10 @@ public:
   // ------------------------------------------------------------------ visitors
 
   void visit(LiteralExpr *node) override {
+    // Wrapped in bbString: a bare C++ literal is a const char*, so
+    // "text" + n would be pointer arithmetic instead of concatenation.
     if (node->token.type == TokenType::STRING_LIT)
-      output << "\"" << escapeCppString(node->token.value) << "\"";
+      output << "bbString(\"" << escapeCppString(node->token.value) << "\")";
     else
       output << node->token.value;
   }

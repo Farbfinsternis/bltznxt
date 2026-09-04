@@ -24,6 +24,18 @@ inline bbString bb_Str(double f) {
     return buf;
 }
 
+// In Blitz3D a "+" with a string on either side makes the whole expression a
+// string and casts the other side to string (compiler/exprnode.cpp,
+// ArithExprNode::semant). These overloads give the generated C++ the same rule,
+// so "Score: " + n behaves as it does in Blitz3D. Other operators on strings
+// stay unresolved on purpose — Blitz3D rejects them too.
+inline bbString operator+(const bbString &s, int n)    { return s + bb_Str(n); }
+inline bbString operator+(int n, const bbString &s)    { return bb_Str(n) + s; }
+inline bbString operator+(const bbString &s, float f)  { return s + bb_Str((double)f); }
+inline bbString operator+(float f, const bbString &s)  { return bb_Str((double)f) + s; }
+inline bbString operator+(const bbString &s, double f) { return s + bb_Str(f); }
+inline bbString operator+(double f, const bbString &s) { return bb_Str(f) + s; }
+
 inline int bb_Int(const bbString &s) {
     try { return std::stoi(s); }
     catch (...) {
