@@ -97,6 +97,7 @@ public:
 class ASTNode {
 public:
   int line = 0; // source line where this node originates (0 = unknown)
+  int col  = 0; // source column, set where diagnostics need it (0 = unknown)
   virtual ~ASTNode() = default;
   virtual void accept(ASTVisitor *v) = 0;
 };

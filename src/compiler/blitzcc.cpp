@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
@@ -160,6 +161,11 @@ static void collectCallsNode(const ASTNode *node,
   } else if (auto *ins = dynamic_cast<const InsertStmt *>(node)) {
     collectCallsExpr(ins->object.get(), out);
     collectCallsExpr(ins->target.get(), out);
+  } else if (auto *pr = dynamic_cast<const Program *>(node)) {
+    // "Local x = f()" is wrapped in a Program node so that "Local x, y" fits
+    // one statement — without this branch every call in a Local/Global
+    // initialiser escaped the check and only g++ complained.
+    collectCallsBlock(pr->nodes, out);
   }
   // ExitStmt, EndStmt, LabelStmt, GotoStmt, GosubStmt,
   // DataStmt, ReadStmt, RestoreStmt, TypeDecl — nothing to walk
@@ -186,7 +192,7 @@ static int checkCalls(const Program *prog, const std::string &filename) {
   int errors = 0;
   for (const auto *ce : calls) {
     if (known.count(toUpper(ce->name)) == 0) {
-      std::cerr << filename << ":" << ce->line
+      std::cerr << filename << ":" << ce->line << ":" << std::max(1, ce->col)
                 << ": error: unknown function or command '" << ce->name << "'\n";
       ++errors;
     }
@@ -250,7 +256,8 @@ static int checkGosubScope(const std::vector<std::unique_ptr<ASTNode>> &nodes,
     std::vector<const GosubStmt *> gosubs;
     collectGosubsBlock(fd->body, gosubs);
     for (const auto *gs : gosubs) {
-      std::cerr << filename << ":" << gs->line << ":1: error: Gosub is not "
+      std::cerr << filename << ":" << gs->line << ":" << std::max(1, gs->col)
+                << ": error: Gosub is not "
                 << "allowed inside a function ('" << fd->name << "') - a bare "
                 << "Return there returns from the function. Move the subroutine "
                 << "into the main program or make it a function.\n";

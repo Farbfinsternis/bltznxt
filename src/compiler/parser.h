@@ -211,7 +211,7 @@ private:
         return s;
       }
       if (kw == "GOSUB") {
-        int ln = t.line;
+        int ln = t.line, cl = t.col;
         advance();
         // Accept both "Gosub label" and "Gosub .label"
         if (peek().type == TokenType::OPERATOR && peek().value == ".") advance();
@@ -220,6 +220,7 @@ private:
         std::transform(lo.begin(), lo.end(), lo.begin(), ::tolower);
         auto s = std::make_unique<GosubStmt>(lo);
         s->line = ln;
+        s->col  = cl;
         return s;
       }
 
@@ -333,6 +334,7 @@ private:
       // Otherwise: command / function call as statement
       auto call = std::make_unique<CallExpr>(nameTok.value);
       call->line = nameTok.line;
+      call->col  = nameTok.col;
 
       // Parenthesised call form: Name(arg1, arg2)  or  Name()
       //
@@ -1190,6 +1192,7 @@ private:
           // Function / built-in call
           auto call  = std::make_unique<CallExpr>(t.value);
           call->line = t.line;
+          call->col  = t.col;
           if (!(peek().type == TokenType::OPERATOR && peek().value == ")")) {
             while (true) {
               call->args.push_back(parseExpr());
