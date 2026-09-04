@@ -194,6 +194,72 @@ static int checkCalls(const Program *prog, const std::string &filename) {
   return errors;
 }
 
+// ---- Semantic check: Gosub inside a function -------------------------------
+//
+// Gosub is a main-program construct: a bare "Return" inside a function returns
+// from the function (Milestone 11), so a subroutine inside a function has no
+// way to spell its own return. The emitter would produce C++ that does not
+// compile — __gosub_ret__ and the dispatch switch exist only in main() — so
+// this is reported here as one clear error instead of three g++ messages
+// against generated code the user never wrote.
+
+static void collectGosubsBlock(const std::vector<std::unique_ptr<ASTNode>> &blk,
+                               std::vector<const GosubStmt *> &out);
+
+// Does not descend into nested FunctionDecls — each is checked on its own.
+static void collectGosubsNode(const ASTNode *node,
+                              std::vector<const GosubStmt *> &out) {
+  if (!node) return;
+  if (auto *gs = dynamic_cast<const GosubStmt *>(node)) {
+    out.push_back(gs);
+  } else if (auto *is = dynamic_cast<const IfStmt *>(node)) {
+    collectGosubsBlock(is->thenBlock, out);
+    collectGosubsBlock(is->elseBlock, out);
+  } else if (auto *ws = dynamic_cast<const WhileStmt *>(node)) {
+    collectGosubsBlock(ws->block, out);
+  } else if (auto *rs = dynamic_cast<const RepeatStmt *>(node)) {
+    collectGosubsBlock(rs->block, out);
+  } else if (auto *fs = dynamic_cast<const ForStmt *>(node)) {
+    collectGosubsBlock(fs->block, out);
+  } else if (auto *ss = dynamic_cast<const SelectStmt *>(node)) {
+    for (auto &c : ss->cases) collectGosubsBlock(c.block, out);
+    collectGosubsBlock(ss->defaultBlock, out);
+  } else if (auto *fes = dynamic_cast<const ForEachStmt *>(node)) {
+    collectGosubsBlock(fes->block, out);
+  } else if (auto *pr = dynamic_cast<const Program *>(node)) {
+    collectGosubsBlock(pr->nodes, out);
+  }
+}
+
+static void collectGosubsBlock(const std::vector<std::unique_ptr<ASTNode>> &blk,
+                               std::vector<const GosubStmt *> &out) {
+  for (auto &s : blk) collectGosubsNode(s.get(), out);
+}
+
+// Returns number of errors emitted (0 = clean).
+static int checkGosubScope(const std::vector<std::unique_ptr<ASTNode>> &nodes,
+                           const std::string &filename) {
+  int errors = 0;
+  for (const auto &n : nodes) {
+    if (auto *pr = dynamic_cast<const Program *>(n.get())) {
+      errors += checkGosubScope(pr->nodes, filename); // included file
+      continue;
+    }
+    auto *fd = dynamic_cast<const FunctionDecl *>(n.get());
+    if (!fd) continue;
+    std::vector<const GosubStmt *> gosubs;
+    collectGosubsBlock(fd->body, gosubs);
+    for (const auto *gs : gosubs) {
+      std::cerr << filename << ":" << gs->line << ":1: error: Gosub is not "
+                << "allowed inside a function ('" << fd->name << "') - a bare "
+                << "Return there returns from the function. Move the subroutine "
+                << "into the main program or make it a function.\n";
+      ++errors;
+    }
+  }
+  return errors;
+}
+
 // ---- Transpiler ------------------------------------------------------------
 
 class Transpiler {
@@ -325,7 +391,9 @@ public:
     if (parser.hasErrors()) return 1;
 
     // Semantic check: unknown function/command names (WEAK-03 Stufe 1)
-    if (checkCalls(ast.get(), cfg.inputPath) > 0) return 1;
+    int semanticErrors = checkCalls(ast.get(), cfg.inputPath) +
+                         checkGosubScope(ast->nodes, cfg.inputPath);
+    if (semanticErrors > 0) return 1;
 
     // Emit C++17
     Emitter emitter;
