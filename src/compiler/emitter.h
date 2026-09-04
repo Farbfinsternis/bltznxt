@@ -885,7 +885,8 @@ private:
         for (auto &tok : ds->values) {
           output << "    bb_data_pool_.push_back(";
           if (tok.type == TokenType::STRING_LIT) {
-            output << "bb_DataVal(bbString(\"" << tok.value << "\"))";
+            output << "bb_DataVal(bbString(\"" << escapeCppString(tok.value)
+                   << "\"))";
           } else if (tok.type == TokenType::FLOAT_LIT) {
             output << "bb_DataVal(" << tok.value << "f)";
           } else { // INT_LIT (or signed numeric)
