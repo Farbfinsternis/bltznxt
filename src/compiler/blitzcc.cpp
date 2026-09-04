@@ -9,6 +9,7 @@
 #include "lexer.h"
 #include "parser.h"
 #include "preprocessor.h"
+#include "semant.h"
 #include "token.h"
 
 // Include last: windows.h macros (BOOL, ERROR, min/max, ...) must not
@@ -398,8 +399,10 @@ public:
     if (parser.hasErrors()) return 1;
 
     // Semantic check: unknown function/command names (WEAK-03 Stufe 1)
+    Analyzer analyzer;
     int semanticErrors = checkCalls(ast.get(), cfg.inputPath) +
-                         checkGosubScope(ast->nodes, cfg.inputPath);
+                         checkGosubScope(ast->nodes, cfg.inputPath) +
+                         analyzer.analyze(ast.get(), cfg.inputPath);
     if (semanticErrors > 0) return 1;
 
     // Emit C++17

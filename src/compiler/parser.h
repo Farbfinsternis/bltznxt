@@ -1169,11 +1169,14 @@ private:
     }
 
     if (t.type == TokenType::ID) {
-      // Consume optional type-hint suffix
+      // Type-hint suffix at a use site: it does not change which variable is
+      // meant (the name alone does that, as in Blitz3D), but a contradicting
+      // tag is an error — so keep it for the semantic pass.
+      std::string useHint;
       if (peek().type == TokenType::OPERATOR &&
           (peek().value == "#" || peek().value == "%" ||
            peek().value == "!" || peek().value == "$"))
-        advance();
+        useHint = advance().value;
 
       // Array access or function/command call: name(args)
       if (peek().type == TokenType::OPERATOR && peek().value == "(") {
@@ -1214,8 +1217,10 @@ private:
         }
       }
 
-      auto ve  = std::make_unique<VarExpr>(t.value);
-      ve->line = t.line;
+      auto ve      = std::make_unique<VarExpr>(t.value);
+      ve->typeHint = useHint;
+      ve->line     = t.line;
+      ve->col      = t.col;
       return ve;
     }
 

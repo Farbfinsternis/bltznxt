@@ -137,6 +137,10 @@ public:
 class VarExpr : public ExprNode {
 public:
   std::string name;
+  std::string typeHint; // %  #  !  $  as written at this use site, or ""
+                        // (informational: the name alone identifies the
+                        //  variable, as in Blitz3D — the semantic pass uses
+                        //  the tag to detect a contradiction)
   explicit VarExpr(std::string n) : name(std::move(n)) {}
   void accept(ASTVisitor *v) override { v->visit(this); }
 };
