@@ -2,6 +2,8 @@
 #define BLITZNEXT_EMITTER_H
 
 #include "ast.h"
+#include "commands.h"
+#include "lexer.h" // toLower
 #include <algorithm>
 #include <fstream>
 #include <iostream>
@@ -32,7 +34,7 @@ public:
                [](unsigned char c){ return (char)std::tolower(c); });
         userFunctions.insert(lo);
       } else if (auto *td = dynamic_cast<TypeDecl *>(n.get())) {
-        typeNames.insert(td->name);
+        typeNames.insert(toLower(td->name));
       }
     }
 
@@ -184,7 +186,7 @@ public:
     if (lo == "pi") {
       output << "bb_Pi";
     } else {
-      output << "var_" << node->name;
+      output << "var_" << lo;
     }
   }
 
@@ -198,9 +200,9 @@ public:
       // Register metadata and only emit initializer assignment if present.
       declaredVars.insert(lo);
       if (!node->typeHint.empty() && node->typeHint[0] == '.')
-        varObjectTypes[lo] = node->typeHint.substr(1);
+        varObjectTypes[lo] = toLower(node->typeHint.substr(1));
       if (node->initValue) {
-        output << ind() << "var_" << node->name << " = ";
+        output << ind() << "var_" << lo << " = ";
         bool prev = inExprCtx; inExprCtx = true;
         node->initValue->accept(this);
         inExprCtx = prev;
@@ -212,7 +214,7 @@ public:
     // LOCAL variable declaration
     auto [type, defVal] = hintToType(node->typeHint);
 
-    output << ind() << type << " var_" << node->name;
+    output << ind() << type << " var_" << lo;
     if (node->initValue) {
       output << " = ";
       bool prev = inExprCtx; inExprCtx = true;
@@ -227,7 +229,7 @@ public:
 
     // Remember object type for Delete statement code-gen
     if (!node->typeHint.empty() && node->typeHint[0] == '.')
-      varObjectTypes[lo] = node->typeHint.substr(1);
+      varObjectTypes[lo] = toLower(node->typeHint.substr(1));
   }
 
   void visit(AssignStmt *node) override {
@@ -237,14 +239,14 @@ public:
     if (declaredVars.count(lo) == 0) {
       // Implicit global — Blitz3D allows bare assignment without Local/Global
       auto [type, defVal] = hintToType(node->typeHint);
-      output << ind() << type << " var_" << node->name << " = ";
+      output << ind() << type << " var_" << lo << " = ";
       bool prev = inExprCtx; inExprCtx = true;
       node->value->accept(this);
       inExprCtx = prev;
       output << ";\n";
       declaredVars.insert(lo);
     } else {
-      output << ind() << "var_" << node->name << " = ";
+      output << ind() << "var_" << lo << " = ";
       bool prev = inExprCtx; inExprCtx = true;
       node->value->accept(this);
       inExprCtx = prev;
@@ -315,31 +317,32 @@ public:
   }
 
   void visit(ForStmt *node) override {
+    const std::string v = toLower(node->varName);
     if (node->step) {
       // When a STEP is given, support negative steps via a ternary condition.
       // Emit as a block-scoped while loop so var and step temps don't leak.
       output << ind() << "{\n";
       indentLevel++;
 
-      output << ind() << "auto var_" << node->varName << " = ";
+      output << ind() << "auto var_" << v << " = ";
       emitExpr(node->start.get());
       output << ";\n";
 
-      output << ind() << "const auto _end_" << node->varName << " = ";
+      output << ind() << "const auto _end_" << v << " = ";
       emitExpr(node->end.get());
       output << ";\n";
 
-      output << ind() << "const auto _step_" << node->varName << " = ";
+      output << ind() << "const auto _step_" << v << " = ";
       emitExpr(node->step.get());
       output << ";\n";
 
-      output << ind() << "for (; (_step_" << node->varName
-             << " > 0 ? var_" << node->varName
-             << " <= _end_" << node->varName
-             << " : var_" << node->varName
-             << " >= _end_" << node->varName
-             << "); var_" << node->varName
-             << " += _step_" << node->varName << ") {\n";
+      output << ind() << "for (; (_step_" << v
+             << " > 0 ? var_" << v
+             << " <= _end_" << v
+             << " : var_" << v
+             << " >= _end_" << v
+             << "); var_" << v
+             << " += _step_" << v << ") {\n";
 
       indentLevel++;
       for (auto &n : node->block) n->accept(this);
@@ -350,11 +353,11 @@ public:
 
     } else {
       // Simple ascending loop without STEP
-      output << ind() << "for (auto var_" << node->varName << " = ";
+      output << ind() << "for (auto var_" << v << " = ";
       emitExpr(node->start.get());
-      output << "; var_" << node->varName << " <= ";
+      output << "; var_" << v << " <= ";
       emitExpr(node->end.get());
-      output << "; ++var_" << node->varName << ") {\n";
+      output << "; ++var_" << v << ") {\n";
       indentLevel++;
       for (auto &n : node->block) n->accept(this);
       indentLevel--;
@@ -409,10 +412,13 @@ public:
                [](unsigned char c){ return (char)std::tolower(c); });
     bool isUser = (userFunctions.count(lo) > 0);
 
-    if (isUser)
-      output << node->name << "(";
-    else
-      output << "bb_" << node->name << "(";
+    if (isUser) {
+      output << "fn_" << lo << "(";
+    } else {
+      // Built-ins keep the runtime spelling: bb_Print, never bb_print.
+      const char *canon = canonicalCommand(node->name);
+      output << "bb_" << (canon ? canon : node->name.c_str()) << "(";
+    }
 
     bool prev = inExprCtx; inExprCtx = true;
     for (size_t i = 0; i < node->args.size(); ++i) {
@@ -427,11 +433,11 @@ public:
 
   void visit(FunctionDecl *node) override {
     // Determine return type — default auto; could be improved with type hints
-    output << "auto " << node->name << "(";
+    output << "auto fn_" << toLower(node->name) << "(";
     for (size_t i = 0; i < node->params.size(); ++i) {
       auto &[pname, phint] = node->params[i];
       auto [ptype, defVal] = hintToType(phint);
-      output << ptype << " var_" << pname;
+      output << ptype << " var_" << toLower(pname);
       if (i + 1 < node->params.size()) output << ", ";
     }
     output << ") {\n";
@@ -481,12 +487,12 @@ public:
   void visit(ConstDecl *node) override {
     bool prev = inExprCtx; inExprCtx = true;
     if (node->typeHint == "$") {
-      output << ind() << "const bbString var_" << node->name << " = ";
+      output << ind() << "const bbString var_" << toLower(node->name) << " = ";
     } else {
       std::string type = "auto";
       if      (node->typeHint == "%") type = "int";
       else if (node->typeHint == "#" || node->typeHint == "!") type = "float";
-      output << ind() << "constexpr " << type << " var_" << node->name << " = ";
+      output << ind() << "constexpr " << type << " var_" << toLower(node->name) << " = ";
     }
     node->value->accept(this);
     inExprCtx = prev;
@@ -501,20 +507,20 @@ public:
     if (hoistedDims_.count(lo)) {
       // Already forward-declared at top of main() — emit re-initialisation
       // (handles both the original Dim and any subsequent re-Dim calls).
-      output << ind() << "var_" << node->name << " = "
+      output << ind() << "var_" << lo << " = "
              << buildVecType(elemType, ndim);
       emitVectorCtor(node->dims, elemType, 0);
       output << ";\n";
     } else {
       // Dim inside a block (if/for/while) — no hoisting, emit full declaration.
-      output << ind() << buildVecType(elemType, ndim) << " var_" << node->name;
+      output << ind() << buildVecType(elemType, ndim) << " var_" << lo;
       emitVectorCtor(node->dims, elemType, 0);
       output << ";\n";
     }
   }
 
   void visit(ArrayAccess *node) override {
-    output << "var_" << node->name;
+    output << "var_" << toLower(node->name);
     for (auto &idx : node->indices) {
       output << ".at(";
       emitExpr(idx.get());
@@ -523,7 +529,7 @@ public:
   }
 
   void visit(ArrayAssignStmt *node) override {
-    output << ind() << "var_" << node->name;
+    output << ind() << "var_" << toLower(node->name);
     for (auto &idx : node->indices) {
       output << ".at(";
       emitExpr(idx.get());
@@ -549,11 +555,11 @@ public:
 
     if (declaredVars.count(lo) == 0) {
       // Auto-declare the variable (Blitz3D allows implicit declaration)
-      output << ind() << type << " var_" << node->name
+      output << ind() << type << " var_" << lo
              << " = (" << type << ")bb_DataRead();\n";
       declaredVars.insert(lo);
     } else {
-      output << ind() << "var_" << node->name
+      output << ind() << "var_" << lo
              << " = (" << type << ")bb_DataRead();\n";
     }
   }
@@ -563,7 +569,8 @@ public:
       output << ind() << "bb_DataRestore();\n";
     } else {
       // Label-based Restore: reset to the data index recorded at that label.
-      output << ind() << "bb_DataRestore(__data_at_" << node->label << "__);\n";
+      output << ind() << "bb_DataRestore(__data_at_" << toLower(node->label)
+             << "__);\n";
     }
   }
 
@@ -574,19 +581,19 @@ public:
 
   // New TypeName → bb_TypeName_New()
   void visit(NewExpr *node) override {
-    output << "bb_" << node->typeName << "_New()";
+    output << "bb_" << toLower(node->typeName) << "_New()";
   }
 
   // Delete obj → bb_TypeName_Delete(expr); [var = nullptr if simple var]
   void visit(DeleteStmt *node) override {
     std::string typeName = getExprTypeName(node->object.get());
     if (!typeName.empty()) {
-      output << ind() << "bb_" << typeName << "_Delete(";
+      output << ind() << "bb_" << toLower(typeName) << "_Delete(";
       emitExpr(node->object.get());
       output << ");\n";
       // Null out the local variable to prevent use-after-free
       if (auto *ve = dynamic_cast<VarExpr *>(node->object.get()))
-        output << ind() << "var_" << ve->name << " = nullptr;\n";
+        output << ind() << "var_" << toLower(ve->name) << " = nullptr;\n";
     } else {
       // Type indeterminate at compile time — warn and best-effort null
       std::cerr << "[warning] Delete: type indeterminate at compile time"
@@ -599,12 +606,12 @@ public:
 
   // First TypeName → bb_TypeName_head_
   void visit(FirstExpr *node) override {
-    output << "bb_" << node->typeName << "_head_";
+    output << "bb_" << toLower(node->typeName) << "_head_";
   }
 
   // Last TypeName → bb_TypeName_tail_
   void visit(LastExpr *node) override {
-    output << "bb_" << node->typeName << "_tail_";
+    output << "bb_" << toLower(node->typeName) << "_tail_";
   }
 
   // Before(obj) → (obj)->__prev__
@@ -642,21 +649,23 @@ public:
   // For Each p.TypeName ... Next
   // Emits a deletion-safe while loop that caches __next__ before each body run.
   void visit(ForEachStmt *node) override {
+    const std::string v = toLower(node->varName);
+    const std::string t = toLower(node->typeName);
     output << ind() << "{\n";
     indentLevel++;
-    output << ind() << "auto *bb_fe_" << node->varName << "_ = bb_"
-           << node->typeName << "_head_;\n";
-    output << ind() << "while (bb_fe_" << node->varName << "_) {\n";
+    output << ind() << "auto *bb_fe_" << v << "_ = bb_"
+           << t << "_head_;\n";
+    output << ind() << "while (bb_fe_" << v << "_) {\n";
     indentLevel++;
-    output << ind() << "auto *var_" << node->varName << " = bb_fe_"
-           << node->varName << "_;\n";
-    output << ind() << "bb_fe_" << node->varName << "_ = bb_fe_"
-           << node->varName << "_->__next__;\n";
+    output << ind() << "auto *var_" << v << " = bb_fe_"
+           << v << "_;\n";
+    output << ind() << "bb_fe_" << v << "_ = bb_fe_"
+           << v << "_->__next__;\n";
     // Register the iteration variable in varObjectTypes for nested field access
-    std::string lo = node->varName;
+    std::string lo = v;
     std::transform(lo.begin(), lo.end(), lo.begin(),
                [](unsigned char c){ return (char)std::tolower(c); });
-    varObjectTypes[lo] = node->typeName;
+    varObjectTypes[lo] = toLower(t);
     for (auto &n : node->block) n->accept(this);
     indentLevel--;
     output << ind() << "}\n";
@@ -669,7 +678,7 @@ public:
     bool prev = inExprCtx; inExprCtx = true;
     node->object->accept(this);
     inExprCtx = prev;
-    output << "->var_" << node->fieldName;
+    output << "->var_" << toLower(node->fieldName);
   }
 
   // obj\field = expr
@@ -678,18 +687,18 @@ public:
     bool prev = inExprCtx; inExprCtx = true;
     node->object->accept(this);
     inExprCtx = prev;
-    output << "->var_" << node->fieldName << " = ";
+    output << "->var_" << toLower(node->fieldName) << " = ";
     emitExpr(node->value.get());
     output << ";\n";
   }
 
   void visit(LabelStmt *node) override {
     // Labels must be followed by a statement in C++; use null statement.
-    output << "lbl_" << node->name << ":;\n";
+    output << "lbl_" << toLower(node->name) << ":;\n";
   }
 
   void visit(GotoStmt *node) override {
-    output << ind() << "goto lbl_" << node->label << ";\n";
+    output << ind() << "goto lbl_" << toLower(node->label) << ";\n";
   }
 
   void visit(GosubStmt *node) override {
@@ -698,7 +707,7 @@ public:
     // A bare Return emits "goto __gosub_dispatch__" which dispatches back
     // via a switch table emitted at the end of main().
     output << ind() << "__gosub_ret__ = " << n << ";\n";
-    output << ind() << "goto lbl_" << node->label << ";\n";
+    output << ind() << "goto lbl_" << toLower(node->label) << ";\n";
     output << ind() << "_gosub_ret_" << n << "_:;\n";
   }
 
@@ -742,7 +751,8 @@ private:
   // Emit a full C++ struct + intrusive linked-list management for a TypeDecl.
   // Must be called before main() so that variable declarations can use the type.
   void emitTypeDecl(TypeDecl *td) {
-    const std::string sname = "bb_" + td->name;
+    const std::string tname = toLower(td->name); // Types are case-insensitive too
+    const std::string sname = "bb_" + tname;
 
     // Use "struct bb_TypeName *" (elaborated type specifier) throughout so that
     // user-defined types like "Type Rect" don't collide with runtime functions
@@ -755,66 +765,66 @@ private:
     output << "struct " << sname << " {\n";
     for (auto &f : td->fields) {
       auto [ftype, fdefault] = hintToType(f.typeHint);
-      output << "    " << ftype << " var_" << f.name << " = " << fdefault << ";\n";
+      output << "    " << ftype << " var_" << toLower(f.name) << " = " << fdefault << ";\n";
     }
     output << "    " << spname << "__next__ = nullptr;\n";
     output << "    " << spname << "__prev__ = nullptr;\n";
     output << "};\n";
 
     // Global linked-list head/tail
-    output << "inline " << spname << "bb_" << td->name << "_head_ = nullptr;\n";
-    output << "inline " << spname << "bb_" << td->name << "_tail_ = nullptr;\n";
+    output << "inline " << spname << "bb_" << tname << "_head_ = nullptr;\n";
+    output << "inline " << spname << "bb_" << tname << "_tail_ = nullptr;\n";
 
     // bb_TypeName_New() — allocate + append to tail of list
-    output << "inline " << spname << "bb_" << td->name << "_New() {\n";
+    output << "inline " << spname << "bb_" << tname << "_New() {\n";
     output << "    struct " << sname << " *p = new struct " << sname << ";\n";
-    output << "    p->__prev__ = bb_" << td->name << "_tail_;\n";
+    output << "    p->__prev__ = bb_" << tname << "_tail_;\n";
     output << "    p->__next__ = nullptr;\n";
-    output << "    if (bb_" << td->name << "_tail_) bb_" << td->name << "_tail_->__next__ = p;\n";
-    output << "    else bb_" << td->name << "_head_ = p;\n";
-    output << "    bb_" << td->name << "_tail_ = p;\n";
+    output << "    if (bb_" << tname << "_tail_) bb_" << tname << "_tail_->__next__ = p;\n";
+    output << "    else bb_" << tname << "_head_ = p;\n";
+    output << "    bb_" << tname << "_tail_ = p;\n";
     output << "    return p;\n";
     output << "}\n";
 
     // bb_TypeName_Delete(p) — unlink from list + free
-    output << "inline void bb_" << td->name << "_Delete(" << spname << "p) {\n";
+    output << "inline void bb_" << tname << "_Delete(" << spname << "p) {\n";
     output << "    if (!p) return;\n";
     output << "    if (p->__prev__) p->__prev__->__next__ = p->__next__;\n";
-    output << "    else bb_" << td->name << "_head_ = p->__next__;\n";
+    output << "    else bb_" << tname << "_head_ = p->__next__;\n";
     output << "    if (p->__next__) p->__next__->__prev__ = p->__prev__;\n";
-    output << "    else bb_" << td->name << "_tail_ = p->__prev__;\n";
+    output << "    else bb_" << tname << "_tail_ = p->__prev__;\n";
     output << "    delete p;\n";
     output << "}\n";
 
     // Helper: unlink p from wherever it currently sits in the list
     // (shared logic used by InsertBefore / InsertAfter)
-    output << "inline void bb_" << td->name << "_Unlink(" << spname << "p) {\n";
+    output << "inline void bb_" << tname << "_Unlink(" << spname << "p) {\n";
     output << "    if (p->__prev__) p->__prev__->__next__ = p->__next__;\n";
-    output << "    else bb_" << td->name << "_head_ = p->__next__;\n";
+    output << "    else bb_" << tname << "_head_ = p->__next__;\n";
     output << "    if (p->__next__) p->__next__->__prev__ = p->__prev__;\n";
-    output << "    else bb_" << td->name << "_tail_ = p->__prev__;\n";
+    output << "    else bb_" << tname << "_tail_ = p->__prev__;\n";
     output << "    p->__prev__ = p->__next__ = nullptr;\n";
     output << "}\n";
 
     // bb_TypeName_InsertBefore(obj, target) — place obj immediately before target
-    output << "inline void bb_" << td->name << "_InsertBefore(" << spname << "obj, " << spname << "target) {\n";
+    output << "inline void bb_" << tname << "_InsertBefore(" << spname << "obj, " << spname << "target) {\n";
     output << "    if (!obj || !target || obj == target) return;\n";
-    output << "    bb_" << td->name << "_Unlink(obj);\n";
+    output << "    bb_" << tname << "_Unlink(obj);\n";
     output << "    obj->__next__ = target;\n";
     output << "    obj->__prev__ = target->__prev__;\n";
     output << "    if (target->__prev__) target->__prev__->__next__ = obj;\n";
-    output << "    else bb_" << td->name << "_head_ = obj;\n";
+    output << "    else bb_" << tname << "_head_ = obj;\n";
     output << "    target->__prev__ = obj;\n";
     output << "}\n";
 
     // bb_TypeName_InsertAfter(obj, target) — place obj immediately after target
-    output << "inline void bb_" << td->name << "_InsertAfter(" << spname << "obj, " << spname << "target) {\n";
+    output << "inline void bb_" << tname << "_InsertAfter(" << spname << "obj, " << spname << "target) {\n";
     output << "    if (!obj || !target || obj == target) return;\n";
-    output << "    bb_" << td->name << "_Unlink(obj);\n";
+    output << "    bb_" << tname << "_Unlink(obj);\n";
     output << "    obj->__prev__ = target;\n";
     output << "    obj->__next__ = target->__next__;\n";
     output << "    if (target->__next__) target->__next__->__prev__ = obj;\n";
-    output << "    else bb_" << td->name << "_tail_ = obj;\n";
+    output << "    else bb_" << tname << "_tail_ = obj;\n";
     output << "    target->__next__ = obj;\n";
     output << "}\n\n";
   }
@@ -879,7 +889,7 @@ private:
     for (auto &n : nodes) {
       if (auto *lbl = dynamic_cast<LabelStmt *>(n.get())) {
         // Capture the pool index at this label so "Restore lbl" can use it.
-        output << "    const size_t __data_at_" << lbl->name
+        output << "    const size_t __data_at_" << toLower(lbl->name)
                << "__ = " << idx << ";\n";
       } else if (auto *ds = dynamic_cast<DataStmt *>(n.get())) {
         for (auto &tok : ds->values) {
@@ -935,7 +945,7 @@ private:
         hoistedDims_.insert(lo);
         auto [elemType, defVal] = hintToType(ds->typeHint);
         output << ind() << buildVecType(elemType, ds->dims.size())
-               << " var_" << ds->name << ";\n";
+               << " var_" << lo << ";\n";
       }
     }
   }
@@ -958,7 +968,7 @@ private:
         globalVarNames.insert(lo);
         declaredVars.insert(lo); // prevent implicit re-declaration inside functions
         auto [type, defVal] = hintToType(vd->typeHint);
-        output << type << " var_" << vd->name << " = " << defVal << ";\n";
+        output << type << " var_" << lo << " = " << defVal << ";\n";
       }
     }
   }
@@ -991,7 +1001,7 @@ private:
     if (hint == "#" || hint == "!")
       return {"float", "0.0f"};
     if (!hint.empty() && hint[0] == '.')
-      return {"struct bb_" + hint.substr(1) + " *", "nullptr"};
+      return {"struct bb_" + toLower(hint.substr(1)) + " *", "nullptr"};
     return {"int", "0"}; // "%" or empty → int
   }
 

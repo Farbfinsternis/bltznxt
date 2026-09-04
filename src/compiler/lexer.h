@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cctype>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -14,6 +15,14 @@
 inline std::string toUpper(std::string s) {
   std::transform(s.begin(), s.end(), s.begin(),
                  [](unsigned char c){ return (char)std::toupper(c); });
+  return s;
+}
+
+// Blitz3D identifiers and keywords are case-insensitive; this is the canonical
+// lower-case form used for lookups and for every generated C++ identifier.
+inline std::string toLower(std::string s) {
+  std::transform(s.begin(), s.end(), s.begin(),
+                 [](unsigned char c){ return (char)std::tolower(c); });
   return s;
 }
 
