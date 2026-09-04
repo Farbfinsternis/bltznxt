@@ -229,6 +229,7 @@ public:
 class FunctionDecl : public StmtNode {
 public:
   std::string name;
+  std::string returnHint; // #  %  !  $  .TypeName  or "" (= int, as in Blitz3D)
   std::vector<std::pair<std::string, std::string>> params; // (name, typeHint)
   std::vector<std::unique_ptr<ASTNode>> body;
   explicit FunctionDecl(std::string n) : name(std::move(n)) {}

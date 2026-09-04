@@ -712,11 +712,18 @@ private:
     auto func  = std::make_unique<FunctionDecl>(nameTok.value);
     func->line = nameTok.line;
 
-    // Consume optional return-type hint on the function name (e.g. Double%)
+    // Return-type hint on the function name (e.g. Double%, Name$, Make.Vec).
+    // It decides the C++ return type of the emitted function, so it must be
+    // kept, not just consumed.
     if (peek().type == TokenType::OPERATOR &&
         (peek().value == "#" || peek().value == "%" ||
-         peek().value == "!" || peek().value == "$"))
-      advance();
+         peek().value == "!" || peek().value == "$")) {
+      func->returnHint = advance().value;
+    } else if (peek().type == TokenType::OPERATOR && peek().value == ".") {
+      advance(); // consume '.'
+      if (peek().type == TokenType::ID)
+        func->returnHint = "." + advance().value;
+    }
 
     if (peek().type == TokenType::OPERATOR && peek().value == "(") {
       advance(); // (

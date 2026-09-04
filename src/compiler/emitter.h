@@ -57,6 +57,17 @@ public:
     collectDims(prog->nodes);
     if (!globalVarNames.empty() || !hoistedDims_.empty()) output << "\n";
 
+    // Forward-declare every function first, so that calls do not depend on
+    // the order of definition — mutual recursion included.
+    bool anyFn = false;
+    for (auto &n : prog->nodes)
+      if (auto *fn = dynamic_cast<FunctionDecl *>(n.get())) {
+        emitFunctionSignature(fn);
+        output << ";\n";
+        anyFn = true;
+      }
+    if (anyFn) output << "\n";
+
     // Emit user function bodies before main()
     for (auto &n : prog->nodes)
       if (dynamic_cast<FunctionDecl *>(n.get()))
@@ -448,16 +459,26 @@ public:
     if (isStmt) output << ";\n";
   }
 
-  void visit(FunctionDecl *node) override {
-    // Determine return type — default auto; could be improved with type hints
-    output << "auto fn_" << toLower(node->name) << "(";
+  // "int fn_name(int var_a, bbString var_b)" — shared by the forward
+  // declaration and the definition so the two can never drift apart.
+  void emitFunctionSignature(FunctionDecl *node) {
+    auto [rtype, rdefault] = hintToType(node->returnHint);
+    output << rtype << " fn_" << toLower(node->name) << "(";
     for (size_t i = 0; i < node->params.size(); ++i) {
       auto &[pname, phint] = node->params[i];
       auto [ptype, defVal] = hintToType(phint);
       output << ptype << " var_" << toLower(pname);
       if (i + 1 < node->params.size()) output << ", ";
     }
-    output << ") {\n";
+    output << ")";
+  }
+
+  void visit(FunctionDecl *node) override {
+    auto [rtype, rdefault] = hintToType(node->returnHint);
+    auto savedDefault = returnDefault_;
+    returnDefault_ = rdefault;
+    emitFunctionSignature(node);
+    output << " {\n";
 
     // Save outer declaredVars, start fresh for this function scope.
     // Parameters are pre-registered so that assignments to them inside
@@ -484,8 +505,13 @@ public:
     inFunctionBody = false;
     hoistedLocals_ = savedHoisted;
 
+    // Blitz3D functions may just end; C++ may not fall off a non-void
+    // function, so close every body with the type's default value.
+    output << ind() << "return " << rdefault << ";\n";
+
     // Restore outer scope's declared vars.
     declaredVars = savedDeclaredVars;
+    returnDefault_ = savedDefault;
 
     output << "}\n\n";
     indentLevel = 1; // reset for next function / main
@@ -493,7 +519,12 @@ public:
 
   void visit(ReturnStmt *node) override {
     if (node->value || inFunctionBody) {
-      // Normal function return (with or without value)
+      // Normal function return. A bare "Return" in a function returns the
+      // default value of its type — with a concrete return type C++ needs one.
+      if (!node->value && inFunctionBody) {
+        output << ind() << "return " << returnDefault_ << ";\n";
+        return;
+      }
       output << ind() << "return";
       if (node->value) {
         output << " ";
@@ -751,6 +782,7 @@ private:
   std::unordered_set<std::string> typeNames;          // registered Type names
   std::unordered_set<std::string> declaredVars;       // lowercase declared var names
   std::unordered_set<std::string> hoistedLocals_;     // declared up front (Goto-safe)
+  std::string returnDefault_ = "0";                  // default value of the current function
   std::unordered_set<std::string> globalVarNames;     // lowercase names of file-scope globals
   std::unordered_set<std::string> hoistedDims_;       // lowercase names of forward-declared Dim arrays
   std::unordered_map<std::string, std::string> varObjectTypes; // lowercase var → TypeName
