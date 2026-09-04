@@ -70,6 +70,10 @@ public:
     size_t dataIdx = 0;
     collectData(prog->nodes, dataIdx);
 
+    // Declare the locals of main() up front when it contains a label.
+    hoistedLocals_.clear();
+    hoistLocals(prog->nodes);
+
     // Emit everything that is not a FunctionDecl or TypeDecl
     for (auto &n : prog->nodes)
       if (!dynamic_cast<FunctionDecl *>(n.get()) &&
@@ -213,6 +217,19 @@ public:
 
     // LOCAL variable declaration
     auto [type, defVal] = hintToType(node->typeHint);
+
+    // Already declared at the top of the body by hoistLocals() — the
+    // declaration here would be jumped over by a Goto/Gosub.
+    if (hoistedLocals_.count(lo)) {
+      if (node->initValue) {
+        output << ind() << "var_" << lo << " = ";
+        bool prev = inExprCtx; inExprCtx = true;
+        node->initValue->accept(this);
+        inExprCtx = prev;
+        output << ";\n";
+      }
+      return;
+    }
 
     output << ind() << type << " var_" << lo;
     if (node->initValue) {
@@ -457,10 +474,15 @@ public:
       declaredVars.insert(lo);
     }
 
+    auto savedHoisted = hoistedLocals_;
+    hoistedLocals_.clear();
+
     inFunctionBody = true;
     indentLevel = 1;
+    hoistLocals(node->body);
     for (auto &n : node->body) n->accept(this);
     inFunctionBody = false;
+    hoistedLocals_ = savedHoisted;
 
     // Restore outer scope's declared vars.
     declaredVars = savedDeclaredVars;
@@ -728,6 +750,7 @@ private:
   std::unordered_set<std::string> userFunctions;
   std::unordered_set<std::string> typeNames;          // registered Type names
   std::unordered_set<std::string> declaredVars;       // lowercase declared var names
+  std::unordered_set<std::string> hoistedLocals_;     // declared up front (Goto-safe)
   std::unordered_set<std::string> globalVarNames;     // lowercase names of file-scope globals
   std::unordered_set<std::string> hoistedDims_;       // lowercase names of forward-declared Dim arrays
   std::unordered_map<std::string, std::string> varObjectTypes; // lowercase var → TypeName
@@ -946,6 +969,96 @@ private:
         auto [elemType, defVal] = hintToType(ds->typeHint);
         output << ind() << buildVecType(elemType, ds->dims.size())
                << " var_" << lo << ";\n";
+      }
+    }
+  }
+
+  // ---- Goto/Gosub-safe locals ----------------------------------------------
+  //
+  // Blitz3D locals belong to the whole function and Goto/Gosub may jump across
+  // their declarations. C++ forbids a jump that skips the initialisation of a
+  // local, so in every body that contains a label all locals are declared up
+  // front (with their default value) and the original declaration becomes a
+  // plain assignment. Bodies without a label are emitted exactly as before.
+  void hoistLocals(const std::vector<std::unique_ptr<ASTNode>> &nodes) {
+    if (!containsLabel(nodes)) return;
+    std::vector<std::pair<std::string, std::string>> found; // name (lower), hint
+    collectLocals(nodes, found);
+    for (auto &[lo, hint] : found) {
+      if (declaredVars.count(lo)) continue; // global, parameter or seen already
+      auto [type, defVal] = hintToType(hint);
+      output << ind() << type << " var_" << lo << " = " << defVal << ";\n";
+      declaredVars.insert(lo);
+      hoistedLocals_.insert(lo);
+      if (!hint.empty() && hint[0] == '.')
+        varObjectTypes[lo] = toLower(hint.substr(1));
+    }
+  }
+
+  // True if this body contains anything that emits a label: an explicit
+  // .label, or a Gosub (whose return label is jumped to from the dispatch
+  // switch at the end of main()).
+  bool containsLabel(const std::vector<std::unique_ptr<ASTNode>> &nodes) {
+    for (auto &n : nodes) {
+      if (dynamic_cast<LabelStmt *>(n.get()) ||
+          dynamic_cast<GosubStmt *>(n.get()))
+        return true;
+      if (auto *prog = dynamic_cast<Program *>(n.get())) {
+        if (containsLabel(prog->nodes)) return true;
+      } else if (auto *if_ = dynamic_cast<IfStmt *>(n.get())) {
+        if (containsLabel(if_->thenBlock) || containsLabel(if_->elseBlock))
+          return true;
+      } else if (auto *wh = dynamic_cast<WhileStmt *>(n.get())) {
+        if (containsLabel(wh->block)) return true;
+      } else if (auto *rp = dynamic_cast<RepeatStmt *>(n.get())) {
+        if (containsLabel(rp->block)) return true;
+      } else if (auto *fr = dynamic_cast<ForStmt *>(n.get())) {
+        if (containsLabel(fr->block)) return true;
+      } else if (auto *sel = dynamic_cast<SelectStmt *>(n.get())) {
+        for (auto &c : sel->cases)
+          if (containsLabel(c.block)) return true;
+        if (containsLabel(sel->defaultBlock)) return true;
+      } else if (auto *fe = dynamic_cast<ForEachStmt *>(n.get())) {
+        if (containsLabel(fe->block)) return true;
+      }
+    }
+    return false;
+  }
+
+  // Every name this body declares as a local, in source order: Local, an
+  // implicit declaration by first assignment, and Read's auto-declaration.
+  // Does not descend into FunctionDecl — those bodies hoist their own.
+  void collectLocals(const std::vector<std::unique_ptr<ASTNode>> &nodes,
+                     std::vector<std::pair<std::string, std::string>> &out) {
+    auto add = [&out](const std::string &name, const std::string &hint) {
+      std::string lo = toLower(name);
+      for (auto &e : out)
+        if (e.first == lo) return; // first spelling and hint win
+      out.emplace_back(lo, hint);
+    };
+    for (auto &n : nodes) {
+      if (auto *vd = dynamic_cast<VarDecl *>(n.get())) {
+        if (vd->scope == VarDecl::LOCAL) add(vd->name, vd->typeHint);
+      } else if (auto *as = dynamic_cast<AssignStmt *>(n.get())) {
+        add(as->name, as->typeHint);
+      } else if (auto *rd = dynamic_cast<ReadStmt *>(n.get())) {
+        add(rd->name, rd->typeHint);
+      } else if (auto *prog = dynamic_cast<Program *>(n.get())) {
+        collectLocals(prog->nodes, out);
+      } else if (auto *if_ = dynamic_cast<IfStmt *>(n.get())) {
+        collectLocals(if_->thenBlock, out);
+        collectLocals(if_->elseBlock, out);
+      } else if (auto *wh = dynamic_cast<WhileStmt *>(n.get())) {
+        collectLocals(wh->block, out);
+      } else if (auto *rp = dynamic_cast<RepeatStmt *>(n.get())) {
+        collectLocals(rp->block, out);
+      } else if (auto *fr = dynamic_cast<ForStmt *>(n.get())) {
+        collectLocals(fr->block, out);
+      } else if (auto *sel = dynamic_cast<SelectStmt *>(n.get())) {
+        for (auto &c : sel->cases) collectLocals(c.block, out);
+        collectLocals(sel->defaultBlock, out);
+      } else if (auto *fe = dynamic_cast<ForEachStmt *>(n.get())) {
+        collectLocals(fe->block, out);
       }
     }
   }
