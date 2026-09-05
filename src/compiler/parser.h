@@ -291,6 +291,7 @@ private:
       if (peek().type == TokenType::OPERATOR && peek().value == "\\") {
         advance(); // consume '\'
         Token fname = expect(TokenType::ID, "Expected field name after \\");
+        parseOptionalTypeTag(); // "p\f#" - read and dropped (BUG-31)
         expect(TokenType::OPERATOR, "Expected '='", "=");
         auto val = parseExpr();
         auto s = std::make_unique<FieldAssignStmt>(
@@ -513,6 +514,19 @@ private:
 
   // ------------------------------------------------------------------ FOR
 
+  // Consumes a type tag if one is there and returns it ("" otherwise).
+  // Blitz3D's parseVar() reads a tag after *every* name, including a field
+  // name; FieldVarNode::semant then ignores it and takes the type from the
+  // field declaration (BUG-31). So the tag is accepted and dropped here too -
+  // even a contradicting one, exactly as in the reference.
+  std::string parseOptionalTypeTag() {
+    if (peek().type == TokenType::OPERATOR &&
+        (peek().value == "#" || peek().value == "%" ||
+         peek().value == "!" || peek().value == "$"))
+      return advance().value;
+    return "";
+  }
+
   std::unique_ptr<ForStmt> parseFor() {
     int ln = peek().line;
     advance(); // FOR
@@ -538,6 +552,7 @@ private:
     if (peek().type == TokenType::OPERATOR && peek().value == "\\") {
       advance(); // consume the field separator
       Token fname = expect(TokenType::ID, "Expected field name after \\");
+      parseOptionalTypeTag(); // "For p\f# = ..." - read, dropped (BUG-31)
       target = std::make_unique<FieldAccess>(
           std::make_unique<VarExpr>(nameTok.value), fname.value);
     } else if (peek().type == TokenType::OPERATOR && peek().value == "(") {
