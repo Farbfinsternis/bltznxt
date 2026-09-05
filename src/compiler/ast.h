@@ -280,6 +280,9 @@ public:
 class ArrayAccess : public ExprNode {
 public:
   std::string name;
+  std::string typeHint; // %  #  !  $  as written at this use site, or ""
+                        // (Blitz3D checks it against the element type -
+                        //  ArrayVarNode::semant, BUG-32)
   std::vector<std::unique_ptr<ExprNode>> indices;
   explicit ArrayAccess(std::string n) : name(std::move(n)) {}
   void accept(ASTVisitor *v) override { v->visit(this); }
@@ -289,6 +292,7 @@ public:
 class ArrayAssignStmt : public StmtNode {
 public:
   std::string name;
+  std::string typeHint; // as above (BUG-32)
   std::vector<std::unique_ptr<ExprNode>> indices;
   std::unique_ptr<ExprNode> value;
   ArrayAssignStmt(std::string n, std::unique_ptr<ExprNode> v)

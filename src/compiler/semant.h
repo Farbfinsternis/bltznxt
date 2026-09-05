@@ -204,6 +204,20 @@ private:
     return true;
   }
 
+  // A tag on an array access is checked against the element type. Blitz3D does
+  // this for arrays but NOT for type fields (BUG-31/BUG-32): ArrayVarNode::
+  // semant resolves the tag with findType(), which maps "%"/"#"/"$" to int /
+  // float / string, and then "if( t && t!=a->elementType )" is an error. An
+  // empty tag resolves to nothing and checks nothing.
+  void checkArrayTag(const std::string &name, const std::string &hint,
+                     const Ty &elem, int line, int col) {
+    if (hint.empty() || !elem.known()) return;
+    Ty tagged = fromHint(hint);
+    if (tagged.sameAs(elem)) return;
+    error(line, col, "array type mismatch: '" + name + "' holds " +
+                         elem.name() + ", but is used as " + tagged.name());
+  }
+
   // string ↔ number is the conversion Blitz3D refuses; everything else is
   // either allowed (int ↔ float) or deliberately not checked here.
   void checkAssign(const Ty &target, const Ty &value, const char *what,
@@ -251,6 +265,8 @@ private:
           error(aas->line, aas->col, "array '" + aas->name + "' has " +
                     std::to_string(it->second.dims) + " dimension(s), but " +
                     std::to_string(aas->indices.size()) + " index/indices given");
+        checkArrayTag(aas->name, aas->typeHint, it->second.elem, aas->line,
+                      aas->col);
         checkAssign(it->second.elem, val, "array assignment", aas->line, aas->col);
       }
     } else if (auto *fas = dynamic_cast<FieldAssignStmt *>(n)) {
@@ -339,6 +355,7 @@ private:
         error(aa->line, aa->col, "array '" + aa->name + "' has " +
                   std::to_string(it->second.dims) + " dimension(s), but " +
                   std::to_string(aa->indices.size()) + " index/indices given");
+      checkArrayTag(aa->name, aa->typeHint, it->second.elem, aa->line, aa->col);
       return it->second.elem;
     }
     if (auto *fa = dynamic_cast<FieldAccess *>(e)) {

@@ -308,7 +308,9 @@ private:
             peek().type == TokenType::OPERATOR && peek().value == "(") {
           advance(); // (
           auto stmt = std::make_unique<ArrayAssignStmt>(nameTok.value, nullptr);
+          stmt->typeHint = assignHint; // "a$(0)" - checked against the element
           stmt->line = nameTok.line;
+          stmt->col  = nameTok.col;
           while (true) {
             stmt->indices.push_back(parseExpr());
             if (peek().type == TokenType::OPERATOR && peek().value == ",")
@@ -566,6 +568,7 @@ private:
       }
       advance(); // consume '('
       auto arr = std::make_unique<ArrayAccess>(nameTok.value);
+      arr->typeHint = hint;
       while (true) {
         arr->indices.push_back(parseExpr());
         if (peek().type == TokenType::OPERATOR && peek().value == ",")
@@ -1248,7 +1251,9 @@ private:
         if (dimmedArrays.count(lo)) {
           // Array access: arr(i)  or  grid(x, y)
           auto acc  = std::make_unique<ArrayAccess>(t.value);
+          acc->typeHint = useHint;
           acc->line = t.line;
+          acc->col  = t.col;
           while (true) {
             acc->indices.push_back(parseExpr());
             if (peek().type == TokenType::OPERATOR && peek().value == ",")

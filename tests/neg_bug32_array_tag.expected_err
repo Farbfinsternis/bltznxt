@@ -1,0 +1,1 @@
+tests/neg_bug32_array_tag.bb:3:1: error: array type mismatch: 'a' holds int, but is used as string
