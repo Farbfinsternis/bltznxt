@@ -1,0 +1,1 @@
+tests/neg_bug30_for_no_dim.bb:4:5: error: loop variable 'a' is used like an array, but no Dim declares it

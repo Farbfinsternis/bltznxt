@@ -529,6 +529,44 @@ private:
       advance();
     }
 
+    // In the reference the counter is read with parseVar(), the same function
+    // every other variable reference goes through, so an array element and a
+    // type field are legal counters too (BUG-30). Both forms are recognised
+    // exactly the way the assignment statement recognises them, including the
+    // Dim'd-name test that tells "arr(i)" from a call.
+    std::unique_ptr<ExprNode> target;
+    if (peek().type == TokenType::OPERATOR && peek().value == "\\") {
+      advance(); // consume the field separator
+      Token fname = expect(TokenType::ID, "Expected field name after \\");
+      target = std::make_unique<FieldAccess>(
+          std::make_unique<VarExpr>(nameTok.value), fname.value);
+    } else if (peek().type == TokenType::OPERATOR && peek().value == "(") {
+      if (!dimmedArrays.count(toLower(nameTok.value))) {
+        // Without a Dim this reads as a call, and the two errors that follow
+        // ("Expected TO", "unexpected token '='") point at the wrong thing.
+        // Say what is actually wrong instead.
+        error(nameTok.line, nameTok.col,
+              "loop variable '" + nameTok.value +
+                  "' is used like an array, but no Dim declares it");
+      }
+      advance(); // consume '('
+      auto arr = std::make_unique<ArrayAccess>(nameTok.value);
+      while (true) {
+        arr->indices.push_back(parseExpr());
+        if (peek().type == TokenType::OPERATOR && peek().value == ",")
+          advance();
+        else
+          break;
+      }
+      expect(TokenType::OPERATOR, "Expected ')'", ")");
+      target = std::move(arr);
+    }
+    if (target) {
+      // Without this every diagnostic about the counter reports line 0.
+      target->line = nameTok.line;
+      target->col  = nameTok.col;
+    }
+
     expect(TokenType::OPERATOR, "Expected '='", "=");
     auto start = parseExpr();
     expect(TokenType::KEYWORD, "Expected TO", "TO");
@@ -543,6 +581,7 @@ private:
     auto stmt  = std::make_unique<ForStmt>(nameTok.value, std::move(start),
                                            std::move(end), std::move(step));
     stmt->typeHint = hint;
+    stmt->target   = std::move(target);
     stmt->line  = ln;
     stmt->block = parseBlock({"NEXT"});
     expect(TokenType::KEYWORD, "Expected NEXT", "NEXT");

@@ -275,8 +275,12 @@ private:
       // The loop variable is an ordinary variable: an existing one (Global
       // included) is used as it stands, and a new one takes the type its tag
       // says, not the type of the start expression - untagged means int
-      // (BUG-19, ForNode::semant in the reference).
-      if (lookup(fs->varName))
+      // (BUG-19, ForNode::semant in the reference). An array element or a
+      // field counter is checked like any other access and declares nothing
+      // (BUG-30).
+      if (fs->target)
+        expr(fs->target.get());
+      else if (lookup(fs->varName))
         checkTag(fs->varName, fs->typeHint, fs->line, fs->col);
       else
         declare(fs->varName, fromHint(fs->typeHint));

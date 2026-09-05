@@ -363,11 +363,20 @@ public:
   void visit(ForStmt *node) override {
     const std::string v = toLower(node->varName);
 
+    // Writes the loop counter: either the plain variable or, for the array
+    // and field forms, the access expression itself (BUG-30). ArrayAccess and
+    // FieldAccess already emit exactly the lvalue that is needed here.
+    auto counter = [&]() {
+      if (node->target) emitExpr(node->target.get());
+      else              output << "var_" << v;
+    };
+
     // Declare only what does not exist yet, and in the enclosing scope so it
     // outlives the loop - the same rule visit(AssignStmt*) uses for an
     // implicitly created variable. An untagged variable is an int in Blitz3D,
-    // which is what hintToType() returns for an empty hint.
-    if (declaredVars.count(v) == 0) {
+    // which is what hintToType() returns for an empty hint. An array element
+    // or a field is never declared here: it already exists.
+    if (!node->target && declaredVars.count(v) == 0) {
       auto [type, defVal] = hintToType(node->typeHint);
       output << ind() << type << " var_" << v << " = " << defVal << ";\n";
       declaredVars.insert(v);
@@ -393,13 +402,21 @@ public:
       emitExpr(node->step.get());
       output << ";\n";
 
-      output << ind() << "for (var_" << v << " = ";
+      output << ind() << "for (";
+      counter();
+      output << " = ";
       emitExpr(node->start.get());
-      output << "; (_step_" << v << " > 0 ? var_" << v << " <= ";
+      output << "; (_step_" << v << " > 0 ? ";
+      counter();
+      output << " <= ";
       emitExpr(node->end.get());
-      output << " : var_" << v << " >= ";
+      output << " : ";
+      counter();
+      output << " >= ";
       emitExpr(node->end.get());
-      output << "); var_" << v << " += _step_" << v << ") {\n";
+      output << "); ";
+      counter();
+      output << " += _step_" << v << ") {\n";
 
       indentLevel++;
       for (auto &n : node->block) n->accept(this);
@@ -410,11 +427,17 @@ public:
 
     } else {
       // Simple ascending loop without STEP
-      output << ind() << "for (var_" << v << " = ";
+      output << ind() << "for (";
+      counter();
+      output << " = ";
       emitExpr(node->start.get());
-      output << "; var_" << v << " <= ";
+      output << "; ";
+      counter();
+      output << " <= ";
       emitExpr(node->end.get());
-      output << "; ++var_" << v << ") {\n";
+      output << "; ++";
+      counter();
+      output << ") {\n";
       indentLevel++;
       for (auto &n : node->block) n->accept(this);
       indentLevel--;
@@ -1100,8 +1123,9 @@ private:
         // The loop variable counts too (BUG-19): since it is declared in front
         // of the loop rather than inside the C++ for-init, a Goto past the
         // whole loop would otherwise cross its initialisation, which is what
-        // BUG-23 was about.
-        add(fr->varName, fr->typeHint);
+        // BUG-23 was about. An array element or a field counter is not a local
+        // and declares nothing (BUG-30).
+        if (!fr->target) add(fr->varName, fr->typeHint);
         collectLocals(fr->block, out);
       } else if (auto *sel = dynamic_cast<SelectStmt *>(n.get())) {
         for (auto &c : sel->cases) collectLocals(c.block, out);

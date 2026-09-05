@@ -207,8 +207,14 @@ public:
 
 class ForStmt : public StmtNode {
 public:
+  // The loop counter. Blitz3D reads it with parseVar(), so it may be a plain
+  // variable, an array element or a type field (BUG-30). `target` holds the
+  // latter two as an ArrayAccess / FieldAccess; when it is null the counter is
+  // the plain variable `varName`, and only then do `varName` and `typeHint`
+  // mean anything - an array element or a field is never declared by the loop.
   std::string varName;
   std::string typeHint;                       // "", "%", "#", "!", "$"
+  std::unique_ptr<ExprNode> target;           // null = plain variable
   std::unique_ptr<ExprNode> start, end, step; // step may be nullptr
   std::vector<std::unique_ptr<ASTNode>> block;
   ForStmt(std::string n, std::unique_ptr<ExprNode> s,
