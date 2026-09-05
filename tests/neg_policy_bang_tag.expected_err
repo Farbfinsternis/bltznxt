@@ -1,0 +1,3 @@
+tests/neg_policy_bang_tag.bb:5:8: error: unexpected token '!'
+tests/neg_policy_bang_tag.bb:5:10: error: unexpected token '='
+tests/neg_policy_bang_tag.bb:5:12: error: unexpected token '3.14'

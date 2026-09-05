@@ -596,7 +596,7 @@ public:
     } else {
       std::string type = "auto";
       if      (node->typeHint == "%") type = "int";
-      else if (node->typeHint == "#" || node->typeHint == "!") type = "float";
+      else if (node->typeHint == "#") type = "float";
       output << ind() << "constexpr " << type << " var_" << toLower(node->name) << " = ";
     }
     node->value->accept(this);
@@ -1178,13 +1178,13 @@ private:
   }
 
   // Returns {cppType, defaultValue} for a Blitz3D type hint.
-  // "$" → {"bbString", "\"\""}, "#"/"!" → {"float", "0.0f"},
+  // "$" → {"bbString", "\"\""}, "#" → {"float", "0.0f"},
   // ".Vec" → {"bb_Vec *", "nullptr"}, "%"/empty → {"int", "0"}
   static std::pair<std::string, std::string>
   hintToType(const std::string &hint) {
     if (hint == "$")
       return {"bbString", "\"\""};
-    if (hint == "#" || hint == "!")
+    if (hint == "#")
       return {"float", "0.0f"};
     if (!hint.empty() && hint[0] == '.')
       return {"struct bb_" + toLower(hint.substr(1)) + " *", "nullptr"};

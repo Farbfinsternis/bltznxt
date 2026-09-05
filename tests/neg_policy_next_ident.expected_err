@@ -1,0 +1,1 @@
+tests/neg_policy_next_ident.bb:4:6: error: unknown function or command 'i'

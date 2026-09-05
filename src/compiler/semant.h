@@ -91,10 +91,10 @@ private:
     Ty t; t.k = k; t.obj = obj; return t;
   }
 
-  // "%"/"" → int, "#"/"!" → float, "$" → string, ".Name" → object
+  // "%"/"" → int, "#" → float, "$" → string, ".Name" → object
   static Ty fromHint(const std::string &h) {
     if (h == "$") return mk(Ty::STR);
-    if (h == "#" || h == "!") return mk(Ty::FLOAT);
+    if (h == "#") return mk(Ty::FLOAT);
     if (!h.empty() && h[0] == '.') return mk(Ty::OBJ, h.substr(1));
     return mk(Ty::INT); // "%" or none — Blitz3D's default
   }

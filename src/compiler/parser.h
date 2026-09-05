@@ -66,7 +66,7 @@ private:
         // Skip optional type hint (#, %, !, $)
         if (i < toks.size() && toks[i].type == TokenType::OPERATOR &&
             (toks[i].value == "#" || toks[i].value == "%" ||
-             toks[i].value == "!" || toks[i].value == "$"))
+             toks[i].value == "$"))
           ++i;
         // Skip balanced parentheses: ( dims... )
         if (i < toks.size() && toks[i].type == TokenType::OPERATOR &&
@@ -284,7 +284,7 @@ private:
       std::string assignHint;
       if (peek().type == TokenType::OPERATOR &&
           (peek().value == "#" || peek().value == "%" ||
-           peek().value == "!" || peek().value == "$"))
+           peek().value == "$"))
         assignHint = advance().value; // consume and remember for auto-decl
 
       // Field assignment: var\field = expr  (Blitz3D \ field separator)
@@ -394,7 +394,10 @@ private:
       return call;
     }
 
-    // Unrecognised token — skip
+    // Unrecognised token. Reporting it is the point: skipping silently meant
+    // that "Local f! = 3.14" produced "int var_f = 0;" and the rest of the line
+    // simply vanished - no diagnostic, no code, nothing to notice.
+    error(t.line, t.col, "unexpected token '" + t.value + "'");
     advance();
     return nullptr;
   }
@@ -524,7 +527,7 @@ private:
   std::string parseOptionalTypeTag() {
     if (peek().type == TokenType::OPERATOR &&
         (peek().value == "#" || peek().value == "%" ||
-         peek().value == "!" || peek().value == "$"))
+         peek().value == "$"))
       return advance().value;
     return "";
   }
@@ -540,7 +543,7 @@ private:
     std::string hint;
     if (peek().type == TokenType::OPERATOR &&
         (peek().value == "#" || peek().value == "%" ||
-         peek().value == "!" || peek().value == "$")) {
+         peek().value == "$")) {
       hint = peek().value;
       advance();
     }
@@ -603,7 +606,6 @@ private:
     stmt->line  = ln;
     stmt->block = parseBlock({"NEXT"});
     expect(TokenType::KEYWORD, "Expected NEXT", "NEXT");
-    if (peek().type == TokenType::ID) advance(); // optional "Next i"
     return stmt;
   }
 
@@ -666,7 +668,7 @@ private:
       std::string typeHint;
       if (peek().type == TokenType::OPERATOR &&
           (peek().value == "#" || peek().value == "%" ||
-           peek().value == "!" || peek().value == "$")) {
+           peek().value == "$")) {
         typeHint = advance().value;
       } else if (peek().type == TokenType::OPERATOR && peek().value == ".") {
         // Object type annotation: v.Vec → typeHint = ".Vec"
@@ -706,7 +708,7 @@ private:
       std::string typeHint;
       if (peek().type == TokenType::OPERATOR &&
           (peek().value == "#" || peek().value == "%" ||
-           peek().value == "!" || peek().value == "$"))
+           peek().value == "$"))
         typeHint = advance().value;
 
       expect(TokenType::OPERATOR, "Expected '('", "(");
@@ -749,7 +751,7 @@ private:
       std::string typeHint;
       if (peek().type == TokenType::OPERATOR &&
           (peek().value == "#" || peek().value == "%" ||
-           peek().value == "!" || peek().value == "$"))
+           peek().value == "$"))
         typeHint = advance().value;
 
       expect(TokenType::OPERATOR, "Expected '='", "=");
@@ -782,7 +784,7 @@ private:
     // kept, not just consumed.
     if (peek().type == TokenType::OPERATOR &&
         (peek().value == "#" || peek().value == "%" ||
-         peek().value == "!" || peek().value == "$")) {
+         peek().value == "$")) {
       func->returnHint = advance().value;
     } else if (peek().type == TokenType::OPERATOR && peek().value == ".") {
       advance(); // consume '.'
@@ -798,7 +800,7 @@ private:
         std::string hint;
         if (peek().type == TokenType::OPERATOR &&
             (peek().value == "#" || peek().value == "%" ||
-             peek().value == "!" || peek().value == "$"))
+             peek().value == "$"))
           hint = advance().value;
         func->params.emplace_back(p.value, hint);
         if (peek().type == TokenType::OPERATOR && peek().value == ",")
@@ -867,7 +869,6 @@ private:
     s->line  = ln;
     s->block = parseBlock({"NEXT"});
     expect(TokenType::KEYWORD, "Expected NEXT", "NEXT");
-    if (peek().type == TokenType::ID) advance(); // optional "Next p"
     return s;
   }
 
@@ -902,7 +903,7 @@ private:
           std::string hint;
           if (peek().type == TokenType::OPERATOR &&
               (peek().value == "%" || peek().value == "#" ||
-               peek().value == "!" || peek().value == "$"))
+               peek().value == "$"))
             hint = advance().value;
           TypeDecl::Field f;
           f.name     = fieldTok.value;
@@ -964,7 +965,7 @@ private:
     std::string typeHint;
     if (peek().type == TokenType::OPERATOR &&
         (peek().value == "#" || peek().value == "%" ||
-         peek().value == "!" || peek().value == "$"))
+         peek().value == "$"))
       typeHint = advance().value;
     auto s  = std::make_unique<ReadStmt>(nameTok.value, typeHint);
     s->line = ln;
@@ -1161,6 +1162,9 @@ private:
       int ln = peek().line;
       advance(); // consume '\'
       Token fname = expect(TokenType::ID, "Expected field name after \\");
+      parseOptionalTypeTag(); // "p\f#" on the reading side too (BUG-31).
+                              // It used to fall through to the statement
+                              // parser, which silently dropped it.
       auto fa  = std::make_unique<FieldAccess>(std::move(left), fname.value);
       fa->line = ln;
       left = std::move(fa);
@@ -1240,7 +1244,7 @@ private:
       std::string useHint;
       if (peek().type == TokenType::OPERATOR &&
           (peek().value == "#" || peek().value == "%" ||
-           peek().value == "!" || peek().value == "$"))
+           peek().value == "$"))
         useHint = advance().value;
 
       // Array access or function/command call: name(args)

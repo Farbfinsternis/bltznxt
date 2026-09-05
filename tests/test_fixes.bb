@@ -32,7 +32,7 @@ EndIf
 Print "Countdown:"
 For i% = 3 To 1 Step -1
     Print Str(i%)
-Next i%
+Next
 
 ; --- Bug 12: For without Step (still works) ---
 Local sum% = 0
@@ -42,8 +42,8 @@ Next
 Print "Sum 1-5 should be 15: " + Str(sum%)
 
 ; --- Bug 6: Type hint ! (float) ---
-Local f! = 3.14
-Print "Pi approx: " + Str(f!)
+Local f# = 3.14
+Print "Pi approx: " + Str(f#)
 
 ; --- Function declaration and call ---
 Function Double%(val%)

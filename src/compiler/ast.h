@@ -137,7 +137,7 @@ public:
 class VarExpr : public ExprNode {
 public:
   std::string name;
-  std::string typeHint; // %  #  !  $  as written at this use site, or ""
+  std::string typeHint; // %  #  $  as written at this use site, or ""
                         // (informational: the name alone identifies the
                         //  variable, as in Blitz3D — the semantic pass uses
                         //  the tag to detect a contradiction)
@@ -213,7 +213,7 @@ public:
   // the plain variable `varName`, and only then do `varName` and `typeHint`
   // mean anything - an array element or a field is never declared by the loop.
   std::string varName;
-  std::string typeHint;                       // "", "%", "#", "!", "$"
+  std::string typeHint;                       // "", "%", "#", "$"
   std::unique_ptr<ExprNode> target;           // null = plain variable
   std::unique_ptr<ExprNode> start, end, step; // step may be nullptr
   std::vector<std::unique_ptr<ASTNode>> block;
@@ -258,7 +258,7 @@ public:
 class ConstDecl : public StmtNode {
 public:
   std::string name;
-  std::string typeHint; // %  #  !  $  or ""
+  std::string typeHint; // %  #  $  or ""
   std::unique_ptr<ExprNode> value;
   ConstDecl(std::string n, std::string th, std::unique_ptr<ExprNode> val)
       : name(std::move(n)), typeHint(std::move(th)), value(std::move(val)) {}
@@ -269,7 +269,7 @@ public:
 class DimStmt : public StmtNode {
 public:
   std::string name;
-  std::string typeHint; // %  #  !  $  or ""
+  std::string typeHint; // %  #  $  or ""
   std::vector<std::unique_ptr<ExprNode>> dims;
   DimStmt(std::string n, std::string th)
       : name(std::move(n)), typeHint(std::move(th)) {}
@@ -280,7 +280,7 @@ public:
 class ArrayAccess : public ExprNode {
 public:
   std::string name;
-  std::string typeHint; // %  #  !  $  as written at this use site, or ""
+  std::string typeHint; // %  #  $  as written at this use site, or ""
                         // (Blitz3D checks it against the element type -
                         //  ArrayVarNode::semant, BUG-32)
   std::vector<std::unique_ptr<ExprNode>> indices;
@@ -364,7 +364,7 @@ class TypeDecl : public StmtNode {
 public:
   struct Field {
     std::string name;
-    std::string typeHint; // %  #  !  $  or "" (default int handle)
+    std::string typeHint; // %  #  $  or "" (default int handle)
   };
   std::string        name;
   std::vector<Field> fields;

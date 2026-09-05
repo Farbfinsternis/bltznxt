@@ -11,7 +11,7 @@ Type Player
 End Type
 
 ; --- Single-line (colon-separated) form from the roadmap ---
-Type Vec2 : Field dx!, dy! : End Type
+Type Vec2 : Field dx#, dy# : End Type
 
 ; --- Multiple fields on one Field line ---
 Type Rect

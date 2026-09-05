@@ -25,5 +25,5 @@ Print grid(2,0)
 Dim vals%(4)
 For i% = 0 To 4
   vals(i) = i * 10
-Next i
+Next
 Print vals(3)

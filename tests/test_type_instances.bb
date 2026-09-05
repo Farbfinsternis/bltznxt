@@ -12,7 +12,7 @@ Print v\x + v\y      ; -> 30
 
 ; --- Float fields ---
 Type Point
-  Field px!, py!
+  Field px#, py#
 End Type
 
 Local p.Point = New Point
@@ -32,7 +32,7 @@ b\n = 7
 Print a\n + b\n      ; -> 12
 
 ; --- Roadmap test: Delete ---
-Type Vec2 : Field x! : End Type
+Type Vec2 : Field x# : End Type
 Local v2.Vec2 = New Vec2
 v2\x = 3.0
 Print v2\x           ; -> 3
