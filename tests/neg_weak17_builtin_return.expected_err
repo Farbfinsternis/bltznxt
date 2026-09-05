@@ -1,0 +1,1 @@
+tests/neg_weak17_builtin_return.bb:2:7: error: Local: cannot assign int to a string

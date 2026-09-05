@@ -1,0 +1,4 @@
+global oben: 4
+const oben: 2
+global in Funktion: 3
+aus dem Block zugewiesen: 6

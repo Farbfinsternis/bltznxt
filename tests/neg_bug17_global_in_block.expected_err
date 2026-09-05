@@ -1,0 +1,1 @@
+tests/neg_bug17_global_in_block.bb:7:10: error: 'Global' is only allowed at the top level of the main program, not inside If/While/For/Repeat/Select - declare 'g' outside the block and assign to it here

@@ -684,6 +684,7 @@ private:
       auto vd  = std::make_unique<VarDecl>(scope, nameTok.value, typeHint,
                                             std::move(init));
       vd->line = nameTok.line;
+      vd->col  = nameTok.col;
       list->nodes.push_back(std::move(vd));
 
       if (peek().type == TokenType::OPERATOR && peek().value == ",")
@@ -757,6 +758,7 @@ private:
       auto cd  = std::make_unique<ConstDecl>(nameTok.value, typeHint,
                                               std::move(val));
       cd->line = nameTok.line;
+      cd->col  = nameTok.col;
       list->nodes.push_back(std::move(cd));
 
       if (peek().type == TokenType::OPERATOR && peek().value == ",")

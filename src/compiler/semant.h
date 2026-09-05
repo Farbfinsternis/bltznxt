@@ -38,8 +38,9 @@ class Analyzer {
 public:
   // Returns the number of errors reported (0 = clean).
   int analyze(Program *prog, const SourceMap &map) {
-    map_      = &map;
-    errors_   = 0;
+    map_        = &map;
+    errors_     = 0;
+    blockDepth_ = 0;
     types_.clear();
     funcs_.clear();
     arrays_.clear();
@@ -171,6 +172,17 @@ private:
     }
   }
 
+  // Statements of a nested block. Blitz3D allows Global and Const only at the
+  // top level of the main program - parseStmtSeq guards both with
+  // "if( scope!=STMTS_PROG ) ex( \"'Global' can only appear in main program\" )"
+  // - so the pass has to know when it is inside one (BUG-17). A Program node
+  // is a statement container, not a block, and deliberately does not count.
+  void block(const std::vector<std::unique_ptr<ASTNode>> &b) {
+    ++blockDepth_;
+    for (auto &s : b) stmt(s.get());
+    --blockDepth_;
+  }
+
   // ---------------------------------------------------------------- lookup
   const Ty *lookup(const std::string &name) const {
     std::string lo = toLower(name);
@@ -239,10 +251,20 @@ private:
       for (auto &s : pr->nodes) stmt(s.get());
     } else if (auto *vd = dynamic_cast<VarDecl *>(n)) {
       Ty t = fromHint(vd->typeHint);
+      if (vd->scope == VarDecl::GLOBAL && blockDepth_ > 0)
+        error(vd->line, vd->col,
+              "'Global' is only allowed at the top level of the main program, "
+              "not inside If/While/For/Repeat/Select - declare '" +
+                  vd->name + "' outside the block and assign to it here");
       if (vd->scope == VarDecl::LOCAL) declare(vd->name, t);
       if (vd->initValue)
         checkAssign(t, expr(vd->initValue.get()), "Local", vd->line, vd->col);
     } else if (auto *cd = dynamic_cast<ConstDecl *>(n)) {
+      if (blockDepth_ > 0)
+        error(cd->line, cd->col,
+              "'Const' is only allowed at the top level of the main program, "
+              "not inside If/While/For/Repeat/Select - move the declaration of '" +
+                  cd->name + "' outside the block");
       if (cd->value) expr(cd->value.get());
     } else if (auto *as = dynamic_cast<AssignStmt *>(n)) {
       Ty val = expr(as->value.get());
@@ -276,13 +298,13 @@ private:
       checkAssign(f, val, "field assignment", fas->line, fas->col);
     } else if (auto *is = dynamic_cast<IfStmt *>(n)) {
       expr(is->condition.get());
-      for (auto &s : is->thenBlock) stmt(s.get());
-      for (auto &s : is->elseBlock) stmt(s.get());
+      block(is->thenBlock);
+      block(is->elseBlock);
     } else if (auto *ws = dynamic_cast<WhileStmt *>(n)) {
       expr(ws->condition.get());
-      for (auto &s : ws->block) stmt(s.get());
+      block(ws->block);
     } else if (auto *rs = dynamic_cast<RepeatStmt *>(n)) {
-      for (auto &s : rs->block) stmt(s.get());
+      block(rs->block);
       if (rs->condition) expr(rs->condition.get());
     } else if (auto *fs = dynamic_cast<ForStmt *>(n)) {
       expr(fs->start.get());
@@ -300,18 +322,18 @@ private:
         checkTag(fs->varName, fs->typeHint, fs->line, fs->col);
       else
         declare(fs->varName, fromHint(fs->typeHint));
-      for (auto &s : fs->block) stmt(s.get());
+      block(fs->block);
     } else if (auto *fes = dynamic_cast<ForEachStmt *>(n)) {
       knownType(fes->typeName, fes->line, fes->col);
       declare(fes->varName, mk(Ty::OBJ, fes->typeName));
-      for (auto &s : fes->block) stmt(s.get());
+      block(fes->block);
     } else if (auto *ss = dynamic_cast<SelectStmt *>(n)) {
       expr(ss->expr.get());
       for (auto &c : ss->cases) {
         for (auto &e : c.expressions) expr(e.get());
-        for (auto &s : c.block) stmt(s.get());
+        block(c.block);
       }
-      for (auto &s : ss->defaultBlock) stmt(s.get());
+      block(ss->defaultBlock);
     } else if (auto *ret = dynamic_cast<ReturnStmt *>(n)) {
       if (ret->value) {
         Ty v = expr(ret->value.get());
@@ -529,8 +551,9 @@ private:
   }
 
   // ------------------------------------------------------------------ state
-  const SourceMap *map_    = nullptr;
-  int              errors_ = 0;
+  const SourceMap *map_        = nullptr;
+  int              errors_     = 0;
+  int              blockDepth_ = 0; // 0 = top level of the body being walked
 
   std::unordered_map<std::string, std::unordered_map<std::string, Ty>> types_;
   std::unordered_map<std::string, FuncInfo>  funcs_;
