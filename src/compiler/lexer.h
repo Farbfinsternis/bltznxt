@@ -1,6 +1,7 @@
 #ifndef BLITZNEXT_LEXER_H
 #define BLITZNEXT_LEXER_H
 
+#include "sourcemap.h"
 #include "token.h"
 #include <iostream>
 #include <stdexcept>
@@ -28,8 +29,10 @@ inline std::string toLower(std::string s) {
 
 class Lexer {
 public:
-  Lexer(const std::string &source, const std::string &filename = "")
-      : source(source), filename(filename), pos(0), line(1), col(1), lexErrors_(0) {}
+  // `map` turns the line counted in the preprocessed stream back into the
+  // file and line the user actually wrote (WEAK-13). It must outlive the lexer.
+  Lexer(const std::string &source, const SourceMap &map)
+      : source(source), map(map), pos(0), line(1), col(1), lexErrors_(0) {}
 
   std::vector<Token> tokenize() {
     std::vector<Token> tokens;
@@ -155,7 +158,7 @@ private:
       tooBig = true;
     }
     if (tooBig || val > 0xFFFFFFFFull) {
-      std::cerr << filename << ":" << line << ":" << startCol
+      std::cerr << map.format(line, startCol)
                 << ": error: " << kind << " literal " << sigil << digits
                 << " does not fit in a 32-bit integer\n";
       ++lexErrors_;
@@ -208,7 +211,7 @@ private:
     if (pos < source.length() && source[pos] == '"') {
       pos++; col++; // skip closing "
     } else {
-      std::cerr << filename << ":" << line << ":" << startCol
+      std::cerr << map.format(line, startCol)
                 << ": error: unclosed string literal\n";
       ++lexErrors_;
     }
@@ -264,8 +267,8 @@ private:
     return keywords.count(val) > 0;
   }
 
-  std::string source;
-  std::string filename;
+  std::string      source;
+  const SourceMap &map;
   size_t pos;
   int line, col;
   int lexErrors_;

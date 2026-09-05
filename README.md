@@ -217,16 +217,20 @@ flags exist precisely so that *any* editor can drive it.
 
 ## Architecture
 
-BlitzNext is a single-pass transpiler. The entire compiler fits in `src/compiler/`:
+BlitzNext is a transpiler: preprocess, lex, parse, check, emit C++17, hand the
+result to g++. The entire compiler fits in `src/compiler/`:
 
 ```
 src/compiler/
   blitzcc.cpp       ← entry point, CLI, build orchestration
   lexer.h           ← case-insensitive tokenizer
   preprocessor.h    ← #Include handling
+  sourcemap.h       ← stream line → (file, line), so diagnostics survive Include
   token.h           ← token types
   ast.h             ← AST node definitions
   parser.h          ← recursive-descent parser
+  semant.h          ← semantic pass: symbol tables, types, arity
+  commands.h        ← built-in command table (generated, see scripts/)
   emitter.h         ← C++17 code generator (Visitor)
   bb_runtime.h      ← core runtime (types, data, I/O)
   bb_math.h         ← math functions

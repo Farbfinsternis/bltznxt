@@ -4,6 +4,7 @@
 #include "ast.h"
 #include "commands.h"
 #include "lexer.h" // toLower
+#include "sourcemap.h"
 #include <iostream>
 #include <string>
 #include <unordered_map>
@@ -36,8 +37,8 @@
 class Analyzer {
 public:
   // Returns the number of errors reported (0 = clean).
-  int analyze(Program *prog, const std::string &fname) {
-    filename_ = fname;
+  int analyze(Program *prog, const SourceMap &map) {
+    map_      = &map;
     errors_   = 0;
     types_.clear();
     funcs_.clear();
@@ -108,7 +109,7 @@ private:
 
   // ------------------------------------------------------------- diagnostics
   void error(int line, int col, const std::string &msg) {
-    std::cerr << filename_ << ":" << line << ":" << (col > 0 ? col : 1)
+    std::cerr << map_->format(line, col > 0 ? col : 1)
               << ": error: " << msg << "\n";
     ++errors_;
   }
@@ -501,8 +502,8 @@ private:
   }
 
   // ------------------------------------------------------------------ state
-  std::string filename_;
-  int         errors_ = 0;
+  const SourceMap *map_    = nullptr;
+  int              errors_ = 0;
 
   std::unordered_map<std::string, std::unordered_map<std::string, Ty>> types_;
   std::unordered_map<std::string, FuncInfo>  funcs_;

@@ -8,10 +8,15 @@
 #include <string>
 #include <vector>
 
+#include "sourcemap.h"
+
 class Preprocessor {
 public:
+  // `map` collects the origin of every emitted line (WEAK-13) and is the only
+  // way a later pass can tell which file a line of the stream came from.
   std::string process(const std::string &path,
-                      std::vector<std::string> &includedFiles) {
+                      std::vector<std::string> &includedFiles,
+                      SourceMap &map) {
     namespace fs = std::filesystem;
 
     // Guard against circular includes
@@ -37,8 +42,10 @@ public:
 
     std::string lineText;
     std::string result;
+    int         lineNo = 0;
 
     while (std::getline(file, lineText)) {
+      ++lineNo;
       // Trim leading whitespace for keyword detection only
       size_t first = lineText.find_first_not_of(" \t");
       std::string trimmed = (first == std::string::npos) ? "" : lineText.substr(first);
@@ -65,16 +72,25 @@ public:
                           : std::string::npos;
           if (q1 != std::string::npos && q2 != std::string::npos) {
             std::string incFile = trimmed.substr(q1 + 1, q2 - q1 - 1);
-            // Resolve relative to the including file's directory
-            fs::path resolved = baseDir / incFile;
-            result += process(resolved.string(), includedFiles);
+            // Resolve relative to the including file's directory.
+            // generic_string() keeps the separators uniform: baseDir may come
+            // from a forward-slash command line while the concatenation adds a
+            // native one, and a diagnostic path is what the IDE matches on.
+            std::string resolved =
+                (baseDir / incFile).lexically_normal().generic_string();
+            // The recursion appends its lines — and its map entries —
+            // right here, so text and table stay in step.
+            result += process(resolved, includedFiles, map);
             result += "\n";
+            // The blank line above stands in for the Include statement.
+            map.addLine(path, lineNo);
             continue;
           }
         }
       }
 
       result += lineText + "\n";
+      map.addLine(path, lineNo);
     }
     return result;
   }

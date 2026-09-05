@@ -16,10 +16,10 @@ public:
   Parser() : pos(0), errorCount(0), tooManyErrors_(false) {}
 
   std::unique_ptr<Program> parse(const std::vector<Token> &toks,
-                                 const std::string &fname = "") {
+                                 const SourceMap &map) {
     tokens         = toks;
     pos            = 0;
-    filename       = fname;
+    map_           = &map;
     errorCount     = 0;
     tooManyErrors_ = false;
     dimmedArrays.clear();
@@ -93,10 +93,10 @@ private:
 
   // Emits an IDE-parseable diagnostic (GCC format: file:line:col: error: msg)
   void error(int line, int col, const std::string &msg) {
-    std::cerr << filename << ":" << line << ":" << col << ": error: "
+    std::cerr << map_->format(line, col) << ": error: "
               << msg << "\n";
     if (++errorCount == kMaxErrors) {
-      std::cerr << filename << ": fatal: too many errors (" << kMaxErrors
+      std::cerr << map_->mainFile() << ": fatal: too many errors (" << kMaxErrors
                 << "), aborting parse.\n";
       tooManyErrors_ = true;
     }
@@ -1242,7 +1242,7 @@ private:
   // ------------------------------------------------------------------ state
   std::vector<Token>              tokens;
   size_t                          pos;
-  std::string                     filename;
+  const SourceMap                *map_ = nullptr;
   int                             errorCount;
   bool                            tooManyErrors_;
   std::unordered_set<std::string> dimmedArrays; // lowercase names of Dim'd arrays

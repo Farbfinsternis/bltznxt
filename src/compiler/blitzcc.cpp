@@ -10,6 +10,7 @@
 #include "parser.h"
 #include "preprocessor.h"
 #include "semant.h"
+#include "sourcemap.h"
 #include "token.h"
 
 // Include last: windows.h macros (BOOL, ERROR, min/max, ...) must not
@@ -178,7 +179,7 @@ static void collectCallsBlock(const std::vector<std::unique_ptr<ASTNode>> &blk,
 }
 
 // Returns number of errors emitted (0 = clean).
-static int checkCalls(const Program *prog, const std::string &filename) {
+static int checkCalls(const Program *prog, const SourceMap &map) {
   // Build known-name set: all built-in commands + user-defined functions
   std::unordered_set<std::string> known;
   for (const auto &c : kCommands)
@@ -193,7 +194,7 @@ static int checkCalls(const Program *prog, const std::string &filename) {
   int errors = 0;
   for (const auto *ce : calls) {
     if (known.count(toUpper(ce->name)) == 0) {
-      std::cerr << filename << ":" << ce->line << ":" << std::max(1, ce->col)
+      std::cerr << map.format(ce->line, std::max(1, ce->col))
                 << ": error: unknown function or command '" << ce->name << "'\n";
       ++errors;
     }
@@ -245,11 +246,11 @@ static void collectGosubsBlock(const std::vector<std::unique_ptr<ASTNode>> &blk,
 
 // Returns number of errors emitted (0 = clean).
 static int checkGosubScope(const std::vector<std::unique_ptr<ASTNode>> &nodes,
-                           const std::string &filename) {
+                           const SourceMap &map) {
   int errors = 0;
   for (const auto &n : nodes) {
     if (auto *pr = dynamic_cast<const Program *>(n.get())) {
-      errors += checkGosubScope(pr->nodes, filename); // included file
+      errors += checkGosubScope(pr->nodes, map); // included file
       continue;
     }
     auto *fd = dynamic_cast<const FunctionDecl *>(n.get());
@@ -257,7 +258,7 @@ static int checkGosubScope(const std::vector<std::unique_ptr<ASTNode>> &nodes,
     std::vector<const GosubStmt *> gosubs;
     collectGosubsBlock(fd->body, gosubs);
     for (const auto *gs : gosubs) {
-      std::cerr << filename << ":" << gs->line << ":" << std::max(1, gs->col)
+      std::cerr << map.format(gs->line, std::max(1, gs->col))
                 << ": error: Gosub is not "
                 << "allowed inside a function ('" << fd->name << "') - a bare "
                 << "Return there returns from the function. Move the subroutine "
@@ -382,27 +383,29 @@ public:
     // Preprocess
     std::vector<std::string> included;
     Preprocessor preproc;
-    std::string src = preproc.process(cfg.inputPath, included);
+    SourceMap    srcMap;
+    srcMap.setMainFile(cfg.inputPath);
+    std::string src = preproc.process(cfg.inputPath, included, srcMap);
     if (src.empty()) {
       std::cerr << cfg.inputPath << ":0:0: error: could not read file\n";
       return 1;
     }
 
     // Lex
-    Lexer lexer(src, cfg.inputPath);
+    Lexer lexer(src, srcMap);
     auto  tokens = lexer.tokenize();
     if (lexer.hasErrors()) return 1;
 
-    // Parse — pass filename for IDE-parseable error messages
+    // Parse — the map turns stream lines back into file:line for diagnostics
     Parser parser;
-    auto   ast = parser.parse(tokens, cfg.inputPath);
+    auto   ast = parser.parse(tokens, srcMap);
     if (parser.hasErrors()) return 1;
 
     // Semantic check: unknown function/command names (WEAK-03 Stufe 1)
     Analyzer analyzer;
-    int semanticErrors = checkCalls(ast.get(), cfg.inputPath) +
-                         checkGosubScope(ast->nodes, cfg.inputPath) +
-                         analyzer.analyze(ast.get(), cfg.inputPath);
+    int semanticErrors = checkCalls(ast.get(), srcMap) +
+                         checkGosubScope(ast->nodes, srcMap) +
+                         analyzer.analyze(ast.get(), srcMap);
     if (semanticErrors > 0) return 1;
 
     // Emit C++17

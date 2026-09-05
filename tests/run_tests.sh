@@ -44,14 +44,32 @@ for f in tests/test_*.bb; do
 done
 
 # ---- Negativtests ----
+# Ein Negativtest muss fehlschlagen. Liegt zusaetzlich eine .expected_err vor,
+# muss die Diagnose auch woertlich stimmen - Datei, Zeile, Spalte, Text. Das
+# ist die einzige Art, ein Zeilen-Mapping (WEAK-13) ueberhaupt zu pruefen.
 for f in tests/neg_*.bb; do
     [ -f "$f" ] || continue
-    if ! bin/blitzcc.exe "$f" -o bin/tmp_neg -q 2>/dev/null; then
-        echo "PASS (expected error): $f"
-        ((PASS++))
-    else
+    name=$(basename "$f" .bb)
+    actual_err=$(bin/blitzcc.exe "$f" -o bin/tmp_neg -q 2>&1 >/dev/null)
+    if [ $? -eq 0 ]; then
         echo "FAIL (should have errored): $f"
         ((FAIL++))
+        continue
+    fi
+    if [ -f "tests/${name}.expected_err" ]; then
+        expected_err=$(cat "tests/${name}.expected_err")
+        if [ "$actual_err" = "$expected_err" ]; then
+            echo "PASS (expected error + message): $f"
+            ((PASS++))
+        else
+            echo "FAIL (diagnostic mismatch): $f"
+            echo "  expected: $expected_err"
+            echo "  actual:   $actual_err"
+            ((FAIL++))
+        fi
+    else
+        echo "PASS (expected error): $f"
+        ((PASS++))
     fi
 done
 
