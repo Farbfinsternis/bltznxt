@@ -269,11 +269,17 @@ private:
       for (auto &s : rs->block) stmt(s.get());
       if (rs->condition) expr(rs->condition.get());
     } else if (auto *fs = dynamic_cast<ForStmt *>(n)) {
-      Ty start = expr(fs->start.get());
+      expr(fs->start.get());
       expr(fs->end.get());
       if (fs->step) expr(fs->step.get());
-      if (!lookup(fs->varName))
-        declare(fs->varName, start.numeric() ? start : mk(Ty::INT));
+      // The loop variable is an ordinary variable: an existing one (Global
+      // included) is used as it stands, and a new one takes the type its tag
+      // says, not the type of the start expression - untagged means int
+      // (BUG-19, ForNode::semant in the reference).
+      if (lookup(fs->varName))
+        checkTag(fs->varName, fs->typeHint, fs->line, fs->col);
+      else
+        declare(fs->varName, fromHint(fs->typeHint));
       for (auto &s : fs->block) stmt(s.get());
     } else if (auto *fes = dynamic_cast<ForEachStmt *>(n)) {
       knownType(fes->typeName, fes->line, fes->col);

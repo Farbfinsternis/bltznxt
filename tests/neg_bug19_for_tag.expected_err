@@ -1,0 +1,1 @@
+tests/neg_bug19_for_tag.bb:4:1: error: Variable type mismatch: 'zaehler' is int, but is used as string

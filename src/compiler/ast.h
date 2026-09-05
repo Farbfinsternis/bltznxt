@@ -208,6 +208,7 @@ public:
 class ForStmt : public StmtNode {
 public:
   std::string varName;
+  std::string typeHint;                       // "", "%", "#", "!", "$"
   std::unique_ptr<ExprNode> start, end, step; // step may be nullptr
   std::vector<std::unique_ptr<ASTNode>> block;
   ForStmt(std::string n, std::unique_ptr<ExprNode> s,

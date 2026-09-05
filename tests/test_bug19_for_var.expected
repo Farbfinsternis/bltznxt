@@ -1,0 +1,8 @@
+global: 4
+implizit: 4
+negativer step: -1
+float-tag: 2.5
+rumpf setzt zaehler: 11 nach 4 durchlaeufen
+grenze ohne step: 3 durchlaeufe, a=4
+grenze mit step: 3 durchlaeufe, b=4
+global in funktion: rueckgabe 4, danach 4

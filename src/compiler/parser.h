@@ -518,11 +518,16 @@ private:
     advance(); // FOR
     Token nameTok = expect(TokenType::ID, "Expected loop variable name");
 
-    // Optional type hint on loop variable
+    // Optional type hint on the loop variable. It is kept, not dropped: the
+    // loop variable is an ordinary Blitz3D variable, so its tag decides the
+    // type the emitter declares it with (BUG-19).
+    std::string hint;
     if (peek().type == TokenType::OPERATOR &&
         (peek().value == "#" || peek().value == "%" ||
-         peek().value == "!" || peek().value == "$"))
+         peek().value == "!" || peek().value == "$")) {
+      hint = peek().value;
       advance();
+    }
 
     expect(TokenType::OPERATOR, "Expected '='", "=");
     auto start = parseExpr();
@@ -537,6 +542,7 @@ private:
 
     auto stmt  = std::make_unique<ForStmt>(nameTok.value, std::move(start),
                                            std::move(end), std::move(step));
+    stmt->typeHint = hint;
     stmt->line  = ln;
     stmt->block = parseBlock({"NEXT"});
     expect(TokenType::KEYWORD, "Expected NEXT", "NEXT");

@@ -346,33 +346,60 @@ public:
     }
   }
 
+  // The loop variable of a For is an ordinary Blitz3D variable, not a fresh
+  // one belonging to the loop (BUG-19). In the reference, ForNode::semant
+  // resolves it with "var->semant(e)" - the same call every other variable
+  // reference goes through - and ForNode::translate reads and writes it with
+  // var->load()/var->store(). Three consequences, all of them observable:
+  //
+  //   * A Global of the same name IS the loop variable; the loop writes it.
+  //   * After the loop the variable keeps the value that failed the test,
+  //     so "For i = 1 To 3" leaves i at 4.
+  //   * The body may assign to it, and that assignment moves the loop.
+  //
+  // Emitting "for (auto var_i = ...)" broke all three: it shadowed the global,
+  // dropped the final value, and turned "i = i + 1" in the body into a
+  // redeclaration that g++ rejected against code the user never wrote.
   void visit(ForStmt *node) override {
     const std::string v = toLower(node->varName);
+
+    // Declare only what does not exist yet, and in the enclosing scope so it
+    // outlives the loop - the same rule visit(AssignStmt*) uses for an
+    // implicitly created variable. An untagged variable is an int in Blitz3D,
+    // which is what hintToType() returns for an empty hint.
+    if (declaredVars.count(v) == 0) {
+      auto [type, defVal] = hintToType(node->typeHint);
+      output << ind() << type << " var_" << v << " = " << defVal << ";\n";
+      declaredVars.insert(v);
+    }
+
     if (node->step) {
-      // When a STEP is given, support negative steps via a ternary condition.
-      // Emit as a block-scoped while loop so var and step temps don't leak.
+      // A STEP may be negative, so the direction of the comparison is decided
+      // at run time. The step itself is hoisted: the reference demands a
+      // constant one ("Step value must be constant" in ForNode::semant), so
+      // evaluating it once changes nothing.
+      //
+      // The end expression is NOT hoisted. ForNode::translate emits
+      // toExpr->translate(g) at the condition label, which every iteration
+      // jumps to, so Blitz3D re-reads the bound on each pass - "For i = 1 To n"
+      // follows an n that the body changes. It appears twice below because the
+      // ternary picks the direction, but only one arm is ever evaluated, so it
+      // is read exactly once per iteration. The loop without STEP already
+      // behaved this way; hoisting it here had made the two forms disagree.
       output << ind() << "{\n";
       indentLevel++;
-
-      output << ind() << "auto var_" << v << " = ";
-      emitExpr(node->start.get());
-      output << ";\n";
-
-      output << ind() << "const auto _end_" << v << " = ";
-      emitExpr(node->end.get());
-      output << ";\n";
 
       output << ind() << "const auto _step_" << v << " = ";
       emitExpr(node->step.get());
       output << ";\n";
 
-      output << ind() << "for (; (_step_" << v
-             << " > 0 ? var_" << v
-             << " <= _end_" << v
-             << " : var_" << v
-             << " >= _end_" << v
-             << "); var_" << v
-             << " += _step_" << v << ") {\n";
+      output << ind() << "for (var_" << v << " = ";
+      emitExpr(node->start.get());
+      output << "; (_step_" << v << " > 0 ? var_" << v << " <= ";
+      emitExpr(node->end.get());
+      output << " : var_" << v << " >= ";
+      emitExpr(node->end.get());
+      output << "); var_" << v << " += _step_" << v << ") {\n";
 
       indentLevel++;
       for (auto &n : node->block) n->accept(this);
@@ -383,7 +410,7 @@ public:
 
     } else {
       // Simple ascending loop without STEP
-      output << ind() << "for (auto var_" << v << " = ";
+      output << ind() << "for (var_" << v << " = ";
       emitExpr(node->start.get());
       output << "; var_" << v << " <= ";
       emitExpr(node->end.get());
@@ -1087,6 +1114,11 @@ private:
       } else if (auto *rp = dynamic_cast<RepeatStmt *>(n.get())) {
         collectLocals(rp->block, out);
       } else if (auto *fr = dynamic_cast<ForStmt *>(n.get())) {
+        // The loop variable counts too (BUG-19): since it is declared in front
+        // of the loop rather than inside the C++ for-init, a Goto past the
+        // whole loop would otherwise cross its initialisation, which is what
+        // BUG-23 was about.
+        add(fr->varName, fr->typeHint);
         collectLocals(fr->block, out);
       } else if (auto *sel = dynamic_cast<SelectStmt *>(n.get())) {
         for (auto &c : sel->cases) collectLocals(c.block, out);
