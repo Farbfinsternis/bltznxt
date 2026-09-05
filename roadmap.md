@@ -172,7 +172,13 @@ Each milestone is scoped to fit within a single AI-session context window:
 *Touch: `emitter.h`, `parser.h`*
 - [x] `Global` VarDecl now emits at C++ **file scope** (before user functions) via new `collectGlobals()` first pass
 - [x] `visit(VarDecl)` for GLOBAL: skips local declaration, only emits initializer assignment in main body
-- [x] `collectGlobals()` recurses into `Program` wrappers and `FunctionDecl` bodies (Global can appear anywhere in BB)
+- [x] `collectGlobals()` recurses into `Program` wrappers and `FunctionDecl` bodies
+- **Korrektur (2026-09-05):** Der frühere Klammersatz „Global can appear anywhere in BB" war falsch.
+  `parseStmtSeq` im Blitz3D-Quelltext lässt `Global` nur bei `scope == STMTS_PROG` zu
+  (`if( scope!=STMTS_PROG ) ex( "'Global' can only appear in main program" );`), ebenso `Const`.
+  Die daraus abgeleitete Erweiterung — `Global` auch in einem Funktionsrumpf — ist verworfen;
+  der semantische Pass lehnt sie jetzt ab (Buglist BUG-17). Das Absteigen in Funktionsrümpfe
+  bleibt, damit ein solcher Fund überhaupt gemeldet werden kann.
 - [x] **Parser bonus**: `Name()` call in statement position now works (paren-call branch added before whitespace-arg loop)
 - **Test:** `Global counter% : Function Inc() : counter=counter+1 : End Function : Inc() : Inc() : Print counter` → `2` ✓
 

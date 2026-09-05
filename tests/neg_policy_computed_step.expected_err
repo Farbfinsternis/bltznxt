@@ -1,0 +1,1 @@
+tests/neg_policy_computed_step.bb:5:1: error: the Step of a For loop must be constant - Blitz3D rejects a computed step ("Step value must be constant")

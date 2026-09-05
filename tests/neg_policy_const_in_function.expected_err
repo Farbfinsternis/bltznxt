@@ -1,0 +1,1 @@
+tests/neg_policy_const_in_function.bb:3:9: error: 'Const' is only allowed at the top level of the main program, not inside a block and not inside a function - move the declaration of 'K' there

@@ -1,0 +1,1 @@
+tests/neg_policy_global_in_function.bb:6:10: error: 'Global' is only allowed at the top level of the main program, not inside a block and not inside a function - declare 'ausFunktion' there and assign to it here

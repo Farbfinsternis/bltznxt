@@ -8,6 +8,7 @@
 #include <iostream>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 // ---------------------------------------------------------------------------
@@ -41,6 +42,7 @@ public:
     map_        = &map;
     errors_     = 0;
     blockDepth_ = 0;
+    constNames_.clear();
     types_.clear();
     funcs_.clear();
     arrays_.clear();
@@ -136,6 +138,7 @@ private:
           globals_[toLower(vd->name)] = fromHint(vd->typeHint);
       } else if (auto *cd = dynamic_cast<ConstDecl *>(n.get())) {
         globals_[toLower(cd->name)] = fromHint(cd->typeHint);
+        constNames_.insert(toLower(cd->name));
       } else if (auto *pr = dynamic_cast<Program *>(n.get())) {
         collect(pr->nodes);
       } else if (auto *is = dynamic_cast<IfStmt *>(n.get())) {
@@ -181,6 +184,28 @@ private:
     ++blockDepth_;
     for (auto &s : b) stmt(s.get());
     --blockDepth_;
+  }
+
+  // True when the expression certainly reads something only known at run time.
+  // ForNode::semant rejects a computed Step ("Step value must be constant"),
+  // and constNode() there is true for literals and for Const identifiers. This
+  // deliberately errs the other way: only a variable, a call or an element /
+  // field access counts as run-time. Literal arithmetic is left alone, because
+  // whether the reference folds it is not established - and missing an error
+  // is better than rejecting a valid program.
+  bool mentionsRuntimeValue(const ExprNode *e) const {
+    if (!e) return false;
+    if (auto *ve = dynamic_cast<const VarExpr *>(e))
+      return constNames_.count(toLower(ve->name)) == 0;
+    if (dynamic_cast<const CallExpr *>(e))     return true;
+    if (dynamic_cast<const ArrayAccess *>(e))  return true;
+    if (dynamic_cast<const FieldAccess *>(e))  return true;
+    if (auto *be = dynamic_cast<const BinaryExpr *>(e))
+      return mentionsRuntimeValue(be->left.get()) ||
+             mentionsRuntimeValue(be->right.get());
+    if (auto *ue = dynamic_cast<const UnaryExpr *>(e))
+      return mentionsRuntimeValue(ue->expr.get());
+    return false; // literals and everything else
   }
 
   // ---------------------------------------------------------------- lookup
@@ -251,20 +276,20 @@ private:
       for (auto &s : pr->nodes) stmt(s.get());
     } else if (auto *vd = dynamic_cast<VarDecl *>(n)) {
       Ty t = fromHint(vd->typeHint);
-      if (vd->scope == VarDecl::GLOBAL && blockDepth_ > 0)
+      if (vd->scope == VarDecl::GLOBAL && (blockDepth_ > 0 || inFunction_))
         error(vd->line, vd->col,
               "'Global' is only allowed at the top level of the main program, "
-              "not inside If/While/For/Repeat/Select - declare '" +
-                  vd->name + "' outside the block and assign to it here");
+              "not inside a block and not inside a function - declare '" +
+                  vd->name + "' there and assign to it here");
       if (vd->scope == VarDecl::LOCAL) declare(vd->name, t);
       if (vd->initValue)
         checkAssign(t, expr(vd->initValue.get()), "Local", vd->line, vd->col);
     } else if (auto *cd = dynamic_cast<ConstDecl *>(n)) {
-      if (blockDepth_ > 0)
+      if (blockDepth_ > 0 || inFunction_)
         error(cd->line, cd->col,
               "'Const' is only allowed at the top level of the main program, "
-              "not inside If/While/For/Repeat/Select - move the declaration of '" +
-                  cd->name + "' outside the block");
+              "not inside a block and not inside a function - move the "
+              "declaration of '" + cd->name + "' there");
       if (cd->value) expr(cd->value.get());
     } else if (auto *as = dynamic_cast<AssignStmt *>(n)) {
       Ty val = expr(as->value.get());
@@ -309,7 +334,13 @@ private:
     } else if (auto *fs = dynamic_cast<ForStmt *>(n)) {
       expr(fs->start.get());
       expr(fs->end.get());
-      if (fs->step) expr(fs->step.get());
+      if (fs->step) {
+        expr(fs->step.get());
+        if (mentionsRuntimeValue(fs->step.get()))
+          error(fs->line, fs->col,
+                "the Step of a For loop must be constant - Blitz3D rejects a "
+                "computed step (\"Step value must be constant\")");
+      }
       // The loop variable is an ordinary variable: an existing one (Global
       // included) is used as it stands, and a new one takes the type its tag
       // says, not the type of the start expression - untagged means int
@@ -562,6 +593,7 @@ private:
   Scope                                     *scope_ = nullptr;
   Ty                                         returnType_;
   bool                                       inFunction_ = false;
+  std::unordered_set<std::string>            constNames_;
   std::unordered_map<std::string, Sig>       sigCache_;
 };
 

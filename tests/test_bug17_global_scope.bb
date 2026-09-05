@@ -1,6 +1,6 @@
-; BUG-17, Positivseite: was weiterhin erlaubt sein muss. Global und Const auf
-; der obersten Ebene des Hauptprogramms, und - als bewusste Erweiterung ueber
-; Blitz3D hinaus, so in roadmap.md festgehalten - Global in einem Funktionsrumpf.
+; BUG-17, Positivseite: was erlaubt bleibt. Global und Const gehoeren auf die
+; oberste Ebene des Hauptprogramms - dort und nur dort. Zugewiesen werden darf
+; aus einem Block und aus einer Funktion heraus.
 
 Global zaehler% = 0
 Const SCHRITT% = 2
@@ -14,14 +14,6 @@ Hoch()
 Print "global oben: " + zaehler
 Print "const oben: " + SCHRITT
 
-Function Setz()
-  Global ausFunktion% = 3
-End Function
-Setz()
-Print "global in Funktion: " + ausFunktion
-
-; Eine Zuweisung an ein Global aus einem Block heraus bleibt erlaubt - nur die
-; Deklaration gehoert nach oben.
 If zaehler > 0 Then
   zaehler = zaehler + SCHRITT
 EndIf
