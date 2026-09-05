@@ -1034,15 +1034,28 @@ private:
     }
   }
 
-  // ---- Goto/Gosub-safe locals ----------------------------------------------
+  // ---- Body-wide locals ----------------------------------------------------
   //
-  // Blitz3D locals belong to the whole function and Goto/Gosub may jump across
-  // their declarations. C++ forbids a jump that skips the initialisation of a
-  // local, so in every body that contains a label all locals are declared up
-  // front (with their default value) and the original declaration becomes a
-  // plain assignment. Bodies without a label are emitted exactly as before.
+  // Declares every variable a body owns at the top of that body, with its
+  // default value; the declaration at the original position becomes a plain
+  // assignment (see visit(VarDecl*) and visit(AssignStmt*)).
+  //
+  // Blitz3D has no block scope. IfNode::semant, WhileNode::semant and
+  // ForNode::semant all hand the *same* Environ down to the statements they
+  // contain, and IdentVarNode::semant puts an implicitly created variable into
+  // "e->decls" - the decl list of the enclosing function or of the program.
+  // A variable first written inside an If therefore belongs to the whole body
+  // (BUG-16). Emitting its declaration where it is first written gave it C++
+  // block scope instead, so it vanished at the closing brace.
+  //
+  // The same pass also keeps a Goto from jumping over an initialisation, which
+  // is what it was originally written for (BUG-23) - that is now a side effect
+  // rather than the trigger.
+  //
+  // A Local without an initialiser emits no code at its original position:
+  // VarDeclNode::translate in the reference is "if( expr ) g->code( ... )",
+  // so a bare "Local x" inside a loop does not re-zero x on every pass.
   void hoistLocals(const std::vector<std::unique_ptr<ASTNode>> &nodes) {
-    if (!containsLabel(nodes)) return;
     std::vector<std::pair<std::string, std::string>> found; // name (lower), hint
     collectLocals(nodes, found);
     for (auto &[lo, hint] : found) {
@@ -1054,36 +1067,6 @@ private:
       if (!hint.empty() && hint[0] == '.')
         varObjectTypes[lo] = toLower(hint.substr(1));
     }
-  }
-
-  // True if this body contains anything that emits a label: an explicit
-  // .label, or a Gosub (whose return label is jumped to from the dispatch
-  // switch at the end of main()).
-  bool containsLabel(const std::vector<std::unique_ptr<ASTNode>> &nodes) {
-    for (auto &n : nodes) {
-      if (dynamic_cast<LabelStmt *>(n.get()) ||
-          dynamic_cast<GosubStmt *>(n.get()))
-        return true;
-      if (auto *prog = dynamic_cast<Program *>(n.get())) {
-        if (containsLabel(prog->nodes)) return true;
-      } else if (auto *if_ = dynamic_cast<IfStmt *>(n.get())) {
-        if (containsLabel(if_->thenBlock) || containsLabel(if_->elseBlock))
-          return true;
-      } else if (auto *wh = dynamic_cast<WhileStmt *>(n.get())) {
-        if (containsLabel(wh->block)) return true;
-      } else if (auto *rp = dynamic_cast<RepeatStmt *>(n.get())) {
-        if (containsLabel(rp->block)) return true;
-      } else if (auto *fr = dynamic_cast<ForStmt *>(n.get())) {
-        if (containsLabel(fr->block)) return true;
-      } else if (auto *sel = dynamic_cast<SelectStmt *>(n.get())) {
-        for (auto &c : sel->cases)
-          if (containsLabel(c.block)) return true;
-        if (containsLabel(sel->defaultBlock)) return true;
-      } else if (auto *fe = dynamic_cast<ForEachStmt *>(n.get())) {
-        if (containsLabel(fe->block)) return true;
-      }
-    }
-    return false;
   }
 
   // Every name this body declares as a local, in source order: Local, an
