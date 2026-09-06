@@ -1,0 +1,3 @@
+tests/neg_weak14_suggest_type_field.bb:10:1: error: Type 'Spielr' not found - did you mean 'Spieler'?
+tests/neg_weak14_suggest_type_field.bb:11:1: error: type 'Spieler' has no field 'punkt' - did you mean 'punkte'?
+tests/neg_weak14_suggest_type_field.bb:12:1: error: type 'Spieler' has no field 'vollkommenanders'

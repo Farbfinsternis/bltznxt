@@ -5,6 +5,7 @@
 #include "commands.h"
 #include "lexer.h" // toLower
 #include "sourcemap.h"
+#include "suggest.h"
 #include <iostream>
 #include <string>
 #include <unordered_map>
@@ -44,6 +45,8 @@ public:
     blockDepth_ = 0;
     constNames_.clear();
     types_.clear();
+    typeNames_.clear();
+    fieldNames_.clear();
     funcs_.clear();
     arrays_.clear();
     globals_.clear();
@@ -125,6 +128,12 @@ private:
       if (auto *td = dynamic_cast<TypeDecl *>(n.get())) {
         auto &fields = types_[toLower(td->name)];
         for (auto &f : td->fields) fields[toLower(f.name)] = fromHint(f.typeHint);
+        // The names as they were written, in declaration order: a
+        // suggestion should read the way the source spells it, and the
+        // order settles a tie reproducibly (WEAK-14, Stufe 2).
+        typeNames_.push_back(td->name);
+        auto &spelled = fieldNames_[toLower(td->name)];
+        for (auto &f : td->fields) spelled.push_back(f.name);
       } else if (auto *fn = dynamic_cast<FunctionDecl *>(n.get())) {
         FuncInfo fi;
         fi.ret = fromHint(fn->returnHint);
@@ -478,7 +487,10 @@ private:
     if (t == types_.end()) return Ty();
     auto f = t->second.find(toLower(field));
     if (f == t->second.end()) {
-      error(line, col, "type '" + obj.obj + "' has no field '" + field + "'");
+      auto sp = fieldNames_.find(toLower(obj.obj));
+      error(line, col, "type '" + obj.obj + "' has no field '" + field + "'" +
+                       (sp == fieldNames_.end() ? std::string()
+                                                : didYouMean(field, sp->second)));
       return Ty();
     }
     return f->second;
@@ -486,7 +498,8 @@ private:
 
   void knownType(const std::string &name, int line, int col) {
     if (!types_.count(toLower(name)))
-      error(line, col, "Type '" + name + "' not found");
+      error(line, col, "Type '" + name + "' not found" +
+                       didYouMean(name, typeNames_));
   }
 
   // ------------------------------------------------------------------ calls
@@ -586,6 +599,8 @@ private:
   int              blockDepth_ = 0; // 0 = top level of the body being walked
 
   std::unordered_map<std::string, std::unordered_map<std::string, Ty>> types_;
+  std::vector<std::string>                            typeNames_;  // as written
+  std::unordered_map<std::string, std::vector<std::string>> fieldNames_;
   std::unordered_map<std::string, FuncInfo>  funcs_;
   std::unordered_map<std::string, ArrayInfo> arrays_;
   Scope                                      globals_;

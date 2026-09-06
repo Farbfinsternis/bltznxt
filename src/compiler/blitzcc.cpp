@@ -12,6 +12,7 @@
 #include "preprocessor.h"
 #include "semant.h"
 #include "sourcemap.h"
+#include "suggest.h"
 #include "token.h"
 
 // Include last: windows.h macros (BOOL, ERROR, min/max, ...) must not
@@ -182,57 +183,6 @@ static void collectCallsBlock(const std::vector<std::unique_ptr<ASTNode>> &blk,
 }
 
 // Returns number of errors emitted (0 = clean).
-// Edit distance between two names, counting a swap of two neighbouring
-// letters as one edit and not two ("Lne" is one swap away from "Len").
-// That is the common typo, and without it a swap loses against an unrelated
-// name that happens to be one insertion away. Capped: once every value in a
-// row exceeds "limit" the result cannot come back below it, so the rest of
-// the table is not worth filling in.
-static size_t editDistance(const std::string &a, const std::string &b,
-                           size_t limit) {
-  if (a.size() > b.size() + limit || b.size() > a.size() + limit)
-    return limit + 1;
-  const size_t inf = limit + 1;
-  std::vector<size_t> prev2(b.size() + 1, inf), prev(b.size() + 1),
-                      cur(b.size() + 1);
-  for (size_t j = 0; j <= b.size(); ++j) prev[j] = j;
-  for (size_t i = 1; i <= a.size(); ++i) {
-    cur[0] = i;
-    size_t best = cur[0];
-    for (size_t j = 1; j <= b.size(); ++j) {
-      size_t cost = (a[i - 1] == b[j - 1]) ? 0 : 1;
-      cur[j] = std::min({cur[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost});
-      if (i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1])
-        cur[j] = std::min(cur[j], prev2[j - 2] + 1); // swapped neighbours
-      best = std::min(best, cur[j]);
-    }
-    if (best > limit) return limit + 1;
-    prev2.swap(prev);
-    prev.swap(cur);
-  }
-  return prev[b.size()];
-}
-
-// The closest known name to "name", or "" when nothing is close enough.
-// The tolerance grows with the length of the typo - one edit in a short name
-// is a different thing than one edit in "CreateListener". Candidates are
-// compared uppercased (Blitz3D is case-insensitive) but suggested in the
-// spelling the table or the declaration uses.
-static std::string closestName(const std::string &name,
-                               const std::vector<std::string> &candidates) {
-  const std::string up = toUpper(name);
-  size_t limit = up.size() <= 3 ? 1 : up.size() <= 7 ? 2 : 3;
-  std::string best;
-  size_t bestDist = limit + 1;
-  for (const auto &cand : candidates) {
-    size_t d = editDistance(up, toUpper(cand), limit);
-    // Strictly better only: on a tie the first candidate wins, and the
-    // caller passes them in a fixed order, so the message is reproducible.
-    if (d < bestDist) { bestDist = d; best = cand; }
-  }
-  return bestDist <= limit ? best : std::string();
-}
-
 static int checkCalls(const Program *prog, const SourceMap &map) {
   // Build known-name set: all built-in commands + user-defined functions.
   // The spelled-out names are kept alongside, in this fixed order, so a
@@ -255,11 +205,10 @@ static int checkCalls(const Program *prog, const SourceMap &map) {
   int errors = 0;
   for (const auto *ce : calls) {
     if (known.count(toUpper(ce->name)) == 0) {
-      std::string hint = closestName(ce->name, knownNames);
+      std::string hint = didYouMean(ce->name, knownNames);
       std::cerr << map.format(ce->line, std::max(1, ce->col))
-                << ": error: unknown function or command '" << ce->name << "'";
-      if (!hint.empty()) std::cerr << " - did you mean '" << hint << "'?";
-      std::cerr << "\n";
+                << ": error: unknown function or command '" << ce->name
+                << "'" << hint << "\n";
       ++errors;
     }
   }
