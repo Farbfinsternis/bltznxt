@@ -104,11 +104,11 @@ bin\blitzcc.exe hello.bb
 
 ### Built-in Commands (~340 total)
 
-**Math** — `Sin`, `Cos`, `Tan`, `ASin`, `ACos`, `ATan`, `ATan2`, `Sqr`, `Abs`, `Log`, `Log10`, `Exp`, `Floor`, `Ceil`, `Sgn`, `Min`, `Max` (`Pi` is not a command but a reserved word for the constant, as in Blitz3D — it takes no parentheses and cannot be declared)
+**Math** — `Sin`, `Cos`, `Tan`, `ASin`, `ACos`, `ATan`, `ATan2`, `Sqr`, `Log`, `Log10`, `Exp`, `Floor`, `Ceil`, `Min`, `Max` (`Abs` and `Sgn` are reserved words, not commands: unary operators over the following expression, so `Abs -3` needs no parentheses. `Pi` likewise is a reserved word for the constant.) (`Pi` is not a command but a reserved word for the constant, as in Blitz3D — it takes no parentheses and cannot be declared)
 
 **Random** — `Rnd`, `Rand`, `SeedRnd`, `RndSeed`
 
-**Strings** — `Str`, `Int`, `Float`, `Len`, `Left`, `Right`, `Mid`, `Instr`, `Replace`, `Upper`, `Lower`, `Trim`, `LSet`, `RSet`, `Chr`, `Asc`, `Hex`, `Bin`, `String`
+**Strings** — `Len`, `Left`, `Right`, `Mid`, `Instr`, `Replace`, `Upper`, `Lower`, `Trim`, `LSet`, `RSet`, `Chr`, `Asc`, `Hex`, `Bin`, `String` (`Str`, `Int` and `Float` are reserved words, not commands: casts over the following expression, written `Str n` or `Str$ n` as in Blitz3D.)
 
 **Time & System** — `MilliSecs`, `CreateTimer`, `WaitTimer`, `FreeTimer`, `AppTitle`, `SystemProperty`, `RuntimeError`, `ExecFile`, `Delay`, `Notify`, `Confirm`, `Proceed`
 

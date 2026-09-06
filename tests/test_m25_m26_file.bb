@@ -44,8 +44,8 @@ Else
     Print "ReadFloat FAIL"
 EndIf
 
-Local str$ = ReadString(fr)
-If str = "hello" Then
+Local zeile$ = ReadString(fr)   ; nicht 'str': reserviertes Wort (BUG-36)
+If zeile = "hello" Then
     Print "ReadString OK"
 Else
     Print "ReadString FAIL"

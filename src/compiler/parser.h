@@ -377,13 +377,15 @@ private:
              peek().type != TokenType::EOF_TOKEN &&
              !(peek().type == TokenType::OPERATOR && peek().value == ":")) {
         // Break on block-terminator keywords, but allow expression-starter
-        // keywords (Not, True, False, Null, New, First, Last, Before, After, Pi).
+        // keywords (Not, True, False, Null, New, First, Last, Before, After, Pi,
+        // Abs, Sgn, Int, Float, Str).
         if (peek().type == TokenType::KEYWORD) {
           const std::string &kw = peek().value;
           bool isExprStarter = (kw == "NOT"  || kw == "TRUE" || kw == "FALSE" ||
                                 kw == "NULL" || kw == "NEW"  || kw == "FIRST" ||
                                 kw == "LAST" || kw == "BEFORE" || kw == "AFTER" ||
-                                kw == "PI");
+                                kw == "PI"   || kw == "ABS"  || kw == "SGN" ||
+                                kw == "INT"  || kw == "FLOAT" || kw == "STR");
           if (!isExprStarter) break;
         }
         call->args.push_back(parseExpr());
@@ -398,7 +400,7 @@ private:
     // Unrecognised token. Reporting it is the point: skipping silently meant
     // that "Local f! = 3.14" produced "int var_f = 0;" and the rest of the line
     // simply vanished - no diagnostic, no code, nothing to notice.
-    error(t.line, t.col, "unexpected token '" + t.value + "'");
+    error(t.line, t.col, "unexpected token " + describeToken(t));
     advance();
     return nullptr;
   }
@@ -1128,7 +1130,44 @@ private:
     return left;
   }
 
+  // A token as it should appear inside a diagnostic. A newline or the end of
+  // the stream has no printable text, and putting it in raw would break the
+  // one-line file:line:col contract that the IDE parses.
+  std::string describeToken(const Token &t) const {
+    if (t.type == TokenType::NEWLINE)   return "end of line";
+    if (t.type == TokenType::EOF_TOKEN) return "end of file";
+    return "'" + t.value + "'";
+  }
+
   std::unique_ptr<ExprNode> parseUnary() {
+    // Abs, Sgn, Int, Float and Str are reserved words, not calls. The
+    // reference handles them here, in parseUniExpr: Abs/Sgn become a
+    // UniExprNode, Int/Float/Str a CastNode, and each takes the following
+    // *unary* expression as its operand - "Abs -3" needs no parentheses.
+    // A type tag right after the cast word is read and dropped, the way
+    // the reference does it (if( toker->next()=='%' ) toker->next();).
+    // The operand keeps going through the ordinary builtin path, so the
+    // emitted code and the arity check stay what they were for Abs(x).
+    if (peek().type == TokenType::KEYWORD) {
+      const std::string &kw = peek().value;
+      const char *canon = kw == "ABS"   ? "Abs"
+                        : kw == "SGN"   ? "Sgn"
+                        : kw == "INT"   ? "Int"
+                        : kw == "FLOAT" ? "Float"
+                        : kw == "STR"   ? "Str" : nullptr;
+      if (canon) {
+        Token t = advance();
+        const char *tag = kw == "INT" ? "%" : kw == "FLOAT" ? "#"
+                        : kw == "STR" ? "$" : nullptr;
+        if (tag && peek().type == TokenType::OPERATOR && peek().value == tag)
+          advance();
+        auto call  = std::make_unique<CallExpr>(canon);
+        call->line = t.line;
+        call->col  = t.col;
+        call->args.push_back(parseUnary());
+        return call;
+      }
+    }
     if (peek().type == TokenType::OPERATOR) {
       const std::string &op = peek().value;
       if (op == "+" || op == "-" || op == "~") {
@@ -1317,7 +1356,7 @@ private:
     }
 
     // Unexpected token — emit an error and return a safe dummy value
-    error(t.line, t.col, "unexpected token '" + t.value + "'");
+    error(t.line, t.col, "unexpected token " + describeToken(t));
     auto le  = std::make_unique<LiteralExpr>(
         Token{TokenType::INT_LIT, "0", t.line, t.col});
     le->line = t.line;

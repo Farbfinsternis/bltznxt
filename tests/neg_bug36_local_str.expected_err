@@ -1,0 +1,2 @@
+tests/neg_bug36_local_str.bb:5:7: error: Expected variable name (got 'STR')
+tests/neg_bug36_local_str.bb:6:10: error: unexpected token end of line

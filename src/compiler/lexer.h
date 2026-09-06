@@ -264,7 +264,12 @@ private:
         "TRUE",     "FALSE",    "NULL",     "PI",
         // Operators (these MUST be keywords so the parser sees KEYWORD type)
         "AND",      "OR",       "XOR",      "NOT",
-        "MOD",      "SHL",      "SHR",      "SAR"
+        "MOD",      "SHL",      "SHR",      "SAR",
+        // Unary operators and casts. Reserved words in Blitz3D, not calls:
+        // parseUniExpr builds UniExprNode for Abs/Sgn and CastNode for
+        // Int/Float/Str, each over a following unary expression (BUG-36).
+        "ABS",      "SGN",
+        "INT",      "FLOAT",    "STR"
     };
     return keywords.count(val) > 0;
   }
