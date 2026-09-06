@@ -1112,7 +1112,7 @@ private:
   }
 
   std::unique_ptr<ExprNode> parseMultiplicative() {
-    auto left = parseUnary();
+    auto left = parsePower();
     while (true) {
       Token t = peek();
       bool isOpMul = (t.type == TokenType::OPERATOR &&
@@ -1121,7 +1121,7 @@ private:
       if (!isOpMul && !isKwMul) break;
       int ln = t.line;
       advance();
-      auto right = parseUnary();
+      auto right = parsePower();
       auto be    = std::make_unique<BinaryExpr>(t.value, std::move(left),
                                                  std::move(right));
       be->line = ln;
@@ -1173,20 +1173,23 @@ private:
       if (op == "+" || op == "-" || op == "~") {
         int ln = peek().line;
         advance();
-        auto ue  = std::make_unique<UnaryExpr>(op, parsePower());
+        auto ue  = std::make_unique<UnaryExpr>(op, parseUnary());
         ue->line = ln;
         return ue;
       }
     }
-    return parsePower();
+    return parsePostfix();
   }
 
+  // The power level sits *above* the unary one, as parseExpr6 does in the
+  // reference: it takes both of its operands from parseUniExpr, so a sign
+  // belongs to the base and "-2 ^ 2" is (-2) ^ 2 = 4, not -(2 ^ 2) (BUG-37).
   std::unique_ptr<ExprNode> parsePower() {
-    auto left = parsePostfix(); // parsePostfix handles \ field access
+    auto left = parseUnary(); // parseUnary ends in parsePostfix (\ field access)
     while (peek().type == TokenType::OPERATOR && peek().value == "^") {
       int ln = peek().line;
       advance();
-      auto right = parsePostfix();
+      auto right = parseUnary();
       auto be    = std::make_unique<BinaryExpr>("^", std::move(left),
                                                  std::move(right));
       be->line = ln;
