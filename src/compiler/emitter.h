@@ -21,6 +21,7 @@ public:
     varObjectTypes.clear();
     declaredVars.clear();
     globalVarNames.clear();
+    hoistedConsts_.clear();
     indentLevel    = 1;
     inExprCtx      = false;
     inFunctionBody = false;
@@ -45,6 +46,12 @@ public:
       if (auto *td = dynamic_cast<TypeDecl *>(n.get()))
         emitTypeDecl(td);
 
+    // Emit constants at file scope. In Blitz3D a Const belongs to the whole
+    // program, not to the statement stream: parseStmtSeq puts it into its own
+    // list (consts->push_back( parseVarDecl( DECL_GLOBAL,true ) )). Emitting it
+    // inside main() would hide it from every function (BUG-33).
+    collectConsts(prog->nodes);
+
     // Emit global variable declarations at file scope (visible to all functions)
     collectGlobals(prog->nodes);
 
@@ -55,7 +62,8 @@ public:
     // inside main() by visit(DimStmt*) as an assignment.
     hoistedDims_.clear();
     collectDims(prog->nodes);
-    if (!globalVarNames.empty() || !hoistedDims_.empty()) output << "\n";
+    if (!globalVarNames.empty() || !hoistedDims_.empty() ||
+        !hoistedConsts_.empty()) output << "\n";
 
     // Forward-declare every function first, so that calls do not depend on
     // the order of definition — mutual recursion included.
@@ -590,6 +598,8 @@ public:
   }
 
   void visit(ConstDecl *node) override {
+    // Already emitted at file scope by collectConsts().
+    if (hoistedConsts_.count(toLower(node->name))) return;
     bool prev = inExprCtx; inExprCtx = true;
     if (node->typeHint == "$") {
       output << ind() << "const bbString var_" << toLower(node->name) << " = ";
@@ -836,6 +846,7 @@ private:
   std::unordered_set<std::string> hoistedLocals_;     // declared up front (Goto-safe)
   std::string returnDefault_ = "0";                  // default value of the current function
   std::unordered_set<std::string> globalVarNames;     // lowercase names of file-scope globals
+  std::unordered_set<std::string> hoistedConsts_;     // lowercase names of file-scope constants
   std::unordered_set<std::string> hoistedDims_;       // lowercase names of forward-declared Dim arrays
   std::unordered_map<std::string, std::string> varObjectTypes; // lowercase var → TypeName
   int  indentLevel    = 1;
@@ -1132,6 +1143,35 @@ private:
         collectLocals(sel->defaultBlock, out);
       } else if (auto *fe = dynamic_cast<ForEachStmt *>(n.get())) {
         collectLocals(fe->block, out);
+      }
+    }
+  }
+
+  // Emit every top-level Const at file scope, in source order so that one
+  // constant may build on an earlier one. Function bodies are not searched:
+  // a Const inside a function is rejected by the semantic pass, and if one
+  // ever reached the emitter, visit(ConstDecl*) still emits it in place.
+  void collectConsts(const std::vector<std::unique_ptr<ASTNode>> &nodes) {
+    for (auto &n : nodes) {
+      if (auto *prog = dynamic_cast<Program *>(n.get())) {
+        collectConsts(prog->nodes);
+      } else if (auto *cd = dynamic_cast<ConstDecl *>(n.get())) {
+        std::string lo = toLower(cd->name);
+        if (hoistedConsts_.count(lo)) continue; // skip duplicates
+        hoistedConsts_.insert(lo);
+        declaredVars.insert(lo); // never re-declared as an implicit variable
+        if (cd->typeHint == "$") {
+          output << "const bbString var_" << lo << " = ";
+        } else {
+          std::string type = "auto";
+          if      (cd->typeHint == "%") type = "int";
+          else if (cd->typeHint == "#") type = "float";
+          output << "constexpr " << type << " var_" << lo << " = ";
+        }
+        bool prev = inExprCtx; inExprCtx = true;
+        cd->value->accept(this);
+        inExprCtx = prev;
+        output << ";\n";
       }
     }
   }
