@@ -22,6 +22,11 @@ public:
     declaredVars.clear();
     globalVarNames.clear();
     hoistedConsts_.clear();
+    pinned_.clear();
+    pinCount_ = 0;
+    userFuncDecls_.clear();
+    writesState_.clear();
+    writesBusy_.clear();
     indentLevel    = 1;
     inExprCtx      = false;
     inFunctionBody = false;
@@ -34,6 +39,7 @@ public:
         std::transform(lo.begin(), lo.end(), lo.begin(),
                [](unsigned char c){ return (char)std::tolower(c); });
         userFunctions.insert(lo);
+        userFuncDecls_[lo] = fn;
       } else if (auto *td = dynamic_cast<TypeDecl *>(n.get())) {
         typeNames.insert(toLower(td->name));
       }
@@ -97,7 +103,7 @@ public:
     for (auto &n : prog->nodes)
       if (!dynamic_cast<FunctionDecl *>(n.get()) &&
           !dynamic_cast<TypeDecl *>(n.get()))
-        n->accept(this);
+        emitStmt(n.get());
 
     output << "    bbEnd();\n";
     output << "    return 0;\n";
@@ -168,22 +174,22 @@ public:
     if (node->op == "^") {
       // Blitz3D ^ is power, not XOR
       output << "std::pow(";
-      node->left->accept(this);
+      emitOperand(node->left.get());
       output << ", ";
-      node->right->accept(this);
+      emitOperand(node->right.get());
       output << ")";
     } else if (node->op == "SHR") {
       // SHR is a logical (unsigned) right shift — cast left operand to unsigned
       output << "((int)((unsigned int)(";
-      node->left->accept(this);
+      emitOperand(node->left.get());
       output << ") >> (";
-      node->right->accept(this);
+      emitOperand(node->right.get());
       output << ")))";
     } else {
       output << "(";
-      node->left->accept(this);
+      emitOperand(node->left.get());
       output << " " << mapOp(node->op) << " ";
-      node->right->accept(this);
+      emitOperand(node->right.get());
       output << ")";
     }
 
@@ -294,7 +300,7 @@ public:
     output << ") {\n";
 
     indentLevel++;
-    for (auto &n : node->thenBlock) n->accept(this);
+    for (auto &n : node->thenBlock) emitStmt(n.get());
     indentLevel--;
 
     if (!node->elseBlock.empty()) {
@@ -308,7 +314,7 @@ public:
       }
       output << ind() << "} else {\n";
       indentLevel++;
-      for (auto &n : node->elseBlock) n->accept(this);
+      for (auto &n : node->elseBlock) emitStmt(n.get());
       indentLevel--;
     }
     output << ind() << "}\n";
@@ -321,7 +327,7 @@ public:
     inExprCtx = prev;
     output << ") {\n";
     indentLevel++;
-    for (auto &n : node->block) n->accept(this);
+    for (auto &n : node->block) emitStmt(n.get());
     indentLevel--;
     output << ind() << "}\n";
   }
@@ -331,7 +337,7 @@ public:
       // Repeat … Until cond  →  do { … } while (!(cond));
       output << ind() << "do {\n";
       indentLevel++;
-      for (auto &n : node->block) n->accept(this);
+      for (auto &n : node->block) emitStmt(n.get());
       indentLevel--;
       output << ind() << "} while (!(";
       bool prev = inExprCtx; inExprCtx = true;
@@ -342,7 +348,7 @@ public:
       // Repeat … Forever  →  while (true) { … }
       output << ind() << "while (true) {\n";
       indentLevel++;
-      for (auto &n : node->block) n->accept(this);
+      for (auto &n : node->block) emitStmt(n.get());
       indentLevel--;
       output << ind() << "}\n";
     }
@@ -421,7 +427,7 @@ public:
       output << " += _step_" << v << ") {\n";
 
       indentLevel++;
-      for (auto &n : node->block) n->accept(this);
+      for (auto &n : node->block) emitStmt(n.get());
       indentLevel--;
       output << ind() << "}\n";
       indentLevel--;
@@ -441,7 +447,7 @@ public:
       counter();
       output << ") {\n";
       indentLevel++;
-      for (auto &n : node->block) n->accept(this);
+      for (auto &n : node->block) emitStmt(n.get());
       indentLevel--;
       output << ind() << "}\n";
     }
@@ -466,7 +472,7 @@ public:
       inExprCtx = prev;
       output << ") {\n";
       indentLevel++;
-      for (auto &n : c.block) n->accept(this);
+      for (auto &n : c.block) emitStmt(n.get());
       indentLevel--;
       output << ind() << "}\n";
       first = false;
@@ -475,7 +481,7 @@ public:
     if (!node->defaultBlock.empty()) {
       output << ind() << "else {\n";
       indentLevel++;
-      for (auto &n : node->defaultBlock) n->accept(this);
+      for (auto &n : node->defaultBlock) emitStmt(n.get());
       indentLevel--;
       output << ind() << "}\n";
     }
@@ -504,7 +510,7 @@ public:
 
     bool prev = inExprCtx; inExprCtx = true;
     for (size_t i = 0; i < node->args.size(); ++i) {
-      node->args[i]->accept(this);
+      emitOperand(node->args[i].get());
       if (i + 1 < node->args.size()) output << ", ";
     }
     inExprCtx = prev;
@@ -555,7 +561,7 @@ public:
     inFunctionBody = true;
     indentLevel = 1;
     hoistLocals(node->body);
-    for (auto &n : node->body) n->accept(this);
+    for (auto &n : node->body) emitStmt(n.get());
     inFunctionBody = false;
     hoistedLocals_ = savedHoisted;
 
@@ -775,7 +781,7 @@ public:
     std::transform(lo.begin(), lo.end(), lo.begin(),
                [](unsigned char c){ return (char)std::tolower(c); });
     varObjectTypes[lo] = toLower(t);
-    for (auto &n : node->block) n->accept(this);
+    for (auto &n : node->block) emitStmt(n.get());
     indentLevel--;
     output << ind() << "}\n";
     indentLevel--;
@@ -829,7 +835,7 @@ public:
   }
 
   void visit(Program *node) override {
-    for (auto &n : node->nodes) n->accept(this);
+    for (auto &n : node->nodes) emitStmt(n.get());
   }
 
 private:
@@ -841,12 +847,276 @@ private:
   std::string returnDefault_ = "0";                  // default value of the current function
   std::unordered_set<std::string> globalVarNames;     // lowercase names of file-scope globals
   std::unordered_set<std::string> hoistedConsts_;     // lowercase names of file-scope constants
+  std::unordered_map<const ExprNode *, std::string> pinned_; // operand -> temp name
+  std::unordered_map<std::string, const FunctionDecl *> userFuncDecls_;
+  std::unordered_map<std::string, bool> writesState_; // memo per function
+  std::unordered_set<std::string>      writesBusy_;   // recursion guard
+  int  pinCount_      = 0;                           // numbers the __seqN__ temporaries
   std::unordered_set<std::string> hoistedDims_;       // lowercase names of forward-declared Dim arrays
   std::unordered_map<std::string, std::string> varObjectTypes; // lowercase var → TypeName
   int  indentLevel    = 1;
   bool inExprCtx      = false;
   bool inFunctionBody = false;
   int  gosubCount     = 0;
+
+  // ---- Evaluation order (BUG-29) ------------------------------------------
+  //
+  // C++ does not say in which order the operands of "+" are evaluated, so
+  // "a + F()" with an F that writes a had no meaning fixed by the source: the
+  // C++ compiler picked one. Blitz3D does not define an order either - its
+  // Tile::eval in codegen_x86/tile.cpp decides by register need - but there
+  // the choice is made once, at compile time, by one backend. Ours would
+  // differ between g++ and MSVC and between optimisation levels, so the
+  // decision was taken to promise more than the reference does and pin the
+  // order left to right.
+  //
+  // How: in an operand list that contains a call to a user function, every
+  // operand up to and including the last such call is written out into a
+  // numbered temporary first, in source order. What follows stays in place
+  // and is therefore evaluated after them. Only *user* functions count: a
+  // built-in cannot write a Blitz3D variable, so an expression made of
+  // built-ins alone keeps the code it always had.
+  //
+  // The temporaries and their statement go into a braced block, so a Goto
+  // can never jump across one of these initialisations (the reason
+  // hoistLocals() exists, BUG-23). Nothing inside a body declares a C++ name
+  // that has to outlive its statement - hoistLocals() has already pulled
+  // every local to the top - so the braces cost nothing.
+
+  // The operands of a node, in the order Blitz3D reads them.
+  std::vector<ExprNode *> operandsOf(ExprNode *e) {
+    std::vector<ExprNode *> out;
+    if (auto *be = dynamic_cast<BinaryExpr *>(e)) {
+      out.push_back(be->left.get()); out.push_back(be->right.get());
+    } else if (auto *ue = dynamic_cast<UnaryExpr *>(e)) {
+      out.push_back(ue->expr.get());
+    } else if (auto *ce = dynamic_cast<CallExpr *>(e)) {
+      for (auto &a : ce->args) out.push_back(a.get());
+    } else if (auto *aa = dynamic_cast<ArrayAccess *>(e)) {
+      for (auto &i : aa->indices) out.push_back(i.get());
+    } else if (auto *fa = dynamic_cast<FieldAccess *>(e)) {
+      out.push_back(fa->object.get());
+    } else if (auto *be2 = dynamic_cast<BeforeExpr *>(e)) {
+      out.push_back(be2->object.get());
+    } else if (auto *ae = dynamic_cast<AfterExpr *>(e)) {
+      out.push_back(ae->object.get());
+    }
+    return out;
+  }
+
+  // Does this user function change anything a sibling operand could see?
+  // Writing a global, an array element or a field counts, and so does
+  // anything that touches the Data cursor or a type list. A built-in it
+  // calls does not: no built-in can write a Blitz3D variable. Everything
+  // not understood counts as "yes", and so does a recursive cycle - the
+  // safe direction is to write the order out, not to leave it open.
+  bool writesUserState(const std::string &lowerName) {
+    auto memo = writesState_.find(lowerName);
+    if (memo != writesState_.end()) return memo->second;
+    auto it = userFuncDecls_.find(lowerName);
+    if (it == userFuncDecls_.end()) return true;      // unknown: assume it does
+    if (!writesBusy_.insert(lowerName).second) return true; // cycle
+    bool w = blockWrites(it->second->body);
+    writesBusy_.erase(lowerName);
+    writesState_[lowerName] = w;
+    return w;
+  }
+
+  bool blockWrites(const std::vector<std::unique_ptr<ASTNode>> &nodes) {
+    for (auto &n : nodes) if (stmtWrites(n.get())) return true;
+    return false;
+  }
+
+  bool stmtWrites(ASTNode *n) {
+    if (!n) return false;
+    if (auto *as = dynamic_cast<AssignStmt *>(n)) {
+      // A Local of the same name shadows the global; counting that as a
+      // write is the harmless direction.
+      if (globalVarNames.count(toLower(as->name))) return true;
+      return exprWrites(as->value.get());
+    }
+    if (dynamic_cast<ArrayAssignStmt *>(n) || dynamic_cast<FieldAssignStmt *>(n) ||
+        dynamic_cast<DimStmt *>(n)         || dynamic_cast<ReadStmt *>(n) ||
+        dynamic_cast<RestoreStmt *>(n)     || dynamic_cast<DeleteStmt *>(n) ||
+        dynamic_cast<InsertStmt *>(n))
+      return true;
+    if (auto *vd = dynamic_cast<VarDecl *>(n)) {
+      if (vd->scope == VarDecl::GLOBAL) return true;
+      return exprWrites(vd->initValue.get());
+    }
+    if (auto *ce = dynamic_cast<CallExpr *>(n))    return exprWrites(ce);
+    if (auto *rs = dynamic_cast<ReturnStmt *>(n))  return exprWrites(rs->value.get());
+    if (auto *is = dynamic_cast<IfStmt *>(n))
+      return exprWrites(is->condition.get()) || blockWrites(is->thenBlock) ||
+             blockWrites(is->elseBlock);
+    if (auto *ws = dynamic_cast<WhileStmt *>(n))
+      return exprWrites(ws->condition.get()) || blockWrites(ws->block);
+    if (auto *rp = dynamic_cast<RepeatStmt *>(n))
+      return exprWrites(rp->condition.get()) || blockWrites(rp->block);
+    if (auto *fs = dynamic_cast<ForStmt *>(n))
+      return fs->target || exprWrites(fs->start.get()) ||
+             exprWrites(fs->end.get()) || exprWrites(fs->step.get()) ||
+             blockWrites(fs->block);
+    if (auto *fe = dynamic_cast<ForEachStmt *>(n)) return blockWrites(fe->block);
+    if (auto *sl = dynamic_cast<SelectStmt *>(n)) {
+      if (exprWrites(sl->expr.get())) return true;
+      for (auto &c : sl->cases) {
+        for (auto &e : c.expressions) if (exprWrites(e.get())) return true;
+        if (blockWrites(c.block)) return true;
+      }
+      return blockWrites(sl->defaultBlock);
+    }
+    if (auto *pr = dynamic_cast<Program *>(n))     return blockWrites(pr->nodes);
+    if (dynamic_cast<LabelStmt *>(n) || dynamic_cast<GotoStmt *>(n) ||
+        dynamic_cast<ExitStmt *>(n)  || dynamic_cast<EndStmt *>(n) ||
+        dynamic_cast<DataStmt *>(n)  || dynamic_cast<ConstDecl *>(n))
+      return false;
+    if (auto *e = dynamic_cast<ExprNode *>(n))     return exprWrites(e);
+    return true;                                    // not understood
+  }
+
+  // Does evaluating this expression change state? A New links a new object
+  // into its type list, and a call to a user function may do anything that
+  // function does.
+  bool exprWrites(ExprNode *e) {
+    if (!e) return false;
+    if (dynamic_cast<NewExpr *>(e)) return true;
+    if (auto *ce = dynamic_cast<CallExpr *>(e))
+      if (userFunctions.count(toLower(ce->name)) &&
+          writesUserState(toLower(ce->name))) return true;
+    for (auto *c : operandsOf(e)) if (exprWrites(c)) return true;
+    return false;
+  }
+
+  // Any call at all, built-in included: two of them in one expression have
+  // an order between themselves even when neither writes a variable.
+  bool containsCall(ExprNode *e) {
+    if (!e) return false;
+    if (dynamic_cast<CallExpr *>(e) || dynamic_cast<NewExpr *>(e)) return true;
+    for (auto *c : operandsOf(e)) if (containsCall(c)) return true;
+    return false;
+  }
+
+  // Can this subtree see anything a user function could have changed? Only
+  // then does its position relative to a call matter. A local variable or a
+  // parameter cannot: Blitz3D has no way to reach another function's frame,
+  // so a call can neither read nor write it. A global, an array element, a
+  // field of an object and the type lists can all be reached, and so can
+  // anything a second call returns.
+  bool readsMutableState(ExprNode *e) {
+    if (!e) return false;
+    if (auto *ve = dynamic_cast<VarExpr *>(e))
+      return globalVarNames.count(toLower(ve->name)) != 0;
+    if (dynamic_cast<ArrayAccess *>(e))  return true;
+    if (dynamic_cast<FieldAccess *>(e))  return true;
+    if (dynamic_cast<FirstExpr *>(e))    return true;
+    if (dynamic_cast<LastExpr *>(e))     return true;
+    if (dynamic_cast<BeforeExpr *>(e))   return true;
+    if (dynamic_cast<AfterExpr *>(e))    return true;
+    if (dynamic_cast<CallExpr *>(e))     return true;   // built-ins too
+    if (dynamic_cast<NewExpr *>(e))      return true;
+    for (auto *c : operandsOf(e)) if (readsMutableState(c)) return true;
+    return false;
+  }
+
+  // A list of things evaluated one after another - the operands of a node,
+  // or the expressions of one statement. Everything up to and including the
+  // last one that calls a user function is written out, in this order.
+  void pinList(const std::vector<ExprNode *> &ops) {
+    for (size_t i = 0; i < ops.size(); ++i) {
+      pinExpr(ops[i]);                     // inner order first
+      // Nothing follows the last one, so it needs no temporary of its own:
+      // it is evaluated after everything written out above it.
+      if (i + 1 == ops.size()) continue;
+      // Freeze this operand only if some later one could notice the
+      // difference: one of the two changes something the other sees, or
+      // both call something and the calls need an order between them.
+      bool needed = false;
+      for (size_t j = i + 1; j < ops.size() && !needed; ++j)
+        needed = (exprWrites(ops[i]) && readsMutableState(ops[j])) ||
+                 (exprWrites(ops[j]) && readsMutableState(ops[i])) ||
+                 (containsCall(ops[i]) && containsCall(ops[j]));
+      if (!needed) continue;
+      std::string name = "__seq" + std::to_string(++pinCount_) + "__";
+      output << ind() << "auto " << name << " = ";
+      bool prev = inExprCtx; inExprCtx = true;
+      emitOperand(ops[i]);
+      inExprCtx = prev;
+      output << ";\n";
+      pinned_[ops[i]] = name;
+    }
+  }
+
+  // Walks one expression and writes out the temporaries it needs.
+  void pinExpr(ExprNode *e) {
+    if (!e) return;
+    pinList(operandsOf(e));
+  }
+
+  // An operand: the temporary if this one was written out, else the node.
+  void emitOperand(ExprNode *e) {
+    auto it = pinned_.find(e);
+    if (it != pinned_.end()) { output << it->second; return; }
+    e->accept(this);
+  }
+
+  // The expressions of a statement that are evaluated exactly once, right
+  // here. Deliberately missing: the condition of While / Until and the limit
+  // and Step of For. Those are read again on every pass (BUG-19), so writing
+  // them out in front of the loop would change *when* they run - a worse
+  // error than the one this fixes. Inside them the order stays open.
+  void pinStmt(ASTNode *n) {
+    if (auto *as = dynamic_cast<AssignStmt *>(n)) {
+      pinExpr(as->value.get());
+    } else if (auto *ce = dynamic_cast<CallExpr *>(n)) {
+      pinExpr(ce);
+    } else if (auto *rs = dynamic_cast<ReturnStmt *>(n)) {
+      pinExpr(rs->value.get());
+    } else if (auto *is = dynamic_cast<IfStmt *>(n)) {
+      pinExpr(is->condition.get());
+    } else if (auto *ss = dynamic_cast<SelectStmt *>(n)) {
+      pinExpr(ss->expr.get());
+    } else if (auto *vd = dynamic_cast<VarDecl *>(n)) {
+      pinExpr(vd->initValue.get());
+    } else if (auto *fs = dynamic_cast<ForStmt *>(n)) {
+      pinExpr(fs->start.get());           // the start value, once
+    } else if (auto *aa = dynamic_cast<ArrayAssignStmt *>(n)) {
+      std::vector<ExprNode *> ops;        // indices first, then the value
+      for (auto &i : aa->indices) ops.push_back(i.get());
+      ops.push_back(aa->value.get());
+      pinList(ops);
+    } else if (auto *fa = dynamic_cast<FieldAssignStmt *>(n)) {
+      pinList({fa->object.get(), fa->value.get()});
+    } else if (auto *ds = dynamic_cast<DimStmt *>(n)) {
+      std::vector<ExprNode *> ops;
+      for (auto &d : ds->dims) ops.push_back(d.get());
+      pinList(ops);
+    }
+  }
+
+  // Emit one statement, preceded by the temporaries that fix its order.
+  void emitStmt(ASTNode *n) {
+    auto savedPins = pinned_;
+    pinned_.clear();
+    ++indentLevel;
+    std::stringstream keep;
+    keep.swap(output);                   // collect the declarations apart
+    pinStmt(n);
+    std::string decls = output.str();
+    output.swap(keep);
+    --indentLevel;
+    if (decls.empty()) {
+      n->accept(this);
+    } else {
+      output << ind() << "{\n";
+      ++indentLevel;
+      output << decls;
+      n->accept(this);
+      --indentLevel;
+      output << ind() << "}\n";
+    }
+    pinned_ = savedPins;
+  }
 
   std::string ind() const {
     return std::string(static_cast<size_t>(indentLevel) * 4, ' ');
@@ -856,7 +1126,10 @@ private:
   void emitExpr(ASTNode *node) {
     bool prev = inExprCtx;
     inExprCtx  = true;
-    node->accept(this);
+    // An operand that was written out into a temporary for its evaluation
+    // order (BUG-29) is named here instead of emitted a second time.
+    if (auto *e = dynamic_cast<ExprNode *>(node)) emitOperand(e);
+    else node->accept(this);
     inExprCtx = prev;
   }
 
@@ -950,7 +1223,7 @@ private:
     output << ") {\n";
 
     indentLevel++;
-    for (auto &n : node->thenBlock) n->accept(this);
+    for (auto &n : node->thenBlock) emitStmt(n.get());
     indentLevel--;
 
     if (!node->elseBlock.empty()) {
@@ -962,7 +1235,7 @@ private:
       }
       output << ind() << "} else {\n";
       indentLevel++;
-      for (auto &n : node->elseBlock) n->accept(this);
+      for (auto &n : node->elseBlock) emitStmt(n.get());
       indentLevel--;
     }
     output << ind() << "}\n";
