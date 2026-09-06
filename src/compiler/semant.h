@@ -397,7 +397,6 @@ private:
     if (auto *ve = dynamic_cast<VarExpr *>(e)) {
       checkTag(ve->name, ve->typeHint, ve->line, ve->col);
       if (const Ty *t = lookup(ve->name)) return *t;
-      if (toLower(ve->name) == "pi") return mk(Ty::FLOAT);
       return mk(Ty::INT); // auto-declared on use, as in Blitz3D
     }
     if (auto *aa = dynamic_cast<ArrayAccess *>(e)) {

@@ -118,7 +118,15 @@ Each milestone is scoped to fit within a single AI-session context window:
 - [x] `bb_ASin`, `bb_ACos`, `bb_ATan`, `bb_ATan2` (degrees in/out)
 - [x] `bb_Sgn(x)` → -1/0/1
 - [x] `bb_Log10(x)`
-- [x] `bb_Pi` as `constexpr float`; `Pi` identifier emits `bb_Pi` in Emitter
+- [x] `bb_Pi` as `constexpr float` (runtime-internal, used by the degree/radian helpers)
+- **Korrektur (2026-09-06):** Hier stand „`Pi` identifier emits `bb_Pi` in Emitter". `Pi` ist
+  in Blitz3D kein Bezeichner, sondern ein reserviertes Wort: `toker.cpp` legt es neben
+  `True`/`False` ab (`alphaTokes["Pi"]=PI;`), und `parsePrimary` beantwortet den Token mit
+  `FloatConstNode( 3.1415926535897932384626433832795f )`. Der Sonderfall im Emitter ist
+  damit weg; der Lexer kennt `PI` als Schlüsselwort, der Parser macht daraus ein
+  Float-Literal. Eine Deklaration oder Zuweisung `Pi` ist jetzt ein Syntaxfehler
+  (Buglist BUG-35) — vorher wurde sie angenommen und jede Lesestelle still durch das
+  Builtin ersetzt.
 - [x] `bb_Int(float)` → truncate to int (C++ overload alongside `bb_Int(bbString)`)
 - [x] All existing math moved from `bb_runtime.h` to `bb_math.h`; `bb_runtime.h` includes it
 - **Test:** `Print ATan2(1.0, 1.0)` → `45` ✓

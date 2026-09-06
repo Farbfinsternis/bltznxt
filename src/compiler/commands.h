@@ -236,7 +236,6 @@ inline constexpr CmdInfo kCommands[] = {
   { "PeekFloat",           "#", "handle%,offset%" },
   { "PeekInt",             "%", "handle%,offset%" },
   { "PeekShort",           "%", "handle%,offset%" },
-  { "Pi",                  "#", "" },
   { "PlayCDTrack",         "",  "track%" },
   { "PlayMusic",           "%", "file$" },
   { "PlaySound",           "%", "snd%" },

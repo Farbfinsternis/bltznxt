@@ -258,8 +258,10 @@ private:
         "INSERT",
         // Data
         "DATA",     "READ",     "RESTORE",  "INCLUDE",
-        // Literals
-        "TRUE",     "FALSE",    "NULL",
+        // Literals. Pi is a reserved word in Blitz3D, not an identifier:
+        // toker.cpp registers it next to True/False (alphaTokes["Pi"]=PI),
+        // so it can never be declared or assigned to.
+        "TRUE",     "FALSE",    "NULL",     "PI",
         // Operators (these MUST be keywords so the parser sees KEYWORD type)
         "AND",      "OR",       "XOR",      "NOT",
         "MOD",      "SHL",      "SHR",      "SAR"

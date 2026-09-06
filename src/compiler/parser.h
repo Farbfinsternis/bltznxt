@@ -377,12 +377,13 @@ private:
              peek().type != TokenType::EOF_TOKEN &&
              !(peek().type == TokenType::OPERATOR && peek().value == ":")) {
         // Break on block-terminator keywords, but allow expression-starter
-        // keywords (Not, True, False, Null, New, First, Last, Before, After).
+        // keywords (Not, True, False, Null, New, First, Last, Before, After, Pi).
         if (peek().type == TokenType::KEYWORD) {
           const std::string &kw = peek().value;
           bool isExprStarter = (kw == "NOT"  || kw == "TRUE" || kw == "FALSE" ||
                                 kw == "NULL" || kw == "NEW"  || kw == "FIRST" ||
-                                kw == "LAST" || kw == "BEFORE" || kw == "AFTER");
+                                kw == "LAST" || kw == "BEFORE" || kw == "AFTER" ||
+                                kw == "PI");
           if (!isExprStarter) break;
         }
         call->args.push_back(parseExpr());
@@ -1189,6 +1190,19 @@ private:
         auto le  = std::make_unique<LiteralExpr>(
             Token{TokenType::INT_LIT, "0", t.line, t.col});
         le->line = t.line;
+        return le;
+      }
+      if (t.value == "PI") {
+        // parsePrimary() in the reference answers the PI token with a
+        // plain constant: FloatConstNode( 3.14159...f ). Same digits, and the
+        // f keeps it a float: a Blitz3D float is 32 bits wide, and nothing but
+        // the emitter ever reads this token's text.
+        advance();
+        auto le  = std::make_unique<LiteralExpr>(
+            Token{TokenType::FLOAT_LIT,
+                  "3.1415926535897932384626433832795f", t.line, t.col});
+        le->line = t.line;
+        le->col  = t.col;
         return le;
       }
       if (t.value == "NEW") {

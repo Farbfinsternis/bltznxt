@@ -1,0 +1,2 @@
+tests/neg_bug35_assign_pi.bb:5:4: error: unexpected token '='
+tests/neg_bug35_assign_pi.bb:5:6: error: unexpected token '3'

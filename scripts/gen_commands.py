@@ -40,9 +40,11 @@ SIG_RE = re.compile(r"^inline\s+(void|int|float|double|bool|bbString)\s+"
 TEMPLATE_RE = re.compile(r"^template\s*<[^>]*>\s*inline\s+[A-Za-z_][\w:<>&, ]*?\s+"
                          r"bb_([A-Z][A-Za-z0-9_]*)\s*\(", re.MULTILINE)
 
-# Blitz3D-Konstanten, die keine Funktionen sind und deshalb nicht in den
-# Signaturen auftauchen. Der Emitter bildet sie direkt ab (visit(VarExpr)).
-CONSTANTS = [("Pi", "#")]
+# Keine Konstanten in dieser Tabelle. Pi ist in Blitz3D ein reserviertes Wort
+# (toker.cpp: alphaTokes["Pi"]=PI), kein Befehl: parsePrimary() beantwortet den
+# Token mit FloatConstNode. Aufrufbar war es nie - "Pi()" ergab bei uns bis
+# BUG-35 das unuebersetzbare bb_Pi().
+CONSTANTS = []
 
 
 def split_params(text):

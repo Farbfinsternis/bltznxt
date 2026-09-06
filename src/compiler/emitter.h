@@ -204,15 +204,9 @@ public:
   }
 
   void visit(VarExpr *node) override {
-    // Pi is a Blitz3D built-in constant — map to bb_Pi, never var_Pi
-    std::string lo = node->name;
-    std::transform(lo.begin(), lo.end(), lo.begin(),
-               [](unsigned char c){ return (char)std::tolower(c); });
-    if (lo == "pi") {
-      output << "bb_Pi";
-    } else {
-      output << "var_" << lo;
-    }
+    // No name needs special treatment here: Pi is a reserved word since
+    // BUG-35 and reaches the emitter as a float literal, never as a VarExpr.
+    output << "var_" << toLower(node->name);
   }
 
   void visit(VarDecl *node) override {

@@ -104,7 +104,7 @@ bin\blitzcc.exe hello.bb
 
 ### Built-in Commands (~340 total)
 
-**Math** — `Sin`, `Cos`, `Tan`, `ASin`, `ACos`, `ATan`, `ATan2`, `Sqr`, `Abs`, `Log`, `Log10`, `Exp`, `Floor`, `Ceil`, `Sgn`, `Pi`, `Min`, `Max`
+**Math** — `Sin`, `Cos`, `Tan`, `ASin`, `ACos`, `ATan`, `ATan2`, `Sqr`, `Abs`, `Log`, `Log10`, `Exp`, `Floor`, `Ceil`, `Sgn`, `Min`, `Max` (`Pi` is not a command but a reserved word for the constant, as in Blitz3D — it takes no parentheses and cannot be declared)
 
 **Random** — `Rnd`, `Rand`, `SeedRnd`, `RndSeed`
 

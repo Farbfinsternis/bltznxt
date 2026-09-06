@@ -1,0 +1,1 @@
+tests/neg_bug35_const_pi.bb:5:7: error: Expected constant name (got 'PI')
