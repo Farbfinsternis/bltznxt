@@ -1,0 +1,3 @@
+tests/neg_weak14_did_you_mean.bb:9:1: error: unknown function or command 'DrawImge' - did you mean 'DrawImage'?
+tests/neg_weak14_did_you_mean.bb:10:1: error: unknown function or command 'Zeichen' - did you mean 'Zeichne'?
+tests/neg_weak14_did_you_mean.bb:11:7: error: unknown function or command 'Zzzzqqq'

@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <iostream>
 #include <string>
+#include <vector>
 
 #include "commands.h"
 #include "emitter.h"
@@ -76,11 +77,13 @@ static void listCommands(bool withSigs) {
   }
 }
 
-// ---- Semantic check: unknown calls (WEAK-03, Stufe 1) ----------------------
+// ---- Semantic check: unknown calls (WEAK-03, Stufe 1 und 2) ----------------
 //
 // Walks the entire AST and reports any CallExpr whose name is not in
-// kCommands[] and is not a user-defined Function.  Stufe 1 only — no
-// "did you mean?" suggestions and no type / arity checking (Stufe 2/3).
+// kCommands[] and is not a user-defined Function. A name that is close to
+// a known one is named in the message ("did you mean ...?"), which is the
+// most common case by far: a typo in a command name. Type and arity
+// checking is not here but in the Analyzer (semant.h).
 
 static void collectCallsExpr(const ExprNode *e,
                               std::vector<const CallExpr *> &out);
@@ -179,14 +182,72 @@ static void collectCallsBlock(const std::vector<std::unique_ptr<ASTNode>> &blk,
 }
 
 // Returns number of errors emitted (0 = clean).
+// Edit distance between two names, counting a swap of two neighbouring
+// letters as one edit and not two ("Lne" is one swap away from "Len").
+// That is the common typo, and without it a swap loses against an unrelated
+// name that happens to be one insertion away. Capped: once every value in a
+// row exceeds "limit" the result cannot come back below it, so the rest of
+// the table is not worth filling in.
+static size_t editDistance(const std::string &a, const std::string &b,
+                           size_t limit) {
+  if (a.size() > b.size() + limit || b.size() > a.size() + limit)
+    return limit + 1;
+  const size_t inf = limit + 1;
+  std::vector<size_t> prev2(b.size() + 1, inf), prev(b.size() + 1),
+                      cur(b.size() + 1);
+  for (size_t j = 0; j <= b.size(); ++j) prev[j] = j;
+  for (size_t i = 1; i <= a.size(); ++i) {
+    cur[0] = i;
+    size_t best = cur[0];
+    for (size_t j = 1; j <= b.size(); ++j) {
+      size_t cost = (a[i - 1] == b[j - 1]) ? 0 : 1;
+      cur[j] = std::min({cur[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost});
+      if (i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1])
+        cur[j] = std::min(cur[j], prev2[j - 2] + 1); // swapped neighbours
+      best = std::min(best, cur[j]);
+    }
+    if (best > limit) return limit + 1;
+    prev2.swap(prev);
+    prev.swap(cur);
+  }
+  return prev[b.size()];
+}
+
+// The closest known name to "name", or "" when nothing is close enough.
+// The tolerance grows with the length of the typo - one edit in a short name
+// is a different thing than one edit in "CreateListener". Candidates are
+// compared uppercased (Blitz3D is case-insensitive) but suggested in the
+// spelling the table or the declaration uses.
+static std::string closestName(const std::string &name,
+                               const std::vector<std::string> &candidates) {
+  const std::string up = toUpper(name);
+  size_t limit = up.size() <= 3 ? 1 : up.size() <= 7 ? 2 : 3;
+  std::string best;
+  size_t bestDist = limit + 1;
+  for (const auto &cand : candidates) {
+    size_t d = editDistance(up, toUpper(cand), limit);
+    // Strictly better only: on a tie the first candidate wins, and the
+    // caller passes them in a fixed order, so the message is reproducible.
+    if (d < bestDist) { bestDist = d; best = cand; }
+  }
+  return bestDist <= limit ? best : std::string();
+}
+
 static int checkCalls(const Program *prog, const SourceMap &map) {
-  // Build known-name set: all built-in commands + user-defined functions
+  // Build known-name set: all built-in commands + user-defined functions.
+  // The spelled-out names are kept alongside, in this fixed order, so a
+  // suggestion can be printed the way the table or the source writes it.
   std::unordered_set<std::string> known;
-  for (const auto &c : kCommands)
+  std::vector<std::string>        knownNames;
+  for (const auto &c : kCommands) {
     known.insert(toUpper(c.name));
+    knownNames.push_back(c.name);
+  }
   for (const auto &s : prog->nodes)
-    if (auto *fd = dynamic_cast<const FunctionDecl *>(s.get()))
+    if (auto *fd = dynamic_cast<const FunctionDecl *>(s.get())) {
       known.insert(toUpper(fd->name));
+      knownNames.push_back(fd->name);
+    }
 
   std::vector<const CallExpr *> calls;
   collectCallsBlock(prog->nodes, calls);
@@ -194,8 +255,11 @@ static int checkCalls(const Program *prog, const SourceMap &map) {
   int errors = 0;
   for (const auto *ce : calls) {
     if (known.count(toUpper(ce->name)) == 0) {
+      std::string hint = closestName(ce->name, knownNames);
       std::cerr << map.format(ce->line, std::max(1, ce->col))
-                << ": error: unknown function or command '" << ce->name << "'\n";
+                << ": error: unknown function or command '" << ce->name << "'";
+      if (!hint.empty()) std::cerr << " - did you mean '" << hint << "'?";
+      std::cerr << "\n";
       ++errors;
     }
   }
