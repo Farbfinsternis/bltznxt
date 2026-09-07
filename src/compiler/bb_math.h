@@ -38,9 +38,12 @@ inline float bb_Log(float x)   { return std::log(x); }
 inline float bb_Log10(float x) { return std::log10(x); }
 inline float bb_Exp(float x)   { return std::exp(x); }
 
-// Floor/Ceil return int — matches Blitz3D's integer-output semantics for console
-inline int   bb_Floor(float x) { return static_cast<int>(std::floor(x)); }
-inline int   bb_Ceil(float x)  { return static_cast<int>(std::ceil(x)); }
+// Floor/Ceil liefern float. Der Kommentar hier behauptete das Gegenteil
+// ("matches Blitz3D's integer-output semantics") - gemessen am Original meldet
+// `blitzcc +k` aber `Floor# ( float# )` und `Ceil# ( float# )`. Mit int als
+// Rueckgabetyp wurde aus `a# = Ceil(x#) / 2` eine Ganzzahldivision (BUG-44).
+inline float bb_Floor(float x) { return std::floor(x); }
+inline float bb_Ceil(float x)  { return std::ceil(x); }
 
 // Int(double/int) — truncate toward zero (distinct from Int(string) in bb_string.h).
 // double overload: handles both float (implicit float→double) and double literals.

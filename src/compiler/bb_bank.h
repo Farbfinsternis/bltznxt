@@ -136,22 +136,29 @@ inline float bb_PeekFloat(int handle, int offset) {
 // Transfers `count` bytes between a file handle and a bank at `offset`.
 // Replaces the stubs that were in bb_file.h.
 
-inline void bb_WriteBytes(int fileHandle, int bankHandle, int offset, int count) {
-  if (count <= 0) return;
+// Reihenfolge und Rueckgabetyp nach dem Original: `WriteBytes ( bank,file,
+// offset,count )` und `ReadBytes ( bank,file,offset,count )`, beide liefern
+// die Zahl der uebertragenen Bytes. Bei uns standen bank und file vertauscht -
+// ein gueltiges Blitz3D-Programm uebertrug damit still in die falsche
+// Richtung, ohne dass irgendetwas gemeldet wurde (BUG-44).
+inline int bb_WriteBytes(int bankHandle, int fileHandle, int offset, int count) {
+  if (count <= 0) return 0;
   FILE* f = bb_file_get_(fileHandle);
   auto* b = bb_bank_get_(bankHandle);
-  if (!f) { std::cerr << "[runtime] WriteBytes: invalid file handle\n"; return; }
-  if (!bb_bank_check_(b, offset, count)) return;
-  std::fwrite(b->data() + offset, 1, static_cast<size_t>(count), f);
+  if (!f) { std::cerr << "[runtime] WriteBytes: invalid file handle\n"; return 0; }
+  if (!bb_bank_check_(b, offset, count)) return 0;
+  return static_cast<int>(
+      std::fwrite(b->data() + offset, 1, static_cast<size_t>(count), f));
 }
 
-inline void bb_ReadBytes(int fileHandle, int bankHandle, int offset, int count) {
-  if (count <= 0) return;
+inline int bb_ReadBytes(int bankHandle, int fileHandle, int offset, int count) {
+  if (count <= 0) return 0;
   FILE* f = bb_file_get_(fileHandle);
   auto* b = bb_bank_get_(bankHandle);
-  if (!f) { std::cerr << "[runtime] ReadBytes: invalid file handle\n"; return; }
-  if (!bb_bank_check_(b, offset, count)) return;
-  std::fread(b->data() + offset, 1, static_cast<size_t>(count), f);
+  if (!f) { std::cerr << "[runtime] ReadBytes: invalid file handle\n"; return 0; }
+  if (!bb_bank_check_(b, offset, count)) return 0;
+  return static_cast<int>(
+      std::fread(b->data() + offset, 1, static_cast<size_t>(count), f));
 }
 
 // Cleanup hook — called by bbEnd().  Frees all remaining bank handles.

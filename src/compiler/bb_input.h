@@ -300,7 +300,9 @@ inline int bb_JoyHat(int port) {
 }
 
 // Returns non-zero while button (1-based) is held.
-inline int bb_JoyDown(int port, int btn) {
+// Button zuerst, Port optional - im Original `JoyDown ( button[,port] )`.
+// Bei uns standen beide vertauscht (BUG-44).
+inline int bb_JoyDown(int btn, int port = 0) {
   if (bb_sdl_initialized_) bb_PollEvents();
   if (port < 0 || port >= BB_JOY_MAX_PORTS) return 0;
   if (btn < 1 || btn > BB_JOY_MAX_BUTTONS) return 0;
@@ -309,7 +311,7 @@ inline int bb_JoyDown(int port, int btn) {
 
 // Returns non-zero if button was pressed since the last JoyHit call.
 // Edge-triggered: flag is cleared after reading.
-inline int bb_JoyHit(int port, int btn) {
+inline int bb_JoyHit(int btn, int port = 0) {
   if (bb_sdl_initialized_) bb_PollEvents();
   if (port < 0 || port >= BB_JOY_MAX_PORTS) return 0;
   if (btn < 1 || btn > BB_JOY_MAX_BUTTONS) return 0;

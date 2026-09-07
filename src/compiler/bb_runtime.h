@@ -47,6 +47,11 @@ inline void bb_Print(const T &val) {
   std::cout << val << "\n";
 }
 
+// `Print` ohne Argument gibt eine Leerzeile aus - im Original `Print
+// [string$]`, eine der haeufigsten Formen ueberhaupt. Wir haben sie bis
+// 2026-09-07 abgelehnt: 'Not enough parameters for Print' (BUG-44).
+inline void bb_Print() { std::cout << "\n"; }
+
 // ---- Input ----
 // bb_WaitKey() is defined in bb_sdl.h
 
