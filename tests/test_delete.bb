@@ -12,7 +12,7 @@ Local d.Node = New Node : d\val = 40
 
 ; Count: should be 4
 Local count% = 0
-For Each n.Node
+For n.Node = Each Node
     count = count + 1
 Next
 Print "Count: " + Str(count)           ; expected: 4
@@ -21,7 +21,7 @@ Print "Count: " + Str(count)           ; expected: 4
 Delete First Node    ; removes a (val=10)
 
 count = 0
-For Each n.Node
+For n.Node = Each Node
     count = count + 1
 Next
 Print "After Del First: " + Str(count) ; expected: 3
@@ -34,7 +34,7 @@ Print "New first: " + Str(f\val)       ; expected: 20
 Delete Last Node     ; removes d (val=40)
 
 count = 0
-For Each n.Node
+For n.Node = Each Node
     count = count + 1
 Next
 Print "After Del Last: " + Str(count)  ; expected: 2
@@ -47,7 +47,7 @@ Print "New last: " + Str(l\val)        ; expected: 30
 Delete b             ; removes b (val=20)
 
 count = 0
-For Each n.Node
+For n.Node = Each Node
     count = count + 1
 Next
 Print "After Del b: " + Str(count)     ; expected: 1
@@ -63,12 +63,12 @@ Local y.Node = New Node : y\val = 2
 Local z.Node = New Node : z\val = 3
 
 ; Delete all nodes in For Each loop
-For Each n.Node
+For n.Node = Each Node
     Delete n
 Next
 
 count = 0
-For Each n.Node
+For n.Node = Each Node
     count = count + 1
 Next
 Print "After Each Delete: " + Str(count)  ; expected: 0

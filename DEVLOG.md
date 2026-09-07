@@ -1170,6 +1170,16 @@ This allows `Delete p` inside the loop body without corrupting iteration, matchi
 - `Insert a After b` → reordering `30 20 10` ✓
 - `Delete b` then `For Each` → skips deleted element safely ✓
 - `(First Node)\val`, `(Last Node)\val` → field access on First/Last ✓
+
+### Korrektur (2026-09-07, BUG-38)
+`For Each var.Type` war eine Erfindung dieses Projekts — Blitz3D kennt die Form nicht.
+Der `FOR`-Zweig von `parseStmtSeq` liest erst die Variable, dann `=`, dann `EACH`; die
+Schreibweise heisst dort `For var[.Type] = Each Type`. Der Parser nahm bis dahin
+ausschliesslich die erfundene Form an und lehnte die Referenzform ab, weshalb kein
+echtes Blitz3D-Programm mit `For Each` uebersetzte. Alles, was oben ueber den Emitter
+und die loeschsichere Schleife steht, gilt unveraendert — nur die Schreibweise davor
+ist eine andere. `parseForEach()` heisst jetzt `parseForEachOldForm()` und dient nur
+noch dazu, die alte Form mit einer Meldung abzulehnen, die die richtige nennt.
 - All prior tests (M14/M15 type instances, M12 data) still pass ✓
 
 ---

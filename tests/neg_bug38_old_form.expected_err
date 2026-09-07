@@ -1,0 +1,1 @@
+tests/neg_bug38_old_form.bb:13:5: error: 'For Each <var>' is not Blitz3D syntax; write 'For <var> = Each <Type>'

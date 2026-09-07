@@ -181,10 +181,10 @@ End Function
 ;  Delete all live game objects
 ; =============================================================
 Function ClearAll()
-	For Each ca.TAsteroid
+	For ca.TAsteroid = Each TAsteroid
 		Delete ca
 	Next
-	For Each cb.TBullet
+	For cb.TBullet = Each TBullet
 		Delete cb
 	Next
 End Function
@@ -194,7 +194,7 @@ End Function
 ; =============================================================
 Function CountAsteroids%()
 	Local cnt% = 0
-	For Each cc.TAsteroid
+	For cc.TAsteroid = Each TAsteroid
 		If cc\adead = 0 Then cnt = cnt + 1
 	Next
 	Return cnt
@@ -305,7 +305,7 @@ While running
 		End If
 
 		; ---- Physics: bullets -----------------------------
-		For Each ub.TBullet
+		For ub.TBullet = Each TBullet
 			ub\bx    = fWrap(ub\bx + ub\bvx, 0, SCREEN_W)
 			ub\by    = fWrap(ub\by + ub\bvy, 0, SCREEN_H)
 			ub\blife = ub\blife - 1
@@ -313,16 +313,16 @@ While running
 		Next
 
 		; ---- Physics: asteroids ---------------------------
-		For Each ua.TAsteroid
+		For ua.TAsteroid = Each TAsteroid
 			ua\ax     = fWrap(ua\ax + ua\avx, 0, SCREEN_W)
 			ua\ay     = fWrap(ua\ay + ua\avy, 0, SCREEN_H)
 			ua\aangle = ua\aangle + ua\arotspd
 		Next
 
 		; ---- Collision: bullet vs asteroid ----------------
-		For Each cb.TBullet
+		For cb.TBullet = Each TBullet
 			If cb\bdead = 0 Then
-				For Each ca.TAsteroid
+				For ca.TAsteroid = Each TAsteroid
 					If ca\adead = 0 Then
 						If fDist(cb\bx, cb\by, ca\ax, ca\ay) < ca\aradius Then
 							cb\bdead = 1
@@ -338,7 +338,7 @@ While running
 
 		; ---- Collision: ship vs asteroid ------------------
 		If ship_alive Then
-			For Each sa.TAsteroid
+			For sa.TAsteroid = Each TAsteroid
 				If sa\adead = 0 Then
 					If fDist(ship_x, ship_y, sa\ax, sa\ay) < sa\aradius + 11 Then
 						ship_alive = 0
@@ -349,7 +349,7 @@ While running
 		End If
 
 		; ---- Cleanup: dead asteroids (spawn children) -----
-		For Each da.TAsteroid
+		For da.TAsteroid = Each TAsteroid
 			If da\adead Then
 				If da\atier > 1 Then
 					SpawnAsteroid(da\atier - 1, da\ax, da\ay, 1)
@@ -360,7 +360,7 @@ While running
 		Next
 
 		; ---- Cleanup: dead bullets ------------------------
-		For Each db.TBullet
+		For db.TBullet = Each TBullet
 			If db\bdead Then Delete db
 		Next
 
@@ -382,13 +382,13 @@ While running
 		End If
 
 		; ---- Draw: asteroids ------------------------------
-		For Each rd.TAsteroid
+		For rd.TAsteroid = Each TAsteroid
 			DrawAsteroid(rd\ax, rd\ay, rd\aangle, rd\aradius, rd\atier)
 		Next
 
 		; ---- Draw: bullets --------------------------------
 		Color 255, 255, 80
-		For Each rb.TBullet
+		For rb.TBullet = Each TBullet
 			Plot rb\bx,     rb\by
 			Plot rb\bx + 1, rb\by
 			Plot rb\bx,     rb\by + 1

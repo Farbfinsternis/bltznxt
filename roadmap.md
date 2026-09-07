@@ -105,9 +105,13 @@ Each milestone is scoped to fit within a single AI-session context window:
 *Touch: `ast.h`, `parser.h`, `emitter.h`*
 - [x] `FirstExpr`, `LastExpr`, `BeforeExpr`, `AfterExpr` AST nodes
 - [x] `InsertStmt` (insert before/after)
-- [x] `ForEachStmt` (For Each obj.Type ... Next)
-- [x] Emitter: `InsertBefore`/`InsertAfter`/`Unlink` helpers; deletion-safe `For Each` loop
-- **Test:** `For Each n.Node : Print n\val : Next` → `10 20 30` ✓
+- [x] `ForEachStmt` (`For obj.Type = Each Type ... Next`)
+- [x] Emitter: `InsertBefore`/`InsertAfter`/`Unlink` helpers; deletion-safe `For ... = Each` loop
+- **Test:** `For n.Node = Each Node : Print n\val : Next` → `10 20 30` ✓
+- **Richtiggestellt (2026-09-07, BUG-38):** Hier stand `For Each obj.Type` — eine
+  Schreibweise, die es in Blitz3D nicht gibt. Der `FOR`-Zweig von `parseStmtSeq`
+  liest erst die Variable, dann `=`, dann `EACH`. Der Parser nahm bis dahin nur
+  die erfundene Form an und lehnte die Referenzform ab; jetzt ist es umgekehrt.
 
 ---
 

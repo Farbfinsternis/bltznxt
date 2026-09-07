@@ -365,6 +365,22 @@ private:
       block(fs->block);
     } else if (auto *fes = dynamic_cast<ForEachStmt *>(n)) {
       knownType(fes->typeName, fes->line, fes->col);
+      // ForEachNode::semant resolves the index variable like any other and
+      // then insists on two things: it holds an object ("Index variable is
+      // not a NewType") and that object is the very Type being walked
+      // ("Type mismatch"). Without a tag the variable may already exist, so
+      // both are worth checking here.
+      const Ty *had = lookup(fes->varName);
+      if (had && had->known()) {
+        if (had->k != Ty::OBJ)
+          error(fes->line, fes->col,
+                "index variable '" + fes->varName + "' has type " + had->name() +
+                    ", but 'Each " + fes->typeName + "' walks a list of objects");
+        else if (toLower(had->obj) != toLower(fes->typeName))
+          error(fes->line, fes->col,
+                "index variable '" + fes->varName + "' holds a '." + had->obj +
+                    "', but the loop walks '" + fes->typeName + "'");
+      }
       declare(fes->varName, mk(Ty::OBJ, fes->typeName));
       block(fes->block);
     } else if (auto *ss = dynamic_cast<SelectStmt *>(n)) {

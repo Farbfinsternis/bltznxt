@@ -178,17 +178,7 @@ private:
       if (kw == "IF")     return parseIf();
       if (kw == "WHILE")  return parseWhile();
       if (kw == "REPEAT") return parseRepeat();
-      if (kw == "FOR") {
-        // Peek ahead: "For Each" → ForEach loop; otherwise → regular For loop
-        size_t savedPos = pos;
-        advance(); // consume FOR
-        if (peekKw() == "EACH") {
-          pos = savedPos; // restore — parseForEach re-consumes FOR
-          return parseForEach();
-        }
-        pos = savedPos;
-        return parseFor();
-      }
+      if (kw == "FOR")    return parseFor();
       if (kw == "SELECT") return parseSelect();
       if (kw == "RETURN")  return parseReturn();
       if (kw == "DATA")    return parseData();
@@ -535,20 +525,42 @@ private:
     return "";
   }
 
-  std::unique_ptr<ForStmt> parseFor() {
+  std::unique_ptr<StmtNode> parseFor() {
     int ln = peek().line;
     advance(); // FOR
+
+    // "For Each p.Punkt" was this project's own spelling; Blitz3D has no such
+    // form (BUG-38). Read it to the end anyway, so a program written in the
+    // old spelling gets exactly one message per loop instead of a cascade
+    // from the '=' that never comes.
+    if (peekKw() == "EACH") {
+      Token e = peek();
+      error(e.line, e.col,
+            "'For Each <var>' is not Blitz3D syntax; write "
+            "'For <var> = Each <Type>'");
+      return parseForEachOldForm(ln);
+    }
+
     Token nameTok = expect(TokenType::ID, "Expected loop variable name");
 
     // Optional type hint on the loop variable. It is kept, not dropped: the
     // loop variable is an ordinary Blitz3D variable, so its tag decides the
     // type the emitter declares it with (BUG-19).
     std::string hint;
+    // parseVar() in the reference reads its tag with parseTypeTag(), which
+    // also accepts ".TypeName" - that is where the tag in
+    // "For p.Punkt = Each Punkt" comes from (BUG-38).
+    std::string objTag;
+    Token objTagTok;
     if (peek().type == TokenType::OPERATOR &&
         (peek().value == "#" || peek().value == "%" ||
          peek().value == "$")) {
       hint = peek().value;
       advance();
+    } else if (peek().type == TokenType::OPERATOR && peek().value == ".") {
+      advance(); // consume '.'
+      objTagTok = expect(TokenType::ID, "Expected type name after '.'");
+      objTag    = objTagTok.value;
     }
 
     // In the reference the counter is read with parseVar(), the same function
@@ -592,6 +604,40 @@ private:
     }
 
     expect(TokenType::OPERATOR, "Expected '='", "=");
+
+    // The reference reads the '=' first and only then looks for EACH
+    // (parser.cpp, case FOR): "For <var> = Each <Type>".
+    if (peekKw() == "EACH") {
+      advance(); // EACH
+      Token tn = expect(TokenType::ID, "Expected type name after Each");
+      if (target)
+        error(nameTok.line, nameTok.col,
+              "an array element or a field cannot be the index variable of "
+              "'For ... = Each'");
+      else if (!hint.empty())
+        error(nameTok.line, nameTok.col,
+              "index variable '" + nameTok.value + hint +
+                  "' is a number, but 'Each " + tn.value +
+                  "' walks a list of objects");
+      else if (!objTag.empty() && toLower(objTag) != toLower(tn.value))
+        // ForEachNode::semant compares the two and says "Type mismatch"; the
+        // tag and the iterated type have to name the same Type.
+        error(objTagTok.line, objTagTok.col,
+              "index variable is tagged '." + objTag + "', but the loop walks '" +
+                  tn.value + "'");
+      auto each  = std::make_unique<ForEachStmt>(nameTok.value, tn.value);
+      each->line = ln;
+      each->col  = nameTok.col;
+      each->block = parseBlock({"NEXT"});
+      expect(TokenType::KEYWORD, "Expected NEXT", "NEXT");
+      return each;
+    }
+
+    if (!objTag.empty())
+      error(objTagTok.line, objTagTok.col,
+            "'." + objTag + "' makes the counter an object; a counting For "
+            "needs a number");
+
     auto start = parseExpr();
     expect(TokenType::KEYWORD, "Expected TO", "TO");
     auto end  = parseExpr();
@@ -857,9 +903,11 @@ private:
 
   // ------------------------------------------------------------------ FOR EACH
 
-  std::unique_ptr<ForEachStmt> parseForEach() {
-    int ln = peek().line;
-    advance(); // FOR
+  // The rejected "For Each var.Type" spelling, read only so that the loop and
+  // everything after it still parse. parseFor() has already reported it and
+  // the program will not be emitted; this just keeps the error count at one
+  // per loop. FOR is consumed, EACH is not.
+  std::unique_ptr<StmtNode> parseForEachOldForm(int ln) {
     advance(); // EACH
     Token nameTok = expect(TokenType::ID, "Expected variable name after Each");
     std::string typeName;
@@ -870,6 +918,7 @@ private:
     }
     auto s   = std::make_unique<ForEachStmt>(nameTok.value, typeName);
     s->line  = ln;
+    s->col   = nameTok.col;
     s->block = parseBlock({"NEXT"});
     expect(TokenType::KEYWORD, "Expected NEXT", "NEXT");
     return s;

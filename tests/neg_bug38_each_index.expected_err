@@ -1,0 +1,3 @@
+tests/neg_bug38_each_index.bb:14:7: error: index variable is tagged '.Kreis', but the loop walks 'Punkt'
+tests/neg_bug38_each_index.bb:19:5: error: index variable 'n%' is a number, but 'Each Punkt' walks a list of objects
+tests/neg_bug38_each_index.bb:24:7: error: '.Punkt' makes the counter an object; a counting For needs a number

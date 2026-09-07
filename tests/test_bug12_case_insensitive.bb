@@ -40,7 +40,7 @@ Print TOTAL
 ; Typen, Felder, New, First, For Each, Delete
 Local a.Enemy = New Enemy : a\Health = 1
 Local b.Enemy = New enemy : b\HEALTH = 2
-For Each P.ENEMY
+For P.ENEMY = Each ENEMY
   Print p\health
 Next
 Delete A

@@ -1,0 +1,2 @@
+tests/neg_bug38_each_var_type.bb:17:5: error: index variable 'k' has type int, but 'Each Punkt' walks a list of objects
+tests/neg_bug38_each_var_type.bb:23:5: error: index variable 'c' holds a '.Kreis', but the loop walks 'Punkt'

@@ -17,7 +17,7 @@ c\val = 30
 
 ; ----- Test: For Each -----
 Print "=== For Each ==="
-For Each n.Node
+For n.Node = Each Node
   Print n\val
 Next
 ; Expected output: 10  20  30
@@ -40,7 +40,7 @@ Print prev\val ; 20  (b is before c)
 Print "=== Insert Before ==="
 ; Move c before b  → order becomes: a, c, b
 Insert c Before b
-For Each n.Node
+For n.Node = Each Node
   Print n\val
 Next
 ; Expected: 10  30  20
@@ -49,7 +49,7 @@ Next
 Print "=== Insert After ==="
 ; Move a after b  → order becomes: c, b, a
 Insert a After b
-For Each n.Node
+For n.Node = Each Node
   Print n\val
 Next
 ; Expected: 30  20  10
@@ -58,7 +58,7 @@ Next
 Print "=== Delete + Each ==="
 ; Delete b, then iterate
 Delete b
-For Each n.Node
+For n.Node = Each Node
   Print n\val
 Next
 ; Expected: 30  10
