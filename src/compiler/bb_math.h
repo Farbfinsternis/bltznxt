@@ -64,10 +64,15 @@ inline unsigned int bb_rnd_seed_ = 0;
 inline void  bb_SeedRnd(int seed)            { bb_rnd_seed_ = static_cast<unsigned int>(seed); std::srand(bb_rnd_seed_); }
 inline int   bb_RndSeed()                    { return static_cast<int>(bb_rnd_seed_); }
 
-// Rnd() → [0, 1)   Rnd(max) → [0, max)   Rnd(min, max) → [min, max)
-inline float bb_Rnd()                        { return std::rand() / (float)(RAND_MAX + 1u); }
-inline float bb_Rnd(float max)               { return bb_Rnd() * max; }
-inline float bb_Rnd(float min, float max)    { return min + bb_Rnd() * (max - min); }
+// Rnd(max) → [0, max)   Rnd(min, max) → [min, max)
+//
+// Ein Rnd OHNE Argument gibt es nicht: das Original meldet `Rnd# ( from#[,to#] )`
+// und lehnt `Rnd()` mit "Not enough parameters" ab (BUG-44). Der Einheitswert
+// bleibt als interner Helfer erhalten, damit die beiden Formen ihn teilen; der
+// fuehrende Kleinbuchstabe haelt ihn aus der erzeugten Befehlstabelle heraus.
+inline float bb_rnd_unit_()                  { return std::rand() / (float)(RAND_MAX + 1u); }
+inline float bb_Rnd(float max)               { return bb_rnd_unit_() * max; }
+inline float bb_Rnd(float min, float max)    { return min + bb_rnd_unit_() * (max - min); }
 
 // Rand(max) → [1, max]   Rand(min, max) → [min, max]
 inline int   bb_Rand(int max)                { if (max < 1) max = 1; return 1 + (std::rand() % max); }

@@ -215,12 +215,13 @@ inline void bb_FreeImage(int handle) {
 
 // ---- ImageWidth / ImageHeight  (frame param accepted for API compat) ----
 
-inline int bb_ImageWidth(int handle, int frame = 0) {
-    (void)frame;
+// Ohne frame-Parameter: im Original `ImageWidth ( image )`. Alle Frames eines
+// Bildes haben ohnehin dieselbe Groesse - der Parameter wurde hier auch schon
+// vorher ignoriert (BUG-44).
+inline int bb_ImageWidth(int handle) {
     return bb_img_ok_(handle) ? bb_images_[handle].width : 0;
 }
-inline int bb_ImageHeight(int handle, int frame = 0) {
-    (void)frame;
+inline int bb_ImageHeight(int handle) {
     return bb_img_ok_(handle) ? bb_images_[handle].height : 0;
 }
 
@@ -302,20 +303,24 @@ inline void bb_DrawBlockRect(int handle, int x, int y,
 
 // ---- HandleImage / MidHandle / AutoMidHandle ----
 
-inline void bb_HandleImage(int handle, int hx, int hy, int frame = 0) {
-    bb_FrameData_* fd = bb_img_frame_(handle, frame);
-    if (!fd) return;
-    fd->handle_x = hx;
-    fd->handle_y = hy;
+// Ohne frame-Parameter: im Original `HandleImage image,x,y`. Der Griffpunkt
+// gilt dort dem ganzen Bild, also allen Frames (BUG-44).
+inline void bb_HandleImage(int handle, int hx, int hy) {
+    if (!bb_img_ok_(handle)) return;
+    for (auto& fd : bb_images_[handle].frames) {
+        fd.handle_x = hx;
+        fd.handle_y = hy;
+    }
 }
 
-inline void bb_MidHandle(int handle, int frame = 0) {
+// Ohne frame-Parameter: im Original `MidHandle image` (BUG-44).
+inline void bb_MidHandle(int handle) {
     if (!bb_img_ok_(handle)) return;
-    const auto& img = bb_images_[handle];
-    bb_FrameData_* fd = bb_img_frame_(handle, frame);
-    if (!fd) return;
-    fd->handle_x = img.width  / 2;
-    fd->handle_y = img.height / 2;
+    auto& img = bb_images_[handle];
+    for (auto& fd : img.frames) {
+        fd.handle_x = img.width  / 2;
+        fd.handle_y = img.height / 2;
+    }
 }
 
 inline void bb_AutoMidHandle(int on) {
@@ -324,46 +329,55 @@ inline void bb_AutoMidHandle(int on) {
 
 // ---- ImageXHandle / ImageYHandle ----
 
-inline int bb_ImageXHandle(int handle, int frame = 0) {
-    const bb_FrameData_* fd = bb_img_frame_(handle, frame);
+// Ohne frame-Parameter: im Original `ImageXHandle ( image )`. Der Griffpunkt
+// ist fuer alle Frames derselbe, seit HandleImage ihn ueberall setzt (BUG-44).
+inline int bb_ImageXHandle(int handle) {
+    const bb_FrameData_* fd = bb_img_frame_(handle, 0);
     return fd ? fd->handle_x : 0;
 }
-inline int bb_ImageYHandle(int handle, int frame = 0) {
-    const bb_FrameData_* fd = bb_img_frame_(handle, frame);
+inline int bb_ImageYHandle(int handle) {
+    const bb_FrameData_* fd = bb_img_frame_(handle, 0);
     return fd ? fd->handle_y : 0;
 }
 
 // ---- ScaleImage / RotateImage ----
 
-inline void bb_ScaleImage(int handle, float sx, float sy, int frame = 0) {
-    bb_FrameData_* fd = bb_img_frame_(handle, frame);
-    if (!fd) return;
-    fd->scale_x = (sx > 0.0f) ? sx : 0.0f;
-    fd->scale_y = (sy > 0.0f) ? sy : 0.0f;
-}
-
-inline void bb_RotateImage(int handle, float deg, int frame = 0) {
-    bb_FrameData_* fd = bb_img_frame_(handle, frame);
-    if (!fd) return;
-    fd->rotation = deg;
-}
-
-// ---- MaskImage(handle, r, g, b [,frame=0]) ----
-
-inline void bb_MaskImage(int handle, int r, int g, int b, int frame = 0) {
-    bb_FrameData_* fd = bb_img_frame_(handle, frame);
-    if (!fd || fd->pixels.empty()) return;
-    const auto& img = bb_images_[handle];
-    const int n = img.width * img.height;
-    uint8_t* p  = fd->pixels.data();
-    for (int i = 0; i < n; ++i, p += 4) {
-        if (p[0] == static_cast<uint8_t>(r) &&
-            p[1] == static_cast<uint8_t>(g) &&
-            p[2] == static_cast<uint8_t>(b)) {
-            p[3] = 0;
-        }
+// Ohne frame-Parameter: im Original `ScaleImage image,xscale#,yscale#` und
+// `RotateImage image,angle#` - beide wirken auf das ganze Bild (BUG-44).
+inline void bb_ScaleImage(int handle, float sx, float sy) {
+    if (!bb_img_ok_(handle)) return;
+    for (auto& fd : bb_images_[handle].frames) {
+        fd.scale_x = (sx > 0.0f) ? sx : 0.0f;
+        fd.scale_y = (sy > 0.0f) ? sy : 0.0f;
     }
-    bb_img_reupload_frame_(handle, fd);
+}
+
+inline void bb_RotateImage(int handle, float deg) {
+    if (!bb_img_ok_(handle)) return;
+    for (auto& fd : bb_images_[handle].frames) fd.rotation = deg;
+}
+
+// ---- MaskImage(handle, r, g, b) ----
+//
+// Ohne frame-Parameter: im Original `MaskImage image,red,green,blue`. Die
+// Maskenfarbe gilt dem ganzen Bild, also jedem Frame (BUG-44).
+
+inline void bb_MaskImage(int handle, int r, int g, int b) {
+    if (!bb_img_ok_(handle)) return;
+    auto& img = bb_images_[handle];
+    const int n = img.width * img.height;
+    for (auto& fd : img.frames) {
+        if (fd.pixels.empty()) continue;
+        uint8_t* p = fd.pixels.data();
+        for (int i = 0; i < n; ++i, p += 4) {
+            if (p[0] == static_cast<uint8_t>(r) &&
+                p[1] == static_cast<uint8_t>(g) &&
+                p[2] == static_cast<uint8_t>(b)) {
+                p[3] = 0;
+            }
+        }
+        bb_img_reupload_frame_(handle, &fd);
+    }
 }
 
 // ---- TileImage / TileBlock ----

@@ -10,14 +10,16 @@ SeedRnd 1234
 Print RndSeed()
 ; Expected: 1234
 
-; ----- Rnd() — float in [0, 1) -----
+; ----- Rnd(1) — float in [0, 1) -----
+; Ein Rnd ohne Argument gibt es in Blitz3D nicht (BUG-44); Rnd(1) liefert
+; denselben Wertebereich.
 Print "=== Rnd() ==="
 SeedRnd 7
-Local a# = Rnd()
+Local a# = Rnd(1)
 ; Must be >= 0.0 and < 1.0 — just print it and verify range visually
 Print a
-; Also check that Rnd() is not always the same without re-seeding
-Local b# = Rnd()
+; Also check that Rnd(1) is not always the same without re-seeding
+Local b# = Rnd(1)
 Print b
 ; a and b should differ
 

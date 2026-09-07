@@ -1,0 +1,10 @@
+tests/neg_bug44_extra_args.bb:10:12: error: Not enough parameters for 'Rnd': expected at least 1, got 0
+tests/neg_bug44_extra_args.bb:16:7: error: Too many parameters for 'ImageWidth': expected at most 1, got 2
+tests/neg_bug44_extra_args.bb:17:7: error: Too many parameters for 'ImageHeight': expected at most 1, got 2
+tests/neg_bug44_extra_args.bb:18:7: error: Too many parameters for 'ImageXHandle': expected at most 1, got 2
+tests/neg_bug44_extra_args.bb:19:7: error: Too many parameters for 'ImageYHandle': expected at most 1, got 2
+tests/neg_bug44_extra_args.bb:20:1: error: Too many parameters for 'MidHandle': expected at most 1, got 2
+tests/neg_bug44_extra_args.bb:21:1: error: Too many parameters for 'HandleImage': expected at most 3, got 4
+tests/neg_bug44_extra_args.bb:22:1: error: Too many parameters for 'MaskImage': expected at most 4, got 5
+tests/neg_bug44_extra_args.bb:23:1: error: Too many parameters for 'ScaleImage': expected at most 3, got 4
+tests/neg_bug44_extra_args.bb:24:1: error: Too many parameters for 'RotateImage': expected at most 2, got 3
