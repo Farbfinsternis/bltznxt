@@ -479,7 +479,13 @@ public:
     }
 
     if (!node->defaultBlock.empty()) {
-      output << ind() << "else {\n";
+      // Without a single Case there is no 'if' for an 'else' to attach to,
+      // and the emitted C++ did not compile (BUG-18). Blitz3D allows the form:
+      // the SELECT branch of parseStmtSeq reads DEFAULT straight after the
+      // expression, and SelectNode::translate emits the default body
+      // unconditionally after the comparisons - with no comparison to jump
+      // away, it simply always runs.
+      output << ind() << (first ? "{\n" : "else {\n");
       indentLevel++;
       for (auto &n : node->defaultBlock) emitStmt(n.get());
       indentLevel--;
