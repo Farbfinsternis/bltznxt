@@ -1,0 +1,2 @@
+tests/neg_bug39_select_object.bb:14:8: error: 'Select' cannot be used with objects; this expression holds a '.Punkt'
+tests/neg_bug39_select_object.bb:22:8: error: 'Select' cannot be used with objects; this expression holds a '.Punkt'

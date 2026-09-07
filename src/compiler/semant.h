@@ -384,7 +384,17 @@ private:
       declare(fes->varName, mk(Ty::OBJ, fes->typeName));
       block(fes->block);
     } else if (auto *ss = dynamic_cast<SelectStmt *>(n)) {
-      expr(ss->expr.get());
+      Ty sel = expr(ss->expr.get());
+      // SelectNode::semant refuses this before it looks at anything else:
+      //   if( ty->structType() ) ex( "Select cannot be used with objects" );
+      // Numbers and strings are fine; only a Type is not (BUG-39).
+      if (sel.k == Ty::OBJ) {
+        int ln = ss->expr->line ? ss->expr->line : ss->line;
+        int co = ss->expr->col  ? ss->expr->col  : ss->col;
+        error(ln, co,
+              "'Select' cannot be used with objects; this expression holds a '"
+              + sel.name() + "'");
+      }
       for (auto &c : ss->cases) {
         for (auto &e : c.expressions) expr(e.get());
         block(c.block);

@@ -1,0 +1,2 @@
+tests/neg_bug39_first_last_column.bb:9:17: error: Type 'Punkte' not found - did you mean 'Punkt'?
+tests/neg_bug39_first_last_column.bb:10:17: error: Type 'Punktte' not found - did you mean 'Punkt'?

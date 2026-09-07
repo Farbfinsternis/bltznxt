@@ -662,9 +662,11 @@ private:
 
   std::unique_ptr<SelectStmt> parseSelect() {
     int ln = peek().line;
+    int co = peek().col;
     advance(); // SELECT
     auto stmt  = std::make_unique<SelectStmt>(parseExpr());
     stmt->line = ln;
+    stmt->col  = co;
 
     while (!atEnd()) {
       skipNewlines();
@@ -1308,6 +1310,7 @@ private:
         Token tn = expect(TokenType::ID, "Expected type name after First");
         auto fe  = std::make_unique<FirstExpr>(tn.value);
         fe->line = t.line;
+        fe->col  = t.col;
         return fe;
       }
       if (t.value == "LAST") {
@@ -1315,6 +1318,7 @@ private:
         Token tn = expect(TokenType::ID, "Expected type name after Last");
         auto le2 = std::make_unique<LastExpr>(tn.value);
         le2->line = t.line;
+        le2->col  = t.col;
         return le2;
       }
       if (t.value == "BEFORE") {
