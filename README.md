@@ -338,6 +338,27 @@ The command table in `src/compiler/commands.h` is generated from BlitzNext's *ow
 `scripts/gen_commands.py`, not from Blitz3D's — it has to describe what this runtime accepts, which is
 not always the same set.
 
+### Checking against a running Blitz3D
+
+Reading the source answers what the language *means*. A Blitz3D installation answers what it
+*does* — and the two are not always the same thing when the reading is mine. If Blitz3D is
+installed locally, `scripts/compare_reference.sh` runs every program in `tests/` and
+`examples/` through both compilers with `-c` and reports only the verdict and the message:
+
+```
+bash scripts/compare_reference.sh [path/to/Blitz3D]     # or set $BLITZ3D_HOME
+```
+
+Nothing is executed, so it takes seconds. It is a finding list, not a failure list: a `neg_*.bb`
+that pins a deliberate extra diagnostic belongs in the "we reject, it accepts" column, and
+commands from this project's SDL layer show up as `Function 'x' not found` and are counted
+separately as a library difference rather than a language one.
+
+Its first run found six divergences that source-reading had missed, and two wrong assumptions in
+tests written that same day — both derived from the original compiler's source, both plausible,
+both wrong. What it cannot do is compare program *output*: a Blitz3D program draws into its own
+window rather than writing to stdout.
+
 The zlib license permits far more than this. The acknowledgement is here because the work deserves it:
 a language design that is still worth reading twenty-five years later, and a compiler whose structure
 makes whole classes of mistake impossible — which is a lesson this project keeps relearning.
