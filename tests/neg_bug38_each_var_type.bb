@@ -23,3 +23,8 @@ Local c.Kreis = New Kreis
 For c = Each Punkt
   Print c\x
 Next
+
+; der Zaehler entsteht erst hier und ist ohne Tag ein int
+For neu = Each Punkt
+  Print neu\x
+Next

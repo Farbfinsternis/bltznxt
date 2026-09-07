@@ -380,6 +380,18 @@ private:
           error(fes->line, fes->col,
                 "index variable '" + fes->varName + "' holds a '." + had->obj +
                     "', but the loop walks '" + fes->typeName + "'");
+      } else if (fes->typeTag.empty()) {
+        // Gemessen am Original (blitzcc 1.108c): "For q = Each Punkt" mit
+        // einem q, das es noch nicht gibt, meldet "Index variable is not a
+        // NewType". Der Grund steht in IdentVarNode::semant - eine Variable,
+        // die erst hier entsteht, bekommt den Typ ihres Tags, und ohne Tag
+        // ist das int. Ein int ist kein structType, also greift die Schranke
+        // in ForEachNode::semant.
+        error(fes->line, fes->col,
+              "index variable '" + fes->varName + "' is created here and is "
+              "therefore an int, not an object; write '" + fes->varName + "." +
+              fes->typeName + " = Each " + fes->typeName + "' or declare '" +
+              fes->varName + "' before the loop");
       }
       declare(fes->varName, mk(Ty::OBJ, fes->typeName));
       block(fes->block);

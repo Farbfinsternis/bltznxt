@@ -25,7 +25,10 @@ For p.Punkt = Each Punkt
   Print p\x
 Next
 
-; --- ohne Tag: der Zaehler entsteht hier und traegt den Typ der Liste ---
+; --- ohne Tag, aber der Zaehler ist vorher deklariert ---
+; Ohne Tag UND ohne Deklaration waere er ein int - das lehnt Blitz3D ab
+; und wir seit 2026-09-07 auch, siehe neg_bug38_each_var_type.bb.
+Local q.Punkt
 Print "ohne Tag:"
 For q = Each Punkt
   Print q\x

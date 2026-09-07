@@ -460,6 +460,10 @@ class ForEachStmt : public StmtNode {
 public:
   std::string varName;
   std::string typeName;
+  // Der ".Typ"-Tag am Zaehler, leer wenn keiner dastand. Ohne Tag und ohne
+  // vorherige Deklaration legt Blitz3D den Zaehler als int an - und genau
+  // daran scheitert dort "Index variable is not a NewType" (BUG-38).
+  std::string typeTag;
   std::vector<std::unique_ptr<ASTNode>> block;
   ForEachStmt(std::string vn, std::string tn)
       : varName(std::move(vn)), typeName(std::move(tn)) {}

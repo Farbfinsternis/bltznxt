@@ -1,7 +1,8 @@
 ; BUG-39, die Gegenseite - was als Select-Ausdruck erlaubt bleibt.
-; ty->structType() ist nur bei einem Type wahr; Zahlen, Strings und das
-; Null-Literal sind davon nicht betroffen, und ein Feld eines Objekts ist
-; selbst kein Objekt.
+; ty->structType() ist nur bei einem Type wahr; Zahlen und Strings sind
+; davon nicht betroffen, und ein Feld eines Objekts ist selbst kein
+; Objekt. (Nicht dabei: 'Select Null'. Das lehnt das Original ebenfalls
+; ab - bei uns ist Null ein Int-Literal, siehe eigenen Buglist-Eintrag.)
 
 Type Punkt
   Field x%
@@ -29,19 +30,14 @@ Select s
     Print "2: string"
 End Select
 
-Select Null
-  Default
-    Print "3: null-literal"
-End Select
-
 Select Wert()
   Case 4
-    Print "4: aufruf"
+    Print "3: aufruf"
 End Select
 
 Select p\x
   Case 5
-    Print "5: feld eines objekts"
+    Print "4: feld eines objekts"
 End Select
 
 Print "DONE"

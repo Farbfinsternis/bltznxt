@@ -626,6 +626,7 @@ private:
               "index variable is tagged '." + objTag + "', but the loop walks '" +
                   tn.value + "'");
       auto each  = std::make_unique<ForEachStmt>(nameTok.value, tn.value);
+      each->typeTag = objTag;
       each->line = ln;
       each->col  = nameTok.col;
       each->block = parseBlock({"NEXT"});

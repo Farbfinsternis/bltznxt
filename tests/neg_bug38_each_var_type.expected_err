@@ -1,2 +1,3 @@
 tests/neg_bug38_each_var_type.bb:17:5: error: index variable 'k' has type int, but 'Each Punkt' walks a list of objects
 tests/neg_bug38_each_var_type.bb:23:5: error: index variable 'c' holds a '.Kreis', but the loop walks 'Punkt'
+tests/neg_bug38_each_var_type.bb:28:5: error: index variable 'neu' is created here and is therefore an int, not an object; write 'neu.Punkt = Each Punkt' or declare 'neu' before the loop
