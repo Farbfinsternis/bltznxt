@@ -257,7 +257,7 @@ inline void bb_MoveMouse(int x, int y) {
 // btn:  1-based button number.
 
 // Returns 0 = no device, 1 = joystick, 2 = gamepad.
-inline int bb_JoyType(int port) {
+inline int bb_JoyType(int port = 0) {
   if (bb_sdl_initialized_) bb_PollEvents();
   if (port < 0 || port >= BB_JOY_MAX_PORTS) return 0;
   if (!bb_joy_[port].handle) return 0;
@@ -265,27 +265,27 @@ inline int bb_JoyType(int port) {
 }
 
 // Axis values: -1.0 to 1.0.
-inline float bb_JoyX(int port) {
+inline float bb_JoyX(int port = 0) {
   if (bb_sdl_initialized_) bb_PollEvents();
   if (port < 0 || port >= BB_JOY_MAX_PORTS) return 0.0f;
   return bb_joy_[port].x;
 }
-inline float bb_JoyY(int port) {
+inline float bb_JoyY(int port = 0) {
   if (bb_sdl_initialized_) bb_PollEvents();
   if (port < 0 || port >= BB_JOY_MAX_PORTS) return 0.0f;
   return bb_joy_[port].y;
 }
-inline float bb_JoyZ(int port) {
+inline float bb_JoyZ(int port = 0) {
   if (bb_sdl_initialized_) bb_PollEvents();
   if (port < 0 || port >= BB_JOY_MAX_PORTS) return 0.0f;
   return bb_joy_[port].z;
 }
-inline float bb_JoyU(int port) {
+inline float bb_JoyU(int port = 0) {
   if (bb_sdl_initialized_) bb_PollEvents();
   if (port < 0 || port >= BB_JOY_MAX_PORTS) return 0.0f;
   return bb_joy_[port].u;
 }
-inline float bb_JoyV(int port) {
+inline float bb_JoyV(int port = 0) {
   if (bb_sdl_initialized_) bb_PollEvents();
   if (port < 0 || port >= BB_JOY_MAX_PORTS) return 0.0f;
   return bb_joy_[port].v;
@@ -293,7 +293,7 @@ inline float bb_JoyV(int port) {
 
 // Hat direction: 0=center, 1=up, 2=up-right, 3=right, 4=down-right,
 //                5=down, 6=down-left, 7=left, 8=up-left.
-inline int bb_JoyHat(int port) {
+inline int bb_JoyHat(int port = 0) {
   if (bb_sdl_initialized_) bb_PollEvents();
   if (port < 0 || port >= BB_JOY_MAX_PORTS) return 0;
   return bb_joy_[port].hat;
@@ -321,7 +321,7 @@ inline int bb_JoyHit(int btn, int port = 0) {
 }
 
 // Blocks until any button on the port is pressed; returns button number (1-based).
-inline int bb_WaitJoy(int port) {
+inline int bb_WaitJoy(int port = 0) {
   if (port < 0 || port >= BB_JOY_MAX_PORTS) port = 0;
   bb_sdl_ensure_();
   if (!bb_sdl_initialized_) return 1;
@@ -339,17 +339,20 @@ inline int bb_WaitJoy(int port) {
 }
 
 // Alias (Blitz3D compat).
-inline int bb_GetJoy(int port) { return bb_WaitJoy(port); }
+inline int bb_GetJoy(int port = 0) { return bb_WaitJoy(port); }
 
 // Clears all joystick state for the port (keeps handle/id/type intact).
-inline void bb_FlushJoy(int port) {
-  if (port < 0 || port >= BB_JOY_MAX_PORTS) return;
-  bb_JoyPort_ &jp = bb_joy_[port];
-  for (int i = 0; i < BB_JOY_MAX_BUTTONS; ++i) {
-    jp.btn_down[i] = false;
-    jp.btn_hit[i]  = false;
+// Ohne Port: im Original ist `FlushJoy` parameterlos und raeumt damit jeden
+// Port ab (BUG-44).
+inline void bb_FlushJoy() {
+  for (int p = 0; p < BB_JOY_MAX_PORTS; ++p) {
+    bb_JoyPort_ &jp = bb_joy_[p];
+    for (int i = 0; i < BB_JOY_MAX_BUTTONS; ++i) {
+      jp.btn_down[i] = false;
+      jp.btn_hit[i]  = false;
+    }
+    jp.btn_q_head = jp.btn_q_tail = 0;
   }
-  jp.btn_q_head = jp.btn_q_tail = 0;
   // Note: x/y/z/u/v/hat are not reset — they reflect physical state.
 }
 

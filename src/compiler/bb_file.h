@@ -66,10 +66,15 @@ inline int bb_FilePos(int handle) {
   return f ? static_cast<int>(std::ftell(f)) : 0;
 }
 
-// Seeks to an absolute byte offset from the start of the file.
-inline void bb_SeekFile(int handle, int pos) {
+// Seeks to an absolute byte offset from the start of the file and returns the
+// position reached. Im Original `SeekFile ( file_stream,pos )` mit int als
+// Rueckgabetyp; bei uns war es eine reine Anweisung, `p = SeekFile(f, 0)`
+// wurde also abgelehnt (BUG-44).
+inline int bb_SeekFile(int handle, int pos) {
   FILE *f = bb_file_get_(handle);
-  if (f) std::fseek(f, static_cast<long>(pos), SEEK_SET);
+  if (!f) return 0;
+  std::fseek(f, static_cast<long>(pos), SEEK_SET);
+  return static_cast<int>(std::ftell(f));
 }
 
 // ---- Status ----

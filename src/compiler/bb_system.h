@@ -110,8 +110,14 @@ inline void bb_Delay(int ms) { usleep(static_cast<useconds_t>(ms) * 1000u); }
 // so calling AppTitle() after Graphics() also updates the live window title.
 inline bbString bb_app_title_;
 inline void (*bb_title_update_hook_)(const char*) = nullptr;
-inline void bb_AppTitle(const bbString &title) {
+// Der zweite Parameter ist die Rueckfrage beim Schliessen des Fensters - im
+// Original `AppTitle title$[,close_prompt$]`. Wir merken sie uns; ausgewertet
+// wird sie noch nicht, weil unsere SDL-Schicht das Fenster ohne Rueckfrage
+// schliesst (BUG-44).
+inline bbString bb_app_close_prompt_;
+inline void bb_AppTitle(const bbString &title, const bbString &close_prompt = "") {
   bb_app_title_ = title;
+  bb_app_close_prompt_ = close_prompt;
   if (bb_title_update_hook_) bb_title_update_hook_(title.c_str());
 }
 
@@ -125,9 +131,11 @@ inline bbString bb_CommandLine() {
   return result;
 }
 
-// Runs an external program via the OS shell; returns the exit code.
-inline int bb_ExecFile(const bbString &path) {
-  return std::system(path.c_str());
+// Runs an external program via the OS shell.
+// Ohne Rueckgabewert: im Original ist `ExecFile command$` eine Anweisung
+// (BUG-44).
+inline void bb_ExecFile(const bbString &path) {
+  std::system(path.c_str());
 }
 
 // Prints an error message to stderr and terminates the program.

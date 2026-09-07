@@ -38,7 +38,10 @@ inline int bb_tris_rendered_ = 0;
 // UpdateWorld — propagate world transforms + future systems
 // ============================================================
 
-inline void bb_UpdateWorld() {
+// Der Zeitschritt ist optional und wird noch nicht ausgewertet - im Original
+// `UpdateWorld [elapsed_time#]` (BUG-44).
+inline void bb_UpdateWorld(float elapsed_time = 1.0f) {
+  (void)elapsed_time;
   bb_entity_update_all_();
   // 3D-18: collision detection (stub)
   // 3D-19: advance animation timers (stub)
@@ -48,7 +51,10 @@ inline void bb_UpdateWorld() {
 // RenderWorld
 // ============================================================
 
-inline void bb_RenderWorld() {
+// Der Tween-Faktor ist optional und wird noch nicht ausgewertet - im Original
+// `RenderWorld [tween#]` (BUG-44).
+inline void bb_RenderWorld(float tween = 1.0f) {
+  (void)tween;
   if (!bb_gl_active_) return;
 
   // Lazy-compile shaders on first call (GL context must be active).
@@ -115,7 +121,10 @@ inline void bb_RenderWorld() {
 // ClearWorld / CaptureWorld
 // ============================================================
 
-inline void bb_ClearWorld() {
+// Die drei Schalter sind optional - im Original
+// `ClearWorld [entities][,brushes][,textures]` (BUG-44).
+inline void bb_ClearWorld(int entities = 1, int brushes = 1, int textures = 1) {
+  (void)entities; (void)brushes; (void)textures;
   bb_entity_quit_();
 }
 

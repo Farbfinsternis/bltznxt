@@ -340,32 +340,39 @@ inline bool bb_PollEvents() {
 //     so that headless test runners (piped stdin) return immediately.
 //  3. Last resort: if SDL init failed, fall back to a raw std::cin.get().
 
-inline void bb_WaitKey() {
+// Rueckgabewert: der Scancode der gedrueckten Taste, 0 wenn keine kam (Fenster
+// geschlossen, kein Terminal, SDL nicht verfuegbar). Im Original meldet +k
+// `WaitKey ( )` mit int; bei uns war es eine reine Anweisung, `k = WaitKey()`
+// wurde also abgelehnt (BUG-44). Dieselbe Codierung wie bb_GetKey.
+inline int bb_WaitKey() {
   // Case 1: graphical window is open — use SDL unconditionally.
   if (bb_window_) {
     SDL_Event ev;
     while (SDL_WaitEvent(&ev)) {
       bb_sdl_process_event_(ev);
-      if (ev.type == SDL_EVENT_KEY_DOWN || ev.type == SDL_EVENT_QUIT) return;
+      if (ev.type == SDL_EVENT_KEY_DOWN) return (int)ev.key.scancode;
+      if (ev.type == SDL_EVENT_QUIT) return 0;
     }
-    return;
+    return 0;
   }
 
   // Case 2: console-only — skip if stdin is not a real terminal (test runner).
-  if (!bb_stdin_is_console_()) return;
+  if (!bb_stdin_is_console_()) return 0;
 
   // Interactive console path: ensure SDL is up, then wait for a key-down event.
   bb_sdl_ensure_();
   if (!bb_sdl_initialized_) {
     std::cin.get();
-    return;
+    return 0;
   }
 
   SDL_Event ev;
   while (SDL_WaitEvent(&ev)) {
     bb_sdl_process_event_(ev);
-    if (ev.type == SDL_EVENT_KEY_DOWN || ev.type == SDL_EVENT_QUIT) return;
+    if (ev.type == SDL_EVENT_KEY_DOWN) return (int)ev.key.scancode;
+    if (ev.type == SDL_EVENT_QUIT) return 0;
   }
+  return 0;
 }
 
 #endif // BLITZNEXT_BB_SDL_H

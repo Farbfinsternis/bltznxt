@@ -36,7 +36,8 @@ inline bool bb_bank_check_(std::vector<uint8_t>* b, int offset, int size) {
 // ---- Allocation (M28) ----
 
 // Allocates a zeroed bank of `size` bytes; returns handle (never 0).
-inline int bb_CreateBank(int size) {
+// Groesse optional: im Original `CreateBank ( [size] )` (BUG-44).
+inline int bb_CreateBank(int size = 0) {
   int id = bb_bank_next_id_++;
   bb_bank_handles_[id] = std::vector<uint8_t>(static_cast<size_t>(size), 0);
   return id;

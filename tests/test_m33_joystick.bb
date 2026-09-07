@@ -8,6 +8,6 @@ Print "JoyY(0) = "    + Str(JoyY(0))          ; no device → 0
 Print "JoyHat(0) = "  + Str(JoyHat(0))        ; no device → 0
 Print "JoyDown(1,0) = " + Str(JoyDown(1, 0))  ; not held  → 0
 Print "JoyHit(1,0) = "  + Str(JoyHit(1, 0))   ; not hit   → 0
-FlushJoy 0
+FlushJoy          ; ohne Port - im Original hat FlushJoy keine Parameter
 Print "FlushJoy OK"
 Print "DONE"

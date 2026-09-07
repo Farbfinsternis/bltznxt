@@ -359,18 +359,19 @@ inline int bb_ColorBlue()  { return (int)bb_draw_b_; }
 // Returns 1 on success, 0 on failure (headless / out-of-bounds).
 // Blitz3D treats GetColor as a statement; the return value is ignored.
 
-inline int bb_GetColor(int x, int y) {
-  if (!bb_renderer_) return 0;
+// Ohne Rueckgabewert: im Original ist `GetColor x,y` eine Anweisung, die nur
+// die aktuelle Zeichenfarbe setzt (BUG-44).
+inline void bb_GetColor(int x, int y) {
+  if (!bb_renderer_) return;
   SDL_Rect rect = {x, y, 1, 1};
   SDL_Surface* surf = SDL_RenderReadPixels(bb_renderer_, &rect);
-  if (!surf) return 0;
+  if (!surf) return;
   Uint8 r = 0, g = 0, b = 0, a = 255;
   SDL_ReadSurfacePixel(surf, 0, 0, &r, &g, &b, &a);
   SDL_DestroySurface(surf);
   bb_draw_r_ = r;
   bb_draw_g_ = g;
   bb_draw_b_ = b;
-  return 1;
 }
 
 // ---- Rgb(r, g, b) → packed colour integer ----

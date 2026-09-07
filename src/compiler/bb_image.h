@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstring>
 #include "bb_sdl.h"    // bb_renderer_, bb_gfx_width_, bb_gfx_height_
+#include "bb_graphics2d.h" // bb_active_buffer_ - Vorgabe der Pixel-Befehle
 #include "bb_string.h" // bbString
 
 // ---- stb_image (single-header, public domain) ----
@@ -382,7 +383,8 @@ inline void bb_MaskImage(int handle, int r, int g, int b) {
 
 // ---- TileImage / TileBlock ----
 
-inline void bb_TileImage(int handle, int x, int y, int frame = 0) {
+// x und y sind optional: im Original `TileImage image[,x][,y][,frame]` (BUG-44).
+inline void bb_TileImage(int handle, int x = 0, int y = 0, int frame = 0) {
     if (!bb_renderer_ || !bb_img_ok_(handle)) return;
     const bb_FrameData_* fd = bb_img_frame_(handle, frame);
     const auto& img = bb_images_[handle];
@@ -402,7 +404,7 @@ inline void bb_TileImage(int handle, int x, int y, int frame = 0) {
     }
 }
 
-inline void bb_TileBlock(int handle, int x, int y, int frame = 0) {
+inline void bb_TileBlock(int handle, int x = 0, int y = 0, int frame = 0) {
     if (!bb_renderer_ || !bb_img_ok_(handle)) return;
     const bb_FrameData_* fd = bb_img_frame_(handle, frame);
     const auto& img = bb_images_[handle];
@@ -604,7 +606,9 @@ inline bool bb_decode_img_buf_(int buf, int& img_h, int& frame) {
 
 // ---- bb_LockBuffer(buf) ----
 
-inline void bb_LockBuffer(int buf) {
+// Der Buffer ist optional; ohne Angabe gilt der zuletzt mit SetBuffer
+// gesetzte. Im Original sind das `LockBuffer [buffer]` (BUG-44).
+inline void bb_LockBuffer(int buf = bb_active_buffer_) {
     bb_BufLock_& lock = bb_buf_locks_[buf];
     lock = bb_BufLock_{};
 
@@ -683,7 +687,7 @@ inline void bb_LockBuffer(int buf) {
 
 // ---- bb_UnlockBuffer(buf) ----
 
-inline void bb_UnlockBuffer(int buf) {
+inline void bb_UnlockBuffer(int buf = bb_active_buffer_) {
     auto it = bb_buf_locks_.find(buf);
     if (it == bb_buf_locks_.end() || !it->second.locked) return;
     bb_BufLock_& lock = it->second;
@@ -756,14 +760,16 @@ inline int bb_pixel_read_(const uint8_t* p) {
             static_cast<int>(p[2]);
 }
 
-inline int bb_ReadPixel(int x, int y, int buf) {
+// Der Buffer ist optional; ohne Angabe gilt der zuletzt mit SetBuffer
+// gesetzte. Im Original sind das `ReadPixel ( x,y[,buffer] )` (BUG-44).
+inline int bb_ReadPixel(int x, int y, int buf = bb_active_buffer_) {
     auto it = bb_buf_locks_.find(buf);
     if (it == bb_buf_locks_.end() || !it->second.locked) return 0;
     const uint8_t* p = bb_buf_pixel_(it->second, x, y);
     return p ? bb_pixel_read_(p) : 0;
 }
 
-inline void bb_WritePixel(int x, int y, int color, int buf) {
+inline void bb_WritePixel(int x, int y, int color, int buf = bb_active_buffer_) {
     auto it = bb_buf_locks_.find(buf);
     if (it == bb_buf_locks_.end() || !it->second.locked) return;
     uint8_t* p = bb_buf_pixel_(it->second, x, y);
@@ -772,21 +778,23 @@ inline void bb_WritePixel(int x, int y, int color, int buf) {
     it->second.dirty = true;
 }
 
-inline int bb_ReadPixelFast(int x, int y, int buf) {
+inline int bb_ReadPixelFast(int x, int y, int buf = bb_active_buffer_) {
     auto it = bb_buf_locks_.find(buf);
     if (it == bb_buf_locks_.end() || !it->second.locked) return 0;
     return bb_pixel_read_(bb_buf_pixel_fast_(it->second, x, y));
 }
 
-inline void bb_WritePixelFast(int x, int y, int color, int buf) {
+inline void bb_WritePixelFast(int x, int y, int color, int buf = bb_active_buffer_) {
     auto it = bb_buf_locks_.find(buf);
     if (it == bb_buf_locks_.end() || !it->second.locked) return;
     bb_pixel_write_(bb_buf_pixel_fast_(it->second, x, y), color);
     it->second.dirty = true;
 }
 
+// Der Buffer ist optional; ohne Angabe gilt der zuletzt mit SetBuffer
+// gesetzte. Im Original sind das `CopyPixel src_x,src_y,src_buffer,dest_x,dest_y[,dest_buffer]` (BUG-44).
 inline void bb_CopyPixel(int sx, int sy, int sbuf,
-                          int dx, int dy, int dbuf) {
+                          int dx, int dy, int dbuf = bb_active_buffer_) {
     auto sit = bb_buf_locks_.find(sbuf);
     auto dit = bb_buf_locks_.find(dbuf);
     if (sit == bb_buf_locks_.end() || !sit->second.locked) return;
@@ -799,7 +807,7 @@ inline void bb_CopyPixel(int sx, int sy, int sbuf,
 }
 
 inline void bb_CopyPixelFast(int sx, int sy, int sbuf,
-                               int dx, int dy, int dbuf) {
+                               int dx, int dy, int dbuf = bb_active_buffer_) {
     auto sit = bb_buf_locks_.find(sbuf);
     auto dit = bb_buf_locks_.find(dbuf);
     if (sit == bb_buf_locks_.end() || !sit->second.locked) return;

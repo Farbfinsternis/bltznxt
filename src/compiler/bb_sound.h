@@ -287,7 +287,9 @@ inline int bb_play_sound_(int snd, bool loop) {
 }
 
 inline int  bb_PlaySound(int snd) { return bb_play_sound_(snd, false); }
-inline int  bb_LoopSound(int snd) { return bb_play_sound_(snd, true);  }
+// Ohne Rueckgabewert: im Original ist `LoopSound sound` eine Anweisung; einen
+// Kanal liefert dort nur PlaySound (BUG-44).
+inline void bb_LoopSound(int snd) { bb_play_sound_(snd, true); }
 
 // Stop playback and release the channel slot immediately.
 inline void bb_StopChannel(int ch) {
@@ -377,7 +379,8 @@ inline int bb_PlayMusic(const bbString& file) {
   bb_StopMusic();  // stop previous track first
   int snd = bb_LoadSound(file);
   if (!snd) return 0;
-  int ch = bb_LoopSound(snd);
+  int ch = bb_play_sound_(snd, true);   // LoopSound liefert seit BUG-44
+                                        // keinen Kanal mehr
   if (!ch) { bb_FreeSound(snd); return 0; }
   bb_snd_music_snd_ = snd;
   bb_snd_music_ch_  = ch;
@@ -393,9 +396,14 @@ inline int bb_MusicPlaying() {
 }
 
 // CD audio is deprecated hardware — log a warning and do nothing.
-inline void bb_PlayCDTrack(int track) {
+// Der Modus ist optional und wird noch nicht ausgewertet - im Original
+// `PlayCDTrack ( track[,mode] )` (BUG-44).
+inline int bb_PlayCDTrack(int track, int mode = 1) {
+  (void)mode;
   (void)track;
   std::cerr << "[runtime] PlayCDTrack: CD audio is not supported\n";
+  return 0;   // 0 = kein Track laeuft; die Referenz fuehrt den Befehl mit
+              // Klammern und damit als Funktion mit int (BUG-44)
 }
 
 // ---- Sound-level defaults (applied when new channels are spawned) ----
