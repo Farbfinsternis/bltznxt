@@ -70,6 +70,12 @@ src/libs/content.txt
 # Interne Bug- und Review-Liste (Arbeitsdokument, nicht für Endnutzer)
 /Buglist.md
 
+# Interne Planungsdaten aus der ASTRA-Prüfung (Befunde, Szenario und die
+# eigene Nachmessung dazu) — Arbeitsgrundlage, nicht für Endnutzer
+/ASTRA_Findings.md
+/ASTRA_Scenario.md
+/ASTRA_Verifikation.md
+
 # ============================================================
 # Explizit NICHT ignoriert — auf GitHub sichtbar:
 # ============================================================
