@@ -1,0 +1,1 @@
+tests/neg_bug51_delete_each_unknown.bb:7:1: error: Type 'Q' not found

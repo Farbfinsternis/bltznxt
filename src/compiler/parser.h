@@ -270,12 +270,29 @@ private:
         return s;
       }
 
-      // Optional type-hint suffix on the variable name (x#, s$, n%, f!)
+      // Optional type-hint suffix on the variable name (x#, s$, n%, f!) and,
+      // since BUG-47, the object tag "p.T". The reference reads every variable
+      // through parseVar()/parseTypeTag(), so the object tag is legal wherever
+      // a scalar tag is: measured against Blitz3D 11.8, "p.T = New T" declares
+      // p, "p.T\v = 1" is accepted with the tag in front of the field, and a
+      // second, differing tag on the same name is "Variable type mismatch".
+      // The tag only supplies the type of a variable that does not exist yet -
+      // it never opens a new scope: inside a function "p.T = New T" writes to
+      // an existing global p (measured: the store goes to the global slot) and
+      // only creates a local when no such global exists.
       std::string assignHint;
       if (peek().type == TokenType::OPERATOR &&
           (peek().value == "#" || peek().value == "%" ||
-           peek().value == "$"))
+           peek().value == "$")) {
         assignHint = advance().value; // consume and remember for auto-decl
+      } else if (peek().type == TokenType::OPERATOR && peek().value == ".") {
+        // Consume-and-expect, the same shape parseFor() uses for its counter
+        // tag. A "." that starts a number is a single FLOAT_LIT token since
+        // BUG-46, so anything still spelled "." here is a type tag or an error.
+        advance(); // consume '.'
+        assignHint = "." + expect(TokenType::ID,
+                                  "Expected type name after '.'").value;
+      }
 
       // Field assignment: var\field = expr  (Blitz3D \ field separator)
       if (peek().type == TokenType::OPERATOR && peek().value == "\\") {
@@ -429,28 +446,82 @@ private:
     return s;
   }
 
+  // The body of a single-line If runs to the end of the physical line, colons
+  // included - the colon separates statements here, it does not end the body.
+  // Measured in the reference's own assembler: for
+  // "If a=1 Print "x" : Print "y"" a single conditional jump spans both prints,
+  // and in "If a=1 Print "x" Else Print "y" : Print "z"" the Else branch holds
+  // both of its statements. Reading only one statement, as this used to, left
+  // the rest of the line running unconditionally - a silent wrong result.
+  std::vector<std::unique_ptr<ASTNode>> parseSingleLineBody() {
+    std::vector<std::unique_ptr<ASTNode>> body;
+    while (!atEnd() && peek().type != TokenType::NEWLINE) {
+      if (peek().type == TokenType::OPERATOR && peek().value == ":") {
+        advance(); // separator, not a terminator
+        continue;
+      }
+      // Every block terminator is left for the caller. ELSE/ELSEIF belong to
+      // this If; the rest cannot open a statement, and leaving them makes the
+      // end-of-line check below reject "If a=1 EndIf" the way the reference
+      // does. Swallowing them here would silently accept the line.
+      // "END" is deliberately absent: a bare End is the program-end statement
+      // and a legal single-line body ("If a=1 End" is accepted by the original,
+      // with _fend inside the conditional). The two-word block closers reach us
+      // already merged as ENDIF/ENDFUNCTION/... by the lexer.
+      std::string kw = peekKw();
+      if (kw == "ELSE" || kw == "ELSEIF" || kw == "ENDIF" ||
+          kw == "ENDSELECT" || kw == "ENDFUNCTION" || kw == "ENDTYPE" ||
+          kw == "CASE" || kw == "DEFAULT" || kw == "WEND" || kw == "UNTIL" ||
+          kw == "FOREVER" || kw == "NEXT")
+        break;
+      size_t before = pos;
+      auto s = parseStatement();
+      if (s) body.push_back(std::move(s));
+      if (pos == before) break; // parseStatement made no progress - do not spin
+    }
+    return body;
+  }
+
   // Shared between IF and ELSEIF (both parse condition + body + tail).
   std::unique_ptr<IfStmt> parseIfTail() {
     auto cond = parseExpr();
-    bool hasThen = (peekKw() == "THEN");
-    if (hasThen) advance(); // consume THEN
+    if (peekKw() == "THEN") advance(); // optional, and never decides the form
 
     auto stmt = std::make_unique<IfStmt>(std::move(cond));
 
-    // Single-line form requires explicit THEN and a real statement on the same line
-    // (not just a newline or colon). Examples:
-    //   If x = 0 Then Print "zero"            → single-line
-    //   If x = 0 Then Print "zero" Else Print "y"  → single-line
-    //   If x = 0 : Print "zero" : End If      → block form (colon acts like newline)
+    // "Then" is optional (BUG-48). Measured against Blitz3D 11.8: the block
+    // forms are accepted without it, and so is "If a=1 Print "x"". What decides
+    // the form is the token right after the condition and the optional Then -
+    // a newline or a colon starts the block form, anything else the single-line
+    // form. That is exactly why "If a=1 : Print "x"" demands an EndIf while
+    // "If a=1 Print "x"" does not; both measured.
+    //   If x = 0 Print "zero"                 → single-line, no EndIf
+    //   If x = 0 Then Print "zero" Else …     → single-line
+    //   If x = 0 : Print "zero" : End If      → block form (colon like newline)
     bool isColon = (peek().type == TokenType::OPERATOR && peek().value == ":");
-    if (hasThen && peek().type != TokenType::NEWLINE && !isColon && !atEnd()) {
-      auto s = parseStatement();
-      if (s) stmt->thenBlock.push_back(std::move(s));
+    if (peek().type != TokenType::NEWLINE && !isColon && !atEnd()) {
+      stmt->thenBlock = parseSingleLineBody();
+      // On ElseIf the reference recurses into parseIf() and returns straight
+      // away, so the nested If decides its own form and no EndIf is expected
+      // here. "If a=1 Print "x" ElseIf a=2 Print "y"" is accepted (measured).
+      if (peekKw() == "ELSEIF") {
+        advance();
+        stmt->elseBlock.push_back(parseIfTail());
+        return stmt;
+      }
       if (peekKw() == "ELSE") {
         advance();
-        auto e = parseStatement();
-        if (e) stmt->elseBlock.push_back(std::move(e));
+        stmt->elseBlock = parseSingleLineBody();
       }
+      // The reference closes the single-line form with an end-of-line check, so
+      // a trailing "EndIf" on the same line is an error there: both
+      // "If a=1 EndIf" and "If a=1 Print "x" EndIf" are rejected (measured).
+      // Without this the leftover token would be skipped and the program would
+      // be accepted.
+      if (!atEnd() && peek().type != TokenType::NEWLINE)
+        error(peek().line, peek().col,
+              "Expected end of line after a single-line If (got '" +
+                  peek().value + "')");
       return stmt;
     }
 
@@ -852,8 +923,27 @@ private:
         std::string hint;
         if (peek().type == TokenType::OPERATOR &&
             (peek().value == "#" || peek().value == "%" ||
-             peek().value == "$"))
+             peek().value == "$")) {
           hint = advance().value;
+        } else if (peek().type == TokenType::OPERATOR && peek().value == ".") {
+          // Objektparameter "F(p.T)" (BUG-56) - dieselbe Schreibweise, die der
+          // Rueckgabetyp oben schon liest. Am Original gemessen: der Parameter
+          // ist ein gewoehnlicher Wertparameter und wird - anders als eine
+          // lokale oder globale Objektvariable - **nicht** referenzgezaehlt.
+          // "p = New T" im Rumpf schreibt dort direkt in den Stack-Slot, ohne
+          // _bbObjStore/_bbObjRelease; der Aufrufer sieht die Zuweisung nicht.
+          // Ein roher Zeiger als C++-Parameter bildet das genau ab.
+          advance(); // consume '.'
+          if (peek().type != TokenType::ID) {
+            // Nicht ueber expect() melden: das wuerde das folgende ')'
+            // mitkonsumieren, die Parameterschleife liefe bis zum Dateiende
+            // und haengte acht Folgefehler an eine einzige Ursache.
+            error(peek().line, peek().col,
+                  "Expected type name after '.' (got '" + peek().value + "')");
+            break;
+          }
+          hint = "." + advance().value;
+        }
         func->params.emplace_back(p.value, hint);
         if (peek().type == TokenType::OPERATOR && peek().value == ",")
           advance();
@@ -876,11 +966,26 @@ private:
   // ------------------------------------------------------------------ DELETE
 
   std::unique_ptr<DeleteStmt> parseDelete() {
-    int ln = peek().line;
+    int ln = peek().line, cl = peek().col;
     advance(); // DELETE
+
+    // "Delete Each <Typ>" loescht alle Objekte eines Typs (BUG-51). Die
+    // Referenz verlangt hier einen Typnamen, keinen Ausdruck - gemessen an
+    // Blitz3D 11.8 lehnt sie sowohl einen unbekannten Namen als auch eine
+    // Objektvariable mit "Specified name is not a NewType name" ab.
+    if (peekKw() == "EACH") {
+      advance(); // EACH
+      Token tn = expect(TokenType::ID, "Expected type name after 'Delete Each'");
+      auto s  = std::make_unique<DeleteStmt>(tn.value);
+      s->line = ln;
+      s->col  = cl;
+      return s;
+    }
+
     auto obj = parseExpr();
     auto s   = std::make_unique<DeleteStmt>(std::move(obj));
     s->line  = ln;
+    s->col   = cl;
     return s;
   }
 

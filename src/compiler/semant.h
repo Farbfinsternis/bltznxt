@@ -420,7 +420,10 @@ private:
     } else if (auto *ds = dynamic_cast<DimStmt *>(n)) {
       for (auto &d : ds->dims) expr(d.get());
     } else if (auto *del = dynamic_cast<DeleteStmt *>(n)) {
-      expr(del->object.get());
+      if (!del->eachTypeName.empty())
+        knownType(del->eachTypeName, del->line, del->col);
+      else
+        expr(del->object.get());
     } else if (auto *ins = dynamic_cast<InsertStmt *>(n)) {
       expr(ins->object.get());
       expr(ins->target.get());

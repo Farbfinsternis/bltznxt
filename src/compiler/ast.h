@@ -383,8 +383,16 @@ public:
 // Delete obj — removes the instance from its list and frees it
 class DeleteStmt : public StmtNode {
 public:
+  // Entweder ein einzelnes Objekt (object) oder "Delete Each <Typ>"
+  // (eachTypeName gesetzt, object leer). Die Referenz uebersetzt die zweite
+  // Form nach _bbObjDeleteEach und verlangt dort einen Typnamen, keinen
+  // Ausdruck: "Delete Each p" ueber eine Objektvariable lehnt sie mit
+  // "Specified name is not a NewType name" ab (BUG-51).
   std::unique_ptr<ExprNode> object;
+  std::string eachTypeName;
   explicit DeleteStmt(std::unique_ptr<ExprNode> obj) : object(std::move(obj)) {}
+  explicit DeleteStmt(std::string typeName)
+      : eachTypeName(std::move(typeName)) {}
   void accept(ASTVisitor *v) override { v->visit(this); }
 };
 

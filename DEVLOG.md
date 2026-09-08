@@ -245,6 +245,286 @@ silently. Now:
   returns exit code 1 immediately.
 - New negative test: `tests/neg_unclosed_string.bb`.
 
+### Nachtrag (2026-09-08, BUG-46): fuehrender Punkt im Float-Literal
+
+`.5` ist gueltiges Blitz3D und war die groesste Einzelursache im Beispielbestand.
+Der Dispatch in `tokenize()` schickte jedes `.` nach `lexOperator()`, `lexNumber()`
+wurde nur bei einer fuehrenden Ziffer betreten — `Local a# = .5` scheiterte an
+`unexpected token '.'`.
+
+Die Regel wurde am laufenden Original gemessen, nicht aus dem Referenzquelltext
+abgeleitet, und sie ist einfacher als vermutet: **rein lexikalisch und kontextfrei.**
+Eine Ziffer hinter dem Punkt beginnt immer eine Zahl. Vier Messungen gegen
+Blitz3D 11.8 zeigen, dass das Original wirklich keinen Kontext heranzieht:
+
+- `Print .5` faltet zu `"0.5"`, `Print 5.` zu `"5.0"` — beide Punktstellungen erlaubt.
+- `Goto .5` scheitert mit `Expecting identifier`. Selbst dort, wo ausschliesslich ein
+  Label stehen kann, liest das Original die Zahl.
+- `a.5` und `Dim a.5(2)` scheitern mit `Expecting end-of-file` bzw. `Expecting '('`.
+  Auch direkt hinter einem Bezeichner wird der Punkt nicht mehr als Type-Tag gelesen.
+- `1..5` zerfaellt in `1.` und `.5` und wird abgelehnt — genau ein Punkt je Zahl.
+
+Deshalb genuegt ein Zeichen Vorschau im Dispatch: `.` gefolgt von einer Ziffer geht
+nach `lexNumber()` (das den fuehrenden Punkt bereits konnte), alles andere bleibt
+`OPERATOR "."` und erreicht die Label- und Type-Tag-Pfade im Parser unveraendert.
+Das ist dieselbe Bauform wie die bestehenden Rueckfaelle bei `$` und `%`, die schon
+so zwischen Hex-/Binaerliteral und String-/Integer-Tag unterscheiden.
+
+**Wirkung, gemessen ueber die 130 Installationsdateien:** von 124 vom Original
+akzeptierten Dateien hatten 71 einen `.`-Fehler, 29 davon haben jetzt keinen mehr.
+Nur fuenf wechseln ganz die Fehlerklasse (89 → 84 echte Sprachfehler), weil ein
+erster Parserfehler die folgenden verdeckt — die meisten dieser Dateien haben neben
+`.5` noch andere Blocker. Die verbleibenden 42 `.`-Fehler sind ausnahmslos BUG-47
+(`x.T = New T`), an der Quellzeile geprueft.
+
+**Absicherung:** Ablehnungsvergleich ueber alle 119 `tests/**/*.bb` und
+`examples/**/*.bb` ergab 0 geaenderte Urteile; volle Suite 113 passed, 0 failed.
+
+Nicht Teil des Fixes: `Print .5+.5` gibt bei uns `1` aus, im Original `1.0`. Das ist
+die Stringformatierung ganzzahliger Floatwerte, eine eigene offene Abweichung; der
+Positivtest vermeidet solche Werte deshalb.
+
+### Nachtrag (2026-09-08, BUG-47): Type-Tag an der Zuweisung
+
+`p.T = New T` ohne vorheriges `Local` ist gueltiges Blitz3D und war nach BUG-46 die
+groesste verbliebene Einzelursache — **alle 42 restlichen `.`-Fehler im
+Installationsbestand waren dieser Fall.** Der Zuweisungszweig las nur `#/%/$`.
+
+Die Sichtbarkeitsregel ist die Stelle, an der man sich hier verrennen kann, und sie
+wurde am Assembler des Originals abgelesen statt vermutet: **das Tag oeffnet keinen
+neuen Gueltigkeitsbereich.** Innerhalb einer Funktion schreibt `p.T = New T` in das
+*globale* Slot, wenn ein `Global p.T` existiert — im ASM `mov [esp],_vp` gefolgt von
+`__bbObjStore`, nicht `[ebp-N]`. Ohne passendes Global entsteht dort eine lokale.
+Und eine getaggte Zuweisung im Hauptteil ist ihrerseits in Funktionen *nicht*
+sichtbar (`Variable must be a Type`), ist also eine lokale Variable von `main` wie
+jede implizite Variable auch. Das Tag liefert also nur den Typ einer noch nicht
+existierenden Variablen; ansonsten bindet der Name ganz gewoehnlich.
+
+Genau deshalb war im Analyzer **keine Zeile** noetig: der `AssignStmt`-Zweig macht
+bereits `lookup()` und deklariert nur bei Fehlschlag, und `fromHint()` kannte `.T`
+schon. Dieselbe Regel gilt seit BUG-38 am `For`-Zaehler. Im Parser kam der Tag-Zweig
+dazu (konsumieren-und-`expect`, dieselbe Bauform wie dort), im Emitter eine Zeile:
+`visit(AssignStmt)` traegt den Objekttyp jetzt wie `visit(VarDecl)` in
+`varObjectTypes` ein — sonst faende ein spaeteres `Delete p` den Typ nicht und liefe
+in den „type indeterminate"-Pfad.
+
+Weiter am Original gemessen und im Test festgehalten: das Tag ist auch **vor dem
+Feldtrenner** erlaubt (`p.T\v = 1`), dasselbe Tag darf mehrfach stehen, ein spaeterer
+Verzicht darauf ebenso, zwei verschiedene Tags sind `Variable type mismatch` (unsere
+Meldung steht auf derselben Position und traegt denselben Text), ein unbekannter Typ
+ist `Type "q" not found`.
+
+**Wirkung ueber die 130 Installationsdateien:** `.`-Fehler 42 → 19, echte
+Sprachfehler 84 → 80, vollstaendig uebersetzende Dateien **22 → 24**, keine
+Regression. Die 19 verbliebenen Punkt-Fehler sind an der Quellzeile geprueft und
+gehoeren zu genau zwei anderen Ursachen: 14 zu Objektparametern `Function F(p.T)`
+(neu als BUG-56 notiert, entspricht A-11 bei Astra) und 5 zu BUG-52 `Dim a.T(n)`.
+
+**Absicherung:** Ablehnungsvergleich ueber alle 121 `tests/**` und `examples/**`
+ergab 0 geaenderte Urteile; volle Suite 115 passed, 0 failed.
+
+Nebenbefund, als BUG-55 notiert statt hier mitgenommen: `checkAssign()` prueft
+Objekttypen ueberhaupt nicht — `Local p.T = New U` wird schon vor dieser Aenderung
+angenommen, das Original lehnt ab. Vorbestehend und mit weiterer Reichweite
+(`Local`, `Global`, Zuweisung), deshalb ein eigener Eintrag.
+
+### Nachtrag (2026-09-08, BUG-48): `Then` ist optional — und der einzeilige Rumpf war zu kurz
+
+Nach BUG-46 und BUG-47 war das die mit Abstand groesste Einzelursache: **60 der 124
+vom Original akzeptierten Installationsdateien** meldeten `Expected ENDIF`.
+
+Am Original gemessen ergaben sich **zwei** Regeln, und die zweite war die
+unangenehmere:
+
+**`Then` entscheidet gar nichts.** Es ist in beiden Formen optional. Was die Form
+bestimmt, ist das Token direkt nach der Bedingung (und nach einem etwaigen `Then`):
+Zeilenumbruch oder Doppelpunkt beginnen die Blockform, alles andere die einzeilige.
+Genau deshalb verlangt `If a=1 : Print "x"` ein `EndIf`, `If a=1 Print "x"` dagegen
+nicht — beides gemessen. Unser Parser hatte die Entscheidung zusaetzlich an `hasThen`
+gehaengt; das faellt weg.
+
+**Der einzeilige Rumpf laeuft bis zum Zeilenende, Doppelpunkte eingeschlossen.** Das
+war ein zweiter, vorbestehender Defekt und ein *stilles Falschergebnis*: der Parser
+las genau eine Anweisung, der Rest der Zeile lief unbedingt. Mit `a=0` gab
+`If a=1 Then Print "x" : Print "y"` bei uns `y` aus, im Original nichts. Im Assembler
+des Originals ueberspringt ein einziger bedingter Sprung beide Prints, und bei
+`If a=1 P"x" Else P"y" : P"z"` enthaelt der Else-Zweig ebenfalls beide Anweisungen.
+Haette man nur `Then` optional gemacht, waere dieser Fehler auf alle neu angenommenen
+Programme ausgeweitet worden — die beiden Teile gehoeren zusammen.
+
+Der neue `parseSingleLineBody()` liest also bis zum Zeilenumbruch, nimmt Doppelpunkte
+als Trenner und laesst Blockabschluesse fuer den Aufrufer stehen. **`END` steht
+bewusst nicht in dieser Liste:** ein blosses `End` ist die Programmende-Anweisung und
+ein zulaessiger einzeiliger Rumpf — das Original nimmt `If a=1 End` an und legt
+`_fend` in den bedingten Zweig. Auf `ElseIf` rekursiert der einzeilige Zweig wie die
+Referenz und kehrt sofort zurueck, damit das verschachtelte If seine eigene Form
+waehlt und hier kein `EndIf` erwartet wird. Zum Abschluss steht eine
+Zeilenendepruefung; ohne sie wurde ein `EndIf` auf derselben Zeile stillschweigend
+verschluckt und `If a=1 EndIf` faelschlich angenommen.
+
+**Wirkung ueber die 130 Installationsdateien:** Dateien mit `Expected ENDIF`
+**60 → 23**, echte Sprachfehler **80 → 64**, und **16 Dateien haben jetzt gar keinen
+Sprachfehler mehr**. Keine Regression.
+
+Von den 23 Resten haengen **20 an einem einzigen `Else If`** in
+`samples/mak/start.bb`, das die `mak`-Beispiele reihum inkludieren — als BUG-57
+notiert (entspricht A-29 bei Astra). Der Rest ist von frueheren Fehlern derselben
+Datei verdeckt, etwa `lmesh.bb` mit festen Feldarrays.
+
+**Absicherung:** Ablehnungsvergleich ueber alle 123 `tests/**` und `examples/**`
+ergab 0 geaenderte Urteile; volle Suite 117 passed, 0 failed.
+
+### Nachtrag (2026-09-08, BUG-57): `Else If` — und der Zwischenraum zaehlt
+
+Ein einziges `Else If` in `samples/mak/start.bb` blockierte **20 der 23** Dateien,
+die nach BUG-48 noch `Expected ENDIF` meldeten: die `mak`-Beispiele inkludieren
+diese Datei reihum. Unser `kEndMerge` fasste nur `End X` zusammen.
+
+Beim Messen kam heraus, dass der **Zwischenraum bedeutungstragend ist** — genau die
+Frage, die Astra bei A-29 offengelassen hatte. Das Original fasst **nur bei genau
+einem Leerzeichen** zusammen:
+
+```
+Else If      (ein Leerzeichen)  -> ein Token ELSEIF, braucht ein EndIf
+Else  If     (zwei Leerzeichen) -> Else + verschachteltes If, braucht zwei
+Else<TAB>If                     -> ebenso verschachtelt
+Else <NL> If                    -> ebenso verschachtelt
+```
+
+Alle vier am Original gemessen, jeweils in beiden Varianten (ein bzw. zwei `EndIf`).
+Dieselbe Regel gilt fuer die vier `End X`-Abschluesse: `End  If`, `End<TAB>If` und
+`End  Function` lehnt das Original ab.
+
+Damit war es wie bei BUG-48 wieder ein Zweiteiler. Unsere Zusammenfassung verlangte
+nur „gleiche Zeile" und war damit zu lax — ein vorbestehender Defekt, der fuer
+`End X` bloss zu grosszuegig war. Fuer `Else If` waere er schlimmer gewesen:
+`Else  If` waere faelschlich zu `ElseIf` geworden, also **falsche Blockstruktur**
+statt nur einer zusaetzlichen Annahme. Die laxe Regel zu uebernehmen war deshalb
+keine Option.
+
+Eine Falle steckt in der Umsetzung: **ein Tabulator zaehlt in unserem Lexer wie ein
+Leerzeichen genau eine Spalte.** Eine reine Spaltenrechnung (`zweites Token beginnt
+eine Spalte hinter dem ersten`) haette `End<TAB>If` durchgelassen — der erste Anlauf
+tat das auch. Jetzt werden die Zeilenanfaenge einmal vorberechnet und der Abstand am
+Quelltext selbst gelesen. Er muss vor der Zusammenfassung gelesen werden, weil das
+zusammengefasste Token kuerzer ist als der Quelltext, aus dem es entstand.
+
+Vorher geprueft: weder der Projektbestand noch die 130 Installationsdateien
+enthalten unregelmaessigen Zwischenraum in diesen Formen, die strengere Regel bricht
+also nichts. `Else If` mit einem Leerzeichen kommt im Installationsbestand 26-mal vor.
+
+**Wirkung:** Dateien mit `Expected ENDIF` **23 → 1**; der Rest (`lmesh.bb`) scheitert
+zuerst an festen Feldarrays. 22 Dateien kommen an der If-Kette vorbei, 15 davon
+stossen jetzt nur noch auf unbekannte 3D-Befehle. Keine Regression, 0 geaenderte
+Urteile ueber alle 125 Projektdateien.
+
+**Die Serie BUG-46/47/48/57 zusammen**, gemessen ueber die 124 vom Original
+akzeptierten Installationsdateien:
+
+| Stand | Sprachfehler | Dateien mit Sprachfehler |
+|---|---:|---:|
+| vorher      | 1407 | 89 |
+| nach BUG-46 |  872 | 84 |
+| nach BUG-47 |  799 | 80 |
+| nach BUG-48 |  438 | 64 |
+| nach BUG-57 |  408 | 63 |
+
+Als BUG-58 notiert statt hier mitgenommen: uebrig gebliebene Blockabschluesse
+werden still geschluckt. `EndIf` ohne `If`, `Wend` ohne `While`, ein ueberzaehliges
+`EndIf` und eine Funktion ohne `End Function` nehmen wir alle vier an, das Original
+lehnt alle vier ab. Vorbestehend und unabhaengig von dieser Aenderung — die
+Gegenproben enthalten kein `Else If`.
+
+### Nachtrag (2026-09-08, BUG-51): `Delete Each <Typ>`
+
+Die Bugliste notierte „1 der 49 Befunde". Gemessen sind es **13 Vorkommen** —
+wieder ueber das geteilte `samples/mak/start.bb` (`Delete Each GfxMode`), dazu
+`functions.bb`, `flares.bb`, `Main.bb`, `insectoids.bb`. Alle 13
+`unexpected token 'EACH'`-Fehler im Bestand waren diese Form, keine andere.
+
+Am Original gemessen: die Form uebersetzt nach `__bbObjDeleteEach` und verlangt
+einen **Typnamen, keinen Ausdruck**. `Delete Each Q` (unbekannt) und
+`Delete Each p` (Objektvariable) werden beide mit `Specified name is not a
+NewType name` abgelehnt. Eine leere Liste ist zulaessig, in einer Funktion ist die
+Form erlaubt.
+
+`DeleteStmt` traegt jetzt entweder ein Objekt oder einen `eachTypeName`. Der
+Analyzer prueft den Namen mit dem vorhandenen `knownType()`, also derselben
+Meldung samt Vorschlag wie bei `For ... = Each`. Der Emitter leert die Liste ueber
+ihren Kopf:
+
+```cpp
+while (bb_t_head_) bb_t_Delete(bb_t_head_);
+```
+
+`bb_T_Delete` haengt den Knoten aus der Liste aus, der Kopf rueckt also nach — ein
+eigener Zeiger auf das naechste Element waere ueberfluessig und im Fehlerfall
+gefaehrlich.
+
+**Der neue Zustand im AST verlangte eine Rundum-Pruefung** (RED-06: dieselbe
+Knotenart wird an mehreren Stellen von Hand durchlaufen). `DeleteStmt` wird
+ausser im Emitter noch zweimal angefasst: `blitzcc.cpp:165` reicht
+`del->object.get()` an `collectCallsExpr()`, das auf `nullptr` prueft, und
+`emitter.h:961` ist ein reiner Typtest. Keine Stelle dereferenziert das jetzt
+moeglicherweise leere `object`.
+
+**Wirkung:** Dateien mit `unexpected token 'EACH'` **13 → 0**, keine Regression,
+0 geaenderte Urteile ueber alle 127 Projektdateien.
+
+**Eine Warnung zur Kennzahl:** die Gesamtzahl der Sprachfehler steigt dabei von
+408 auf 420. Das ist kein Rueckschritt — der Parser kommt jetzt an `Delete Each`
+vorbei und findet in denselben Dateien bisher verdeckte Fehler
+(`Expected parameter name (got '.')` steigt von 10 auf 13, das ist BUG-56). Die
+Sprachfehlerzahl ist damit **kein monotones Fortschrittsmass**; belastbar sind die
+Zahl der Dateien mit Sprachfehlern und das Verschwinden der jeweiligen Fehlerform.
+
+### Nachtrag (2026-09-08, BUG-56): Objektparameter `Function F(p.T)`
+
+15 Dateien, nach BUG-51 die groesste verbliebene Sprachursache. An Parametern
+wurden nur `%/#/$` gelesen, obwohl der Rueckgabetyp drei Zeilen darueber `.T`
+schon konnte.
+
+**Die Lebensdauerfrage aus A-11 ist beantwortet, und die Antwort war guenstig.**
+Astra warnte, der Referenzcompiler behandle Objektparameter anders als
+gewoehnliche Objektvariablen. Das stimmt — der Unterschied ist, dass ein
+Objektparameter **nicht referenzgezaehlt** wird. Im Assembler des Originals liest
+der Rumpf ihn direkt aus dem Stack-Slot, und `p = New T` im Rumpf schreibt mit
+einem schlichten `mov [ebp+20],eax` zurueck, ohne `_bbObjStore`/`_bbObjRelease`,
+die eine lokale oder globale Objektvariable dort sehr wohl durchlaeuft. Er ist
+also ein gewoehnlicher Wertparameter, und der Aufrufer sieht eine Zuweisung im
+Rumpf nicht. Ein roher Zeiger als C++-Parameter bildet das exakt ab — unser
+Modell zaehlt ohnehin nirgends Referenzen. Zu bauen war deshalb nichts.
+
+Weiter gemessen: gemischte Parameterlisten sind erlaubt, ein Objektparameter darf
+zurueckgegeben und geloescht werden, `Null` ist ein zulaessiges Argument, ein
+Vorgabewert ist es nicht (`F(p.T=Null)` → `Expression must be constant`).
+
+**Fehlerbehandlung eigens nachgebessert.** Ein `expect()` an dieser Stelle haette
+bei `Function F(p.)` das folgende `)` mitkonsumiert, die Parameterschleife waere
+bis zum Dateiende gelaufen und haette acht Folgefehler an eine einzige Ursache
+gehaengt. Jetzt wird gemeldet und die Liste abgebrochen: genau ein Fehler, auf
+derselben Position, auf der auch das Original meldet.
+
+**Ein stilles Falschergebnis kam mit heraus.** `varObjectTypes` war nicht an den
+Funktionsrumpf gebunden — ein Objekttyp aus einer Funktion blieb danach im
+Hauptteil stehen. Gemessen an einer Funktion mit `Local p.T` und einem spaeteren
+`p = First U : Delete p` im Hauptteil emittierte der Compiler
+`bb_t_Delete(var_p)`: der **falsche Listen-Helfer fuer ein U-Objekt**, ohne jede
+Warnung. Die Karte wird jetzt wie `declaredVars` um den Rumpf gesichert und
+wiederhergestellt. Vorbestehend — `hoistLocals()` trug Locals schon vorher ein —
+aber BUG-56 haette Parameter hinzugefuegt und das Leck verbreitert, deshalb hier
+mitbehoben statt notiert.
+
+Dieser Fall bekommt bewusst **keinen Test**: die richtige Ausgabe waere ein
+geloeschtes U-Objekt, unser Ergebnis ist die Ersatzhandlung aus A-19. Ein Test
+haette jenen Defekt als Sollverhalten festgeschrieben.
+
+**Wirkung:** Dateien mit `Expected parameter name (got '.')` **15 → 0**,
+Sprachfehler 420 → 390, Dateien mit Sprachfehlern 63 → 61. Keine Regression,
+0 geaenderte Urteile ueber alle 129 Projektdateien. Die drei haeufigsten ersten
+Fehlermeldungen im Installationsbestand sind jetzt **allesamt unbekannte
+Befehle** — die Blockade ist dort ueberwiegend keine Sprachfrage mehr.
+
 ### Parser: colon as statement separator — If/Else bug fixed
 
 Colon (`:`) already worked as a statement separator in the main loop via

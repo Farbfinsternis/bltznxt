@@ -1,0 +1,1 @@
+tests/neg_bug56_object_param_no_type.bb:3:14: error: Expected type name after '.' (got ')')

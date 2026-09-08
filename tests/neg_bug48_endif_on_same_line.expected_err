@@ -1,0 +1,1 @@
+tests/neg_bug48_endif_on_same_line.bb:6:20: error: Expected end of line after a single-line If (got 'ENDIF')

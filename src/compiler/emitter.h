@@ -283,6 +283,11 @@ public:
       inExprCtx = prev;
       output << ";\n";
       declaredVars.insert(lo);
+      // Same bookkeeping as visit(VarDecl): without it a later "Delete p" on a
+      // variable that "p.T = New T" introduced would fall into the
+      // type-indeterminate path and emit a bare null assignment (BUG-47).
+      if (!node->typeHint.empty() && node->typeHint[0] == '.')
+        varObjectTypes[lo] = toLower(node->typeHint.substr(1));
     } else {
       output << ind() << "var_" << lo << " = ";
       bool prev = inExprCtx; inExprCtx = true;
@@ -554,11 +559,21 @@ public:
     // Preserve global variable names so assignments to globals inside
     // functions are plain assignments, not local re-declarations.
     for (auto &gname : globalVarNames) declaredVars.insert(gname);
+    // varObjectTypes is scoped to the body as well: a parameter or local named
+    // "p" must not leave its object type behind for the main program to reuse
+    // (BUG-56 registers parameters here, hoistLocals() already registered
+    // locals, so without this a later "Delete p" outside could pick the wrong
+    // type helper).
+    auto savedObjectTypes = varObjectTypes;
     for (auto &[pname, phint] : node->params) {
       std::string lo = pname;
       std::transform(lo.begin(), lo.end(), lo.begin(),
                      [](unsigned char c){ return (char)std::tolower(c); });
       declaredVars.insert(lo);
+      // Object parameters must be known by type inside the body, or a field
+      // access or Delete on them falls into the type-indeterminate path.
+      if (!phint.empty() && phint[0] == '.')
+        varObjectTypes[lo] = toLower(phint.substr(1));
     }
 
     auto savedHoisted = hoistedLocals_;
@@ -575,8 +590,9 @@ public:
     // function, so close every body with the type's default value.
     output << ind() << "return " << rdefault << ";\n";
 
-    // Restore outer scope's declared vars.
+    // Restore outer scope's declared vars and object types.
     declaredVars = savedDeclaredVars;
+    varObjectTypes = savedObjectTypes;
     returnDefault_ = savedDefault;
 
     output << "}\n\n";
@@ -707,6 +723,16 @@ public:
 
   // Delete obj → bb_TypeName_Delete(expr); [var = nullptr if simple var]
   void visit(DeleteStmt *node) override {
+    // "Delete Each <Typ>" — die ganze Liste leeren. bb_T_Delete haengt den
+    // Knoten aus der Liste aus, der Kopf ruckt also nach; die Schleife braucht
+    // deshalb keinen eigenen Zeiger auf das naechste Element.
+    if (!node->eachTypeName.empty()) {
+      const std::string t = toLower(node->eachTypeName);
+      output << ind() << "while (bb_" << t << "_head_) bb_" << t
+             << "_Delete(bb_" << t << "_head_);\n";
+      return;
+    }
+
     std::string typeName = getExprTypeName(node->object.get());
     if (!typeName.empty()) {
       output << ind() << "bb_" << toLower(typeName) << "_Delete(";

@@ -1,0 +1,1 @@
+tests/neg_bug46_double_dot.bb:4:9: error: unexpected token '.5'

@@ -1,0 +1,1 @@
+tests/neg_bug57_else_double_space.bb:10:1: error: Expected ENDIF (got <EOF>)
