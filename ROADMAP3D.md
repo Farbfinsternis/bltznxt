@@ -500,32 +500,49 @@ statt zu stuerzen.
 
 ---
 
-### 3D-12 · Lighting
-*Dateien: `bb_light.h` (neu), `bb_shader.h`*
+### 3D-12 · Lighting ✓ COMPLETE
+*Dateien: `bb_light.h` (neu), `bb_shader.h`, `bb_graphics3d.h`*
 
-- [ ] `bb_LightEntity_` erbt von `bb_Entity_`:
-      `type` (0=dir, 1=point, 2=spot), `colR/G/B`, `range`, `innerAngle`, `outerAngle`
-- [ ] `bb_CreateLight(int type=1, int parent=0)` → handle
-- [ ] `bb_LightColor(h, r, g, b)` — 0–255
-- [ ] `bb_LightRange(h, range)` — Point/Spot Attenuation
-- [ ] `bb_LightConeAngles(h, inner, outer)` — nur Spot
-- [ ] `bb_AmbientLight(r, g, b)` — Szenen-Globalwert `bb_ambient_light_`
-- [ ] `RenderWorld` sammelt alle sichtbaren Lights → max. 8 → Upload als Uniforms
-      an `BB_GLSL_LIT`-Shader; wechselt automatisch auf `LIT` wenn Lights > 0
-- [ ] `bb_AmbientLight` als `u_ambient`-Uniform
-- **Test:** `tests/test_3d12_lighting.bb`
-  ```blitzbasic
-  Graphics3D 800,600,32,1
-  AmbientLight 30, 30, 30
-  Local cam  = CreateCamera()
-  PositionEntity cam, 0, 2, -5
-  Local cube = CreateCube()
-  Local l    = CreateLight(1)
-  PositionEntity l, 3, 3, -2
-  LightColor l, 255, 200, 150
-  LightRange l, 20
-  UpdateWorld : RenderWorld : Flip : WaitKey
-  ```
+CreateLight war mit **39 betroffenen Beispieldateien der haeufigste fehlende
+Einzelbefehl**. Der LIT-Shader konnte bereits acht Lichter; hinzugekommen sind
+die Sprachseite, das Einsammeln im Renderpass und Spotlichter im Shader.
+
+- [x] `bb_LightEntity_` erbt von `bb_Entity_`: `type`, `colR/G/B`, `range`,
+      `inner`/`outer`
+- [x] `bb_CreateLight(int type=1, int parent=0)` → handle
+- [x] `bb_LightColor(h, r#, g#, b#)` — 0-255, **negative Werte verdunkeln**
+      ("negative lighting" laut Doku), deshalb wird nicht geklemmt
+- [x] `bb_LightRange(h, range#)` — Vorgabe **1000.0**
+- [x] `bb_LightConeAngles(h, inner#, outer#)` — Vorgabe **0,90**
+- [x] `bb_AmbientLight(r#, g#, b#)` — Vorgabe **127,127,127**; war vorher `int`
+      und wich damit von der Originalsignatur ab
+- [x] `RenderWorld` sammelt bis zu 8 sichtbare Lichter, waehlt bei mindestens
+      einem den LIT-Shader und laedt die Uniforms hoch
+- [x] Spotlichter im LIT-Shader ergaenzt (`u_light_dir`, `u_light_cos_inner`,
+      `u_light_cos_outer`) — sonst haette `CreateLight(3)` still wie ein
+      Punktlicht gerendert
+
+**Aus der mitgelieferten Doku, nicht geraten** (`help/commands/3d_commands/`):
+Die Vorgabe ist **1 = directional**, nicht point, und die Nummerierung beginnt
+bei 1, waehrend der Shader intern ab 0 zaehlt. Ein Richtungslicht hat
+"infinite position and infinite range"; seine Richtung kommt aus der Rotation
+(die Beispiele richten es mit `RotateEntity` aus), im Shader also die
+Gegenrichtung der +Z-Blickachse. Ein Licht mit Elternknoten entsteht laut Doku
+trotzdem bei 0,0,0 — der Test prueft genau das.
+
+**Offen und bewusst nicht behauptet:** ob Blitz3D die Kegelwinkel als vollen
+Oeffnungswinkel oder als Halbwinkel versteht. Hier ist der volle Winkel
+angenommen; entscheiden laesst sich das nur an einem laufenden
+Original-Renderer.
+
+- **Signaturvergleich:** `compare_commands.py` gegen `blitzcc +k` — keine
+  Abweichung. Zusaetzlich von Hand die Parametertypen geprueft, die das
+  Werkzeug **nicht** vergleicht; `AmbientLight` war dort abweichend und ist
+  korrigiert.
+- **Test:** `tests/test_3d12_lighting.bb` — sichert die sprachsichtbaren
+  Zusagen zu (Handles, Entity-Klasse, Elternbindung, Positionsregel,
+  negatives Licht, beleuchtetes Bild ohne Absturz). Das **Aussehen** ist
+  ausdruecklich nicht zugesichert; dafuer waere ein Bildvergleich noetig.
 
 ---
 

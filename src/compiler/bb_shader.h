@@ -181,6 +181,11 @@ uniform vec3  u_light_pos[8];
 uniform vec3  u_light_color[8];
 uniform float u_light_range[8];
 uniform int   u_light_type[8];
+// Spot (Typ 2): Kegelachse und die beiden Winkel als Kosinus des HALBwinkels,
+// damit der Vergleich im Fragment ohne Trigonometrie auskommt.
+uniform vec3  u_light_dir[8];
+uniform float u_light_cos_inner[8];
+uniform float u_light_cos_outer[8];
 
 uniform sampler2D u_tex;
 uniform int       u_use_tex;
@@ -199,12 +204,23 @@ void main() {
             // Directional: u_light_pos is the direction vector (towards light source)
             L = normalize(u_light_pos[i]);
         } else {
-            // Point
+            // Point und Spot teilen sich Abstand und Reichweite
             vec3  delta = u_light_pos[i] - v_pos;
             float dist  = length(delta);
             L = (dist > 0.0001) ? delta / dist : vec3(0.0, 1.0, 0.0);
             float r = u_light_range[i];
             atten = (r > 0.0) ? max(0.0, 1.0 - dist / r) : 1.0;
+            if (u_light_type[i] == 2) {
+                // Spot: Winkel zwischen Kegelachse und der Richtung zur
+                // Oberflaeche. Innerhalb des inneren Winkels volle Helligkeit,
+                // dazwischen weicher Uebergang, ausserhalb nichts.
+                float cd = dot(normalize(u_light_dir[i]), -L);
+                float ci = u_light_cos_inner[i];
+                float co = u_light_cos_outer[i];
+                float cone = (ci > co) ? clamp((cd - co) / (ci - co), 0.0, 1.0)
+                                       : step(co, cd);
+                atten *= cone;
+            }
         }
         float diff = max(dot(N, L), 0.0);
         result += diff * u_light_color[i] * atten;

@@ -703,6 +703,58 @@ Modi" waere auf jedem anderen Rechner falsch.
 **Wirkung:** vollstaendig uebersetzende Dateien **25 → 32**, unbekannte Befehle
 131 → 121 verschieden und 1527 → 1243 Vorkommen. Keine Regression.
 
+### Nachtrag (2026-09-08, 3D-12): Lichter
+
+`CreateLight` war mit **39 betroffenen Beispieldateien der haeufigste fehlende
+Einzelbefehl** ueberhaupt. Der LIT-Shader konnte laut 3D-07 bereits acht
+Lichter — gefehlt haben die Sprachseite, das Einsammeln im Renderpass und, wie
+sich zeigte, die Spotlichter.
+
+**Die mitgelieferte Dokumentation hat mich vor drei Fehlgriffen bewahrt.**
+`help/commands/3d_commands/` liegt im Installationsverzeichnis und ist fuer
+Rendering-Befehle das, was `blitzcc +k` fuer Signaturen ist:
+
+- Die Vorgabe von `CreateLight()` ist **1 = directional**, nicht point. Der
+  eigene Roadmap-Entwurf hatte im Strukturkommentar „1=point" stehen — das
+  waere fuer die 65 Aufrufe von `CreateLight()` ohne Argument der falsche
+  Lichttyp gewesen.
+- Die Nummerierung beginnt bei **1** (1/2/3), waehrend der Shader intern ab 0
+  zaehlt. Ohne Umsetzung waere jeder Typ um eins verschoben.
+- `LightRange` hat die Vorgabe **1000.0**, `LightConeAngles` **0,90**, und
+  `AmbientLight` **127,127,127** — eine Szene ohne `AmbientLight` ist im
+  Original also mittelgrau beleuchtet, nicht schwarz. Unsere Vorgabe war 0.
+
+Dazu: `LightColor` erlaubt ausdruecklich **negative Werte** ("negative
+lighting" fuer Schatteneffekte), deshalb wird dort nicht geklemmt — erst das
+Endergebnis im Shader wird begrenzt.
+
+**Spotlichter habe ich im Shader ergaenzt statt sie als Punktlicht zu
+rendern.** Zehn Beispieldateien rufen `CreateLight(3)`; ohne Kegelrechnung
+haetten sie ein sichtbar falsches Bild ergeben, ohne dass irgendetwas meldet —
+genau die Klasse stiller Falschergebnisse, die diese Sitzung durchgehend
+vermieden hat. Neu sind `u_light_dir`, `u_light_cos_inner` und
+`u_light_cos_outer`; der Vergleich laeuft ueber den Kosinus des Halbwinkels,
+damit im Fragment keine Trigonometrie noetig ist.
+
+Ein Richtungslicht bezieht seine Richtung aus der Rotation (die Beispiele
+richten es mit `RotateEntity` aus). Entities blicken nach +Z, die dritte Spalte
+der Weltmatrix ist also die Vorwaertsachse; der Shader will die Richtung *zum*
+Licht, somit deren Gegenrichtung.
+
+**Ein Nebenbefund: das Signaturwerkzeug ist blinder als gedacht.**
+`compare_commands.py` vergleicht Stelligkeit, Rueckgabetyp und
+Parameter**namen** — die Parameter**typen** nicht, es streift `#$%` vor dem
+Vergleich ab. Ein Handabgleich ueber alle 320 gemeinsamen Befehle fand vier
+Abweichungen, die das Werkzeug nicht sehen kann. `AmbientLight` (wir `%,%,%`
+gegen `#,#,#`) ist hier mitbehoben; die drei uebrigen stehen als BUG-62. Seit
+BUG-53 wandeln Argumente still an der Parametergrenze um, ein falsch
+gefuehrter Typ schneidet also lautlos ab.
+
+**Wirkung:** vollstaendig uebersetzende Beispieldateien 32 → 34, unbekannte
+Befehle 1243 → 1187 Vorkommen. Nur zwei Dateien mehr, weil die meisten der 39
+zusaetzlich Texturen brauchen — `EntityTexture` (33), `EntityAlpha` (23),
+`LoadTexture` (22) sind jetzt die Spitze, also 3D-10 und 3D-11.
+
 ### Parser: colon as statement separator — If/Else bug fixed
 
 Colon (`:`) already worked as a statement separator in the main loop via

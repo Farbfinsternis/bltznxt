@@ -19,10 +19,13 @@ inline int  bb_cam_cls_r_     = 0;
 inline int  bb_cam_cls_g_     = 0;
 inline int  bb_cam_cls_b_     = 0;
 
-// Global ambient light (uploaded to lit-shader uniform in 3D-12).
-inline int bb_ambient_r_ = 0;
-inline int bb_ambient_g_ = 0;
-inline int bb_ambient_b_ = 0;
+// Globales Umgebungslicht. **Vorgabe 127,127,127** laut Blitz3D-Doku
+// (help/commands/3d_commands/AmbientLight.htm) - eine Szene ohne AmbientLight
+// ist dort also mittelgrau beleuchtet, nicht schwarz. Float, weil das Original
+// "AmbientLight red#,green#,blue#" fuehrt (3D-12).
+inline float bb_ambient_r_ = 127.0f;
+inline float bb_ambient_g_ = 127.0f;
+inline float bb_ambient_b_ = 127.0f;
 
 // Triangle counter — reset at start of RenderWorld, incremented by mesh draws.
 inline int bb_tris_rendered_ = 0;
@@ -32,6 +35,7 @@ inline int bb_tris_rendered_ = 0;
 // bb_shader.h needs bb_gl_ctx.h symbols; include after camera.
 #include "bb_shader.h"
 #include "bb_mesh_core.h"
+#include "bb_light.h"
 #include "bb_mesh.h"
 
 // ============================================================
@@ -49,6 +53,85 @@ inline void bb_UpdateWorld(float elapsed_time = 1.0f) {
 
 // ============================================================
 // RenderWorld
+// ============================================================
+// Lichter einsammeln und hochladen (3D-12)
+// ============================================================
+
+// Bis zu acht sichtbare Lichter. Die Grenze steht so in der Blitz3D-Doku
+// ("assume 8") und ist zugleich die Groesse der Shader-Uniformfelder.
+inline constexpr int BB_MAX_LIGHTS = 8;
+
+inline bb_LightEntity_ *bb_active_lights_[BB_MAX_LIGHTS] = {};
+
+inline int bb_collect_lights_() {
+  int n = 0;
+  for (auto &[h, ent] : bb_entities_) {
+    if (n >= BB_MAX_LIGHTS) break;
+    if (!ent->visible) continue;
+    if (ent->kind() != bb_EntityKind_::Light) continue;
+    bb_active_lights_[n++] = static_cast<bb_LightEntity_ *>(ent.get());
+  }
+  return n;
+}
+
+inline void bb_upload_lights_(bb_Shader_ *sh, int n, bb_CameraEntity_ *cam) {
+  float pos[BB_MAX_LIGHTS * 3] = {};
+  float col[BB_MAX_LIGHTS * 3] = {};
+  float dir[BB_MAX_LIGHTS * 3] = {};
+  float rng[BB_MAX_LIGHTS]     = {};
+  float ci[BB_MAX_LIGHTS]      = {};
+  float co[BB_MAX_LIGHTS]      = {};
+  int   typ[BB_MAX_LIGHTS]     = {};
+
+  for (int i = 0; i < n; ++i) {
+    bb_LightEntity_ *l = bb_active_lights_[i];
+    const float *w = l->world;
+    // Entities blicken nach +Z; die dritte Spalte der Weltmatrix ist die
+    // Vorwaertsachse (siehe bb_PointEntity).
+    float fx = w[8], fy = w[9], fz = w[10];
+    float len = std::sqrt(fx * fx + fy * fy + fz * fz);
+    if (len > 1e-6f) { fx /= len; fy /= len; fz /= len; }
+
+    // Der Shader zaehlt ab 0: 0=directional, 1=point, 2=spot.
+    typ[i] = (l->type == 1) ? 0 : (l->type == 2 ? 1 : 2);
+
+    if (typ[i] == 0) {
+      // Richtungslicht: u_light_pos traegt die Richtung ZUM Licht, also die
+      // Gegenrichtung der Blickachse. Position und Reichweite sind laut Doku
+      // unendlich und spielen keine Rolle.
+      pos[i * 3 + 0] = -fx; pos[i * 3 + 1] = -fy; pos[i * 3 + 2] = -fz;
+      rng[i] = 0.0f; // 0 = keine Abschwaechung
+    } else {
+      pos[i * 3 + 0] = w[12]; pos[i * 3 + 1] = w[13]; pos[i * 3 + 2] = w[14];
+      rng[i] = l->range;
+    }
+    dir[i * 3 + 0] = fx; dir[i * 3 + 1] = fy; dir[i * 3 + 2] = fz;
+
+    col[i * 3 + 0] = l->colR / 255.0f;
+    col[i * 3 + 1] = l->colG / 255.0f;
+    col[i * 3 + 2] = l->colB / 255.0f;
+
+    // Kegelwinkel als Kosinus des Halbwinkels - der volle Winkel ist die hier
+    // gewaehlte Lesart, siehe bb_light.h.
+    ci[i] = std::cos(l->inner * 0.5f * 3.14159265358979f / 180.0f);
+    co[i] = std::cos(l->outer * 0.5f * 3.14159265358979f / 180.0f);
+  }
+
+  bb_shader_uniform_i(sh, "u_light_count", n);
+  bb_shader_uniform_v3v(sh, "u_light_pos",   n, pos);
+  bb_shader_uniform_v3v(sh, "u_light_color", n, col);
+  bb_shader_uniform_v3v(sh, "u_light_dir",   n, dir);
+  bb_shader_uniform_fv(sh, "u_light_range",     n, rng);
+  bb_shader_uniform_fv(sh, "u_light_cos_inner", n, ci);
+  bb_shader_uniform_fv(sh, "u_light_cos_outer", n, co);
+  bb_shader_uniform_iv(sh, "u_light_type", n, typ);
+
+  bb_shader_uniform_v3(sh, "u_ambient", bb_ambient_r_ / 255.0f,
+                      bb_ambient_g_ / 255.0f, bb_ambient_b_ / 255.0f);
+  bb_shader_uniform_v3(sh, "u_view_pos", cam->world[12], cam->world[13],
+                      cam->world[14]);
+}
+
 // ============================================================
 
 // Der Tween-Faktor ist optional und wird noch nicht ausgewertet - im Original
@@ -111,9 +194,16 @@ inline void bb_RenderWorld(float tween = 1.0f) {
     else
       bb_cam_proj_persp_(cam, aspect);
 
-    // Draw all visible MeshEntities with the UNLIT shader.
-    if (bb_shader_unlit_)
-      bb_render_meshes_(bb_shader_unlit_, cam->view, cam->proj);
+    // Sichtbare Lichter einsammeln und den passenden Shader waehlen. Ohne
+    // Licht bleibt es beim UNLIT-Shader, damit reine 2D-/Flat-Szenen genau so
+    // aussehen wie bisher (3D-12).
+    int n = bb_collect_lights_();
+    bb_Shader_ *sh = (n > 0 && bb_shader_lit_) ? bb_shader_lit_ : bb_shader_unlit_;
+    if (sh) {
+      bb_shader_bind_(sh);
+      if (sh == bb_shader_lit_) bb_upload_lights_(sh, n, cam);
+      bb_render_meshes_(sh, cam->view, cam->proj);
+    }
   }
 }
 
@@ -136,7 +226,7 @@ inline void bb_CaptureWorld() { /* stub — rarely used */ }
 
 inline int bb_TrisRendered() { return bb_tris_rendered_; }
 
-inline void bb_AmbientLight(int r, int g, int b) {
+inline void bb_AmbientLight(float r, float g, float b) {
   bb_ambient_r_ = r;
   bb_ambient_g_ = g;
   bb_ambient_b_ = b;
