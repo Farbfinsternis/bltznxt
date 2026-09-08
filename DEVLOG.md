@@ -628,6 +628,35 @@ verlangt ist. Ein eigener Konstantenauswerter (A-07) war nicht noetig.
 mit Sprachfehlern 36 → 30, Sprachfehler gesamt 306 → 271. Keine Regression,
 volle Suite 126 passed.
 
+### Nachtrag (2026-09-08, BUG-50): `=>`, `=<` und `><`
+
+Blitz3D kennt die drei Vergleichsoperatoren in beiden Reihenfolgen. Der Eintrag
+nannte urspruenglich nur `=>` und `=<`; **`><` fehlte ebenfalls** — Astra hatte
+die dritte Form benannt, hier ist sie gemessen bestaetigt.
+
+Am Original jeweils in beide Richtungen belegt, damit nicht nur die Annahme,
+sondern auch die Bedeutung feststeht: `5 => 3` → 1 und `3 => 5` → 0 (also `>=`),
+`5 =< 3` → 0 und `3 =< 5` → 1 (also `<=`), `5 >< 3` → 1 und `3 >< 3` → 0 (also
+`<>`). Ein Zwischenraum ist nicht erlaubt, und weitere Aliase gibt es nicht.
+
+Der Fix sind drei Zeichenpaare mehr in der Zwei-Zeichen-Erkennung von
+`lexOperator()`, danach auf die kanonische Schreibweise normalisiert. Parser und
+Emitter bleiben unveraendert und muessen nur eine Form kennen. Die
+Zwischenraumregel ergibt sich hier von selbst, weil nur unmittelbar benachbarte
+Zeichen zusammengefasst werden — anders als bei BUG-57, wo genau das eigens
+geprueft werden musste.
+
+Der Preis der Normalisierung, bewusst in Kauf genommen: eine Diagnose nennt
+`>=`, wo die Quelle `=>` schreibt. Die Alternative waere gewesen, beide
+Schreibweisen durch Parser und Emitter zu fuehren.
+
+Drei Gegenproben stellen sicher, dass die gewoehnliche Zuweisung nicht leidet
+(`x = 5`, `y = -3`, `If x = 5`) — das `=` darf durch die neuen Paare nicht
+verloren gehen.
+
+**Wirkung:** Dateien mit `unexpected token '>'` **5 → 0**, Dateien mit
+Sprachfehlern 30 → 25, Sprachfehler gesamt 271 → 231. Keine Regression.
+
 ### Parser: colon as statement separator — If/Else bug fixed
 
 Colon (`:`) already worked as a statement separator in the main loop via

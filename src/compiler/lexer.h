@@ -274,12 +274,28 @@ private:
     if (pos < source.length()) {
       char next = source[pos];
       if ((c == '<' && (next == '=' || next == '>')) ||
-          (c == '>' && next == '=') ||
+          (c == '>' && (next == '=' || next == '<')) ||   // ">< " (BUG-50)
+          (c == '=' && (next == '>' || next == '<')) ||   // "=>", "=<"
           (c == ':' && next == '=')) {
         value += source[pos++];
         col++;
       }
     }
+
+    // Blitz3D kennt die drei Vergleichsoperatoren in beiden Reihenfolgen
+    // (BUG-50). Am Original gemessen: "5 => 3" ergibt 1 wie ">=", "3 =< 5"
+    // ergibt 1 wie "<=", "5 >< 3" ergibt 1 wie "<>". Ein Zwischenraum ist dabei
+    // nicht erlaubt - "5 = > 3" lehnt das Original ab, was hier von selbst
+    // herauskommt, weil nur unmittelbar benachbarte Zeichen zusammengefasst
+    // werden.
+    //
+    // Auf die kanonische Schreibweise normalisiert, damit Parser und Emitter
+    // nur eine Form kennen muessen. Eine Diagnose nennt dadurch ">=", wo die
+    // Quelle "=>" schreibt; das ist der Preis dafuer, dass sonst nichts
+    // doppelt gefuehrt werden muss.
+    if (value == "=>") value = ">=";
+    else if (value == "=<") value = "<=";
+    else if (value == "><") value = "<>";
 
     return {TokenType::OPERATOR, value, line, startCol};
   }

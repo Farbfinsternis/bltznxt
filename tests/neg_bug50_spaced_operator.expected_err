@@ -1,0 +1,2 @@
+tests/neg_bug50_spaced_operator.bb:4:11: error: unexpected token '>'
+tests/neg_bug50_spaced_operator.bb:4:13: error: unexpected token '3'
