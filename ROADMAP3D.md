@@ -407,6 +407,42 @@ wird ein neues `bb_deferred_renderer_.cpp` eingehängt — alle anderen Systeme
 
 ---
 
+### 3D-00 · Grafikmodus- und Treiberaufzaehlung ✓ COMPLETE
+*Datei: `bb_gfxmode.h` (neu)*
+
+Nachtraeglich aufgenommen (2026-09-08): Dieser Block stand nicht auf dem Plan,
+weil er kein Rendering betrifft — er blockierte aber **30 der 130
+Installationsbeispiele**, weil die gemeinsame `start.bb` der mak-, halo-,
+AGore-, Skully- und Richard_Betson-Beispiele damit beginnt. Sieben Dateien
+uebersetzen allein dadurch vollstaendig.
+
+- [x] `bb_GfxMode_` + einmalige, zwischengespeicherte Aufzaehlung ueber
+      `SDL_GetFullscreenDisplayModes()`; Duplikate nach (Breite, Hoehe, Tiefe)
+      fallen weg, weil Blitz3D keine Bildwiederholrate in dieser Liste fuehrt
+- [x] `bb_CountGfxModes3D()`, `bb_CountGfxModes()` — dieselbe Liste: auf
+      heutiger Hardware ist jeder Modus 3D-faehig
+- [x] `bb_GfxModeWidth/Height/Depth(mode)` — **1-basiert**
+- [x] `bb_GfxModeExists(w,h,depth)`
+- [x] `bb_Windowed3D()` → 1 (der GL-Kontext haengt nicht am Vollbild)
+- [x] `bb_CountGfxDrivers()`, `bb_GfxDriverName$(driver)` — ebenfalls 1-basiert
+- [x] `bb_SetGfxDriver(driver)` — merkt den Wert; SDL3 waehlt den Videotreiber
+      beim Initialisieren, ein echter Wechsel findet nicht statt
+
+**Die 1-Basierung ist aus dem tatsaechlichen Gebrauch abgelesen**, nicht
+geraten: `For k=1 To CountGfxModes3D()` und
+`Input$("Display driver (1-"+CountGfxDrivers()+"):")` stehen so in den
+Beispielen. Ein Index ausserhalb des Bereichs liefert 0 bzw. den leeren String
+statt zu stuerzen.
+
+- **Signaturvergleich:** `scripts/compare_commands.py` gegen `blitzcc +k` meldet
+  fuer alle zehn Befehle keine Abweichung in Stelligkeit, Grenzen oder
+  Rueckgabetyp.
+- **Test:** `tests/test_3dgfx_modes.bb` — prueft **Invarianten statt Zahlen**
+  (1-Basierung, Bereichsgrenzen, Vertraeglichkeit der Abfragen), weil Modusliste
+  und Treibernamen vom Rechner abhaengen.
+
+---
+
 ### 3D-10 · Entity Appearance
 *Dateien: `bb_entity_core.h`, `bb_mesh.h`*
 

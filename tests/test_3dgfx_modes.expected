@@ -1,0 +1,15 @@
+treiber vorhanden
+name(1) gesetzt
+name(0) leer
+name(n+1) leer
+windowed3d
+modizahl gleich
+breite(1)
+hoehe(1)
+tiefe(1)
+breite(n)
+breite(0) null
+breite(n+1) null
+exists stimmig
+exists negativ
+fertig

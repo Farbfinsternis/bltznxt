@@ -14,6 +14,7 @@
 #include "bb_sound.h"   // Sound loading, playback, looping, channel control
 #include "bb_sound3d.h"    // 3D/positional sound stubs, WaitSound, listener state
 #include "bb_graphics2d.h" // Graphics(), GraphicsWidth/Height/Depth/Rate, VidMem stubs
+#include "bb_gfxmode.h"   // CountGfxModes3D/GfxModeWidth/... - Modus- und Treiberabfrage
 #include "bb_image.h"      // LoadImage, CreateImage, DrawImage, ImageWidth/Height
 #include "bb_graphics3d.h" // Graphics3D(), RenderWorld(), UpdateWorld(), GL loader
 

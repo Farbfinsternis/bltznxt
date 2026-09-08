@@ -657,6 +657,52 @@ verloren gehen.
 **Wirkung:** Dateien mit `unexpected token '>'` **5 → 0**, Dateien mit
 Sprachfehlern 30 → 25, Sprachfehler gesamt 271 → 231. Keine Regression.
 
+### Nachtrag (2026-09-08, 3D-00): Grafikmodus- und Treiberaufzaehlung
+
+Nach zehn Sprachfixes war die Sprache nicht mehr der Engpass: 74 der 124 vom
+Original akzeptierten Beispieldateien scheiterten nur noch an unbekannten
+Befehlen. Die Messung ueber alle Vorkommen ergab **131 verschiedene fehlende
+Befehle in 1527 Vorkommen** — und einen Block, den der 3D-Meilensteinplan gar
+nicht fuehrt, weil er kein Rendering betrifft.
+
+`CountGfxModes3D`, `GfxModeWidth/Height/Depth`, `GfxModeExists`, `Windowed3D`,
+`CountGfxDrivers`, `GfxDriverName`, `SetGfxDriver`: eine reine Abfrage-API, die
+**30 Beispieldateien** blockierte, weil die gemeinsame `start.bb` der mak-,
+halo-, AGore-, Skully- und Richard_Betson-Beispiele damit beginnt. Sieben
+Dateien uebersetzen allein dadurch vollstaendig — die Messung hatte genau diese
+sieben vorhergesagt, und genau sie sind es geworden.
+
+**Die 1-Basierung ist abgelesen, nicht geraten.** Die Signaturen liefert
+`blitzcc +k` exakt, die Indexbasis aber nicht. Sie steht im tatsaechlichen
+Gebrauch:
+
+```blitzbasic
+For k=1 To CountGfxModes3D()
+  Print k+":"+GfxModeWidth(k)+","+GfxModeHeight(k)
+Next
+driver = Input$( "Display driver (1-"+CountGfxDrivers()+"):" )
+```
+
+Ein Index ausserhalb des Bereichs liefert 0 bzw. den leeren String statt zu
+stuerzen. Blitz3D meldet dort einen Laufzeitfehler; der stille Nullwert ist die
+vorsichtigere Wahl, solange dessen genaue Form nicht gemessen ist.
+
+Zwei bewusste Abweichungen stehen im Header: `CountGfxModes()` liefert dieselbe
+Liste wie `CountGfxModes3D()` (auf heutiger Hardware ist jeder Modus 3D-faehig),
+und `SetGfxDriver` merkt den Wert nur — SDL3 waehlt den Videotreiber beim
+Initialisieren, ein echter Wechsel findet nicht statt.
+
+**Verifikation ohne Bildvergleich.** Fuer Rendering-Befehle taugt der bisherige
+Weg (Werte gegen das Original) nicht. Hier greifen stattdessen zwei andere
+Instrumente: `scripts/compare_commands.py` gegen `blitzcc +k` meldet fuer alle
+zehn Befehle **keine Abweichung** in Stelligkeit, Grenzen und Rueckgabetyp, und
+der Test prueft **Invarianten statt Zahlen** — 1-Basierung, Bereichsgrenzen,
+Vertraeglichkeit der Abfragen untereinander. Eine feste `.expected` mit "21
+Modi" waere auf jedem anderen Rechner falsch.
+
+**Wirkung:** vollstaendig uebersetzende Dateien **25 → 32**, unbekannte Befehle
+131 → 121 verschieden und 1527 → 1243 Vorkommen. Keine Regression.
+
 ### Parser: colon as statement separator — If/Else bug fixed
 
 Colon (`:`) already worked as a statement separator in the main loop via
