@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cctype>   // toupper, tolower
 #include <cstdio>   // snprintf
+#include <cstdlib>  // atoi, atof (String -> Zahl wie in der Referenz)
 
 // ============================================================
 //  BlitzNext String Runtime  —  bb_string.h
@@ -35,6 +36,38 @@ inline bbString operator+(const bbString &s, float f)  { return s + bb_Str((doub
 inline bbString operator+(float f, const bbString &s)  { return bb_Str((double)f) + s; }
 inline bbString operator+(const bbString &s, double f) { return s + bb_Str(f); }
 inline bbString operator+(double f, const bbString &s) { return bb_Str(f) + s; }
+
+// ---- Implizite Umwandlung an Zuweisungsgrenzen (BUG-53) --------------------
+//
+// Blitz3D wandelt zwischen Integer, Float und String in BEIDE Richtungen um,
+// wo ein Wert an einen bekannten Zieltyp geht: Zuweisung, Deklaration mit
+// Initialisierung, Funktionsparameter und Return. Am Original gemessen sind
+// alle sechs Richtungen an allen vier Stellen zulaessig; nur Objekte wandeln
+// nie ("Illegal type conversion").
+//
+// Der Emitter kennt den ZIELTYP (aus der Deklaration bzw. der Signatur), aber
+// nicht den Typ des Quellausdrucks. Deshalb sind diese Helfer ueber alle
+// Quelltypen ueberladen, einschliesslich eines Durchreichers fuer den Fall,
+// dass gar nichts umzuwandeln ist: der Emitter darf bedenkenlos wrappen, die
+// Ueberladungsaufloesung entscheidet. Dieselbe Bauform wie die operator+ oben.
+inline const bbString &bb_Str(const bbString &s) { return s; }
+
+// String -> Zahl folgt der Referenz, die dafuer atoi/atof benutzt: fuehrender
+// Zahlanteil zaehlt, der Rest wird ignoriert, gar keine Ziffer ergibt 0. Kein
+// Fehler, keine Ausnahme - anders als bb_Int(bbString) fuer das Sprach-Int().
+inline int bb_ToInt(const bbString &s) { return std::atoi(s.c_str()); }
+inline int bb_ToInt(int n)             { return n; }
+// Float -> Int bleibt hier bewusst das, was der erzeugte C++-Code bisher schon
+// tat (Abschneiden). Dass Blitz3D stattdessen rundet, ist eine eigene, bereits
+// notierte Abweichung; sie hier stillschweigend mitzuaendern wuerde den Befund
+// verwischen und mehr aendern, als dieser Fix verantwortet.
+inline int bb_ToInt(float f)           { return static_cast<int>(f); }
+inline int bb_ToInt(double f)          { return static_cast<int>(f); }
+
+inline float bb_ToFloat(const bbString &s) { return (float)std::atof(s.c_str()); }
+inline float bb_ToFloat(int n)             { return (float)n; }
+inline float bb_ToFloat(float f)           { return f; }
+inline float bb_ToFloat(double f)          { return (float)f; }
 
 inline int bb_Int(const bbString &s) {
     try { return std::stoi(s); }

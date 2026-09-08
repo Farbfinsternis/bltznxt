@@ -1,0 +1,1 @@
+tests/neg_bug53_object_conversion.bb:7:7: error: Local: cannot assign .T to string

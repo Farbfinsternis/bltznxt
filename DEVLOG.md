@@ -525,6 +525,68 @@ Sprachfehler 420 → 390, Dateien mit Sprachfehlern 63 → 61. Keine Regression,
 Fehlermeldungen im Installationsbestand sind jetzt **allesamt unbekannte
 Befehle** — die Blockade ist dort ueberwiegend keine Sprachfrage mehr.
 
+### Nachtrag (2026-09-08, BUG-53): implizite Umwandlung an Zuweisungsgrenzen
+
+Die groesste Einzelursache im Beispielbestand: **31 der 61 Befunde**, fast immer
+`Text 10,20,punkte` mit einem Integer als String-Parameter. Die alte Notiz „1 von
+49" taeuschte — erst nachdem die sechs vorigen Fixes den Parser weitergebracht
+hatten, wurde die wahre Groesse sichtbar.
+
+Am Original gemessen ergab sich eine vollstaendig **symmetrische** Matrix:
+Integer, Float und String wandeln in allen sechs Richtungen, an allen vier
+Stellen mit bekanntem Zieltyp — Zuweisung, `Local`/`Global` mit Initialisierung,
+Parameter, `Return`. Objekte wandeln nie. Zahl→String faltet der Originalcompiler
+zur Uebersetzungszeit, String→Zahl ist ein Laufzeitaufruf und folgt `atoi`/`atof`:
+`"12abc"` → 12, `"abc"` → 0, ohne Fehler.
+
+**Die Diagnose bloss zu entfernen waere die schlechtere Loesung gewesen, und das
+ist gemessen, nicht vermutet.** Nach der reinen Lockerung in `semant.h`
+uebersetzte `Local s$ = 42` anstandslos und gab `*` aus — C++ nahm die 42 als
+Zeichencode. Aus einer lauten Ablehnung waere ein stilles Falschergebnis
+geworden. Astra hatte in A-02 genau davor gewarnt.
+
+Der Kniff, der das ohne typisierte Zwischendarstellung loest: **der Emitter kennt
+den Zieltyp, aber nicht den Typ des Quellausdrucks.** Also sind die neuen Helfer
+`bb_Str`, `bb_ToInt` und `bb_ToFloat` ueber alle Quelltypen ueberladen,
+Durchreicher eingeschlossen. Der Emitter darf bedenkenlos wrappen, die
+C++-Ueberladungsaufloesung entscheidet, ob ueberhaupt etwas passiert — dieselbe
+Bauform wie die vorhandenen `operator+`-Ueberladungen fuer `"Score: " + n`.
+
+Die Zieltypen kommen aus der Deklaration (`varHints_`, analog zu
+`varObjectTypes`), aus dem Rueckgabetag der laufenden Funktion und an
+Aufrufstellen aus `userFuncDecls_` bzw. der erzeugten Befehlstabelle. `Text`
+steht dort als `x%,y%,s$,...`; heraus kommt
+`bb_Text(10, 20, bb_Str(var_punkte))`. Ein Parameter ohne Typ in der Tabelle
+(`Print` hat `val?`) heisst ausdruecklich „beliebig" und wird nicht gewandelt.
+
+`bb_ToInt(float)` schneidet weiterhin ab, wie der erzeugte Code es bisher tat.
+Dass Blitz3D rundet, ist eine eigene Abweichung (A-03) und haette hier nur den
+Befund verwischt.
+
+**Zwei Negativtests waren gar keine.** `neg_weak17_builtin_return.bb`
+(`Local s$ = Len("abc")`) und `neg_weak17_builtin_types.bb` (`Sin("x")`) werden
+vom Original angenommen; sie hielten unsere eigene zu strenge Regel fest, nicht
+Blitz3D. Astra hatte beide benannt. Sie sind entfernt und als Faelle in den
+Positivtest gewandert.
+
+**BUG-55 faellt mit ab.** Die beiden alten Zweige von `checkAssign()` waren
+ohnehin falsch; an ihre Stelle trat die Pruefung, die wirklich noetig ist — ist
+eine Seite ein Objekt, muessen beide dasselbe Objekt sein. Damit lehnen alle
+sechs vorher ungeprueften Stellen ab wie das Original. Zwei Grenzfaelle brauchten
+Sorgfalt: `p.T = Null` bleibt zulaessig, und ein unbekannter Typname darf keine
+zweite Meldung erzeugen — ohne diese Abgrenzung schlugen zwei bestehende
+Diagnosetests fehl, genau wofuer sie da sind.
+
+**Wirkung:** Dateien mit `cannot assign` **32 → 0**. Dateien mit Sprachfehlern
+**61 → 36**, Sprachfehler gesamt **390 → 306**. Der groesste Einzelsprung der
+Serie, keine Regression, volle Suite 123 passed.
+
+Nicht Teil des Fixes und als BUG-61 notiert: Vergleich, Bedingung, Arrayindex und
+Schleifengrenze. Dort lauern zwei am Original gemessene Ueberraschungen — der
+**Vergleich** wandelt die Zahl zum String (`"2" > 10` ist wahr, `"abc" = 0`
+falsch), die **Bedingung** dagegen den String zur Zahl (`If "x"` ist falsch, nicht
+„nicht leer = wahr"). Wer das verwechselt, bekommt das Gegenteil heraus.
+
 ### Parser: colon as statement separator — If/Else bug fixed
 
 Colon (`:`) already worked as a statement separator in the main loop via

@@ -266,15 +266,35 @@ private:
 
   // string ↔ number is the conversion Blitz3D refuses; everything else is
   // either allowed (int ↔ float) or deliberately not checked here.
+  // Was hier durchgeht, entscheidet die Sprache - nicht, was C++ bequem findet.
+  //
+  // Am laufenden Original gemessen (BUG-53): Integer, Float und String wandeln
+  // in ALLEN sechs Richtungen ineinander um, und zwar an jeder Stelle mit
+  // bekanntem Zieltyp - Zuweisung, Local/Global mit Initialisierung, Parameter
+  // und Return. Frueher hat diese Funktion genau das abgelehnt; sie war damit
+  // strenger als die Sprache und der haeufigste Einzelbefund im Beispielbestand
+  // (31 von 61 Dateien scheiterten an "cannot assign int to a string").
+  //
+  // Objekte wandeln dagegen nie: das Original meldet "Illegal type conversion"
+  // fuer Objekt an String, Objekt an Integer, String an Objekt und ebenso fuer
+  // zwei verschiedene Types. Genau das wird jetzt hier geprueft - vorher wurde
+  // es an keiner Stelle geprueft (BUG-55).
   void checkAssign(const Ty &target, const Ty &value, const char *what,
                    int line, int col) {
     if (!target.known() || !value.known()) return;
-    if (target.k == Ty::STR && value.numeric())
-      error(line, col, std::string(what) + ": cannot assign " + value.name() +
-                           " to a string");
-    else if (target.numeric() && value.k == Ty::STR)
-      error(line, col, std::string(what) + ": cannot assign a string to " +
-                           target.name());
+    if (target.k != Ty::OBJ && value.k != Ty::OBJ) return; // Zahl/String: frei
+    if (target.sameAs(value)) return;
+    // Ein unbekannter Typname ist bereits als "Type 'X' not found" gemeldet.
+    // Hier noch eine Unvertraeglichkeit anzuhaengen waere ein Folgefehler auf
+    // dieselbe Ursache - "Local p.Punkt = First Punkte" soll eine Meldung
+    // ergeben, nicht zwei.
+    if (target.k == Ty::OBJ && !types_.count(toLower(target.obj))) return;
+    if (value.k  == Ty::OBJ && !types_.count(toLower(value.obj)))  return;
+    // Null ist im AST bis auf Weiteres ein Integer-Literal 0 und muss an jedem
+    // Objektziel zulaessig bleiben (BUG-45): "p.T = Null" nimmt das Original an.
+    if (target.k == Ty::OBJ && value.k == Ty::INT) return;
+    error(line, col, std::string(what) + ": cannot assign " + value.name() +
+                         " to " + target.name());
   }
 
   // ------------------------------------------------------------ statements
@@ -307,6 +327,13 @@ private:
         if (!checkTag(as->name, as->typeHint, as->line, as->col))
           checkAssign(*known, val, "assignment", as->line, as->col);
       } else {
+        // Eine neue Variable mit Tag: der Wert muss zum Tag passen. Fuer Zahlen
+        // und Strings prueft das nichts mehr (die wandeln frei, BUG-53), fuer
+        // Objekte schon - sonst waere "p.T = New U" die einzige der sechs
+        // Zuweisungsstellen ohne diese Pruefung (BUG-55).
+        if (!as->typeHint.empty())
+          checkAssign(fromHint(as->typeHint), val, "assignment", as->line,
+                      as->col);
         declare(as->name, as->typeHint.empty() ? val : fromHint(as->typeHint));
       }
     } else if (auto *rd = dynamic_cast<ReadStmt *>(n)) {

@@ -224,12 +224,13 @@ public:
       // File-scope declaration already emitted by collectGlobals().
       // Register metadata and only emit initializer assignment if present.
       declaredVars.insert(lo);
+      varHints_[lo] = node->typeHint;
       if (!node->typeHint.empty() && node->typeHint[0] == '.')
         varObjectTypes[lo] = toLower(node->typeHint.substr(1));
       if (node->initValue) {
         output << ind() << "var_" << lo << " = ";
         bool prev = inExprCtx; inExprCtx = true;
-        node->initValue->accept(this);
+        emitConverted(node->initValue.get(), node->typeHint); // BUG-53
         inExprCtx = prev;
         output << ";\n";
       }
@@ -245,7 +246,7 @@ public:
       if (node->initValue) {
         output << ind() << "var_" << lo << " = ";
         bool prev = inExprCtx; inExprCtx = true;
-        node->initValue->accept(this);
+        emitConverted(node->initValue.get(), node->typeHint); // BUG-53
         inExprCtx = prev;
         output << ";\n";
       }
@@ -256,7 +257,7 @@ public:
     if (node->initValue) {
       output << " = ";
       bool prev = inExprCtx; inExprCtx = true;
-      node->initValue->accept(this);
+      emitConverted(node->initValue.get(), node->typeHint); // BUG-53
       inExprCtx = prev;
     } else {
       output << " = " << defVal;
@@ -264,6 +265,7 @@ public:
     output << ";\n";
 
     declaredVars.insert(lo);
+    varHints_[lo] = node->typeHint;
 
     // Remember object type for Delete statement code-gen
     if (!node->typeHint.empty() && node->typeHint[0] == '.')
@@ -279,19 +281,27 @@ public:
       auto [type, defVal] = hintToType(node->typeHint);
       output << ind() << type << " var_" << lo << " = ";
       bool prev = inExprCtx; inExprCtx = true;
-      node->value->accept(this);
+      emitConverted(node->value.get(), node->typeHint); // BUG-53
       inExprCtx = prev;
       output << ";\n";
       declaredVars.insert(lo);
+      varHints_[lo] = node->typeHint;
       // Same bookkeeping as visit(VarDecl): without it a later "Delete p" on a
       // variable that "p.T = New T" introduced would fall into the
       // type-indeterminate path and emit a bare null assignment (BUG-47).
       if (!node->typeHint.empty() && node->typeHint[0] == '.')
         varObjectTypes[lo] = toLower(node->typeHint.substr(1));
     } else {
+      // Der Zieltyp steht in der Deklaration, nicht am Tag dieser Zuweisung:
+      // "Local s$" und ein spaeteres "s = 42" muessen dasselbe tun (BUG-53).
+      std::string target = node->typeHint;
+      if (target.empty()) {
+        auto ith = varHints_.find(lo);
+        if (ith != varHints_.end()) target = ith->second;
+      }
       output << ind() << "var_" << lo << " = ";
       bool prev = inExprCtx; inExprCtx = true;
-      node->value->accept(this);
+      emitConverted(node->value.get(), target);
       inExprCtx = prev;
       output << ";\n";
     }
@@ -519,9 +529,15 @@ public:
       output << "bb_" << (canon ? canon : node->name.c_str()) << "(";
     }
 
+    // Jedes Argument geht an einen Parameter bekannten Typs, also wird es wie
+    // eine Zuweisung umgewandelt (BUG-53). Die Zieltypen kommen bei eigenen
+    // Funktionen aus der Deklaration, bei Befehlen aus der erzeugten Tabelle -
+    // "Text 10,20,zaehler" braucht dort das "s$" des dritten Parameters.
+    std::vector<std::string> ptypes = paramHintsOf(lo, isUser);
     bool prev = inExprCtx; inExprCtx = true;
     for (size_t i = 0; i < node->args.size(); ++i) {
-      emitOperand(node->args[i].get());
+      if (i < ptypes.size()) emitConverted(node->args[i].get(), ptypes[i]);
+      else                   emitOperand(node->args[i].get());
       if (i + 1 < node->args.size()) output << ", ";
     }
     inExprCtx = prev;
@@ -547,7 +563,9 @@ public:
   void visit(FunctionDecl *node) override {
     auto [rtype, rdefault] = hintToType(node->returnHint);
     auto savedDefault = returnDefault_;
+    auto savedRetHint = returnHint_;
     returnDefault_ = rdefault;
+    returnHint_    = node->returnHint; // Zielt fuer "Return <wert>" (BUG-53)
     emitFunctionSignature(node);
     output << " {\n";
 
@@ -565,11 +583,13 @@ public:
     // locals, so without this a later "Delete p" outside could pick the wrong
     // type helper).
     auto savedObjectTypes = varObjectTypes;
+    auto savedVarHints    = varHints_;
     for (auto &[pname, phint] : node->params) {
       std::string lo = pname;
       std::transform(lo.begin(), lo.end(), lo.begin(),
                      [](unsigned char c){ return (char)std::tolower(c); });
       declaredVars.insert(lo);
+      varHints_[lo] = phint;
       // Object parameters must be known by type inside the body, or a field
       // access or Delete on them falls into the type-indeterminate path.
       if (!phint.empty() && phint[0] == '.')
@@ -593,7 +613,9 @@ public:
     // Restore outer scope's declared vars and object types.
     declaredVars = savedDeclaredVars;
     varObjectTypes = savedObjectTypes;
+    varHints_      = savedVarHints;
     returnDefault_ = savedDefault;
+    returnHint_    = savedRetHint;
 
     output << "}\n\n";
     indentLevel = 1; // reset for next function / main
@@ -610,7 +632,7 @@ public:
       output << ind() << "return";
       if (node->value) {
         output << " ";
-        emitExpr(node->value.get());
+        emitConverted(node->value.get(), returnHint_); // BUG-53
       }
       output << ";\n";
     } else {
@@ -877,6 +899,12 @@ private:
   std::unordered_set<std::string> declaredVars;       // lowercase declared var names
   std::unordered_set<std::string> hoistedLocals_;     // declared up front (Goto-safe)
   std::string returnDefault_ = "0";                  // default value of the current function
+  std::string returnHint_;                           // Blitz-Rueckgabetag der laufenden Funktion
+  // Skalartag jeder bekannten Variablen ("%", "#", "$" oder ""). Nur fuer die
+  // Umwandlung an Zuweisungsgrenzen (BUG-53) noetig; Objekttypen fuehrt
+  // varObjectTypes getrennt, weil sie dort einen Typnamen statt eines Tags
+  // brauchen.
+  std::unordered_map<std::string, std::string> varHints_;
   std::unordered_set<std::string> globalVarNames;     // lowercase names of file-scope globals
   std::unordered_set<std::string> hoistedConsts_;     // lowercase names of file-scope constants
   std::unordered_map<const ExprNode *, std::string> pinned_; // operand -> temp name
@@ -1397,6 +1425,7 @@ private:
       output << ind() << type << " var_" << lo << " = " << defVal << ";\n";
       declaredVars.insert(lo);
       hoistedLocals_.insert(lo);
+      varHints_[lo] = hint;
       if (!hint.empty() && hint[0] == '.')
         varObjectTypes[lo] = toLower(hint.substr(1));
     }
@@ -1492,6 +1521,7 @@ private:
         if (globalVarNames.count(lo)) continue; // skip duplicates
         globalVarNames.insert(lo);
         declaredVars.insert(lo); // prevent implicit re-declaration inside functions
+        varHints_[lo] = vd->typeHint;
         auto [type, defVal] = hintToType(vd->typeHint);
         output << type << " var_" << lo << " = " << defVal << ";\n";
       }
@@ -1514,6 +1544,80 @@ private:
     if (auto *be = dynamic_cast<BeforeExpr *>(expr)) return getExprTypeName(be->object.get());
     if (auto *ae = dynamic_cast<AfterExpr *>(expr))  return getExprTypeName(ae->object.get());
     return "";
+  }
+
+  // Die Parametertags einer Funktion oder eines Befehls, in Reihenfolge. Leer,
+  // wo nichts bekannt ist - dann bleibt das Argument unangetastet. Ein Eintrag
+  // ohne Typ in der Befehlstabelle (z.B. "val?" bei Print) bedeutet ausdruecklich
+  // "beliebig" und darf ebenfalls nicht gewandelt werden.
+  std::vector<std::string> paramHintsOf(const std::string &lo, bool isUser) {
+    std::vector<std::string> out;
+    if (isUser) {
+      auto it = userFuncDecls_.find(lo);
+      if (it == userFuncDecls_.end() || !it->second) return out;
+      for (auto &[pname, phint] : it->second->params) out.push_back(phint);
+      return out;
+    }
+    for (const auto &c : kCommands) {
+      if (toLower(c.name) != lo) continue;
+      std::string spec = c.params;
+      size_t pos = 0;
+      while (pos <= spec.size()) {
+        size_t comma = spec.find(',', pos);
+        std::string one = spec.substr(pos, comma == std::string::npos
+                                              ? std::string::npos
+                                              : comma - pos);
+        if (!one.empty() && one.back() == '?') one.pop_back();
+        std::string tag;
+        if (!one.empty() && (one.back() == '%' || one.back() == '#' ||
+                             one.back() == '$'))
+          tag = std::string(1, one.back());
+        // Kein Tag heisst "beliebig" - als Sonderfall markieren, damit
+        // convFor() nicht faelschlich auf Integer zurueckfaellt.
+        out.push_back(tag.empty() ? std::string("?") : tag);
+        if (comma == std::string::npos) break;
+        pos = comma + 1;
+      }
+      break;
+    }
+    return out;
+  }
+
+  // Der Umwandlungshelfer fuer einen Zieltyp, oder nullptr wenn keiner noetig
+  // ist. Objektziele wandeln nie (BUG-53, am Original gemessen).
+  static const char *convFor(const std::string &hint) {
+    if (hint == "?") return nullptr;                    // beliebiger Parameter
+    if (!hint.empty() && hint[0] == '.') return nullptr; // Objektziel
+    if (hint == "$") return "bb_Str";
+    if (hint == "#") return "bb_ToFloat";
+    return "bb_ToInt"; // "%" und ohne Tag - in Blitz3D beides Integer
+  }
+
+  // Ein Wert, der an ein Ziel bekannten Typs geht. Der Emitter kennt den
+  // Zieltyp, nicht den Typ des Ausdrucks - deshalb wird immer gewrappt und die
+  // C++-Ueberladungsaufloesung entscheidet, ob ueberhaupt etwas passiert (siehe
+  // bb_string.h). Ein Literal, das ohnehin schon passt, bleibt unangetastet,
+  // damit das Emittat lesbar bleibt.
+  bool literalAlreadyFits(ExprNode *e, const std::string &hint) {
+    auto *le = dynamic_cast<LiteralExpr *>(e);
+    if (!le) return false;
+    switch (le->token.type) {
+      case TokenType::STRING_LIT: return hint == "$";
+      case TokenType::FLOAT_LIT:  return hint == "#";
+      default:                    return hint != "$" && hint != "#";
+    }
+  }
+
+  void emitConverted(ExprNode *e, const std::string &hint) {
+    // Ueber emitExpr(), nicht emitOperand(): der gewrappte Wert ist immer ein
+    // Ausdruck. Ohne gesetztes inExprCtx haelt sich ein Aufruf darin fuer eine
+    // Anweisung und schreibt Einrueckung und Semikolon mitten in die Klammer -
+    // "Return Len(s)" wurde so zu "bb_ToInt(  bb_Len(...);\n)".
+    const char *fn = convFor(hint);
+    if (!fn || literalAlreadyFits(e, hint)) { emitExpr(e); return; }
+    output << fn << "(";
+    emitExpr(e);
+    output << ")";
   }
 
   // Returns {cppType, defaultValue} for a Blitz3D type hint.
