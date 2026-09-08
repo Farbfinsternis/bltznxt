@@ -587,6 +587,47 @@ Schleifengrenze. Dort lauern zwei am Original gemessene Ueberraschungen — der
 falsch), die **Bedingung** dagegen den String zur Zahl (`If "x"` ist falsch, nicht
 „nicht leer = wahr"). Wer das verwechselt, bekommt das Gegenteil heraus.
 
+### Nachtrag (2026-09-08, BUG-49): Vorgabewerte fuer Funktionsparameter
+
+Acht Dateien. Am Original ergaben sich zwei Regeln, die man nicht raten sollte:
+
+**Pflicht ist alles bis zum LETZTEN Parameter ohne Vorgabe.** `F(a=1,b)` wird
+angenommen, verlangt aber beide Argumente — `F(1)` ist dort
+`Not enough parameters`. Ebenso verlangt `F(a,b=2,c)` alle drei. Eine Vorgabe vor
+einem Parameter ohne Vorgabe ist also erlaubt, aber nie weglassbar.
+
+**Der Vorgabewert muss ein konstanter Ausdruck sein.** Literal, Vorzeichen,
+`1+1`, `1 Shl 2`, ein `Const` und die reservierten `True`/`False`/`Pi` gehen
+durch; eine Variable und `Len("abc")` nicht.
+
+Die erste Regel loest ein Problem, das zunaechst nach einer Sackgasse aussah:
+C++ erlaubt Vorgabeargumente nur am Ende, Blitz3D aber auch davor. Weil ein
+Parameter mit Vorgabe, dem einer ohne folgt, ohnehin nie weggelassen werden
+kann, darf der Emitter die Vorgabe dort schlicht **weglassen** — die Bedeutung
+bleibt identisch, und die Stelligkeitspruefung im Analyzer haelt den Rest. Die
+Vorgaben stehen ausserdem nur in der Vorwaertsdeklaration, weil C++ sie je
+Funktion genau einmal erlaubt.
+
+`FunctionDecl::params` ist dafuer von `pair<name,hint>` auf eine `Param`-Struktur
+mit `defaultValue` umgestellt; sechs Bindungsstellen zogen nach. Ein zweiter,
+parallel gefuehrter Vektor waere die fehleranfaellige Variante gewesen.
+`FuncInfo` traegt jetzt `required` neben `params.size()` — `checkArity()` nahm
+beide Zahlen ohnehin schon getrennt entgegen.
+
+**Eine Reihenfolgefalle kam beim Messen heraus.** Die Konstantenpruefung stand
+zuerst in `collect()`; dort ist `constNames_` aber noch unvollstaendig, weshalb
+ein `Const` *hinter* der benutzenden Funktion faelschlich abgelehnt wurde. Das
+Original nimmt diese Reihenfolge an. Die Pruefung sitzt jetzt in
+`checkFunctions()`, das nach dem Sammeln laeuft.
+
+Ausgewertet wird nichts: fuer die Diagnose genuegt die Form des Ausdrucks, und
+der Emitter reicht ihn als C++-Vorgabeargument weiter, wo keine Konstante
+verlangt ist. Ein eigener Konstantenauswerter (A-07) war nicht noetig.
+
+**Wirkung:** Dateien mit `Expected parameter name (got '=')` **8 → 0**, Dateien
+mit Sprachfehlern 36 → 30, Sprachfehler gesamt 306 → 271. Keine Regression,
+volle Suite 126 passed.
+
 ### Parser: colon as statement separator — If/Else bug fixed
 
 Colon (`:`) already worked as a statement separator in the main loop via

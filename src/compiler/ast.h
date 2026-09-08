@@ -239,9 +239,17 @@ public:
 
 class FunctionDecl : public StmtNode {
 public:
+  // Ein Parameter mit optionalem Vorgabewert (BUG-49). Der Vorgabewert ist in
+  // Blitz3D ein konstanter Ausdruck - eine Variable lehnt das Original mit
+  // "Expression must be constant" ab.
+  struct Param {
+    std::string name;
+    std::string hint;                       // #  %  $  .TypeName  oder ""
+    std::unique_ptr<ExprNode> defaultValue;  // nullptr = keine Vorgabe
+  };
   std::string name;
   std::string returnHint; // #  %  !  $  .TypeName  or "" (= int, as in Blitz3D)
-  std::vector<std::pair<std::string, std::string>> params; // (name, typeHint)
+  std::vector<Param> params;
   std::vector<std::unique_ptr<ASTNode>> body;
   explicit FunctionDecl(std::string n) : name(std::move(n)) {}
   void accept(ASTVisitor *v) override { v->visit(this); }

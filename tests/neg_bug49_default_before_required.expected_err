@@ -1,0 +1,1 @@
+tests/neg_bug49_default_before_required.bb:7:7: error: Not enough parameters for 'F': expected at least 2, got 1

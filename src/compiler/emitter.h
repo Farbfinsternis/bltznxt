@@ -76,7 +76,7 @@ public:
     bool anyFn = false;
     for (auto &n : prog->nodes)
       if (auto *fn = dynamic_cast<FunctionDecl *>(n.get())) {
-        emitFunctionSignature(fn);
+        emitFunctionSignature(fn, /*withDefaults=*/true);
         output << ";\n";
         anyFn = true;
       }
@@ -548,13 +548,32 @@ public:
 
   // "int fn_name(int var_a, bbString var_b)" — shared by the forward
   // declaration and the definition so the two can never drift apart.
-  void emitFunctionSignature(FunctionDecl *node) {
+  //
+  // Vorgabewerte (BUG-49) stehen nur in der Vorwaertsdeklaration: C++ erlaubt
+  // ein Vorgabeargument genau einmal je Funktion.
+  //
+  // Und nur fuer den ABSCHLIESSENDEN Lauf von Parametern mit Vorgabe. Das ist
+  // keine Einschraenkung gegenueber Blitz3D, sondern dessen gemessene Regel:
+  // Pflicht ist dort alles bis zum letzten Parameter ohne Vorgabe, "F(a=1,b)"
+  // verlangt also beide Argumente. Eine Vorgabe vor einem Parameter ohne
+  // Vorgabe kann somit nie weggelassen werden - sie in C++ auszulassen aendert
+  // nichts an der Bedeutung, waehrend sie zu setzen dort ein Fehler waere.
+  void emitFunctionSignature(FunctionDecl *node, bool withDefaults = false) {
     auto [rtype, rdefault] = hintToType(node->returnHint);
+    size_t firstTrailingDefault = node->params.size();
+    while (firstTrailingDefault > 0 &&
+           node->params[firstTrailingDefault - 1].defaultValue)
+      --firstTrailingDefault;
+
     output << rtype << " fn_" << toLower(node->name) << "(";
     for (size_t i = 0; i < node->params.size(); ++i) {
-      auto &[pname, phint] = node->params[i];
-      auto [ptype, defVal] = hintToType(phint);
-      output << ptype << " var_" << toLower(pname);
+      auto &p = node->params[i];
+      auto [ptype, defVal] = hintToType(p.hint);
+      output << ptype << " var_" << toLower(p.name);
+      if (withDefaults && i >= firstTrailingDefault && p.defaultValue) {
+        output << " = ";
+        emitConverted(p.defaultValue.get(), p.hint); // Zieltyp wie ueberall
+      }
       if (i + 1 < node->params.size()) output << ", ";
     }
     output << ")";
@@ -584,7 +603,8 @@ public:
     // type helper).
     auto savedObjectTypes = varObjectTypes;
     auto savedVarHints    = varHints_;
-    for (auto &[pname, phint] : node->params) {
+    for (auto &[pname, phint, pdef] : node->params) {
+      (void)pdef;
       std::string lo = pname;
       std::transform(lo.begin(), lo.end(), lo.begin(),
                      [](unsigned char c){ return (char)std::tolower(c); });
@@ -1555,7 +1575,7 @@ private:
     if (isUser) {
       auto it = userFuncDecls_.find(lo);
       if (it == userFuncDecls_.end() || !it->second) return out;
-      for (auto &[pname, phint] : it->second->params) out.push_back(phint);
+      for (auto &p : it->second->params) out.push_back(p.hint);
       return out;
     }
     for (const auto &c : kCommands) {

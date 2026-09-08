@@ -1,0 +1,1 @@
+tests/neg_bug49_default_not_constant.bb:4:16: error: the default value of 'x' must be a constant expression

@@ -944,7 +944,15 @@ private:
           }
           hint = "." + advance().value;
         }
-        func->params.emplace_back(p.value, hint);
+        // Vorgabewert (BUG-49). Das Original verlangt hier einen konstanten
+        // Ausdruck; "1+1" und ein Const gehen, eine Variable nicht.
+        std::unique_ptr<ExprNode> defVal;
+        if (peek().type == TokenType::OPERATOR && peek().value == "=") {
+          advance();
+          defVal = parseExpr();
+        }
+        func->params.push_back(
+            FunctionDecl::Param{p.value, hint, std::move(defVal)});
         if (peek().type == TokenType::OPERATOR && peek().value == ",")
           advance();
       }

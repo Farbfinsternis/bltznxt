@@ -107,6 +107,7 @@ private:
   struct FuncInfo {
     Ty ret;
     std::vector<Ty> params;
+    size_t required = 0; // Mindestzahl der Argumente (BUG-49)
   };
   struct ArrayInfo {
     Ty elem;
@@ -137,7 +138,14 @@ private:
       } else if (auto *fn = dynamic_cast<FunctionDecl *>(n.get())) {
         FuncInfo fi;
         fi.ret = fromHint(fn->returnHint);
-        for (auto &[pname, phint] : fn->params) fi.params.push_back(fromHint(phint));
+        for (auto &p : fn->params) fi.params.push_back(fromHint(p.hint));
+        // Pflicht ist alles bis zum LETZTEN Parameter ohne Vorgabe - am
+        // Original gemessen: "F(a=1,b)" verlangt beide Argumente, weil b keine
+        // Vorgabe hat. Eine Vorgabe vor einem Parameter ohne Vorgabe ist damit
+        // zwar erlaubt, aber nie weglassbar.
+        fi.required = 0;
+        for (size_t i = 0; i < fn->params.size(); ++i)
+          if (!fn->params[i].defaultValue) fi.required = i + 1;
         funcs_[toLower(fn->name)] = fi;
         collect(fn->body); // Global and Dim may appear inside a function
       } else if (auto *ds = dynamic_cast<DimStmt *>(n.get())) {
@@ -167,14 +175,38 @@ private:
     }
   }
 
+  // Ein Vorgabewert muss konstant sein - "Expression must be constant" meldet
+  // das Original fuer eine Variable, waehrend Literal, Vorzeichen, "1+1",
+  // "1 Shl 2", ein Const und die reservierten True/False/Pi durchgehen (alles
+  // gemessen). Ausgewertet wird hier nichts: fuer die Diagnose genuegt die
+  // Form, und der Emitter reicht den Ausdruck als C++-Vorgabeargument weiter.
+  bool isConstExpr(ExprNode *e) {
+    if (!e) return false;
+    if (dynamic_cast<LiteralExpr *>(e)) return true;
+    if (auto *ue = dynamic_cast<UnaryExpr *>(e)) return isConstExpr(ue->expr.get());
+    if (auto *be = dynamic_cast<BinaryExpr *>(e))
+      return isConstExpr(be->left.get()) && isConstExpr(be->right.get());
+    if (auto *ve = dynamic_cast<VarExpr *>(e))
+      return constNames_.count(toLower(ve->name)) > 0;
+    return false;
+  }
+
   void checkFunctions(const std::vector<std::unique_ptr<ASTNode>> &nodes) {
     for (auto &n : nodes) {
       if (auto *pr = dynamic_cast<Program *>(n.get())) {
         checkFunctions(pr->nodes);
       } else if (auto *fn = dynamic_cast<FunctionDecl *>(n.get())) {
+        // Erst hier, nicht schon in collect(): ein Const darf hinter der
+        // Funktion stehen, die es als Vorgabe benutzt - das Original nimmt das
+        // an. Waehrend collect() laeuft, ist constNames_ noch unvollstaendig.
+        for (auto &p : fn->params)
+          if (p.defaultValue && !isConstExpr(p.defaultValue.get()))
+            error(p.defaultValue->line, p.defaultValue->col,
+                  "the default value of '" + p.name +
+                      "' must be a constant expression");
         Scope local;
-        for (auto &[pname, phint] : fn->params)
-          local[toLower(pname)] = fromHint(phint);
+        for (auto &p : fn->params)
+          local[toLower(p.name)] = fromHint(p.hint);
         scope_      = &local;
         returnType_ = fromHint(fn->returnHint);
         inFunction_ = true;
@@ -578,7 +610,7 @@ private:
 
     auto uf = funcs_.find(toLower(ce->name));
     if (uf != funcs_.end()) {
-      checkArity(ce, args.size(), uf->second.params.size(),
+      checkArity(ce, args.size(), uf->second.required,
                  uf->second.params.size());
       for (size_t i = 0; i < args.size() && i < uf->second.params.size(); ++i)
         checkAssign(uf->second.params[i], args[i], "parameter", ce->line, ce->col);
