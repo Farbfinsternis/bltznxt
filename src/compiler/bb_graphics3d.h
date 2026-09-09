@@ -38,6 +38,7 @@ inline int bb_tris_rendered_ = 0;
 #include "bb_light.h"
 #include "bb_texture.h"
 #include "bb_mesh.h"
+#include "bb_loader.h"
 
 // ============================================================
 // UpdateWorld — propagate world transforms + future systems

@@ -24,7 +24,6 @@
 
 struct bb_MeshEntity_ : bb_Entity_ {
   std::vector<bb_MeshData_> surfaces;  // each surface = one draw call
-  bb_TexSlots_              tex;       // EntityTexture, Index 0-7 (3D-11)
 
   bb_EntityKind_ kind() const override { return bb_EntityKind_::Mesh; }
 
@@ -340,8 +339,12 @@ inline void bb_EntityTexture(int entity, int texture, int frame = 0, int index =
   auto* me = bb_mesh_ent_(entity);
   if (!me) return;
   if (index < 0 || index >= BB_TEX_SLOTS) return;
-  me->tex.tex[index]   = bb_texture_ref_(texture);
-  me->tex.frame[index] = frame;
+  // Die Textur haengt an der Flaeche (am Brush), EntityTexture setzt sie in
+  // allen Flaechen des Netzes - ein Netz aus einer Datei kann mehrere haben.
+  for (auto& s : me->surfaces) {
+    s.brush.tex.tex[index]   = bb_texture_ref_(texture);
+    s.brush.tex.frame[index] = frame;
+  }
 }
 
 // ============================================================
@@ -818,8 +821,12 @@ static inline bool bb_ent_translucent_(const bb_MeshEntity_* me) {
   if (me->alpha < 1.0f)  return true;
   if (me->blend != 1)    return true;
   if (me->fx & 32)       return true;
-  for (int i = 0; i < BB_TEX_SLOTS; ++i)
-    if (me->tex.tex[i] && (me->tex.tex[i]->flags & BB_TEX_ALPHA)) return true;
+  for (const auto& s : me->surfaces) {
+    if (s.brush.alpha < 1.0f) return true;
+    for (int i = 0; i < BB_TEX_SLOTS; ++i)
+      if (s.brush.tex.tex[i] && (s.brush.tex.tex[i]->flags & BB_TEX_ALPHA))
+        return true;
+  }
   return false;
 }
 
@@ -875,13 +882,10 @@ static inline void bb_render_meshes_(bb_Shader_* shader,
     float mvp[16];
     mat4_mul_(mvp, vm, me->world);
 
-    // Texturen der Entity auf die Kanaele legen.
-    const bool tex_alpha = bb_texture_bind_(shader, me->tex);
-
     // ---- Blending ----
     // Am Original gemessen: 1 = Alpha (Vorgabe), 2 = Multiply, 3 = Add. Der
     // eigene Roadmap-Entwurf hatte 2 und 3 vertauscht.
-    const bool want_blend = it.translucent || tex_alpha;
+    const bool want_blend = it.translucent;
     if (want_blend != blend_on) {
       blend_on = want_blend;
       if (want_blend) glEnable(GL_BLEND); else glDisable(GL_BLEND);
@@ -896,15 +900,6 @@ static inline void bb_render_meshes_(bb_Shader_* shader,
       }
     }
 
-    // ---- Rueckseitenentfernung ----
-    // Gemessen: das Original entfernt Rueckseiten (die Kamera im Wuerfel
-    // sieht den Hintergrund), EntityFX 16 schaltet das ab.
-    const bool want_cull = (me->fx & 16) == 0;
-    if (want_cull != cull_on) {
-      cull_on = want_cull;
-      if (want_cull) glEnable(GL_CULL_FACE); else glDisable(GL_CULL_FACE);
-    }
-
     // ---- Z-Puffer ----
     // Laut Doku schaltet eine Ordnung ungleich 0 das Z-Buffering ab.
     const bool want_depth = (me->order == 0);
@@ -913,12 +908,31 @@ static inline void bb_render_meshes_(bb_Shader_* shader,
       if (want_depth) glEnable(GL_DEPTH_TEST); else glDisable(GL_DEPTH_TEST);
     }
 
-    float color[4] = { me->colR / 255.0f, me->colG / 255.0f,
-                       me->colB / 255.0f, it.alpha };
-    bb_shader_uniform_i(shader, "u_fx",        me->fx);
-    bb_shader_uniform_f(shader, "u_shininess", me->shininess);
+    bb_shader_uniform_i(shader, "u_fx", me->fx);
 
+    // Farbe, Deckkraft, Glanz und Texturen kommen je Flaeche aus deren
+    // Brush und werden mit den Werten der Entity verrechnet - so wie im
+    // Original, wo EntityColor die Brushfarbe multipliziert.
     for (auto& surf : me->surfaces) {
+      const bb_Brush_& br = surf.brush;
+
+      // Rueckseitenentfernung: das Original entfernt Rueckseiten
+      // (die Kamera im Wuerfel sieht den Hintergrund), EntityFX 16
+      // schaltet das je Entity ab - und ein zweiseitiges Material aus
+      // der Datei je Flaeche (3D-13).
+      const bool want_cull = ((me->fx & 16) == 0) && !br.twosided;
+      if (want_cull != cull_on) {
+        cull_on = want_cull;
+        if (want_cull) glEnable(GL_CULL_FACE); else glDisable(GL_CULL_FACE);
+      }
+      float color[4] = { me->colR * br.r / (255.0f * 255.0f),
+                         me->colG * br.g / (255.0f * 255.0f),
+                         me->colB * br.b / (255.0f * 255.0f),
+                         it.alpha * br.alpha };
+      bb_shader_uniform_f(shader, "u_shininess",
+                          (br.shininess > me->shininess) ? br.shininess
+                                                         : me->shininess);
+      bb_texture_bind_(shader, br.tex);
       bb_mesh_draw_(&surf, shader, mvp, me->world, color, nullptr);
       bb_tris_rendered_ += surf.triCount;
     }

@@ -1083,6 +1083,128 @@ Original nimmt die neue Testdatei an.
 
 ---
 
+### Nachtrag (2026-09-09, 3D-13, Teil 2): der .3ds-Loader
+
+`bb_loader.h` liest jetzt `.3ds`. Das Format ist ein Baum aus Chunks mit
+2 Byte Kennung und 4 Byte Laenge — die Struktur ist in einem Nachmittag
+gelesen. **Interessant war nicht das Parsen, sondern alles, was danach kommt:
+sechs Entscheidungen, die man plausibel anders trifft und die sich nie von
+selbst melden.** Jede einzelne ist am laufenden Original ausgemessen.
+
+**1. Die Achsen tauschen y und z.** 3D Studio ist rechtshaendig mit z nach
+oben, Blitz3D linkshaendig mit y nach oben. `MeshWidth/Height/Depth` gibt es
+in beiden Systemen, also liess sich das an zehn Dateien direkt ablesen:
+`fighter.3ds` misst roh 372.47 / 529.94 / 152.39 und wird als
+372.472 / 152.386 / 529.937 gemeldet.
+
+**2. Das lokale Koordinatensystem wird nicht angewandt.** Sechs der zehn
+Dateien haben in Chunk 0x4160 keine Einheitsmatrix — `wcrate1.3ds` traegt
+eine Skalierung von 13.583, `fighter.3ds` eine von 0.257, `rock.3DS` eine
+Drehung um rund 6 Grad. Die gemeldeten Ausmasse entsprechen trotzdem genau
+den **rohen** Vertexkoordinaten. Wer die Matrix anwendet, macht die Kiste um
+das Dreizehnfache zu gross.
+
+**3. Der Drehpunkt aus dem Keyframe-Abschnitt wird abgezogen — und er steht
+in lokalen Einheiten.** Das war der Befund, der am laengsten gedauert hat.
+Die Kiste stand bei uns 20 Einheiten zu hoch, und die Silhouette zeigte es
+sofort; die Ausmasse dagegen nicht, denn eine Verschiebung aendert an
+`MeshWidth` nichts. Die naheliegende Erklaerung — "das Original zentriert das
+Netz" — ist **falsch**: `rock.3DS` hat ein AABB-Zentrum von (−9.7, −18.2,
+6.0) und wird nicht verschoben, ebenso `solid01.3ds` und die vier Teile von
+`rocket.3ds`. Was sie gemeinsam haben, ist ein Drehpunkt von 0.
+
+Richtig ist: Verschiebung = Achsenmatrix · Drehpunkt + Ursprung. Fuer
+`wcrate1.3ds` ergibt das 13.583 · (0.016, −0.032, 1.484) + (0.085, 0.152,
+0.03) = (0.301, −0.279, 20.188) — und genau (0.301, −0.279, 20.188) ist das
+AABB-Zentrum dieser Datei. Bei `fighter.3ds` genauso: 0.257 · (0, 0, 140.607)
++ (0, 1.603, 0.111) = (0, 1.603, 36.247) gegen ein Zentrum von (0, 1.603,
+36.245). **Damit wird die Achsenmatrix doch gebraucht — nicht fuer die
+Vertices, sondern um den Drehpunkt in dieselben Einheiten zu bringen.** Zwei
+Befunde, die einander auf den ersten Blick widersprechen und zusammen erst
+Sinn ergeben.
+
+**4. Der Umlaufsinn kehrt sich um.** Der Achsentausch dreht die Haendigkeit,
+also laeuft ein Dreieck, das in der Datei von aussen gegen den Uhrzeigersinn
+liegt, danach mit dem Uhrzeigersinn. Ohne Vertauschen zweier Indizes zeigt
+die Rueckseitenentfernung die **Rueckseite** des Modells. Bei einer
+geschlossenen Kiste sieht die Silhouette dabei voellig unveraendert aus — es
+faellt nur auf, weil die Helligkeit ueber die Flaeche seitenverkehrt verlief:
+das Original von 68 nach 28, wir von 41 nach 64.
+
+**5. Die v-Koordinate laeuft andersherum.** Gemessen, indem die Textur der
+Kiste durch ein Bild aus vier farbigen Quadranten ersetzt wurde: das Original
+zeigt die linke obere Ecke des Bildes an der linken oberen Ecke der Flaeche,
+wir zeigten die untere. Danach stimmen alle vier Ecken.
+
+**6. Die Materialfarbe gilt nur ohne Textur.** `rocket.3ds` hat vier
+texturlose Materialien und erscheint im Original genau in deren Farben
+(255,191,0 / 191,191,255 / 236,42,42 / 255,255,255). Die texturierte Kiste
+dagegen traegt die Diffusfarbe 191,191,191 und kommt trotzdem mit 254 heraus.
+Wer die Farbe immer anwendet, dunkelt jede texturierte Flaeche um 25 Prozent
+ab — sichtbar, aber leicht fuer "so sieht das Modell eben aus" zu halten.
+
+**Dazu zwei Regeln zur Aufteilung in Flaechen.** Zweiseitige Materialien
+(0xA081) werden ohne Rueckseitenentfernung gezeichnet — bei `rocket.3ds`
+sahen wir sonst durch die weisse Aussenhaut auf das blaue Innenteil, was sich
+als 322 statt 196 blauen Bildpunkten zeigte. Und Flaechen entstehen je
+Brush, wobei **gleiche Brushes zusammenfallen**: `ufo.3ds` hat drei
+Materialien und meldet **zwei** Flaechen, solange die beiden Texturdateien
+fehlen — dann sind zwei Brushes schlicht "weiss ohne Textur". Legt man die
+Texturen daneben, meldet dieselbe Datei **drei**. Beide Faelle stimmen bei
+uns, und der zweite ist die Gegenprobe zum ersten.
+
+**Dafuer mussten die Texturen von der Entity an die Flaeche wandern.** Im
+Original haengt das Aussehen am Brush, und ein Netz aus einer Datei hat
+mehrere davon. `bb_MeshData_` hat jetzt einen `bb_Brush_` mit Farbe,
+Deckkraft, Glanz, Zweiseitigkeit und Texturlagen; `EntityTexture` schreibt in
+alle Flaechen, so wie das Original alle Brushes eines Netzes setzt. Das ist
+zugleich die Grundlage fuer das Brush-System in 3D-15.
+
+**Wie gut es stimmt.** Zehn echte Modelldateien aus der Installation, 443
+Byte bis 15 kB, 2 bis 409 Dreiecke, 1 bis 4 Flaechen:
+
+- `MeshWidth/Height/Depth`, `CountSurfaces` und `TrisRendered` sind bei allen
+  zehn **gleich**. Der einzige Textunterschied ist die Zahlenausgabe: fuer
+  `rock.3DS` druckt das Original 26.1755, wir 26.1754 — der genaue Wert ist
+  26.1754479, **unsere Rundung ist die richtige**.
+- Die Silhouetten decken sich: Begrenzungsrechtecke bis auf einen
+  Rasterschritt von 4 px, belegte Rasterpunkte um 0 bis 3 von 150 bis 680.
+  Der groesste Ausreisser (`wcrate1.3ds`, 400 gegen 440) verschwindet
+  vollstaendig, sobald das Abtastraster um 2 px versetzt wird — die
+  Kistenkante liegt genau auf den Rasterpunkten. Das ist eine Rundung im
+  Messverfahren, kein Unterschied im Bild, und es lohnt sich, so etwas
+  nachzupruefen statt es als "fast gleich" abzuhaken.
+- Bei der texturierten und beleuchteten Kiste stimmen je nach Blickwinkel 10
+  bis 16 von 25 Rasterpunkten auf den Kanal genau, die mittlere Abweichung
+  liegt bei 2.6 bis 11.3 von 255. Der Rest geht auf Texturfilterung und
+  darauf, dass das Original je Vertex beleuchtet und wir je Bildpunkt
+  (BUG-66) — beides bekannt und festgehalten.
+
+**Die Testdatei ist selbst erzeugt.** `tests/assets/test_box.3ds` entsteht
+aus einem kleinen Schreiber: zwei Quader, zwei Materialien, in
+3DS-Koordinaten 12×4×6. Damit stehen die erwarteten Zahlen fest, statt aus
+einer fremden Datei abgelesen zu sein — und das Original meldet fuer dieselbe
+Datei dieselben Werte (w=12, h=6, d=4, zwei Flaechen). Dazu eine bewusst
+kaputte Datei mit richtiger Endung, deren Hauptchunk eine Laenge weit hinter
+dem Dateiende angibt: der Parser muss dort in den Grenzpruefungen
+haengenbleiben und 0 liefern.
+
+**Nicht eingeloest und nicht behauptet:** `.x` (39 der 59 Ladevorgaenge in
+den Beispielen, davon 36 von 51 Dateien im Textformat) und `.b3d`; Hierarchie
+und Animation, weshalb `LoadAnimMesh` einmal meldet, dass es wie `LoadMesh`
+laedt; Umgebungskarten.
+
+**Wirkung:** vollstaendig uebersetzende Beispieldateien **37 → 40**,
+unbekannte Befehle **109 → 107** verschieden und **1691 → 1647** Vorkommen.
+
+**Abgesichert:** Emittatvergleich alt/neu ueber 93 Programme (92 identisch, 0
+abweichend, 1 nur vom alten Compiler abgelehnt — der neue Test), 44
+Negativtests mit gleicher Diagnose, alle **73 `.expected` gruen**,
+`compare_reference.sh` ohne neue Abweichung (gleiches Urteil 126 → 127). Das
+Original nimmt die neue Testdatei an.
+
+---
+
 ### Parser: colon as statement separator — If/Else bug fixed
 
 Colon (`:`) already worked as a statement separator in the main loop via

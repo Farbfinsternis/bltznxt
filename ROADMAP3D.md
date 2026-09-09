@@ -656,14 +656,6 @@ drei Formate; die Reihenfolge ist deshalb `.3ds` zuerst (starrer Chunk-Walk,
       Dreieck gegen Dreieck
 - [x] `bb_PaintMesh` — meldet einmal, dass es ohne Brushes wirkungslos ist
 
-**Teil 2 — der Loader, offen**
-
-- [ ] `.3ds`-Parser (Chunk-Walk: 0x4D4D, 0x3D3D, 0x4000, 0x4100, 0x4110,
-      0x4120, 0x4140, 0x4160)
-- [ ] `bb_LoadMesh(file$, parent=0)` — Endung erkennen
-- [ ] `bb_LoadAnimMesh(file$, parent=0)` — behaelt Hierarchie und Animation
-- [ ] `.x` (36 der 51 Dateien sind Text, 11 binaer) und `.b3d` danach
-
 **Am laufenden Original nachgemessen, weil die Doku dazu schweigt.** Die
 Ausmasse liefert `MeshWidth/Height/Depth` als Zahl, Lage und Beleuchtung
 kommen aus `ReadPixel`; **48 von 48 vergleichbaren Faellen stimmen mit
@@ -701,6 +693,92 @@ gleichem Brush zusammenfassen.
   ablesbaren Zusagen: Ausmasse nach jedem Eingriff, Flaechenzahl,
   Unabhaengigkeit der Kopie und die Durchdringung zweier Wuerfel vor und nach
   `PositionMesh`. Das Original nimmt die Datei an.
+
+**Teil 2 — der `.3ds`-Loader ✓ COMPLETE**
+
+- [x] `bb_loader.h` (neu): Chunk-Walk mit Grenzpruefung an jeder Laengenangabe
+- [x] `bb_LoadMesh(file$, parent=0)` — Endung erkennen; `.3ds` geladen,
+      `.x`/`.b3d` mit Meldung abgelehnt statt still 0
+- [x] `bb_LoadAnimMesh(file$, parent=0)` — laedt wie `LoadMesh` und meldet
+      einmal, dass Hierarchie und Animation fehlen
+- [x] Materialien: Diffusfarbe, Glanz, Transparenz, Texturkarte; Texturen
+      werden neben der Modelldatei gesucht
+- [x] Flaechen je Brush, gleiche Brushes zusammengefasst
+- [x] Glaettungsgruppen (0x4150): Vertices werden nur innerhalb derselben
+      Gruppe geteilt, ohne Gruppe bleibt die Flaeche flach
+- [x] Brush je Flaeche statt Textur je Entity — `EntityTexture` schreibt in
+      alle Flaechen, so wie das Original alle Brushes eines Netzes setzt
+- [ ] `.x` (36 der 51 Dateien sind Text, 11 binaer) und `.b3d`
+- [ ] Hierarchie und Animation aus dem Keyframe-Abschnitt (3D-19)
+
+**Sechs Dinge am laufenden Original nachgemessen — jedes einzelne haette man
+plausibel anders gemacht, und keines meldet sich von selbst:**
+
+1. **Die Achsen tauschen y und z:** blitz(x,y,z) = 3ds(x,z,y). 3D Studio ist
+   rechtshaendig mit z nach oben. Nachweis ueber `MeshWidth/Height/Depth` an
+   zehn Dateien.
+2. **Das lokale Koordinatensystem (0x4160) wird nicht auf die Vertices
+   angewandt.** Sechs der zehn Dateien haben dort keine Einheitsmatrix —
+   `wcrate1.3ds` eine Skalierung von 13.583, `fighter.3ds` eine von 0.257,
+   `rock.3DS` eine Drehung um rund 6 Grad. Die gemeldeten Ausmasse
+   entsprechen trotzdem genau den **rohen** Vertexkoordinaten.
+3. **Der Drehpunkt aus dem Keyframe-Abschnitt wird abgezogen.** Er steht dort
+   in lokalen Einheiten, muss also durch die Achsenmatrix — genau dafuer wird
+   sie ueberhaupt gelesen. Das ist **nicht** dasselbe wie "das Netz
+   zentrieren": `rock.3DS`, `solid01.3ds` und die vier Teile von
+   `rocket.3ds` haben ausgeruecktes AABB-Zentrum und Drehpunkt 0, und das
+   Original verschiebt sie nicht.
+4. **Der Umlaufsinn kehrt sich um.** Der Achsentausch dreht die Haendigkeit;
+   ohne Vertauschen zweier Indizes zeigt die Rueckseitenentfernung die
+   Rueckseite. Eine geschlossene Kiste sieht in der Silhouette dann
+   unveraendert aus und ist nur seitenverkehrt beleuchtet und texturiert.
+5. **Die v-Koordinate laeuft andersherum.** Mit einer Vierquadrantentextur
+   gemessen: das Original zeigt die linke obere Ecke des Bildes an der linken
+   oberen Ecke der Flaeche.
+6. **Die Materialfarbe gilt nur ohne Textur.** `rocket.3ds` hat vier
+   texturlose Materialien und erscheint genau in deren Farben; die
+   texturierte Kiste traegt die Diffusfarbe 191,191,191 und kommt trotzdem
+   mit 254 heraus — die Farbe wuerde die Textur sonst abdunkeln.
+
+Dazu: **zweiseitige Materialien** (0xA081) werden ohne Rueckseitenentfernung
+gezeichnet, und **Flaechen entstehen je Brush**, wobei gleiche Brushes
+zusammenfallen. `ufo.3ds` hat drei Materialien und meldet **zwei** Flaechen,
+solange die beiden Texturdateien fehlen — dann sind zwei Brushes schlicht
+"weiss ohne Textur". Legt man die Texturen daneben, meldet dieselbe Datei
+**drei**. Beide Faelle stimmen bei uns.
+
+**Gegenprobe an zehn echten Modelldateien** aus der Installation (443 Byte bis
+15 kB, 2 bis 409 Dreiecke, 1 bis 4 Flaechen):
+
+- `MeshWidth/Height/Depth`, `CountSurfaces` und `TrisRendered` sind bei allen
+  zehn **gleich**. Der einzige Textunterschied ist die Zahlenausgabe: das
+  Original druckt fuer `rock.3DS` die Breite als 26.1755, wir als 26.1754 —
+  der genaue Wert ist 26.1754479, unsere Rundung ist also die richtige.
+- Die **Silhouetten** decken sich; die Begrenzungsrechtecke stimmen bis auf
+  einen Rasterschritt von 4 px, die Zahl belegter Rasterpunkte weicht um 0
+  bis 3 von 150 bis 680 ab. Der groesste Ausreisser (`wcrate1.3ds`, 400
+  gegen 440) verschwindet vollstaendig, sobald das Abtastraster um 2 px
+  versetzt wird — die Kistenkante liegt genau auf den Rasterpunkten.
+- Bei der **texturierten und beleuchteten** Kiste stimmen je nach Blickwinkel
+  10 bis 16 von 25 Rasterpunkten auf den Kanal genau ueberein, die mittlere
+  Abweichung liegt bei 2.6 bis 11.3 von 255. Der Rest geht auf
+  Texturfilterung und darauf, dass das Original je Vertex beleuchtet und wir
+  je Bildpunkt (BUG-66).
+
+**Offen und bewusst nicht behauptet:** `.x` und `.b3d`; Hierarchie und
+Animation; Umgebungskarten. `PaintMesh` bleibt ohne Wirkung, bis es Brushes
+als Handles gibt (3D-15) — den Brush selbst gibt es jetzt, nur noch nicht als
+Sprachobjekt.
+
+- **Signaturvergleich:** `LoadMesh` und `LoadAnimMesh` gegen `blitzcc +k` —
+  keine Abweichung.
+- **Test:** `tests/test_3d13_loader.bb` mit `tests/assets/test_box.3ds` —
+  eine eigens erzeugte Datei, damit die erwarteten Zahlen feststehen: zwei
+  Quader, zwei Materialien, in 3DS-Koordinaten 12×4×6. Geprueft werden der
+  Achsentausch (w=12, h=6, d=4), die Flaechenzahl, der Elternknoten, die
+  fehlende Datei, die fremde Endung und eine Datei mit richtiger Endung, aber
+  einer Laengenangabe hinter dem Dateiende. Das Original meldet fuer dieselbe
+  Datei dieselben Zahlen.
 
 ---
 
