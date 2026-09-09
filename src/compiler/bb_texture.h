@@ -176,7 +176,7 @@ inline int bb_texture_register_(bb_TexRef_ t) {
 
 inline int bb_LoadTexture(const bbString &file, int flags = 1) {
   int w = 0, h = 0, ch = 0;
-  unsigned char *data = stbi_load(file.c_str(), &w, &h, &ch, 4);
+  unsigned char *data = bb_load_rgba_(file.c_str(), &w, &h, &ch);
   if (!data) {
     std::cerr << "[runtime] LoadTexture: cannot load '" << file << "'\n";
     return 0;
@@ -204,7 +204,7 @@ inline int bb_LoadAnimTexture(const bbString &file, int flags, int width,
   if (width <= 0 || height <= 0 || count <= 0) return 0;
 
   int w = 0, h = 0, ch = 0;
-  unsigned char *data = stbi_load(file.c_str(), &w, &h, &ch, 4);
+  unsigned char *data = bb_load_rgba_(file.c_str(), &w, &h, &ch);
   if (!data) {
     std::cerr << "[runtime] LoadAnimTexture: cannot load '" << file << "'\n";
     return 0;

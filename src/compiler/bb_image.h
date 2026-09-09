@@ -5,6 +5,8 @@
 #include <unordered_map>
 #include <cmath>
 #include <cstring>
+#include <cstdio>
+#include <cstdlib>
 #include "bb_sdl.h"    // bb_renderer_, bb_gfx_width_, bb_gfx_height_
 #include "bb_graphics2d.h" // bb_active_buffer_ - Vorgabe der Pixel-Befehle
 #include "bb_string.h" // bbString
@@ -25,6 +27,146 @@
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "../thirdparty/stb/stb_image_write.h"
+
+// ==========================================================================
+// BUG-67 — BMP mit Lauflaengenkodierung (BI_RLE8 / BI_RLE4)
+// ==========================================================================
+//
+// stb_image liest BMP mit 1, 4, 8, 24 und 32 Bit je Bildpunkt, aber keine der
+// beiden komprimierten Varianten.  Das Original laedt seine Bilder ueber
+// FreeImage 2.4.1 (gxruntime/ddutil.cpp), dessen BMP-Modul sie kennt.  Ohne
+// sie liefert LoadTexture Handle 0 — und beim Laden eines Modells fallen alle
+// Materialien mit fehlgeschlagener Textur zu einem Brush zusammen, der Fehler
+// wird also an der Flaechenzahl sichtbar und nicht am Bild.
+//
+// Nicht ueberdeckte Bildpunkte — was Sprung- und Zeilenendekommandos
+// ueberspringen — bleiben auf Palettenindex 0: FreeImage legt seinen Puffer
+// genullt an und fuellt nur, was die Lauflaengen beschreiben.
+//
+// Rueckgabe wie stbi_load: RGBA, oberste Zeile zuerst, mit malloc angelegt und
+// daher mit stbi_image_free freizugeben.  nullptr, wenn die Datei keine
+// lauflaengenkodierte BMP ist — dann hat schon stb_image das letzte Wort.
+
+inline unsigned char* bb_load_bmp_rle_(const char* path,
+                                       int* out_w, int* out_h, int* out_ch) {
+    std::FILE* f = std::fopen(path, "rb");
+    if (!f) return nullptr;
+    std::fseek(f, 0, SEEK_END);
+    long fsize = std::ftell(f);
+    std::fseek(f, 0, SEEK_SET);
+    if (fsize < 54) { std::fclose(f); return nullptr; }
+    std::vector<unsigned char> buf((size_t)fsize);
+    size_t got = std::fread(buf.data(), 1, (size_t)fsize, f);
+    std::fclose(f);
+    if (got != (size_t)fsize) return nullptr;
+
+    auto u16 = [&](size_t o) -> unsigned {
+        return (unsigned)buf[o] | ((unsigned)buf[o + 1] << 8);
+    };
+    auto u32 = [&](size_t o) -> unsigned {
+        return (unsigned)buf[o]            | ((unsigned)buf[o + 1] << 8)
+             | ((unsigned)buf[o + 2] << 16) | ((unsigned)buf[o + 3] << 24);
+    };
+
+    if (buf[0] != 'B' || buf[1] != 'M') return nullptr;
+    unsigned data_off = u32(10);
+    unsigned hdr_size = u32(14);
+    if (hdr_size < 40) return nullptr;   // BITMAPCOREHEADER kennt keine Kompression
+    int      w        = (int)u32(18);
+    int      h        = (int)u32(22);
+    unsigned bpp      = u16(28);
+    unsigned comp     = u32(30);
+    unsigned clr_used = u32(46);
+
+    if (!((comp == 1 && bpp == 8) || (comp == 2 && bpp == 4))) return nullptr;
+    if (w <= 0 || h == 0) return nullptr;
+    bool top_down = (h < 0);   // bei RLE nicht vorgesehen, kostet aber nichts
+    if (top_down) h = -h;
+    if ((long long)w * h > 64LL * 1024 * 1024) return nullptr;
+
+    // ---- Palette (BGRA je Eintrag) ----
+    unsigned ncolors = clr_used ? clr_used : (1u << bpp);
+    if (ncolors > 256) ncolors = 256;
+    size_t pal_off = 14 + (size_t)hdr_size;
+    if (pal_off + (size_t)ncolors * 4 > buf.size()) return nullptr;
+    unsigned char pal[256][4];
+    std::memset(pal, 0, sizeof(pal));
+    for (int i = 0; i < 256; ++i) pal[i][3] = 255;
+    for (unsigned i = 0; i < ncolors; ++i) {
+        pal[i][0] = buf[pal_off + i * 4 + 2];   // R
+        pal[i][1] = buf[pal_off + i * 4 + 1];   // G
+        pal[i][2] = buf[pal_off + i * 4 + 0];   // B
+    }
+
+    // ---- Lauflaengen ausrollen; y zaehlt die Bildzeilen in Dateireihenfolge ----
+    std::vector<unsigned char> idx((size_t)w * (size_t)h, 0);
+    size_t p    = data_off;
+    int    x    = 0, y = 0;
+    bool   done = false;
+    while (!done && p + 1 < buf.size()) {
+        if (y < 0 || y >= h) break;
+        unsigned cnt = buf[p], val = buf[p + 1];
+        p += 2;
+        if (cnt > 0) {                       // Lauf gleicher Bildpunkte
+            for (unsigned i = 0; i < cnt && x < w; ++i, ++x) {
+                unsigned v = (bpp == 8) ? val
+                                        : ((i & 1) ? (val & 0x0fu) : (val >> 4));
+                idx[(size_t)y * w + x] = (unsigned char)v;
+            }
+        } else if (val == 0) {               // Zeilenende
+            x = 0;
+            if (++y >= h) done = true;
+        } else if (val == 1) {               // Bildende
+            done = true;
+        } else if (val == 2) {               // Sprung um dx, dy
+            if (p + 1 >= buf.size()) break;
+            x += buf[p];
+            y += buf[p + 1];
+            p += 2;
+            if (y >= h) done = true;
+        } else {                             // Rohdaten, auf gerade Byte-Zahl gefuellt
+            unsigned n     = val;
+            size_t   bytes = (bpp == 8) ? n : ((n + 1) / 2);
+            if (p + bytes > buf.size()) break;
+            for (unsigned i = 0; i < n && x < w; ++i, ++x) {
+                unsigned v = (bpp == 8)
+                    ? buf[p + i]
+                    : ((i & 1) ? (buf[p + i / 2] & 0x0fu) : (buf[p + i / 2] >> 4));
+                idx[(size_t)y * w + x] = (unsigned char)v;
+            }
+            p += bytes + (bytes & 1);
+        }
+    }
+
+    unsigned char* out = (unsigned char*)std::malloc((size_t)w * (size_t)h * 4);
+    if (!out) return nullptr;
+    for (int row = 0; row < h; ++row) {
+        // Zeile 0 der Datei ist die unterste, ausser bei negativer Hoehe
+        int                  src = top_down ? row : (h - 1 - row);
+        const unsigned char* s   = &idx[(size_t)src * w];
+        unsigned char*       d   = out + (size_t)row * w * 4;
+        for (int i = 0; i < w; ++i) {
+            const unsigned char* c = pal[s[i]];
+            d[i * 4 + 0] = c[0];
+            d[i * 4 + 1] = c[1];
+            d[i * 4 + 2] = c[2];
+            d[i * 4 + 3] = c[3];
+        }
+    }
+    *out_w = w;
+    *out_h = h;
+    if (out_ch) *out_ch = 3;   // Palettenbild ohne Alphakanal, wie stb_image es meldet
+    return out;
+}
+
+// stbi_load mit dem RLE-Nachweg.  Jeder Ladebefehl geht hier durch, damit
+// LoadImage, LoadAnimImage, LoadBuffer, LoadTexture und LoadAnimTexture
+// dieselben Dateien annehmen.
+inline unsigned char* bb_load_rgba_(const char* path, int* w, int* h, int* ch) {
+    if (unsigned char* d = stbi_load(path, w, h, ch, 4)) return d;
+    return bb_load_bmp_rle_(path, w, h, ch);
+}
+
 
 // ==========================================================================
 // MILESTONE 44/45/46/46b — Image System
@@ -137,7 +279,7 @@ inline void bb_img_reupload_frame_(int handle, bb_FrameData_* fd) {
 
 inline int bb_LoadImage(const bbString& file) {
     int w = 0, h = 0, ch = 0;
-    unsigned char* data = stbi_load(file.c_str(), &w, &h, &ch, 4);
+    unsigned char* data = bb_load_rgba_(file.c_str(), &w, &h, &ch);
     if (!data) {
         std::cerr << "[runtime] LoadImage: cannot load '" << file << "'\n";
         return 0;
@@ -824,7 +966,7 @@ inline int bb_LoadBuffer(int buf, const bbString& file) {
     bb_BufLock_& lock = it->second;
 
     int w = 0, h = 0, ch = 0;
-    unsigned char* data = stbi_load(file.c_str(), &w, &h, &ch, 4);
+    unsigned char* data = bb_load_rgba_(file.c_str(), &w, &h, &ch);
     if (!data) return 0;
 
     lock.width  = w;
@@ -888,7 +1030,7 @@ inline int bb_LoadAnimImage(const bbString& file,
     if (fw <= 0 || fh <= 0 || count <= 0) return 0;
 
     int sw = 0, sh = 0, ch = 0;
-    unsigned char* src = stbi_load(file.c_str(), &sw, &sh, &ch, 4);
+    unsigned char* src = bb_load_rgba_(file.c_str(), &sw, &sh, &ch);
     if (!src) return 0;
 
     const int cols = sw / fw;
