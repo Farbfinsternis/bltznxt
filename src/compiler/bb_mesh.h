@@ -14,6 +14,7 @@
 #include "bb_entity_core.h"
 #include "bb_mesh_core.h"
 #include "bb_texture.h"
+#include <algorithm>
 #include <cmath>
 #include <cfloat>
 
@@ -391,8 +392,412 @@ inline float bb_MeshDepth(int h) {
 }
 
 // ============================================================
-// Render helper — called from bb_graphics3d.h per camera pass
+// Meshbefehle (3D-13)
+//
+// Alle diese Befehle arbeiten auf den **Vertices** und nicht auf der
+// Transformation der Entity - "Scales all vertices of a mesh" - und rechnen
+// laut Doku vom globalen Ursprung 0,0,0 aus. ScaleEntity und PositionEntity
+// lassen die Geometrie dagegen unberuehrt.
+//
+// Was die Doku offenlaesst, ist am laufenden Original nachgemessen; die
+// Ausmasse liefert MeshWidth/Height/Depth als Zahl, Lage und Beleuchtung
+// kommen aus ReadPixel:
+//
+//   ScaleMesh  ist **kumulativ**: zweimal 2 ergibt den vierfachen Wuerfel
+//              (2.0 -> 4.0 -> 8.0 gemessen).
+//   FitMesh    setzt die **Mindestecke** der Box auf x,y,z - nicht die Mitte.
+//              Mit uniform gilt der **kleinste** der drei Faktoren: ein
+//              2x2x2-Wuerfel in eine Box 4x2x6 gepasst bleibt 2x2x2.
+//   FlipMesh   kehrt Umlaufsinn **und Normalen** um (gemessen: die Flaeche
+//              wird unbeleuchtet, wenn man die Rueckseitenentfernung
+//              abschaltet).
+//   LightMesh  addiert auf die Vertexfarben und klemmt:
+//                 Farbe * (range / Abstand) * max(N.L, 0)
+//              Ohne Reichweite oder mit Reichweite 0 wird gleichmaessig
+//              addiert, ohne Abstand und ohne N.L. Fuenf Messpunkte
+//              bestaetigen die Formel (siehe DEVLOG).
+//   AddMesh    fasst die Geometrie in die **vorhandene** Flaeche zusammen;
+//              die Zahl der Flaechen bleibt 1, die Quelle bleibt erhalten.
+//
+// Nicht angetastet werden die Normalen bei ScaleMesh: die Doku nennt
+// UpdateNormals ausdruecklich als das Mittel, sie nach solchen Eingriffen
+// wieder richtigzustellen ("This is necessary for correct lighting if you
+// have not set surface normals").
 // ============================================================
+
+// Jede Aenderung an den Vertices muss neu auf die Grafikkarte.
+static inline void bb_mesh_touch_(bb_MeshEntity_* me) {
+  for (auto& s : me->surfaces) s.dirty = true;
+}
+
+// ---- CreateMesh: leeres Netz, Geometrie kommt mit AddMesh oder 3D-15 ----
+
+inline int bb_CreateMesh(int parent = 0) {
+  auto ent = std::make_unique<bb_MeshEntity_>();
+  return bb_entity_register_(std::move(ent), parent);
+}
+
+inline int bb_CountSurfaces(int h) {
+  auto* me = bb_mesh_ent_(h);
+  return me ? static_cast<int>(me->surfaces.size()) : 0;
+}
+
+// ---- ScaleMesh / PositionMesh / RotateMesh ----
+
+inline void bb_ScaleMesh(int h, float x_scale, float y_scale, float z_scale) {
+  auto* me = bb_mesh_ent_(h);
+  if (!me) return;
+  for (auto& s : me->surfaces)
+    for (size_t i = 0; i + 10 < s.vertices.size(); i += 11) {
+      s.vertices[i]     *= x_scale;
+      s.vertices[i + 1] *= y_scale;
+      s.vertices[i + 2] *= z_scale;
+    }
+  bb_mesh_touch_(me);
+}
+
+inline void bb_PositionMesh(int h, float x, float y, float z) {
+  auto* me = bb_mesh_ent_(h);
+  if (!me) return;
+  for (auto& s : me->surfaces)
+    for (size_t i = 0; i + 10 < s.vertices.size(); i += 11) {
+      s.vertices[i]     += x;
+      s.vertices[i + 1] += y;
+      s.vertices[i + 2] += z;
+    }
+  bb_mesh_touch_(me);
+}
+
+// Dieselbe YXZ-Reihenfolge wie RotateEntity - die Drehung soll fuer Netz und
+// Entity dieselbe Bedeutung haben. Die Normalen drehen mit; ohne das waere
+// ein gedrehtes Netz von der falschen Seite beleuchtet, und davor warnt die
+// Doku im Gegensatz zu ScaleMesh nicht.
+inline void bb_RotateMesh(int h, float pitch, float yaw, float roll) {
+  auto* me = bb_mesh_ent_(h);
+  if (!me) return;
+  float R[16];
+  mat4_make_euler_YXZ_(R, pitch, yaw, roll);
+  auto turn = [&R](float& a, float& b, float& c) {
+    float x = a, y = b, z = c;
+    a = R[0] * x + R[4] * y + R[8]  * z;
+    b = R[1] * x + R[5] * y + R[9]  * z;
+    c = R[2] * x + R[6] * y + R[10] * z;
+  };
+  for (auto& s : me->surfaces)
+    for (size_t i = 0; i + 10 < s.vertices.size(); i += 11) {
+      turn(s.vertices[i],     s.vertices[i + 1], s.vertices[i + 2]);
+      turn(s.vertices[i + 3], s.vertices[i + 4], s.vertices[i + 5]);
+    }
+  bb_mesh_touch_(me);
+}
+
+// Gemessen: x,y,z ist die **Mindestecke** der Zielbox, nicht deren Mitte, und
+// uniform nimmt den kleinsten der drei Faktoren.
+inline void bb_FitMesh(int h, float x, float y, float z,
+                       float width, float height, float depth,
+                       int uniform = 0) {
+  auto* me = bb_mesh_ent_(h);
+  if (!me || me->surfaces.empty()) return;
+
+  float x0, x1, y0, y1, z0, z1;
+  bb_mesh_aabb_(me, x0, x1, y0, y1, z0, z1);
+  if (x1 < x0) return;                       // keine Vertices
+
+  float ex = x1 - x0, ey = y1 - y0, ez = z1 - z0;
+  float sx = (ex > 1e-9f) ? width  / ex : 1.0f;
+  float sy = (ey > 1e-9f) ? height / ey : 1.0f;
+  float sz = (ez > 1e-9f) ? depth  / ez : 1.0f;
+  if (uniform) {
+    float s = sx;
+    if (sy < s) s = sy;
+    if (sz < s) s = sz;
+    sx = sy = sz = s;
+  }
+
+  for (auto& s : me->surfaces)
+    for (size_t i = 0; i + 10 < s.vertices.size(); i += 11) {
+      s.vertices[i]     = (s.vertices[i]     - x0) * sx + x;
+      s.vertices[i + 1] = (s.vertices[i + 1] - y0) * sy + y;
+      s.vertices[i + 2] = (s.vertices[i + 2] - z0) * sz + z;
+    }
+  bb_mesh_touch_(me);
+}
+
+// ---- FlipMesh ----
+
+// Gemessen: der Umlaufsinn **und** die Normalen kehren sich um. Mit
+// abgeschalteter Rueckseitenentfernung wird die vorher beleuchtete Flaeche
+// danach schwarz - das geht nur, wenn auch die Normale kippt.
+inline void bb_FlipMesh(int h) {
+  auto* me = bb_mesh_ent_(h);
+  if (!me) return;
+  for (auto& s : me->surfaces) {
+    for (size_t i = 0; i + 2 < s.indices.size(); i += 3)
+      std::swap(s.indices[i + 1], s.indices[i + 2]);
+    for (size_t i = 0; i + 10 < s.vertices.size(); i += 11) {
+      s.vertices[i + 3] = -s.vertices[i + 3];
+      s.vertices[i + 4] = -s.vertices[i + 4];
+      s.vertices[i + 5] = -s.vertices[i + 5];
+    }
+  }
+  bb_mesh_touch_(me);
+}
+
+// ---- UpdateNormals ----
+
+// Mittelt die Flaechennormalen ueber die Dreiecke, die sich einen Vertex
+// **teilen**. Unsere Primitiven legen fuer jede Flaeche eigene Vertices an,
+// ein Wuerfel bleibt dadurch kantig - gemessen aendert UpdateNormals auch im
+// Original am Wuerfelbild nichts.
+inline void bb_UpdateNormals(int h) {
+  auto* me = bb_mesh_ent_(h);
+  if (!me) return;
+  for (auto& s : me->surfaces) {
+    const size_t n = s.vertices.size() / 11;
+    if (!n) continue;
+    std::vector<float> acc(n * 3, 0.0f);
+
+    for (size_t t = 0; t + 2 < s.indices.size(); t += 3) {
+      unsigned a = s.indices[t], b = s.indices[t + 1], c = s.indices[t + 2];
+      if (a >= n || b >= n || c >= n) continue;
+      const float* pa = &s.vertices[a * 11];
+      const float* pb = &s.vertices[b * 11];
+      const float* pc = &s.vertices[c * 11];
+      float ux = pb[0] - pa[0], uy = pb[1] - pa[1], uz = pb[2] - pa[2];
+      float vx = pc[0] - pa[0], vy = pc[1] - pa[1], vz = pc[2] - pa[2];
+      // Kreuzprodukt in der Reihenfolge, die zur Umlaufrichtung unserer
+      // Primitiven passt (siehe bb_gen_cube_).
+      float nx = uz * vy - uy * vz;
+      float ny = ux * vz - uz * vx;
+      float nz = uy * vx - ux * vy;
+      for (unsigned idx : { a, b, c }) {
+        acc[idx * 3]     += nx;
+        acc[idx * 3 + 1] += ny;
+        acc[idx * 3 + 2] += nz;
+      }
+    }
+
+    for (size_t v = 0; v < n; ++v) {
+      float nx = acc[v * 3], ny = acc[v * 3 + 1], nz = acc[v * 3 + 2];
+      float len = std::sqrt(nx * nx + ny * ny + nz * nz);
+      if (len > 1e-9f) { nx /= len; ny /= len; nz /= len; }
+      s.vertices[v * 11 + 3] = nx;
+      s.vertices[v * 11 + 4] = ny;
+      s.vertices[v * 11 + 5] = nz;
+    }
+  }
+  bb_mesh_touch_(me);
+}
+
+// Vertexfarben liegen im Original als Byte vor. Gemessen: bei Reichweite 1
+// steht dort 69 und nicht 70 - der Wert wird also **abgeschnitten**, nicht
+// gerundet, und wiederholte LightMesh-Aufrufe rechnen mit dem
+// abgeschnittenen Wert weiter. Ohne diese Quantisierung wichen fuenf der
+// Messpunkte um eins ab.
+static inline float bb_vcol_(float v) {
+  if (v <= 0.0f) return 0.0f;
+  if (v >= 1.0f) return 1.0f;
+  return std::floor(v * 255.0f) / 255.0f;
+}
+
+// ---- LightMesh ----
+
+// Am Original ausgemessen (fuenf Messpunkte, siehe DEVLOG):
+//
+//     Vertexfarbe += Farbe * (range / Abstand) * max(N.L, 0)
+//
+// mit dem Abstand vom Licht zum jeweiligen Vertex. Ohne Reichweite - oder mit
+// Reichweite 0 - wird die Farbe **gleichmaessig** addiert, ohne Abstand und
+// ohne N.L; so setzt "LightMesh mesh,-255,-255,-255" die Vertexfarben auf 0
+// zurueck, wie es die Doku beschreibt.
+//
+// Sichtbar wird das Ergebnis erst mit EntityFX 2 (Vertexfarben).
+inline void bb_LightMesh(int h, float red, float green, float blue,
+                         float range = 0.0f,
+                         float light_x = 0.0f, float light_y = 0.0f,
+                         float light_z = 0.0f) {
+  auto* me = bb_mesh_ent_(h);
+  if (!me) return;
+  const float r = red / 255.0f, g = green / 255.0f, b = blue / 255.0f;
+
+  for (auto& s : me->surfaces)
+    for (size_t i = 0; i + 10 < s.vertices.size(); i += 11) {
+      float f = 1.0f;
+      if (range > 0.0f) {
+        float dx = light_x - s.vertices[i];
+        float dy = light_y - s.vertices[i + 1];
+        float dz = light_z - s.vertices[i + 2];
+        float d  = std::sqrt(dx * dx + dy * dy + dz * dz);
+        if (d < 1e-6f) {
+          f = 1.0f;
+        } else {
+          float nl = (dx * s.vertices[i + 3] + dy * s.vertices[i + 4] +
+                      dz * s.vertices[i + 5]) / d;
+          if (nl < 0.0f) nl = 0.0f;
+          f = (range / d) * nl;
+        }
+      }
+      float* c = &s.vertices[i + 8];
+      c[0] = bb_vcol_(c[0] + r * f);
+      c[1] = bb_vcol_(c[1] + g * f);
+      c[2] = bb_vcol_(c[2] + b * f);
+    }
+  bb_mesh_touch_(me);
+}
+
+// ---- AddMesh / CopyMesh ----
+
+// Gemessen: die Geometrie kommt in die **vorhandene** Flaeche, die Zahl der
+// Flaechen bleibt also 1, und die Quelle bleibt danach bestehen. Ein
+// Brush-System, das ein Zusammenfassen verhindern koennte, gibt es noch nicht
+// (3D-15); sobald es das gibt, darf nur bei gleichem Brush zusammengefasst
+// werden.
+inline void bb_AddMesh(int source_mesh, int dest_mesh) {
+  auto* src = bb_mesh_ent_(source_mesh);
+  auto* dst = bb_mesh_ent_(dest_mesh);
+  if (!src || !dst || src == dst) return;
+  if (dst->surfaces.empty()) dst->surfaces.emplace_back();
+  bb_MeshData_& into = dst->surfaces[0];
+
+  for (const auto& s : src->surfaces) {
+    const unsigned base = static_cast<unsigned>(into.vertices.size() / 11);
+    into.vertices.insert(into.vertices.end(), s.vertices.begin(), s.vertices.end());
+    for (unsigned idx : s.indices) into.indices.push_back(base + idx);
+  }
+  into.dirty = true;
+}
+
+// Laut Doku "identical to performing new_mesh=CreateMesh() : AddMesh mesh,new_mesh".
+inline int bb_CopyMesh(int mesh, int parent = 0) {
+  if (!bb_mesh_ent_(mesh)) return 0;
+  int h = bb_CreateMesh(parent);
+  bb_AddMesh(mesh, h);
+  return h;
+}
+
+// ---- MeshesIntersect ----
+
+// Erst die Huellkoerper, dann Dreieck gegen Dreieck - die Doku nennt den
+// Befehl selbst "a fairly slow routine".
+static inline bool bb_tri_tri_hit_(const float* a0, const float* a1, const float* a2,
+                                    const float* b0, const float* b1, const float* b2);
+
+inline int bb_MeshesIntersect(int mesh_a, int mesh_b) {
+  auto* A = bb_mesh_ent_(mesh_a);
+  auto* B = bb_mesh_ent_(mesh_b);
+  if (!A || !B) return 0;
+
+  float ax0, ax1, ay0, ay1, az0, az1, bx0, bx1, by0, by1, bz0, bz1;
+  bb_mesh_aabb_(A, ax0, ax1, ay0, ay1, az0, az1);
+  bb_mesh_aabb_(B, bx0, bx1, by0, by1, bz0, bz1);
+  // Die Huellkoerper stehen in Modellkoordinaten; die Weltmatrix der Entity
+  // kommt dazu.
+  auto to_world = [](const bb_MeshEntity_* e, const float* p, float* o) {
+    const float* m = e->world;
+    o[0] = m[0] * p[0] + m[4] * p[1] + m[8]  * p[2] + m[12];
+    o[1] = m[1] * p[0] + m[5] * p[1] + m[9]  * p[2] + m[13];
+    o[2] = m[2] * p[0] + m[6] * p[1] + m[10] * p[2] + m[14];
+  };
+
+  // Weltraum-AABB als Vortest: die acht Ecken beider Huellkoerper umrechnen.
+  float wa0[3] = { 1e30f, 1e30f, 1e30f }, wa1[3] = { -1e30f, -1e30f, -1e30f };
+  float wb0[3] = { 1e30f, 1e30f, 1e30f }, wb1[3] = { -1e30f, -1e30f, -1e30f };
+  auto grow = [](float* lo, float* hi, const float* p) {
+    for (int i = 0; i < 3; ++i) {
+      if (p[i] < lo[i]) lo[i] = p[i];
+      if (p[i] > hi[i]) hi[i] = p[i];
+    }
+  };
+  for (int c = 0; c < 8; ++c) {
+    float pa[3] = { (c & 1) ? ax1 : ax0, (c & 2) ? ay1 : ay0, (c & 4) ? az1 : az0 };
+    float pb[3] = { (c & 1) ? bx1 : bx0, (c & 2) ? by1 : by0, (c & 4) ? bz1 : bz0 };
+    float o[3];
+    to_world(A, pa, o); grow(wa0, wa1, o);
+    to_world(B, pb, o); grow(wb0, wb1, o);
+  }
+  for (int i = 0; i < 3; ++i)
+    if (wa1[i] < wb0[i] || wb1[i] < wa0[i]) return 0;
+
+  // Dreieck gegen Dreieck in Weltkoordinaten.
+  std::vector<float> TA, TB;
+  auto collect = [&to_world](const bb_MeshEntity_* e, std::vector<float>& out) {
+    for (const auto& s : e->surfaces)
+      for (size_t t = 0; t + 2 < s.indices.size(); t += 3)
+        for (int k = 0; k < 3; ++k) {
+          const float* p = &s.vertices[s.indices[t + k] * 11];
+          float o[3]; to_world(e, p, o);
+          out.insert(out.end(), o, o + 3);
+        }
+  };
+  collect(A, TA);
+  collect(B, TB);
+
+  for (size_t i = 0; i + 8 < TA.size(); i += 9)
+    for (size_t j = 0; j + 8 < TB.size(); j += 9)
+      if (bb_tri_tri_hit_(&TA[i], &TA[i + 3], &TA[i + 6],
+                          &TB[j], &TB[j + 3], &TB[j + 6]))
+        return 1;
+  return 0;
+}
+
+// Trennachsentest fuer zwei Dreiecke: die beiden Flaechennormalen und die
+// neun Kreuzprodukte der Kanten. Findet sich eine Achse, auf der sich die
+// Projektionen nicht ueberlappen, beruehren sich die Dreiecke nicht.
+static inline bool bb_tri_tri_hit_(const float* a0, const float* a1, const float* a2,
+                                    const float* b0, const float* b1, const float* b2) {
+  const float* A[3] = { a0, a1, a2 };
+  const float* B[3] = { b0, b1, b2 };
+  float ea[3][3], eb[3][3];
+  for (int i = 0; i < 3; ++i)
+    for (int k = 0; k < 3; ++k) {
+      ea[i][k] = A[(i + 1) % 3][k] - A[i][k];
+      eb[i][k] = B[(i + 1) % 3][k] - B[i][k];
+    }
+
+  auto separated = [&](const float* ax) {
+    float len2 = ax[0] * ax[0] + ax[1] * ax[1] + ax[2] * ax[2];
+    if (len2 < 1e-12f) return false;          // entartete Achse sagt nichts
+    float amin = 1e30f, amax = -1e30f, bmin = 1e30f, bmax = -1e30f;
+    for (int i = 0; i < 3; ++i) {
+      float pa = A[i][0] * ax[0] + A[i][1] * ax[1] + A[i][2] * ax[2];
+      float pb = B[i][0] * ax[0] + B[i][1] * ax[1] + B[i][2] * ax[2];
+      if (pa < amin) amin = pa;
+      if (pa > amax) amax = pa;
+      if (pb < bmin) bmin = pb;
+      if (pb > bmax) bmax = pb;
+    }
+    return amax < bmin || bmax < amin;
+  };
+
+  auto cross = [](const float* u, const float* v, float* o) {
+    o[0] = u[1] * v[2] - u[2] * v[1];
+    o[1] = u[2] * v[0] - u[0] * v[2];
+    o[2] = u[0] * v[1] - u[1] * v[0];
+  };
+
+  float n[3];
+  cross(ea[0], ea[1], n); if (separated(n)) return false;
+  cross(eb[0], eb[1], n); if (separated(n)) return false;
+  for (int i = 0; i < 3; ++i)
+    for (int j = 0; j < 3; ++j) {
+      cross(ea[i], eb[j], n);
+      if (separated(n)) return false;
+    }
+  return true;
+}
+
+// ---- PaintMesh ----
+
+// Brushes gibt es noch nicht (3D-15). Ein stiller Rueckfall waere hier
+// besonders irrefuehrend, weil PaintMesh das Aussehen aendern soll.
+inline void bb_PaintMesh(int /*mesh*/, int /*brush*/) {
+  static bool warned = false;
+  if (!warned) {
+    warned = true;
+    std::cerr << "[runtime] PaintMesh: Brushes sind noch nicht umgesetzt - "
+                 "ohne Wirkung (3D-13)\n";
+  }
+}
 
 // ============================================================
 // Render helper — called from bb_graphics3d.h per camera pass

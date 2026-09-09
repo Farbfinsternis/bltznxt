@@ -630,20 +630,77 @@ Original-Renderer.
 
 ---
 
-### 3D-13 · Mesh Loading (.b3d)
-*Dateien: `bb_loader.h` (neu)*
+### 3D-13 · Mesh Loading
+*Dateien: `bb_mesh.h`, `bb_loader.h` (noch nicht angelegt)*
 
-- [ ] Blitz3D `.b3d`-Format-Parser (Chunk-basiert: NODE, MESH, VRTS, TRIS, TEXS, BRUS, ANIM, KEYS, BONE)
-- [ ] `bb_LoadMesh(path$, parent=0)` → handle; erkennt Extension `.b3d` / `.obj`
-- [ ] `bb_LoadAnimMesh(path$, parent=0)` → handle mit Animations-Daten
-- [ ] `bb_CopyMesh(h, parent=0)` → deep copy (neue GPU-Buffer)
-- [ ] `bb_AddMesh(src, dst)` — Surfaces von `src` zu `dst` hinzufügen
-- [ ] `bb_FlipMesh(h)` — Normals und Winding umkehren
-- [ ] `bb_PaintMesh(h, brush)` — Brush auf alle Surfaces anwenden (stub bis Brush-System)
-- [ ] `bb_LightMesh(h, r,g,b, range, x,y,z)` — Vertex-Colors backen
-- [ ] `bb_FitMesh(h, x,y,z, w,h,d, uniform)`, `bb_ScaleMesh`, `bb_RotateMesh`, `bb_PositionMesh`
-- [ ] `bb_UpdateNormals(h)` — Smooth-Normals neu berechnen
-- [ ] `bb_MeshesIntersect(m1, m2)` → bool (AABB-Vortest + Triangle-Intersection)
+**Die Ueberschrift dieses Punktes hiess „Mesh Loading (.b3d)". Das war die
+falsche Datei.** Gemessen an der Installation: die 32 Beispielprogramme mit
+`LoadMesh`/`LoadAnimMesh` laden **39-mal `.x` und 20-mal `.3ds`** — und
+**kein einziges Mal `.b3d`**. In der ganzen Installation liegen 51 `.x`,
+38 `.3ds` und 6 `.md2`, aber **null** `.b3d`. Ein `.b3d`-Loader waere hier
+gegen keine einzige echte Datei pruefbar gewesen. `LoadMesh.htm` nennt alle
+drei Formate; die Reihenfolge ist deshalb `.3ds` zuerst (starrer Chunk-Walk,
+38 Dateien zum Gegenpruefen), dann `.x`, dann `.b3d`.
+
+**Teil 1 — die Befehle ohne Loader ✓ COMPLETE**
+
+- [x] `bb_ScaleMesh`, `bb_RotateMesh`, `bb_PositionMesh` — arbeiten auf den
+      Vertices und rechnen laut Doku vom Ursprung 0,0,0 aus
+- [x] `bb_FitMesh(h, x,y,z, w,h,d, uniform=0)`
+- [x] `bb_FlipMesh` — Umlaufsinn **und** Normalen
+- [x] `bb_UpdateNormals` — mittelt ueber die Dreiecke, die sich einen Vertex
+      teilen
+- [x] `bb_LightMesh(h, r,g,b, range=0, x=0,y=0,z=0)` — backt Vertexfarben
+- [x] `bb_AddMesh`, `bb_CopyMesh`, `bb_CreateMesh`, `bb_CountSurfaces`
+- [x] `bb_MeshesIntersect` — Weltraum-AABB als Vortest, dann Trennachsentest
+      Dreieck gegen Dreieck
+- [x] `bb_PaintMesh` — meldet einmal, dass es ohne Brushes wirkungslos ist
+
+**Teil 2 — der Loader, offen**
+
+- [ ] `.3ds`-Parser (Chunk-Walk: 0x4D4D, 0x3D3D, 0x4000, 0x4100, 0x4110,
+      0x4120, 0x4140, 0x4160)
+- [ ] `bb_LoadMesh(file$, parent=0)` — Endung erkennen
+- [ ] `bb_LoadAnimMesh(file$, parent=0)` — behaelt Hierarchie und Animation
+- [ ] `.x` (36 der 51 Dateien sind Text, 11 binaer) und `.b3d` danach
+
+**Am laufenden Original nachgemessen, weil die Doku dazu schweigt.** Die
+Ausmasse liefert `MeshWidth/Height/Depth` als Zahl, Lage und Beleuchtung
+kommen aus `ReadPixel`; **48 von 48 vergleichbaren Faellen stimmen mit
+unserer Runtime zeichengenau ueberein.**
+
+- **`ScaleMesh` ist kumulativ.** Zweimal `2` ergibt den achtfachen Wuerfel
+  (2.0 → 4.0 → 8.0 gemessen), nicht den doppelten.
+- **`FitMesh` setzt die Mindestecke der Box auf `x,y,z`,** nicht deren Mitte:
+  `FitMesh m,0,0,0,2,2,2` legt den Wuerfel auf [0,2]³, seine Mitte also auf
+  (1,1,1). Mit `uniform` gilt der **kleinste** der drei Faktoren — ein
+  2×2×2-Wuerfel in eine Box 4×2×6 gepasst bleibt 2×2×2.
+- **`FlipMesh` kehrt auch die Normalen um.** Mit abgeschalteter
+  Rueckseitenentfernung wird die vorher beleuchtete Flaeche danach schwarz;
+  das geht nur, wenn die Normale mitkippt.
+- **`LightMesh` addiert `Farbe · (range / Abstand) · max(N·L, 0)`** auf die
+  Vertexfarben und klemmt. Ohne Reichweite — oder mit Reichweite 0 — wird
+  gleichmaessig addiert, ohne Abstand und ohne N·L; genau deshalb setzt
+  `LightMesh mesh,-255,-255,-255` die Farben auf 0 zurueck. Fuenf Messpunkte
+  bestaetigen die Formel. Die Vertexfarbe liegt im Original als **Byte** vor:
+  bei Reichweite 1 steht dort 69 und nicht 70, der Wert wird also
+  abgeschnitten, und wiederholte Aufrufe rechnen mit dem abgeschnittenen Wert
+  weiter.
+- **`AddMesh` fasst in die vorhandene Flaeche zusammen** — die Flaechenzahl
+  bleibt 1 —, und die Quelle bleibt erhalten.
+
+**Offen und bewusst nicht behauptet:** `ScaleMesh` laesst die Normalen in
+Ruhe. Die Doku nennt `UpdateNormals` ausdruecklich als das Mittel, sie nach
+solchen Eingriffen richtigzustellen; eine automatische Korrektur waere also
+eine Zutat. Sobald es Brushes gibt (3D-15), darf `AddMesh` nur noch bei
+gleichem Brush zusammenfassen.
+
+- **Signaturvergleich:** alle 13 Befehle gegen `blitzcc +k` — keine
+  Abweichung.
+- **Test:** `tests/test_3d13_meshops.bb` — prueft die zahlenmaessig
+  ablesbaren Zusagen: Ausmasse nach jedem Eingriff, Flaechenzahl,
+  Unabhaengigkeit der Kopie und die Durchdringung zweier Wuerfel vor und nach
+  `PositionMesh`. Das Original nimmt die Datei an.
 
 ---
 

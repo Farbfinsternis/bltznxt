@@ -990,6 +990,99 @@ scheitert mit dem alten Compiler und wird vom Original angenommen.
 
 ---
 
+### Nachtrag (2026-09-09, 3D-13, Teil 1): die Meshbefehle ohne Loader
+
+**Die Ueberschrift dieses Roadmap-Punktes hiess „Mesh Loading (.b3d)" — und
+das war die falsche Datei.** Vor dem ersten Handgriff gezaehlt: die 32
+Beispielprogramme mit `LoadMesh`/`LoadAnimMesh` laden **39-mal `.x` und
+20-mal `.3ds`**, und **kein einziges Mal `.b3d`**. In der ganzen
+Blitz3D-Installation liegen 51 `.x`, 38 `.3ds` und 6 `.md2` — aber **null**
+`.b3d`. Ein `.b3d`-Loader waere gegen keine einzige echte Datei pruefbar
+gewesen; ich haette meine Testdaten selbst erzeugen muessen und damit genau
+das gemessen, was ich vorher hineingeschrieben habe.
+
+Das ist der vierte Fall in vier Schritten, in dem der eigene Roadmap-Entwurf
+etwas behauptet, was an der Installation nachprüfbar nicht stimmt — nach den
+Texturflags, dem Lichttyp und den EntityBlend-Modi jetzt das Dateiformat.
+**Die Tabellen und Ueberschriften in `ROADMAP3D.md` sind Entwuerfe, keine
+Referenz.**
+
+Nach Ruecksprache: `.3ds` zuerst (starrer Chunk-Walk, 38 Dateien zum
+Gegenpruefen), und in diesem Schritt erst einmal die Haelfte von 3D-13, die
+gar keinen Loader braucht — `ScaleMesh` (22 Dateien), `FlipMesh` (19),
+`CreateMesh` (17), `UpdateNormals` (12), `FitMesh` (8), dazu `RotateMesh`,
+`PositionMesh`, `AddMesh`, `CopyMesh`, `CountSurfaces`, `LightMesh`,
+`MeshesIntersect` und `PaintMesh`. Diese Befehle arbeiten auf den Vertices,
+nicht auf der Transformation der Entity, und sind mit den vorhandenen
+Primitiven heute schon messbar.
+
+**Gemessen statt abgeleitet — und diesmal liefert die Sprache selbst Zahlen.**
+`MeshWidth/Height/Depth` gibt es in beiden Systemen, die Ausmasse nach jedem
+Eingriff sind also direkt vergleichbar, ohne den Umweg ueber Bildpunkte. Wo
+es doch aufs Bild ankam (FlipMesh, LightMesh, die Lage nach FitMesh), kam
+`ReadPixel` bzw. `glReadPixels` dazu. **48 von 48 vergleichbaren Faellen
+stimmen zeichengenau ueberein.**
+
+Was die Messung entschieden hat:
+
+- **`ScaleMesh` ist kumulativ.** Zweimal `2` ergibt den achtfachen Wuerfel
+  (2.0 → 4.0 → 8.0), nicht den doppelten. „Scales all vertices by the
+  specified scaling factors" laesst beides zu.
+- **`FitMesh` setzt die Mindestecke der Box auf `x,y,z`,** nicht deren Mitte.
+  `FitMesh m,0,0,0,2,2,2` legt den Wuerfel auf [0,2]³ — im Bild steht er
+  danach rechts oben, nicht in der Mitte. Mit `uniform` gilt der **kleinste**
+  der drei Faktoren: ein 2×2×2-Wuerfel in eine Box 4×2×6 gepasst bleibt
+  2×2×2.
+- **`FlipMesh` kehrt auch die Normalen um.** Die Doku spricht nur von
+  Dreiecken („Flips all the triangles in a mesh"). Mit abgeschalteter
+  Rueckseitenentfernung wird die vorher weisse Flaeche danach schwarz — das
+  geht nur, wenn die Normale mitkippt.
+- **`LightMesh`** war der interessanteste Fall. Die Doku sagt nur „performs a
+  'fake' lighting operation" und nennt kein Gesetz. Eine Reihe ueber die
+  Reichweiten 1 bis 12 ergab 69, 139, 208, dann 255 — perfekt linear in der
+  Reichweite. Zusammen mit dem Abstand (3.3166 vom Licht zur Flaeche) und dem
+  Kosinus zwischen Normale und Lichtrichtung (0.9045) loest sich das zu
+
+      Vertexfarbe += Farbe · (range / Abstand) · max(N·L, 0)
+
+  auf: 255 · (1/3.3166) · 0.9045 = 69.6 → **69**. Die Gegenprobe mit einem
+  ganz anderen Aufbau (Licht bei z=−12, Reichweite 10) sagt 228.1 → **228**,
+  gemessen 228. Ohne Reichweite — oder mit Reichweite 0 — wird gleichmaessig
+  addiert, ohne Abstand und ohne N·L; genau deshalb funktioniert das in der
+  Doku empfohlene `LightMesh mesh,-255,-255,-255` als Ruecksetzer.
+- **Die Vertexfarbe liegt im Original als Byte vor.** Bei Reichweite 1 steht
+  dort 69 und nicht 70 — abgeschnitten, nicht gerundet. Ohne diese
+  Quantisierung wichen fuenf Messpunkte um genau eins ab; mit ihr stimmen
+  alle. Es lohnt sich, solche Einser ernst zu nehmen: sie sind der Unterschied
+  zwischen „ungefaehr richtig" und „nachgerechnet".
+- **`AddMesh` fasst in die vorhandene Flaeche zusammen**, die Flaechenzahl
+  bleibt 1, und die Quelle bleibt erhalten. Ein zweites `AddMesh` mit
+  versetztem Netz wuchs die Zielbreite von 10 auf 30 — die Geometrie kommt
+  also wirklich dazu und wird nicht ersetzt.
+
+**Offen und bewusst nicht behauptet:** `ScaleMesh` laesst die Normalen in
+Ruhe. Die Doku nennt `UpdateNormals` ausdruecklich als das Mittel, sie nach
+solchen Eingriffen richtigzustellen — eine automatische Korrektur waere eine
+Zutat, die das Original nicht hat.
+
+**Ein Nebenbefund beim Testschreiben:** `If MeshWidth(m) = 6` schlaegt nach
+einer Drehung fehl, obwohl `Print MeshWidth(m)` „6" ausgibt. `cos(90)` ist im
+Gleitkomma nicht genau 0, und `%g` versteckt den Rest. Der Test vergleicht
+dort jetzt mit einer Toleranz und sagt im Kommentar, warum — sonst haette
+irgendwann jemand die Zeile fuer kaputt gehalten statt fuer genau.
+
+**Wirkung:** vollstaendig uebersetzende Beispieldateien **36 → 37**,
+unbekannte Befehle **118 → 109** verschieden und **1814 → 1691** Vorkommen;
+neun Befehle sind verschwunden, keiner neu.
+
+**Abgesichert:** Emittatvergleich alt/neu ueber 92 Programme (91 identisch, 0
+abweichend, 1 nur vom alten Compiler abgelehnt — der neue Test), 44
+Negativtests mit gleicher Diagnose, alle **72 `.expected` gruen**,
+`compare_reference.sh` ohne neue Abweichung (gleiches Urteil 125 → 126). Das
+Original nimmt die neue Testdatei an.
+
+---
+
 ### Parser: colon as statement separator — If/Else bug fixed
 
 Colon (`:`) already worked as a statement separator in the main loop via

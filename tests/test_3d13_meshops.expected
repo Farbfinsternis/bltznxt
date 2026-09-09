@@ -1,0 +1,30 @@
+wuerfel roh
+scale einmal
+scale kumulativ
+scale je achse
+fitmesh
+fitmesh uniform
+rotatemesh
+durchdringung
+positionmesh ausmasse
+getrennt
+wieder zusammen
+createmesh leer
+createmesh ohne ausmass
+addmesh flaeche
+addmesh geometrie
+quelle bleibt
+zweimal dieselbe flaeche
+addmesh zweimal
+copymesh flaeche
+copymesh gleich
+copymesh unabhaengig
+flipmesh dreiecke
+flipmesh ausmasse
+updatenormals
+lightmesh
+paintmesh
+copymesh ungueltig
+countsurfaces ungueltig
+intersect ungueltig
+fertig
