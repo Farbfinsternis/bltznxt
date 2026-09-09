@@ -5,6 +5,7 @@
 #include "bb_loader_x.h"
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <string>
 #include <array>
@@ -888,16 +889,23 @@ inline int bb_load_x_(const bbString& file, int parent) {
     std::cerr << "[runtime] LoadMesh: '" << file << "' ist keine .x-Datei\n";
     return 0;
   }
-  const std::string enc = src.substr(8, 3);
-  if (enc != "txt") {
+  const std::string enc    = src.substr(8, 3);
+  const bool        is_bin = (enc == "bin");
+  if (!is_bin && enc != "txt") {
+    // Bleiben "com" und "cmp", die MSZIP-gepackten Varianten. In der
+    // Installation kommt keine davon vor - 43 Dateien sind Text, 8 binaer.
     std::cerr << "[runtime] LoadMesh: '" << file << "' ist im Format '" << enc
-              << "' - bisher nur 'txt' umgesetzt (3D-13)\n";
+              << "' - umgesetzt sind 'txt' und 'bin'\n";
     return 0;
   }
+  // Die letzten vier Byte des Kopfes sind die Groesse einer Kommazahl in der
+  // Datei, "0032" oder "0064"; im Textformat tragen sie nichts.
+  int fsize = std::atoi(src.substr(12, 4).c_str());
+  if (fsize != 32 && fsize != 64) fsize = 32;
   src.erase(0, 16);
 
   std::vector<bb_XObj_> roots;
-  if (!bb_x_parse_(src, roots)) {
+  if (!bb_x_parse_(src, roots, is_bin, fsize)) {
     std::cerr << "[runtime] LoadMesh: '" << file << "' ist nicht lesbar\n";
     return 0;
   }

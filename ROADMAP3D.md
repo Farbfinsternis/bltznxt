@@ -718,7 +718,13 @@ gleichem Brush zusammenfassen.
       `.3ds` **nicht** gespiegelt, Vorlagennamen ohne Ruecksicht auf
       Gross- und Kleinschreibung verglichen, Verweise `{name}` aufgeloest,
       Texturen je Ladevorgang zwischengespeichert.
-- [ ] `.x` im Binaerformat (7 der 36 geladenen Dateien) und `.b3d`
+- [x] **Teil 4: `.x` in der Binaerkodierung** - kein zweiter Parser, nur
+      ein zweiter Tokenizer: dieselben Tokenarten aus 16-Bit-Marken statt
+      aus Zeichen, darueber derselbe Objektbaum. Alle **8** Binaerdateien
+      der Installation liefern dieselbe Flaechenzahl und dieselben drei
+      Ausmasse wie das Original.
+- [ ] `.b3d` - in der Installation liegt keine einzige solche Datei,
+      der Loader waere also gegen nichts pruefbar
 - [ ] Hierarchie und Animation aus dem Keyframe-Abschnitt (3D-19)
 
 **Sechs Dinge am laufenden Original nachgemessen — jedes einzelne haette man

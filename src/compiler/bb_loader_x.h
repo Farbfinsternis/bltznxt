@@ -3,6 +3,7 @@
 
 #include "bb_mesh.h"
 #include <cstdio>
+#include <cstring>
 #include <filesystem>
 #include <string>
 #include <unordered_map>
@@ -12,9 +13,11 @@
 //  DirectX-Netze  -  bb_loader_x.h   (3D-13, Teil 3)
 //
 //  `.x` ist das haeufigste Modellformat der mitgelieferten Beispiele: sie
-//  laden 36 verschiedene Dateien, davon **28 im Textformat und 7 binaer**.
-//  Dieser Leser deckt das Textformat ab; das Binaerformat ist ein eigener
-//  Schritt.
+//  laden 36 verschiedene Dateien, davon **28 im Textformat und 8 binaer**
+//  (ueber die ganze Installation gezaehlt: 43 Text-, 8 Binaerdateien).
+//  Beide Kodierungen liest dieser Leser; sie unterscheiden sich nur darin,
+//  wie die Marken auf die Datei kommen. Der Objektbaum darueber und alle
+//  Bedeutungsregeln weiter unten gelten fuer beide.
 //
 //  **Das Original parst .x nicht selbst.** `blitz3d/loader_x.cpp` uebergibt
 //  die ganze syntaktische Schicht an `d3dxof.dll`
@@ -63,6 +66,12 @@ struct bb_XLexer_ {
   std::string text;
   double      num = 0;
 
+  // Nur fuer die Binaerkodierung
+  bool     bin        = false;   // Marken statt Zeichen
+  int      fsize      = 32;      // Groesse einer Kommazahl in der Datei
+  unsigned list_left  = 0;       // noch offene Elemente einer Zahlenliste
+  bool     list_float = false;
+
   void skip() {
     for (;;) {
       while (p < e && (unsigned char)*p <= ' ') ++p;
@@ -81,7 +90,9 @@ struct bb_XLexer_ {
     }
   }
 
-  bool next() {
+  bool next() { return bin ? next_bin() : next_txt(); }
+
+  bool next_txt() {
     skip();
     text.clear();
     if (p >= e) { kind = BB_XT_END; return false; }
@@ -118,8 +129,133 @@ struct bb_XLexer_ {
       kind = BB_XT_NAME; return true;
     }
     ++p;                       // Unbekanntes Zeichen ueberlesen
-    return next();
+    return next_txt();
   }
+
+  // ---- Binaerkodierung ----
+  //
+  // Dieselben Tokenarten, andere Kodierung: ein Strom von 16-Bit-Marken, an
+  // denen je nach Marke Daten haengen. Der Objektbaum darueber bleibt
+  // derselbe, deshalb liest bb_x_parse_obj_ beide Formate ohne Aenderung.
+  //
+  // Das Original parst .x gar nicht selbst, sondern gibt an d3dxof.dll ab -
+  // im Quelltext ist zum Binaerformat also nichts zu holen. Die Marken sind
+  // stattdessen an den acht Binaerdateien der Installation nachgemessen: mit
+  // dieser Tabelle endet der Tokenstrom bei allen acht **genau** am
+  // Dateiende, die Klammern sind ausgeglichen und keine unbekannte Marke
+  // bleibt uebrig.
+  //
+  // Eine Falle dabei: nach einem Text steht **kein** abschliessendes Wort.
+  // Wer dort vier Byte verbraucht, verschluckt die beiden folgenden Marken -
+  // in der Praxis ein ';' und ein '}'. Aufgefallen ist das daran, dass die
+  // Klammerbilanz je Datei genau um die Zahl der Texte danebenlag (4, 1, 1
+  // und 20).
+
+  bool bin_u16_(unsigned& v) {
+    if (e - p < 2) return false;
+    v = (unsigned)(unsigned char)p[0] | ((unsigned)(unsigned char)p[1] << 8);
+    p += 2;
+    return true;
+  }
+
+  bool bin_u32_(unsigned& v) {
+    if (e - p < 4) return false;
+    v = (unsigned)(unsigned char)p[0]         | ((unsigned)(unsigned char)p[1] << 8)
+      | ((unsigned)(unsigned char)p[2] << 16) | ((unsigned)(unsigned char)p[3] << 24);
+    p += 4;
+    return true;
+  }
+
+  bool bin_sym_(const char* s) { kind = BB_XT_SYM;  text = s; return true; }
+  bool bin_name_(const char* s) { kind = BB_XT_NAME; text = s; return true; }
+
+  bool next_bin() {
+    for (;;) {
+      text.clear();
+
+      // Eine angefangene Zahlenliste Element fuer Element ausgeben.
+      if (list_left) {
+        --list_left;
+        if (list_float) {
+          if (fsize == 64) {
+            double d;
+            if (e - p < 8) break;
+            std::memcpy(&d, p, 8); p += 8; num = d;
+          } else {
+            float f;
+            if (e - p < 4) break;
+            std::memcpy(&f, p, 4); p += 4; num = (double)f;
+          }
+        } else {
+          unsigned v;
+          if (!bin_u32_(v)) break;
+          num = (double)(int)v;
+        }
+        kind = BB_XT_NUM;
+        return true;
+      }
+
+      unsigned t;
+      if (!bin_u16_(t)) break;
+      switch (t) {
+        case 1: case 2: {                       // Name, Text
+          unsigned n;
+          if (!bin_u32_(n)) break;
+          if ((unsigned)(e - p) < n) break;
+          text.assign(p, p + n); p += n;
+          kind = (t == 1) ? BB_XT_NAME : BB_XT_STR;
+          return true;
+        }
+        case 3: {                               // einzelne ganze Zahl
+          unsigned v;
+          if (!bin_u32_(v)) break;
+          num = (double)(int)v;
+          kind = BB_XT_NUM;
+          return true;
+        }
+        case 5:                                 // GUID - interessiert uns nicht
+          if (e - p < 16) break;
+          p += 16;
+          continue;
+        case 6: case 7:                         // Liste ganzer bzw. Kommazahlen
+          if (!bin_u32_(list_left)) break;
+          list_float = (t == 7);
+          continue;                             // eine leere Liste faellt durch
+        case 10: return bin_sym_("{");
+        case 11: return bin_sym_("}");
+        case 12: return bin_sym_("(");
+        case 13: return bin_sym_(")");
+        case 14: return bin_sym_("[");
+        case 15: return bin_sym_("]");
+        case 16: return bin_sym_("<");
+        case 17: return bin_sym_(">");
+        case 18: return bin_sym_(".");
+        case 19: return bin_sym_(",");
+        case 20: return bin_sym_(";");
+        case 31: return bin_name_("template");
+        // Typwoerter kommen nur in Vorlagen vor, und die werden ueber die
+        // Klammern uebersprungen - sie muessen nur nichts kaputt machen.
+        case 40: return bin_name_("WORD");
+        case 41: return bin_name_("DWORD");
+        case 42: return bin_name_("FLOAT");
+        case 43: return bin_name_("DOUBLE");
+        case 44: return bin_name_("CHAR");
+        case 45: return bin_name_("UCHAR");
+        case 46: return bin_name_("SWORD");
+        case 47: return bin_name_("SDWORD");
+        case 48: return bin_name_("VOID");
+        case 49: return bin_name_("LPSTR");
+        case 50: return bin_name_("UNICODE");
+        case 51: return bin_name_("CSTRING");
+        case 52: return bin_name_("array");
+        default: break;                         // unbekannte Marke: abbrechen
+      }
+      break;
+    }
+    kind = BB_XT_END;
+    return false;
+  }
+
 };
 
 // ---- Objektbaum ----
@@ -185,10 +321,13 @@ inline bool bb_x_parse_obj_(bb_XLexer_& lx, bb_XObj_& o, int depth) {
   return false;                                  // Klammer nie geschlossen
 }
 
-inline bool bb_x_parse_(const std::string& src, std::vector<bb_XObj_>& roots) {
+inline bool bb_x_parse_(const std::string& src, std::vector<bb_XObj_>& roots,
+                        bool bin = false, int fsize = 32) {
   bb_XLexer_ lx;
   lx.p = src.data();
   lx.e = src.data() + src.size();
+  lx.bin = bin;
+  lx.fsize = fsize;
   while (lx.next()) {
     if (lx.kind != BB_XT_NAME) continue;
     const std::string first = lx.text;

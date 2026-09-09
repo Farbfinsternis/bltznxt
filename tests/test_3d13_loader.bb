@@ -127,7 +127,10 @@ RenderWorld
 If TrisRendered() = 4 Then Print "x dreiecke" Else Print "FEHLER x dreiecke"
 FreeEntity x
 
-; --- 12) das Binaerformat ist noch nicht umgesetzt und sagt das auch
+; --- 12) ein gueltiger Binaerkopf mit unbrauchbarem Inhalt. Die Kodierung
+;         selbst pruefe tests/test_3d13_x_binaer.bb; hier geht es nur
+;         darum, dass der Leser daran haengenbleibt statt hinter den
+;         Puffer zu lesen.
 If LoadMesh("tests/assets/test_binary.x") = 0 Then Print "x binaer" Else Print "FEHLER x binaer"
 
 Print "fertig"
