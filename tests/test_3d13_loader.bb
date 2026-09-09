@@ -99,4 +99,35 @@ e = LoadMesh("tests/assets/test_box.3ds")
 If MeshWidth(e) = 12 And MeshHeight(e) = 6 And MeshDepth(e) = 4 Then Print "loadermatrix zurueck" Else Print "FEHLER loadermatrix zurueck"
 FreeEntity e
 
+; --- 11) .x im Textformat. tests/assets/test_frames.x ist eigens erzeugt
+;         (scripts/make_x_asset.py): zwei Vierecke, das zweite in einem
+;         Frame um +10 in x verschoben, zwei Materialien - eines inline,
+;         eines als Verweis {rot} - und die Vorlage absichtlich als
+;         "TextureFileName" mit grossem N geschrieben, wie in interior.X
+;         der Installation.
+;
+;         Das Original meldet fuer dieselbe Datei w=11 h=2 d=0, zwei
+;         Flaechen und vier Dreiecke.
+x = LoadMesh("tests/assets/test_frames.x")
+If x <> 0 Then Print "x geladen" Else Print "FEHLER x geladen"
+
+; Ohne die Frame-Matrix waere die Breite 2 statt 11 - das prueft, dass
+; die Hierarchie in die Vertices gerechnet wird.
+If MeshWidth(x) = 11 Then Print "x frame-matrix" Else Print "FEHLER x frame-matrix"
+If MeshHeight(x) = 2 And MeshDepth(x) = 0 Then Print "x ausmasse" Else Print "FEHLER x ausmasse"
+
+; Zwei Materialien ergeben zwei Flaechen. Der Verweis {rot} muss dabei
+; aufgeloest werden; wer die Klammern falsch zaehlt, verliert alles
+; dahinter und kommt auf eine.
+If CountSurfaces(x) = 2 Then Print "x flaechen" Else Print "FEHLER x flaechen"
+
+; Zwei Vierecke werden zu vier Dreiecken zerlegt.
+UpdateWorld
+RenderWorld
+If TrisRendered() = 4 Then Print "x dreiecke" Else Print "FEHLER x dreiecke"
+FreeEntity x
+
+; --- 12) das Binaerformat ist noch nicht umgesetzt und sagt das auch
+If LoadMesh("tests/assets/test_binary.x") = 0 Then Print "x binaer" Else Print "FEHLER x binaer"
+
 Print "fertig"

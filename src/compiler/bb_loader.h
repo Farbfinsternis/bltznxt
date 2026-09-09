@@ -2,6 +2,7 @@
 #define BLITZNEXT_BB_LOADER_H
 
 #include "bb_mesh.h"
+#include "bb_loader_x.h"
 #include <cstdint>
 #include <cstdio>
 #include <filesystem>
@@ -122,6 +123,26 @@ inline float bb_loader_det_(const bb_LoaderMat_& m) {
   return m.m[0] * (m.m[4] * m.m[8] - m.m[5] * m.m[7])
        - m.m[3] * (m.m[1] * m.m[8] - m.m[2] * m.m[7])
        + m.m[6] * (m.m[1] * m.m[5] - m.m[2] * m.m[4]);
+}
+
+// Dieselbe Texturdatei darf nur **ein** Handle bekommen. Sonst
+// unterscheiden sich zwei Brushes allein durch die Handlenummer und
+// werden nicht zusammengefasst - mak_robotic.x meldete so 38 Flaechen
+// statt 3. Das Original haelt dafuer einen Texturzwischenspeicher
+// (blitz3d/cachedtexture.cpp).
+inline int bb_loader_tex_(std::unordered_map<std::string, int>& cache,
+                          const std::filesystem::path& dir,
+                          const std::string& name) {
+  if (name.empty()) return 0;
+  std::error_code ec;
+  std::filesystem::path cand = dir / name;
+  if (!std::filesystem::exists(cand, ec)) cand = name;
+  const std::string key = cand.string();
+  auto it = cache.find(key);
+  if (it != cache.end()) return it->second;
+  const int h = bb_LoadTexture(key, 1);
+  cache.emplace(key, h);
+  return h;
 }
 
 // ---- Chunkkennungen ----
@@ -435,9 +456,10 @@ inline std::string bb_3ds_brush_key_(const bb_3ds_mat_* m, int texhandle) {
     // Dieselbe Regel wie beim Anlegen des Brushes: mit Textur zaehlt die
     // Diffusfarbe nicht mit, sonst wuerden Flaechen getrennt, die im Bild
     // gleich aussehen.
-    const float r = texhandle ? 255.0f : m->r;
-    const float g = texhandle ? 255.0f : m->g;
-    const float b = texhandle ? 255.0f : m->b;
+    const bool named = !m->texfile.empty();
+    const float r = named ? 255.0f : m->r;
+    const float g = named ? 255.0f : m->g;
+    const float b = named ? 255.0f : m->b;
     std::snprintf(buf, sizeof buf, "%.3f,%.3f,%.3f|%.3f|%.3f|%d",
                   r, g, b, m->shininess,
                   m->alpha + (m->twosided ? 1000.0f : 0.0f), texhandle);
@@ -471,13 +493,9 @@ inline int bb_load_3ds_(const bbString& file, int parent) {
   // Texturen liegen neben der Modelldatei.
   std::filesystem::path dir = std::filesystem::path(file).parent_path();
   std::vector<int> mat_tex(sc.mats.size(), 0);
-  for (size_t i = 0; i < sc.mats.size(); ++i) {
-    if (sc.mats[i].texfile.empty()) continue;
-    std::error_code ec;
-    std::filesystem::path cand = dir / sc.mats[i].texfile;
-    if (!std::filesystem::exists(cand, ec)) cand = sc.mats[i].texfile;
-    mat_tex[i] = bb_LoadTexture(cand.string(), 1);
-  }
+  std::unordered_map<std::string, int> texcache;
+  for (size_t i = 0; i < sc.mats.size(); ++i)
+    mat_tex[i] = bb_loader_tex_(texcache, dir, sc.mats[i].texfile);
 
   // Die Matrix zur Endung; ohne Eintrag bleibt alles unveraendert.
   bb_LoaderMat_ lm = { { 1,0,0, 0,1,0, 0,0,1 } };
@@ -545,7 +563,11 @@ inline int bb_load_3ds_(const bbString& file, int parent) {
           // texturierte Kiste dagegen traegt die Diffusfarbe 191,191,191
           // und kommt trotzdem mit 254 heraus - die Farbe wuerde die
           // Textur sonst abdunkeln.
-          if (!th) { br.r = m->r; br.g = m->g; br.b = m->b; }
+          // Der Quelltext setzt die Farbe auf weiss, sobald ein
+          // Texturname dasteht - unabhaengig davon, ob die Datei
+          // gefunden wurde. Ein Netz ohne Material faellt dadurch mit
+          // den texturlosen weissen zusammen.
+          if (m->texfile.empty()) { br.r = m->r; br.g = m->g; br.b = m->b; }
           br.shininess = m->shininess;
           br.alpha = m->alpha;
           br.twosided = m->twosided;
@@ -611,16 +633,317 @@ inline int bb_load_3ds_(const bbString& file, int parent) {
 }
 
 // ============================================================
+// .x aufbauen (3D-13, Teil 3)
+//
+// Die Bedeutung der Vorlagen stammt aus blitz3d/loader_x.cpp; das Original
+// laesst d3dxof.dll parsen und laeuft nur den Objektbaum ab. Siehe
+// bb_loader_x.h fuer die Regeln im einzelnen.
+// ============================================================
+
+// Vorlagennamen ohne Ruecksicht auf Gross- und Kleinschreibung
+// vergleichen. Das Original geht ueber GUIDs, dem ist die Schreibweise
+// egal - in interior.X steht "TextureFileName" mit grossem N, in
+// anderen Dateien "TextureFilename". Buchstabengenau verglichen findet
+// man dort keine einzige Textur.
+inline bool bb_x_is_(const std::string& a, const char* b) {
+  size_t i = 0;
+  for (; i < a.size() && b[i]; ++i)
+    if (::tolower((unsigned char)a[i]) != ::tolower((unsigned char)b[i])) return false;
+  return i == a.size() && !b[i];
+}
+
+struct bb_XMatState_ {
+  float r = 255.0f, g = 255.0f, b = 255.0f;
+  float alpha = 1.0f;
+  int   tex = 0;
+};
+
+// Material: vier Farbwerte (rgb + Deckkraft), dann Glanz und zwei Farben.
+// Die Deckkraft gilt laut Quelltext nur, wenn sie ungleich 0 ist.
+inline bb_XMatState_ bb_x_material_(const bb_XObj_& o,
+                                    const std::filesystem::path& dir,
+                                    std::unordered_map<std::string, int>& texcache) {
+  bb_XMatState_ m;
+  if (o.nums.size() >= 4) {
+    m.r = static_cast<float>(o.nums[0] * 255.0);
+    m.g = static_cast<float>(o.nums[1] * 255.0);
+    m.b = static_cast<float>(o.nums[2] * 255.0);
+    if (o.nums[3] != 0.0) m.alpha = static_cast<float>(o.nums[3]);
+  }
+  for (const auto& k : o.kids) {
+    if (!bb_x_is_(k.type, "texturefilename") || k.strs.empty()) continue;
+    m.tex = bb_loader_tex_(texcache, dir, k.strs[0]);
+    // Wie bei .3ds setzt der Quelltext die Farbe auf weiss, sobald ein
+    // Texturname dasteht - auch wenn die Datei fehlt.
+    m.r = m.g = m.b = 255.0f;
+  }
+  return m;
+}
+
+inline std::string bb_x_brush_key_(const bb_XMatState_& m) {
+  char buf[128];
+  std::snprintf(buf, sizeof buf, "%.3f,%.3f,%.3f|%.3f|%d",
+                m.r, m.g, m.b, m.alpha, m.tex);
+  return buf;
+}
+
+struct bb_XBuild_ {
+  bb_MeshEntity_*                                ent = nullptr;
+  std::unordered_map<std::string, size_t>        surf_of;   // Brushschluessel
+  std::filesystem::path                          dir;
+  const std::unordered_map<std::string, const bb_XObj_*>* named = nullptr;
+  std::unordered_map<std::string, int>            texcache;
+  bb_LoaderMat_                                  lm{};
+  bool                                           flip = false;
+};
+
+inline size_t bb_x_surface_(bb_XBuild_& B, const bb_XMatState_& m) {
+  const std::string key = bb_x_brush_key_(m);
+  auto it = B.surf_of.find(key);
+  if (it != B.surf_of.end()) return it->second;
+  const size_t idx = B.ent->surfaces.size();
+  B.ent->surfaces.emplace_back();
+  bb_Brush_& br = B.ent->surfaces.back().brush;
+  br.r = m.r; br.g = m.g; br.b = m.b;
+  br.alpha = m.alpha;
+  if (m.tex) { br.tex.tex[0] = bb_texture_ref_(m.tex); br.tex.frame[0] = 0; }
+  B.surf_of.emplace(key, idx);
+  return idx;
+}
+
+inline void bb_x_mesh_(bb_XBuild_& B, const bb_XObj_& o, const bb_XMat_& tform) {
+  if (o.nums.empty()) return;
+  const size_t nv = static_cast<size_t>(o.nums[0]);
+  if (!nv || o.nums.size() < 1 + nv * 3 + 1) return;
+
+  // ---- Vertices, gleich in Weltlage und durch die Loadermatrix ----
+  std::vector<float> px(nv * 3);
+  for (size_t i = 0; i < nv; ++i) {
+    float v[3] = { static_cast<float>(o.nums[1 + i * 3]),
+                   static_cast<float>(o.nums[2 + i * 3]),
+                   static_cast<float>(o.nums[3 + i * 3]) };
+    float w[3];
+    bb_x_point_(tform, v, w);
+    bb_loader_apply_(B.lm, w[0], w[1], w[2], &px[i * 3]);
+  }
+
+  // ---- Vielecke ----
+  size_t p = 1 + nv * 3;
+  const size_t nf = static_cast<size_t>(o.nums[p++]);
+  std::vector<std::vector<unsigned>> faces;
+  faces.reserve(nf);
+  for (size_t f = 0; f < nf && p < o.nums.size(); ++f) {
+    const size_t cnt = static_cast<size_t>(o.nums[p++]);
+    if (!cnt || p + cnt > o.nums.size()) break;
+    std::vector<unsigned> idx(cnt);
+    for (size_t k = 0; k < cnt; ++k) idx[k] = static_cast<unsigned>(o.nums[p + k]);
+    p += cnt;
+    faces.push_back(std::move(idx));
+  }
+
+  // ---- Kinder: Materialliste, UV, Normalen ----
+  std::vector<bb_XMatState_> mats;
+  std::vector<int>           face_mat(faces.size(), 0);
+  std::vector<float>         uv;
+  std::vector<float>         nrm;
+
+  for (const auto& k : o.kids) {
+    if (bb_x_is_(k.type, "meshmateriallist")) {
+      if (k.nums.size() >= 2) {
+        const size_t nmat = static_cast<size_t>(k.nums[0]);
+        const size_t nfac = static_cast<size_t>(k.nums[1]);
+        (void)nmat;
+        for (size_t f = 0; f < nfac && 2 + f < k.nums.size() && f < face_mat.size(); ++f)
+          face_mat[f] = static_cast<int>(k.nums[2 + f]);
+      }
+      for (const auto& mk : k.kids)
+        if (bb_x_is_(mk.type, "material")) mats.push_back(bb_x_material_(mk, B.dir, B.texcache));
+      // Verweise auf frueher benannte Materialien aufloesen
+      for (const auto& rn : k.refs) {
+        if (!B.named) continue;
+        auto it = B.named->find(rn);
+        if (it != B.named->end() && bb_x_is_(it->second->type, "material"))
+          mats.push_back(bb_x_material_(*it->second, B.dir, B.texcache));
+      }
+    } else if (bb_x_is_(k.type, "meshtexturecoords")) {
+      // Gilt laut Quelltext nur bei genau passender Anzahl - und **ohne**
+      // Spiegeln der v-Achse, anders als bei .3ds.
+      if (!k.nums.empty() && static_cast<size_t>(k.nums[0]) == nv &&
+          k.nums.size() >= 1 + nv * 2) {
+        uv.resize(nv * 2);
+        for (size_t i = 0; i < nv * 2; ++i) uv[i] = static_cast<float>(k.nums[1 + i]);
+      }
+    } else if (bb_x_is_(k.type, "meshnormals")) {
+      if (!k.nums.empty() && static_cast<size_t>(k.nums[0]) == nv &&
+          k.nums.size() >= 1 + nv * 3) {
+        nrm.resize(nv * 3);
+        for (size_t i = 0; i < nv; ++i) {
+          float n[3] = { static_cast<float>(k.nums[1 + i * 3]),
+                         static_cast<float>(k.nums[2 + i * 3]),
+                         static_cast<float>(k.nums[3 + i * 3]) };
+          float w[3];
+          bb_x_dir_(tform, n, w);
+          bb_loader_apply_(B.lm, w[0], w[1], w[2], &nrm[i * 3]);
+          float len = std::sqrt(nrm[i*3]*nrm[i*3] + nrm[i*3+1]*nrm[i*3+1] +
+                                nrm[i*3+2]*nrm[i*3+2]);
+          if (len > 1e-9f) { nrm[i*3] /= len; nrm[i*3+1] /= len; nrm[i*3+2] /= len; }
+        }
+      }
+    }
+  }
+  if (mats.empty()) mats.push_back(bb_XMatState_());
+
+  // ---- Dreiecke: Faecher ab der ersten Ecke, je Flaeche in ihre Flaeche ----
+  std::unordered_map<size_t, std::unordered_map<unsigned, unsigned>> remap;
+  for (size_t f = 0; f < faces.size(); ++f) {
+    const std::vector<unsigned>& idx = faces[f];
+    if (idx.size() < 3) continue;
+    int mi = (f < face_mat.size()) ? face_mat[f] : 0;
+    if (mi < 0 || mi >= static_cast<int>(mats.size())) mi = 0;
+    const size_t si = bb_x_surface_(B, mats[mi]);
+    bb_MeshData_& surf = B.ent->surfaces[si];
+    auto& vm = remap[si];
+
+    auto emit = [&](unsigned vi) -> unsigned {
+      auto it = vm.find(vi);
+      if (it != vm.end()) return it->second;
+      const unsigned ni = static_cast<unsigned>(surf.vertices.size() / 11);
+      const float* q = &px[vi * 3];
+      const float vd[11] = {
+        q[0], q[1], q[2],
+        nrm.empty() ? 0.0f : nrm[vi * 3],
+        nrm.empty() ? 0.0f : nrm[vi * 3 + 1],
+        nrm.empty() ? 0.0f : nrm[vi * 3 + 2],
+        uv.empty() ? 0.0f : uv[vi * 2],
+        uv.empty() ? 0.0f : uv[vi * 2 + 1],
+        1, 1, 1
+      };
+      surf.vertices.insert(surf.vertices.end(), vd, vd + 11);
+      vm.emplace(vi, ni);
+      return ni;
+    };
+
+    for (size_t j = 2; j < idx.size(); ++j) {
+      if (idx[0] >= nv || idx[j - 1] >= nv || idx[j] >= nv) continue;
+      const unsigned a = emit(idx[0]);
+      const unsigned b = emit(idx[B.flip ? j : j - 1]);
+      const unsigned c = emit(idx[B.flip ? j - 1 : j]);
+      surf.indices.push_back(a);
+      surf.indices.push_back(b);
+      surf.indices.push_back(c);
+    }
+  }
+}
+
+// Frames sammeln ihre Matrix und geben sie an ihre Kinder weiter.
+inline void bb_x_walk_(bb_XBuild_& B, const std::vector<bb_XObj_>& objs,
+                       const bb_XMat_& tform, bool& any_normals) {
+  for (const auto& o : objs) {
+    if (bb_x_is_(o.type, "frame")) {
+      bb_XMat_ t = tform;
+      for (const auto& k : o.kids)
+        if (bb_x_is_(k.type, "frametransformmatrix") && k.nums.size() >= 16) {
+          bb_XMat_ local{};
+          for (int i = 0; i < 16; ++i) local.m[i] = static_cast<float>(k.nums[i]);
+          t = bb_x_mul_(local, tform);
+        }
+      bb_x_walk_(B, o.kids, t, any_normals);
+    } else if (bb_x_is_(o.type, "mesh")) {
+      for (const auto& k : o.kids)
+        if (bb_x_is_(k.type, "meshnormals")) any_normals = true;
+      bb_x_mesh_(B, o, tform);
+      bb_x_walk_(B, o.kids, tform, any_normals);
+    } else {
+      bb_x_walk_(B, o.kids, tform, any_normals);
+    }
+  }
+}
+
+// Nur **Materialien** ins Namensregister. In interior.X heissen Frames und
+// Materialien gleich (x3dc_1, x3dc_2, ...); ein gemeinsames Register
+// behaelt den ersten Treffer, das war dort der Frame - und die
+// Materialverweise liefen ins Leere.
+inline void bb_x_collect_named_(const std::vector<bb_XObj_>& objs,
+                                std::unordered_map<std::string, const bb_XObj_*>& out) {
+  for (const auto& o : objs) {
+    if (!o.name.empty() && bb_x_is_(o.type, "material")) out.emplace(o.name, &o);
+    bb_x_collect_named_(o.kids, out);
+  }
+}
+
+inline int bb_load_x_(const bbString& file, int parent) {
+  std::FILE* f = std::fopen(file.c_str(), "rb");
+  if (!f) {
+    std::cerr << "[runtime] LoadMesh: cannot open '" << file << "'\n";
+    return 0;
+  }
+  std::string src;
+  char buf[65536];
+  size_t got;
+  while ((got = std::fread(buf, 1, sizeof buf, f)) > 0) src.append(buf, got);
+  std::fclose(f);
+
+  // Kopf: "xof " + Version + Kodierung + Fliesskommagroesse, 16 Byte.
+  if (src.size() < 16 || src.compare(0, 4, "xof ") != 0) {
+    std::cerr << "[runtime] LoadMesh: '" << file << "' ist keine .x-Datei\n";
+    return 0;
+  }
+  const std::string enc = src.substr(8, 3);
+  if (enc != "txt") {
+    std::cerr << "[runtime] LoadMesh: '" << file << "' ist im Format '" << enc
+              << "' - bisher nur 'txt' umgesetzt (3D-13)\n";
+    return 0;
+  }
+  src.erase(0, 16);
+
+  std::vector<bb_XObj_> roots;
+  if (!bb_x_parse_(src, roots)) {
+    std::cerr << "[runtime] LoadMesh: '" << file << "' ist nicht lesbar\n";
+    return 0;
+  }
+
+  std::unordered_map<std::string, const bb_XObj_*> named;
+  bb_x_collect_named_(roots, named);
+
+  auto ent = std::make_unique<bb_MeshEntity_>();
+  bb_XBuild_ B;
+  B.ent   = ent.get();
+  B.dir   = std::filesystem::path(file).parent_path();
+  B.named = &named;
+  {
+    auto it = bb_loader_mats_.find(bb_loader_key_(bb_file_ext_lower_(file)));
+    B.lm = (it != bb_loader_mats_.end()) ? it->second
+                                         : bb_LoaderMat_{ { 1,0,0, 0,1,0, 0,0,1 } };
+  }
+  B.flip = bb_loader_det_(B.lm) < 0.0f;
+
+  bool any_normals = false;
+  bb_x_walk_(B, roots, bb_x_ident_(), any_normals);
+
+  if (ent->surfaces.empty()) {
+    std::cerr << "[runtime] LoadMesh: '" << file << "' enthaelt kein Netz\n";
+    return 0;
+  }
+  for (auto& s : ent->surfaces) s.dirty = true;
+  int h = bb_entity_register_(std::move(ent), parent);
+  // Nur rechnen, wenn die Datei keine brauchbaren Normalen mitbrachte -
+  // genauso entscheidet das Original.
+  if (!any_normals) bb_UpdateNormals(h);
+  return h;
+}
+
+// ============================================================
 // LoadMesh / LoadAnimMesh
 // ============================================================
 
 inline int bb_LoadMesh(const bbString& file, int parent = 0) {
   const bbString ext = bb_file_ext_lower_(file);
   if (ext == ".3ds") return bb_load_3ds_(file, parent);
-  // .x und .b3d kommen noch. Ein stilles 0 waere hier besonders
-  // irrefuehrend, weil das Programm dann ohne Modell weiterlaeuft.
+  if (ext == ".x")   return bb_load_x_(file, parent);
+  // .b3d kommt noch. Ein stilles 0 waere hier besonders irrefuehrend,
+  // weil das Programm dann ohne Modell weiterlaeuft.
   std::cerr << "[runtime] LoadMesh: '" << file << "' - bisher nur .3ds "
-               "umgesetzt (3D-13)\n";
+               "und .x umgesetzt (3D-13)\n";
   return 0;
 }
 

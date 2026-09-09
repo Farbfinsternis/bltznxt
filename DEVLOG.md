@@ -1292,6 +1292,110 @@ gehoert geprueft**, nicht nur das Ergebnis.
 
 ---
 
+### Nachtrag (2026-09-09, 3D-13, Teil 3): der .x-Leser
+
+`.x` ist das haeufigste Modellformat der Beispiele: sie laden 36 verschiedene
+Dateien, davon **28 im Textformat und 7 binaer**. Dieser Schritt bringt das
+Textformat.
+
+**Diesmal zuerst der Quelltext** — und der erste Blick hat gleich die Groesse
+der Aufgabe verschoben: `blitz3d/loader_x.cpp` **parst .x gar nicht selbst**.
+Es uebergibt die ganze syntaktische Schicht an `d3dxof.dll`
+(`DirectXFileCreate`, `RegisterTemplates(D3DRM_XTEMPLATES)`,
+`CreateEnumObject`) und laeuft danach nur den Objektbaum nach GUIDs ab. Zu
+uebernehmen gibt es also die **Bedeutung**, nicht den Parser; den Tokenizer,
+die Vorlagen, die Verweise und die geschachtelten Objekte muss man selbst
+bauen. Das ist gut zu wissen, **bevor** man anfaengt.
+
+**Was der Quelltext an Bedeutung hergab** — jedes davon eine Stelle, an der
+ein selbstgeschriebener Leser plausibel danebengreift:
+
+- `MeshTextureCoords` und `MeshNormals` gelten **nur, wenn ihre Anzahl genau
+  der Vertexzahl entspricht** (`if( num_coords==num_verts )`), und liegen
+  dann in Vertexreihenfolge vor. Der eigene Flaechenindex von `MeshNormals`
+  wird gar nicht ausgewertet. Es ist also **nichts zu verschweissen** —
+  anders als bei den meisten .x-Lesern, die Position, Normale und UV zu
+  Tripeln zusammenfassen muessen.
+- **Die v-Koordinate wird hier nicht gespiegelt.** Bei `.3ds` rechnet
+  dasselbe Programm `1-uv[1]`, bei `.x` uebernimmt es `tu`/`tv` unveraendert.
+  Wer die Regel vom einen Format aufs andere uebertraegt, dreht jede Textur
+  um.
+- Vielecke werden als **Faecher ab der ersten Ecke** zerlegt, und ob dabei
+  die beiden hinteren Ecken tauschen, haengt an der Determinante der
+  Loadermatrix — dieselbe Regel wie bei `.3ds`.
+- `Material` ist Farbe plus Deckkraft, dann Glanz und zwei weitere Farben.
+  Die **Deckkraft gilt nur, wenn sie ungleich 0 ist** (`if( data[3] )`), und
+  ein Texturname setzt die Farbe auf weiss zurueck.
+- `MeshMaterialList` fuehrt seine Materialien wahlweise inline **oder als
+  Verweis** auf ein frueher benanntes `Material`.
+
+**Eine Frage blieb offen und wurde gemessen:** ob `LoadMesh` die
+Frame-Matrizen anwendet. Die Doku sagt nur, die Hierarchie werde „ignoriert",
+und im Quelltext ist die Antwort ueber `setLocalTform`, das Einschmelzen und
+`MeshLoader` verteilt. Zwei Rechnungen gegen das laufende Original
+entscheiden es in einem Schritt: `plane.x` misst mit angewandten Frames
+19.8346 x 4.4206 x 13.5502 und ohne sie 65.07 x 14.50 x 44.46 — das Original
+meldet 19.8346 x 4.42056 x 13.5502. Ueber alle Textdateien gerechnet passt
+die ganze Kette bei 80 Faellen, die blosse unmittelbare Matrix nur bei 74.
+Die Matrix steht zeilenweise und wirkt auf Zeilenvektoren, das Kind vor dem
+Elternteil.
+
+**Der Abgleich lief dann ueber alle 36 Textdateien der Installation**, jede
+in ihrem eigenen Verzeichnis, damit Texturen beidseitig gleich aufgeloest
+werden. Der erste Durchgang: 17 von 36 gleich. Was die restlichen 19
+auseinandergetrieben hat, war jedes Mal etwas anderes, und jedes Mal etwas,
+das man am Bild nicht gesehen haette:
+
+1. **Dieselbe Texturdatei bekam bei jedem Material ein neues Handle.** Damit
+   unterschieden sich zwei sonst gleiche Brushes allein durch eine Zahl und
+   wurden nicht zusammengefasst — `mak_robotic.x` meldete 38 Flaechen statt
+   3. Das Original haelt dafuer einen Texturzwischenspeicher
+   (`blitz3d/cachedtexture.cpp`). Ein gemeinsamer Zwischenspeicher je
+   Ladevorgang hat 15 Dateien auf einen Schlag in Ordnung gebracht.
+2. **Ein Verweis steht in eigenen Klammern: `{x3dc_0}`.** Wer die oeffnende
+   Klammer nur ueberliest, laesst die schliessende das **umgebende** Objekt
+   beenden — alles danach faellt weg. `ship.x` fand so ein Material statt
+   vier, `747.X` verlor ein ganzes Netz. Das ist der Fehler, den man beim
+   Selberschreiben eines Parsers macht und beim Benutzen von `d3dxof.dll`
+   nicht machen kann.
+3. **Namensregister nur fuer Materialien.** In `interior.X` heissen Frames
+   und Materialien gleich (`x3dc_1`, `x3dc_2`, ...). Ein gemeinsames Register
+   behaelt den ersten Treffer — das war der Frame, und die Materialverweise
+   liefen ins Leere.
+4. **Die Vorlage heisst dort `TextureFileName` mit grossem N**, in anderen
+   Dateien `TextureFilename`. Das Original vergleicht GUIDs, dem ist die
+   Schreibweise egal; buchstabengenau verglichen findet man in `interior.X`
+   keine einzige Textur. Vorlagennamen werden jetzt ohne Ruecksicht auf
+   Gross- und Kleinschreibung verglichen.
+
+**Danach: 35 von 36 gleich.** Die letzte Abweichung war `plane.x` mit 3
+statt 4 Flaechen — und die Ursache liegt nicht im Loader. `F15.bmp` ist ein
+**RLE8-komprimiertes** BMP, das `stb_image` nicht liest; alle Materialien mit
+fehlgeschlagener Textur fallen zu einem Brush zusammen. Mit einer
+unkomprimiert gespeicherten Kopie derselben Textur meldet dieselbe Datei 4.
+**Damit stimmen alle 36.** Die BMP-Luecke steht als BUG-67 — sie gehoert zu
+3D-11, nicht hierher, und sie hat zwei Gesichter: sichtbar ein
+unbeschriftetes Modell, unsichtbar eine falsche Flaechenaufteilung.
+
+**Die Testdatei ist wieder selbst erzeugt** (`scripts/make_x_asset.py`): zwei
+Vierecke, das zweite in einem Frame um +10 in x verschoben, zwei Materialien
+— eines inline, eines als Verweis — und die Vorlage absichtlich als
+`TextureFileName` geschrieben. Damit trifft sie genau die vier Stellen von
+oben. Erwartet und gemessen: w=11, h=2, d=0, zwei Flaechen, vier Dreiecke,
+im Original wie bei uns.
+
+**Nicht eingeloest und nicht behauptet:** das Binaerformat (7 der 36
+geladenen Dateien) — `LoadMesh` sagt das jetzt ausdruecklich, statt still 0
+zu liefern. Ebenso Hierarchie und Animation sowie `.b3d`.
+
+**Abgesichert:** Emittatvergleich ueber 93 Programme (92 identisch, 1 nur vom
+aelteren Compiler abgelehnt — der erweiterte Test), 44 Negativtests mit
+gleicher Diagnose, alle 73 `.expected` gruen. Die Zahlen ueber die
+Beispielprogramme aendern sich nicht: `LoadMesh` gab es schon, neu ist, dass
+36 weitere Modelldateien tatsaechlich laden.
+
+---
+
 ### Parser: colon as statement separator — If/Else bug fixed
 
 Colon (`:`) already worked as a statement separator in the main loop via

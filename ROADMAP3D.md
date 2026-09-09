@@ -710,7 +710,15 @@ gleichem Brush zusammenfassen.
       dokumentierten Vorgaben; der Umlaufsinn folgt ihrer Determinante
 - [x] Brush je Flaeche statt Textur je Entity — `EntityTexture` schreibt in
       alle Flaechen, so wie das Original alle Brushes eines Netzes setzt
-- [ ] `.x` (36 der 51 Dateien sind Text, 11 binaer) und `.b3d`
+- [x] **Teil 3: `.x` im Textformat** (`bb_loader_x.h`) - eigener Parser,
+      weil das Original die Syntax an `d3dxof.dll` abgibt. Alle **36**
+      Textdateien der Installation liefern dieselben Ausmasse und
+      Flaechenzahlen wie das Original. Frame-Matrizen werden in die
+      Vertices gerechnet (gemessen), die v-Koordinate anders als bei
+      `.3ds` **nicht** gespiegelt, Vorlagennamen ohne Ruecksicht auf
+      Gross- und Kleinschreibung verglichen, Verweise `{name}` aufgeloest,
+      Texturen je Ladevorgang zwischengespeichert.
+- [ ] `.x` im Binaerformat (7 der 36 geladenen Dateien) und `.b3d`
 - [ ] Hierarchie und Animation aus dem Keyframe-Abschnitt (3D-19)
 
 **Sechs Dinge am laufenden Original nachgemessen — jedes einzelne haette man
