@@ -470,33 +470,72 @@ statt zu stuerzen.
 
 ---
 
-### 3D-11 · Texture Loading & Application
-*Dateien: `bb_texture.h` (neu)*
+### 3D-11 · Texture Loading & Application ✓ COMPLETE
+*Dateien: `bb_texture.h` (neu), `bb_shader.h`, `bb_mesh.h`*
 
-- [ ] `bb_Texture_` struct: `GLuint texId`, `int w/h`, `bbString name`, `int flags`
-- [ ] Handle-Map: `std::unordered_map<int, bb_Texture_> bb_textures_`
-- [ ] `bb_LoadTexture(path$, flags=1)` → handle; nutzt `stb_image` (bereits in Projekt)
-      - flags Bit0 = mipmaps, Bit1 = clamp, Bit2 = nearest-filter
-- [ ] `bb_CreateTexture(w, h, flags=3)` → leere Textur (für RenderToTexture/TextureBuffer)
-- [ ] `bb_FreeTexture(h)`
-- [ ] `bb_TextureWidth/Height(h)`, `bb_TextureName(h)`
-- [ ] `bb_EntityTexture(entity, tex, frame=0, index=0)` — bindet Textur an Entity
-      → Shader wechselt automatisch auf `TEXTURED` / `LIT`
-- [ ] `bb_TextureBlend(tex, blend)`, `bb_TextureCoords(tex, coords)`
-- [ ] `bb_ScaleTexture(tex, u, v)`, `bb_PositionTexture(tex, u, v)`, `bb_RotateTexture(tex, angle)`
-- [ ] `bb_TextureBuffer(tex)` → Stub (returns tex handle, für Pixel-Access später)
-- [ ] `bb_SetCubeFace/SetCubeMode`: Stubs
-- [ ] `bb_texture_quit_()` in quit-chain
-- **Test:** `tests/test_3d11_texture.bb`
-  ```blitzbasic
-  Graphics3D 800,600,32,1
-  Local cam  = CreateCamera()
-  PositionEntity cam, 0,0,-3
-  Local cube = CreateCube()
-  Local tex  = LoadTexture("tests/assets/test_grid.png")
-  EntityTexture cube, tex
-  UpdateWorld : RenderWorld : Flip : WaitKey
-  ```
+`EntityTexture` steht in **54**, `LoadTexture` in **48** der 130 mitgelieferten
+Beispielprogramme — beides haeufiger als `CreateLight` (39), das 3D-12
+ausgeloest hat. Ohne Texturen bleibt jede dieser Szenen einfarbig.
+
+- [x] `bb_Texture_`: `w/h`, `flags`, `name`, `blend`, `coords`, UV-Zustand und
+      ein `bb_TexFrame_` je Frame (GL-Objekt + RGBA-Kopie fuer den Re-Upload)
+- [x] Handle-Tabelle `std::unordered_map<int, std::shared_ptr<bb_Texture_>>`
+- [x] `bb_LoadTexture(file$, flags=1)`, `bb_LoadAnimTexture(...)`,
+      `bb_CreateTexture(w, h, flags=1, frames=1)`, `bb_FreeTexture`
+- [x] `bb_TextureWidth/Height/Name`, `bb_ActiveTextures`, `bb_HWTexUnits`
+- [x] `bb_EntityTexture(entity, tex, frame=0, index=0)` — acht Lagen laut Doku
+- [x] `bb_TextureBlend`, `bb_TextureCoords`
+- [x] `bb_ScaleTexture`, `bb_PositionTexture`, `bb_RotateTexture`
+- [x] `bb_TextureFilter`, `bb_ClearTextureFilters` — Vorgabeliste `"",1+8`,
+      von `Graphics3D` wiederhergestellt
+- [x] Shader: gemeinsamer Texturbaustein fuer TEXTURED und LIT, bis zu vier
+      Lagen mit eigener UV-Matrix, Blendmodus und Flags
+- [x] `bb_texture_quit_` in der Quit-Kette vor dem Shader-Hook
+- [ ] `bb_TextureBuffer` — liefert 0 mit Diagnose; braucht 2D-Zeichnen in
+      Texturen (12 Beispieldateien)
+- [ ] `bb_SetCubeFace`/`bb_SetCubeMode`, Flags 64/128 (Umgebungskarten) — Stubs
+
+**Die Flags aus dem Entwurf oben waren falsch.** Der Entwurf las "Bit0
+Mipmaps, Bit1 Clamp, Bit2 Nearest"; `help/commands/3d_commands/CreateTexture.htm`
+fuehrt stattdessen `1 Color`, `2 Alpha`, `4 Masked`, `8 Mipmapped`,
+`16 Clamp U`, `32 Clamp V`, `64 Sphere`, `128 Cube`, `256 VRAM`,
+`512 High-Color`. Mit dem Entwurf waere jedes geladene Bild falsch behandelt
+worden. Dazu die Vorgabe der Filterliste `TextureFilter "",1+8`: jede geladene
+Textur ist mipmapped, auch wenn `LoadTexture` nur Flag 1 sieht.
+
+**Die UV-Transformation ist am laufenden Original ausgemessen, nicht geraten.**
+Ein Testprogramm im Original zeichnet eine Flaeche mit bekannter Textur und
+liest die Bildzeile mit `ReadPixel` zurueck — die Antwort ist damit eine Zahl
+und keine Einschaetzung:
+
+    u' = ( cos a * u - sin a * v ) / u_scale - u_offset
+    v' = ( sin a * u + cos a * v ) / v_scale - v_offset
+
+Drei Dinge, die ohne diese Messung falsch geworden waeren: `ScaleTexture`
+**teilt** die Koordinaten (`2,2` zeigt einen Ausschnitt, nicht zwei Kacheln),
+`PositionTexture` **zieht ab**, und `RotateTexture` dreht um den **Ursprung**,
+nicht um die Mitte — bei 90 und 180 Grad ununterscheidbar, bei 45 nicht.
+Reihenfolge: Drehung, Skalierung, Verschiebung.
+
+**FreeTexture** nimmt die Textur nur aus der Handle-Tabelle. Laut Doku
+verlieren bereits texturierte Entities ihre Textur *nicht*; genau das leistet
+der gemeinsame Besitz ueber `shared_ptr`.
+
+**Offen und bewusst nicht behauptet:** Blendmodus 4 (Dot3) faellt auf Multiply
+zurueck, weil eine Lichtrichtung im Tangentenraum fehlt. Lagen ab Index 4
+werden gespeichert, aber nicht gemischt — `HWTexUnits()` meldet deshalb 4.
+Transparente Flaechen werden nicht sortiert; das gehoert zu `EntityBlend`
+(3D-10).
+
+- **Signaturvergleich:** alle 20 Befehle gegen `blitzcc +k` — keine Abweichung.
+- **Gleichwertigkeitsprobe:** dieselben acht Faelle (Skalierung, Verschiebung,
+  Drehung um 45 und 90 Grad, Drehung mit Skalierung) durch unsere Runtime
+  gerendert und mit `glReadPixels` zurueckgelesen; alle acht stimmen mit der am
+  Original gemessenen Formel ueberein.
+- **Test:** `tests/test_3d11_texture.bb` mit `tests/assets/` — sichert die
+  sprachsichtbaren Zusagen zu (Handles, Groessen, absoluter Name,
+  Framezerlegung, die Regel von FreeTexture, ein texturiertes Bild ohne
+  Absturz). Das *Aussehen* sichert er nicht zu; dafuer steht die Messung oben.
 
 ---
 

@@ -13,6 +13,7 @@
 
 #include "bb_entity_core.h"
 #include "bb_mesh_core.h"
+#include "bb_texture.h"
 #include <cmath>
 #include <cfloat>
 
@@ -22,6 +23,7 @@
 
 struct bb_MeshEntity_ : bb_Entity_ {
   std::vector<bb_MeshData_> surfaces;  // each surface = one draw call
+  bb_TexSlots_              tex;       // EntityTexture, Index 0-7 (3D-11)
 
   bb_EntityKind_ kind() const override { return bb_EntityKind_::Mesh; }
 
@@ -327,6 +329,21 @@ inline int bb_CreateCone(int segs = 8, int open = 0, int parent = 0) {
 }
 
 // ============================================================
+// EntityTexture (3D-11)
+// ============================================================
+
+// EntityTexture entity,texture[,frame][,index] - der Index ist laut Doku
+// 0-7 und dient dem Multitexturing (siehe TextureBlend). Ein Texturhandle
+// von 0 raeumt die Lage wieder ab.
+inline void bb_EntityTexture(int entity, int texture, int frame = 0, int index = 0) {
+  auto* me = bb_mesh_ent_(entity);
+  if (!me) return;
+  if (index < 0 || index >= BB_TEX_SLOTS) return;
+  me->tex.tex[index]   = bb_texture_ref_(texture);
+  me->tex.frame[index] = frame;
+}
+
+// ============================================================
 // AABB queries (MeshWidth/Height/Depth)
 // ============================================================
 
@@ -381,6 +398,7 @@ static inline void bb_render_meshes_(bb_Shader_* shader,
                                       const float* view,
                                       const float* proj) {
   float color[4] = { 1, 1, 1, 1 };
+  bool  blend_on = false;
 
   for (auto& [h, ent] : bb_entities_) {
     if (!ent->visible) continue;
@@ -392,11 +410,26 @@ static inline void bb_render_meshes_(bb_Shader_* shader,
     mat4_mul_(vm,  proj, view);
     mat4_mul_(mvp, vm,   me->world);
 
+    // Texturen der Entity auf die Kanaele legen. Eine Lage mit Alphaflag
+    // braucht Blending; sortiert wird noch nicht, das kommt mit EntityBlend
+    // und EntityOrder (3D-10).
+    const bool blend = bb_texture_bind_(shader, me->tex);
+    if (blend != blend_on) {
+      blend_on = blend;
+      if (blend) {
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+      } else {
+        glDisable(GL_BLEND);
+      }
+    }
+
     for (auto& surf : me->surfaces) {
-      bb_mesh_draw_(&surf, shader, mvp, me->world, color, 0, nullptr);
+      bb_mesh_draw_(&surf, shader, mvp, me->world, color, nullptr);
       bb_tris_rendered_ += surf.triCount;
     }
   }
+  if (blend_on) glDisable(GL_BLEND);
 }
 
 #endif // BB_MESH_H

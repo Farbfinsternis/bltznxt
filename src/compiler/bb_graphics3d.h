@@ -36,6 +36,7 @@ inline int bb_tris_rendered_ = 0;
 #include "bb_shader.h"
 #include "bb_mesh_core.h"
 #include "bb_light.h"
+#include "bb_texture.h"
 #include "bb_mesh.h"
 
 // ============================================================
@@ -195,10 +196,13 @@ inline void bb_RenderWorld(float tween = 1.0f) {
       bb_cam_proj_persp_(cam, aspect);
 
     // Sichtbare Lichter einsammeln und den passenden Shader waehlen. Ohne
-    // Licht bleibt es beim UNLIT-Shader, damit reine 2D-/Flat-Szenen genau so
-    // aussehen wie bisher (3D-12).
+    // Licht zeichnet der TEXTURED-Shader; bei u_tex_count == 0 bleibt darin
+    // genau u_color uebrig, das Bild ist also dasselbe wie zuvor mit UNLIT
+    // (3D-11, vorher 3D-12).
     int n = bb_collect_lights_();
-    bb_Shader_ *sh = (n > 0 && bb_shader_lit_) ? bb_shader_lit_ : bb_shader_unlit_;
+    bb_Shader_ *sh = (n > 0 && bb_shader_lit_) ? bb_shader_lit_
+                                               : bb_shader_textured_;
+    if (!sh) sh = bb_shader_unlit_;
     if (sh) {
       bb_shader_bind_(sh);
       if (sh == bb_shader_lit_) bb_upload_lights_(sh, n, cam);

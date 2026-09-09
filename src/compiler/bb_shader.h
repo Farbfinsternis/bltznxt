@@ -6,9 +6,15 @@
 // Three built-in GLSL 3.30 Core shaders compiled once on the first RenderWorld call:
 //
 //   UNLIT    — solid u_color, no lighting
-//   TEXTURED — sampler2D * u_color, no lighting
-//   LIT      — Blinn-Phong, up to 8 lights, optional texture;
+//   TEXTURED — u_color durch bis zu vier Texturlagen (3D-11), kein Licht;
+//              bei u_tex_count == 0 bleibt genau u_color uebrig, das Bild ist
+//              dann dasselbe wie mit UNLIT
+//   LIT      — Blinn-Phong, up to 8 lights, dieselben Texturlagen;
 //              degrades to ambient-only when u_light_count == 0
+//
+// TEXTURED und LIT teilen sich den Texturteil: BB_GLSL_TEX_VERT und
+// BB_GLSL_TEX_FRAG werden in bb_shaders_init_ zwischen Kopf und main() gesetzt,
+// damit es die Texturbehandlung nur einmal gibt.
 //
 // Shared vertex attribute layout (matches 3D-08 interleaved mesh format):
 //   location 0 — vec3  a_pos    (x, y, z)
@@ -112,28 +118,111 @@ void main() {
 }
 )glsl";
 
+// ---- Gemeinsamer Texturteil (3D-11) ----
+//
+// Bis zu vier Lagen, wie EntityTexture sie ueber die Indizes 0-7 belegt und
+// bb_texture_bind_ zusammenschiebt. Jede Lage bringt ihre eigene
+// UV-Matrix (ScaleTexture/PositionTexture/RotateTexture), ihren Blendmodus
+// (TextureBlend) und ihre Ladeflags mit.
+//
+// Beide Bausteine werden in bb_shaders_init_ vor das jeweilige main() gesetzt,
+// damit TEXTURED und LIT nachweislich dieselbe Texturbehandlung haben statt
+// zwei Kopien, die auseinanderlaufen koennen.
+
+static constexpr const char* BB_GLSL_TEX_VERT = R"glsl(
+uniform mat3 u_tex_mat[4];
+out vec2 v_uv0;
+out vec2 v_uv1;
+out vec2 v_uv2;
+out vec2 v_uv3;
+void bb_tex_vert(vec2 uv) {
+    vec3 h = vec3(uv, 1.0);
+    v_uv0 = (u_tex_mat[0] * h).xy;
+    v_uv1 = (u_tex_mat[1] * h).xy;
+    v_uv2 = (u_tex_mat[2] * h).xy;
+    v_uv3 = (u_tex_mat[3] * h).xy;
+}
+)glsl";
+
+static constexpr const char* BB_GLSL_TEX_FRAG = R"glsl(
+in vec2 v_uv0;
+in vec2 v_uv1;
+in vec2 v_uv2;
+in vec2 v_uv3;
+uniform sampler2D u_tex0;
+uniform sampler2D u_tex1;
+uniform sampler2D u_tex2;
+uniform sampler2D u_tex3;
+uniform int u_tex_count;
+uniform int u_tex_blend[4];
+uniform int u_tex_flags[4];
+
+// Blendmodi laut TextureBlend.htm: 1 = kein Blend bzw. Alpha, 2 = Multiply
+// (Vorgabe), 3 = Add, 4 = Dot3, 5 = Multiply 2. Dot3 braucht eine
+// Lichtrichtung im Tangentenraum, die es hier nicht gibt - es faellt deshalb
+// bewusst auf Multiply zurueck, statt etwas Aehnlichsehendes zu erfinden.
+vec4 bb_tex_layer(vec4 c, vec4 t, int blend, int flags) {
+    if ((flags & 2) == 0) t.a = 1.0;
+    if (blend == 1) return vec4(mix(c.rgb, t.rgb, t.a), c.a * t.a);
+    if (blend == 3) return vec4(c.rgb + t.rgb, c.a);
+    if (blend == 5) return vec4(c.rgb * t.rgb * 2.0, c.a * t.a);
+    return c * t;
+}
+
+// Flag 4 (Masked): "all areas of a texture coloured 0,0,0 will not be drawn".
+vec4 bb_tex_apply(vec4 c) {
+    if (u_tex_count > 0) {
+        vec4 t = texture(u_tex0, v_uv0);
+        if ((u_tex_flags[0] & 4) != 0 && all(lessThan(t.rgb, vec3(0.02)))) discard;
+        c = bb_tex_layer(c, t, u_tex_blend[0], u_tex_flags[0]);
+    }
+    if (u_tex_count > 1) {
+        vec4 t = texture(u_tex1, v_uv1);
+        if ((u_tex_flags[1] & 4) != 0 && all(lessThan(t.rgb, vec3(0.02)))) discard;
+        c = bb_tex_layer(c, t, u_tex_blend[1], u_tex_flags[1]);
+    }
+    if (u_tex_count > 2) {
+        vec4 t = texture(u_tex2, v_uv2);
+        if ((u_tex_flags[2] & 4) != 0 && all(lessThan(t.rgb, vec3(0.02)))) discard;
+        c = bb_tex_layer(c, t, u_tex_blend[2], u_tex_flags[2]);
+    }
+    if (u_tex_count > 3) {
+        vec4 t = texture(u_tex3, v_uv3);
+        if ((u_tex_flags[3] & 4) != 0 && all(lessThan(t.rgb, vec3(0.02)))) discard;
+        c = bb_tex_layer(c, t, u_tex_blend[3], u_tex_flags[3]);
+    }
+    return c;
+}
+)glsl";
+
 // ---- TEXTURED ----
+//
+// Ohne Licht zeichnet RenderWorld mit diesem Shader. Bei u_tex_count == 0
+// bleibt genau u_color uebrig, das Bild ist also dasselbe wie mit UNLIT.
 
 static constexpr const char* BB_GLSL_TEXTURED_VERT = R"glsl(
 #version 330 core
 layout(location = 0) in vec3 a_pos;
 layout(location = 2) in vec2 a_uv;
 uniform mat4 u_mvp;
-out vec2 v_uv;
+)glsl";
+
+static constexpr const char* BB_GLSL_TEXTURED_VERT_MAIN = R"glsl(
 void main() {
-    v_uv        = a_uv;
+    bb_tex_vert(a_uv);
     gl_Position = u_mvp * vec4(a_pos, 1.0);
 }
 )glsl";
 
 static constexpr const char* BB_GLSL_TEXTURED_FRAG = R"glsl(
 #version 330 core
-in vec2 v_uv;
-uniform sampler2D u_tex;
-uniform vec4      u_color;
+uniform vec4 u_color;
+)glsl";
+
+static constexpr const char* BB_GLSL_TEXTURED_FRAG_MAIN = R"glsl(
 out vec4 frag_color;
 void main() {
-    frag_color = texture(u_tex, v_uv) * u_color;
+    frag_color = bb_tex_apply(u_color);
 }
 )glsl";
 
@@ -155,12 +244,14 @@ uniform mat4 u_mvp;
 uniform mat4 u_model;
 out vec3 v_pos;
 out vec3 v_normal;
-out vec2 v_uv;
+)glsl";
+
+static constexpr const char* BB_GLSL_LIT_VERT_MAIN = R"glsl(
 void main() {
     vec4 wp  = u_model * vec4(a_pos, 1.0);
     v_pos    = wp.xyz;
     v_normal = mat3(u_model) * a_normal;
-    v_uv     = a_uv;
+    bb_tex_vert(a_uv);
     gl_Position = u_mvp * vec4(a_pos, 1.0);
 }
 )glsl";
@@ -169,7 +260,6 @@ static constexpr const char* BB_GLSL_LIT_FRAG = R"glsl(
 #version 330 core
 in vec3 v_pos;
 in vec3 v_normal;
-in vec2 v_uv;
 
 uniform vec4  u_color;
 uniform vec3  u_ambient;
@@ -186,10 +276,9 @@ uniform int   u_light_type[8];
 uniform vec3  u_light_dir[8];
 uniform float u_light_cos_inner[8];
 uniform float u_light_cos_outer[8];
+)glsl";
 
-uniform sampler2D u_tex;
-uniform int       u_use_tex;
-
+static constexpr const char* BB_GLSL_LIT_FRAG_MAIN = R"glsl(
 out vec4 frag_color;
 
 void main() {
@@ -231,8 +320,7 @@ void main() {
         }
     }
 
-    vec4 base = u_color;
-    if (u_use_tex != 0) base *= texture(u_tex, v_uv);
+    vec4 base = bb_tex_apply(u_color);
     frag_color = vec4(clamp(result, 0.0, 1.0) * base.rgb, base.a);
 }
 )glsl";
@@ -295,15 +383,32 @@ inline void bb_shader_uniform_iv(bb_Shader_* s, const char* n,
                                   int count, const int* v) {
   GLint l = s->loc(n); if (l >= 0) glUniform1iv(l, count, v);
 }
+inline void bb_shader_uniform_m3v(bb_Shader_* s, const char* n,
+                                   int count, const float* v) {
+  GLint l = s->loc(n); if (l >= 0) glUniformMatrix3fv(l, count, GL_FALSE, v);
+}
 
 // ============================================================
 // Init (lazy — called once from bb_RenderWorld on the first frame)
 // ============================================================
 
 inline void bb_shaders_init_() {
-  bb_shader_unlit_    = bb_shader_compile_(BB_GLSL_UNLIT_VERT,    BB_GLSL_UNLIT_FRAG);
-  bb_shader_textured_ = bb_shader_compile_(BB_GLSL_TEXTURED_VERT, BB_GLSL_TEXTURED_FRAG);
-  bb_shader_lit_      = bb_shader_compile_(BB_GLSL_LIT_VERT,      BB_GLSL_LIT_FRAG);
+  // Der gemeinsame Texturteil (3D-11) wird zwischen Kopf und main() gesetzt.
+  auto join = [](const char* head, const char* common, const char* body) {
+    return std::string(head) + common + body;
+  };
+  const std::string tex_vert = join(BB_GLSL_TEXTURED_VERT, BB_GLSL_TEX_VERT,
+                                    BB_GLSL_TEXTURED_VERT_MAIN);
+  const std::string tex_frag = join(BB_GLSL_TEXTURED_FRAG, BB_GLSL_TEX_FRAG,
+                                    BB_GLSL_TEXTURED_FRAG_MAIN);
+  const std::string lit_vert = join(BB_GLSL_LIT_VERT, BB_GLSL_TEX_VERT,
+                                    BB_GLSL_LIT_VERT_MAIN);
+  const std::string lit_frag = join(BB_GLSL_LIT_FRAG, BB_GLSL_TEX_FRAG,
+                                    BB_GLSL_LIT_FRAG_MAIN);
+
+  bb_shader_unlit_    = bb_shader_compile_(BB_GLSL_UNLIT_VERT, BB_GLSL_UNLIT_FRAG);
+  bb_shader_textured_ = bb_shader_compile_(tex_vert.c_str(), tex_frag.c_str());
+  bb_shader_lit_      = bb_shader_compile_(lit_vert.c_str(), lit_frag.c_str());
   bb_shaders_ready_   = true;
   if (bb_shader_unlit_ && bb_shader_textured_ && bb_shader_lit_)
     std::cerr << "[shader] UNLIT, TEXTURED, LIT compiled OK.\n";

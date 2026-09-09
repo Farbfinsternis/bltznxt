@@ -460,6 +460,11 @@ inline bool bb_gl_load_() {
 // Quit
 // ============================================================
 
+// Graphics3D stellt die Vorgabe der Texturfilter wieder her (3D-11). Die
+// Filterliste liegt in bb_texture.h, das erst spaeter eingebunden wird -
+// deshalb wie bei den Quit-Hooks ueber einen Funktionszeiger.
+inline void (*bb_texture_gfxreset_hook_)() = nullptr;
+
 inline void bb_gl_quit_() {
   if (bb_gl_ctx_) {
     SDL_GL_DestroyContext(bb_gl_ctx_);
@@ -532,6 +537,7 @@ inline void bb_Graphics3D(int w, int h, int depth = 32, int mode = 0) {
 
   bb_gl_active_    = true;
   bb_gl_quit_hook_ = bb_gl_quit_;
+  if (bb_texture_gfxreset_hook_) bb_texture_gfxreset_hook_();
 
   // Print context info to help diagnose driver issues.
   if (glGetString) {

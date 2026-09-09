@@ -124,6 +124,7 @@ inline void (*bb_ttf_quit_hook_)()   = nullptr;
 inline void (*bb_image_quit_hook_)() = nullptr;
 inline void (*bb_entity_quit_hook_)() = nullptr;
 inline void (*bb_shader_quit_hook_)() = nullptr;
+inline void (*bb_texture_quit_hook_)() = nullptr;
 
 // ---- Lifecycle ----
 
@@ -145,6 +146,7 @@ inline void bb_sdl_quit_() {
   if (bb_ttf_quit_hook_)    { bb_ttf_quit_hook_();    bb_ttf_quit_hook_    = nullptr; }
   if (bb_image_quit_hook_)  { bb_image_quit_hook_();  bb_image_quit_hook_  = nullptr; }
   if (bb_entity_quit_hook_) { bb_entity_quit_hook_(); bb_entity_quit_hook_ = nullptr; }
+  if (bb_texture_quit_hook_){ bb_texture_quit_hook_(); bb_texture_quit_hook_= nullptr; }
   if (bb_shader_quit_hook_) { bb_shader_quit_hook_(); bb_shader_quit_hook_ = nullptr; }
   for (int i = 0; i < BB_JOY_MAX_PORTS; ++i) {
     if (bb_joy_[i].handle) {

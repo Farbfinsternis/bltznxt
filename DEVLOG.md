@@ -755,6 +755,100 @@ Befehle 1243 → 1187 Vorkommen. Nur zwei Dateien mehr, weil die meisten der 39
 zusaetzlich Texturen brauchen — `EntityTexture` (33), `EntityAlpha` (23),
 `LoadTexture` (22) sind jetzt die Spitze, also 3D-10 und 3D-11.
 
+### Nachtrag (2026-09-09, 3D-11): Texturen
+
+`EntityTexture` steht in **54**, `LoadTexture` in **48** der 130 mitgelieferten
+Beispielprogramme — beides haeufiger als `CreateLight` (39), das den vorigen
+Schritt ausgeloest hat. Neu ist `bb_texture.h` mit allen 20 Texturbefehlen; der
+Shader mischt bis zu vier Lagen.
+
+**Der eigene Roadmap-Entwurf hatte die Flags erfunden.** Dort stand „Bit0
+Mipmaps, Bit1 Clamp, Bit2 Nearest". `help/commands/3d_commands/CreateTexture.htm`
+fuehrt `1 Color, 2 Alpha, 4 Masked, 8 Mipmapped, 16 Clamp U, 32 Clamp V,
+64 Sphere, 128 Cube, 256 VRAM, 512 High-Color` — mit dem Entwurf waere jedes
+geladene Bild falsch behandelt worden, und zwar still. Dazu die Vorgabe der
+Filterliste `TextureFilter "",1+8`: jede geladene Textur ist mipmapped, auch
+wenn `LoadTexture` nur Flag 1 sieht, und `Graphics3D` stellt diese Vorgabe
+wieder her.
+
+**Die UV-Transformation habe ich am laufenden Original ausgemessen statt sie
+aus der Doku abzuleiten — die Doku sagt dazu naemlich nichts.** `ScaleTexture`,
+`PositionTexture` und `RotateTexture` beschreibt sie nur als „scales a
+texture", „positions a texture", „rotates a texture". Die Richtung steht
+nirgends, und alle drei sind in den Beispielen haeufig (`ScaleTexture` allein in
+34 Dateien).
+
+Das Messverfahren ist dabei der Punkt: ein Blitz3D-Programm schreibt nicht auf
+stdout, also **kann man seine Ausgabe nicht vergleichen** (so steht es auch in
+der Absicherungsnotiz). Ein Bild anzuschauen waere eine Einschaetzung, keine
+Messung. Der Ausweg: das Testprogramm zeichnet eine Flaeche mit bekannter
+Textur (linke Haelfte schwarz, rechte weiss — bzw. vier Quadranten in vier
+Farben), liest die Bildzeile nach `RenderWorld` mit `ReadPixel` zurueck,
+klassifiziert jeden Punkt zu einem Buchstaben und schreibt die Zeile mit
+`WriteFile` in eine Textdatei. Damit ist die Antwort eine Zeichenkette, die man
+gegen eine Vorhersage haelt:
+
+    u' = ( cos a * u - sin a * v ) / u_scale - u_offset
+    v' = ( sin a * u + cos a * v ) / v_scale - v_offset
+
+Drei Befunde, die eine naheliegende Umsetzung allesamt verfehlt haette:
+
+- **`ScaleTexture` teilt.** `ScaleTexture t,2,2` liefert eine durchgehend
+  schwarze Flaeche — es wird nur `u` von 0 bis 0.5 abgetastet, die Textur wirkt
+  doppelt so gross. Die naheliegende Multiplikation haette zwei Kacheln
+  gezeigt, also genau das Gegenteil.
+- **`PositionTexture` zieht ab.** Bei `0.25,0` erscheint zuerst die *rechte*
+  Haelfte des Bildes; mit einer Addition waere es die linke gewesen.
+- **`RotateTexture` dreht um den Ursprung, nicht um die Mitte.** Bei 90 und 180
+  Grad sind beide Lesarten ununterscheidbar (die Differenz ist genau eine ganze
+  Kachel und faellt beim Wiederholen weg) — erst 45 Grad trennt sie. Genau hier
+  haette eine Stichprobe mit „schoenen" Winkeln das Falsche bestaetigt.
+
+Die Reihenfolge ist Drehung, dann Skalierung, dann Verschiebung. Auch das ist
+gemessen: `RotateTexture 90` zusammen mit `ScaleTexture 0.5,1` ergibt ein
+anderes Bild, je nachdem welche Operation zuerst wirkt, und nur eine der beiden
+Anordnungen deckt sich mit dem Original.
+
+**Gegenprobe in unsere Richtung.** Dieselben acht Faelle laufen anschliessend
+durch *unsere* Runtime, zurueckgelesen mit `glReadPixels`, und werden gegen die
+oben gemessene Formel gerechnet — acht von acht stimmen ueberein. Der Umweg ist
+noetig, weil `ReadPixel` bei uns den SDL-Renderer liest und nicht den
+GL-Framebuffer; das Testprogramm sah nur Schwarz. Das ist ein eigener Befund,
+kein Fehler dieser Aenderung: `LockBuffer BackBuffer()` liefert nach
+`RenderWorld` nicht das gerenderte Bild.
+
+**Was die Doku sonst noch verhindert hat:** `FreeTexture` sagt ausdruecklich
+„entities already textured with it will not lose the texture". Eine Handle-Map
+mit `unique_ptr` haette die Textur mitgerissen. Mit `shared_ptr` haelt die
+Entity ihre eigene Referenz; das GL-Objekt stirbt mit der letzten, und der Test
+prueft genau diese Regel.
+
+**Nicht eingeloest und auch nicht behauptet:** `TextureBuffer` liefert 0 mit
+einer Meldung, statt ein erfundenes Pufferhandle zurueckzugeben — das haette
+still in ein fremdes Bild gezeichnet. Blendmodus 4 (Dot3) faellt auf Multiply
+zurueck, weil die Lichtrichtung im Tangentenraum fehlt. Lagen ab Index 4 werden
+gespeichert, aber nicht gemischt, deshalb meldet `HWTexUnits()` 4 und nicht 8.
+
+Ein Nebeneffekt der Umstellung: ohne Licht zeichnet `RenderWorld` jetzt mit dem
+TEXTURED- statt dem UNLIT-Shader. Bei `u_tex_count == 0` bleibt darin genau
+`u_color` uebrig, das Bild ist also unveraendert — der Texturteil ist als
+gemeinsamer GLSL-Baustein einmal vorhanden und wird in beide Shader
+einkopiert, damit TEXTURED und LIT nicht auseinanderlaufen koennen.
+
+**Wirkung:** vollstaendig uebersetzende Beispieldateien **34 → 36**, unbekannte
+Befehle **138 → 124** verschieden und **2392 → 2057** Vorkommen; 14 Befehle
+sind ganz verschwunden, keiner neu dazugekommen. (Gezaehlt ueber `samples`,
+`tutorials` und `Games` mit `-c`; die Zahlen der frueheren Eintraege stammen aus
+einer anderen Zaehlweise und sind mit diesen nicht direkt vergleichbar.)
+
+**Abgesichert** nach der ueblichen Kette: Emittatvergleich alt/neu ueber 89
+Programme (88 identisch, 0 abweichend, 1 nur vom alten Compiler abgelehnt —
+der neue Test, also die Gegenprobe), Diagnosevergleich ueber 44 Negativtests
+(44 gleich), `compare_reference.sh` gegen das Original ohne neue Abweichung,
+und alle nicht blockierenden 3D-Tests neu gebaut und gelaufen.
+
+---
+
 ### Parser: colon as statement separator — If/Else bug fixed
 
 Colon (`:`) already worked as a statement separator in the main loop via

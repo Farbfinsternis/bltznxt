@@ -96,8 +96,11 @@ inline void bb_mesh_upload_(bb_MeshData_* m) {
 //   mvp      : column-major proj*view*model (16 floats)  — required
 //   model    : column-major model matrix    (16 floats)  — LIT shader world-space
 //   color    : RGBA in [0, 1]               ( 4 floats)  — required
-//   tex      : GL texture handle (0 = no texture)
 //   view_pos : camera world position        ( 3 floats)  — LIT specular; nullptr = skip
+//
+// Texturen bindet der Aufrufer (bb_texture_bind_, 3D-11): sie haengen an der
+// Entity, nicht an der einzelnen Surface, und gelten damit fuer alle Aufrufe
+// eines Netzes.
 // ============================================================
 
 inline void bb_mesh_draw_(bb_MeshData_* mesh,
@@ -105,7 +108,6 @@ inline void bb_mesh_draw_(bb_MeshData_* mesh,
                            const float*  mvp,
                            const float*  model,
                            const float*  color,
-                           GLuint        tex,
                            const float*  view_pos = nullptr) {
   if (!mesh || !s || mesh->indices.empty()) return;
   if (mesh->dirty) bb_mesh_upload_(mesh);
@@ -120,16 +122,6 @@ inline void bb_mesh_draw_(bb_MeshData_* mesh,
   if (model)    bb_shader_uniform_mat4(s, "u_model",    model);
   if (view_pos) bb_shader_uniform_v3  (s, "u_view_pos",
                                        view_pos[0], view_pos[1], view_pos[2]);
-
-  // Texture
-  if (tex) {
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, tex);
-    bb_shader_uniform_i(s, "u_tex",     0);
-    bb_shader_uniform_i(s, "u_use_tex", 1);
-  } else {
-    bb_shader_uniform_i(s, "u_use_tex", 0);
-  }
 
   glBindVertexArray(mesh->vao);
   glDrawElements(GL_TRIANGLES,
