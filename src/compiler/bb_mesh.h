@@ -41,20 +41,17 @@ static inline bb_MeshEntity_* bb_mesh_ent_(int h) {
 
 // ============================================================
 // Helper: push a single triangle's worth of vertex data.
-// Appends 3 vertices (each 11 floats) and 3 indices.
+// Appends 3 vertices (each BB_VF floats) and 3 indices.
 // ============================================================
 
 static inline void bb_mesh_push_tri_(bb_MeshData_& m,
     float x0,float y0,float z0, float nx0,float ny0,float nz0, float u0,float v0,
     float x1,float y1,float z1, float nx1,float ny1,float nz1, float u1,float v1,
     float x2,float y2,float z2, float nx2,float ny2,float nz2, float u2,float v2) {
-  unsigned int base = static_cast<unsigned int>(m.vertices.size() / 11);
-  float vd[] = {
-    x0,y0,z0, nx0,ny0,nz0, u0,v0, 1,1,1,
-    x1,y1,z1, nx1,ny1,nz1, u1,v1, 1,1,1,
-    x2,y2,z2, nx2,ny2,nz2, u2,v2, 1,1,1
-  };
-  m.vertices.insert(m.vertices.end(), vd, vd + 33);
+  unsigned int base = static_cast<unsigned int>(m.vertices.size() / BB_VF);
+  bb_vert_push_(m, x0,y0,z0, nx0,ny0,nz0, u0,v0);
+  bb_vert_push_(m, x1,y1,z1, nx1,ny1,nz1, u1,v1);
+  bb_vert_push_(m, x2,y2,z2, nx2,ny2,nz2, u2,v2);
   m.indices.push_back(base);
   m.indices.push_back(base+1);
   m.indices.push_back(base+2);
@@ -67,14 +64,11 @@ static inline void bb_mesh_push_quad_(bb_MeshData_& m,
     float x2,float y2,float z2, float u2,float v2,
     float x3,float y3,float z3, float u3,float v3,
     float nx,float ny,float nz) {
-  unsigned int base = static_cast<unsigned int>(m.vertices.size() / 11);
-  float vd[] = {
-    x0,y0,z0, nx,ny,nz, u0,v0, 1,1,1,
-    x1,y1,z1, nx,ny,nz, u1,v1, 1,1,1,
-    x2,y2,z2, nx,ny,nz, u2,v2, 1,1,1,
-    x3,y3,z3, nx,ny,nz, u3,v3, 1,1,1
-  };
-  m.vertices.insert(m.vertices.end(), vd, vd + 44);
+  unsigned int base = static_cast<unsigned int>(m.vertices.size() / BB_VF);
+  bb_vert_push_(m, x0,y0,z0, nx,ny,nz, u0,v0);
+  bb_vert_push_(m, x1,y1,z1, nx,ny,nz, u1,v1);
+  bb_vert_push_(m, x2,y2,z2, nx,ny,nz, u2,v2);
+  bb_vert_push_(m, x3,y3,z3, nx,ny,nz, u3,v3);
   m.indices.push_back(base);   m.indices.push_back(base+1); m.indices.push_back(base+2);
   m.indices.push_back(base);   m.indices.push_back(base+2); m.indices.push_back(base+3);
 }
@@ -149,12 +143,10 @@ static inline bb_MeshData_ bb_gen_sphere_(int segs) {
       int i11 = (r+1) * cols + c + 1;
 
       auto push_v = [&](int i) {
-        float nx = vx[i], ny = vy[i], nz = vz[i];
-        float vdata[11] = { nx, ny, nz, nx, ny, nz, uu[i], vv[i], 1,1,1 };
-        m.vertices.insert(m.vertices.end(), vdata, vdata + 11);
+        bb_vert_push_(m, vx[i], vy[i], vz[i], vx[i], vy[i], vz[i], uu[i], vv[i]);
       };
 
-      base = static_cast<unsigned int>(m.vertices.size() / 11);
+      base = static_cast<unsigned int>(m.vertices.size() / BB_VF);
       push_v(i00); push_v(i10); push_v(i11); push_v(i01);
       m.indices.push_back(base);   m.indices.push_back(base+1); m.indices.push_back(base+2);
       m.indices.push_back(base);   m.indices.push_back(base+2); m.indices.push_back(base+3);
@@ -185,14 +177,11 @@ static inline bb_MeshData_ bb_gen_cylinder_(int segs, bool open) {
     float u0 = (float)i / segs;
     float u1 = (float)(i+1) / segs;
     // Smooth normals on the sides
-    unsigned int base = static_cast<unsigned int>(m.vertices.size() / 11);
-    float vd[] = {
-      x0,-1,z0, x0,0,z0, u0,1, 1,1,1,
-      x1,-1,z1, x1,0,z1, u1,1, 1,1,1,
-      x1, 1,z1, x1,0,z1, u1,0, 1,1,1,
-      x0, 1,z0, x0,0,z0, u0,0, 1,1,1
-    };
-    m.vertices.insert(m.vertices.end(), vd, vd + 44);
+    unsigned int base = static_cast<unsigned int>(m.vertices.size() / BB_VF);
+    bb_vert_push_(m, x0,-1,z0, x0,0,z0, u0,1);
+    bb_vert_push_(m, x1,-1,z1, x1,0,z1, u1,1);
+    bb_vert_push_(m, x1, 1,z1, x1,0,z1, u1,0);
+    bb_vert_push_(m, x0, 1,z0, x0,0,z0, u0,0);
     m.indices.push_back(base); m.indices.push_back(base+1); m.indices.push_back(base+2);
     m.indices.push_back(base); m.indices.push_back(base+2); m.indices.push_back(base+3);
   }
@@ -200,39 +189,30 @@ static inline bb_MeshData_ bb_gen_cylinder_(int segs, bool open) {
   if (!open) {
     // Top cap (+Y) and bottom cap (-Y) as triangle fans
     unsigned int center;
-    float vd_c[11];
 
     // Top cap
-    center = static_cast<unsigned int>(m.vertices.size() / 11);
-    float tc[11] = { 0,1,0, 0,1,0, 0.5f,0.5f, 1,1,1 };
-    m.vertices.insert(m.vertices.end(), tc, tc+11);
+    center = static_cast<unsigned int>(m.vertices.size() / BB_VF);
+    bb_vert_push_(m, 0,1,0, 0,1,0, 0.5f,0.5f);
     for (int i = 0; i < segs; ++i) {
       float a0 = two_pi * i / segs;
       float a1 = two_pi * (i+1) / segs;
       float x0=cosf(a0), z0=sinf(a0), x1=cosf(a1), z1=sinf(a1);
-      unsigned int b = static_cast<unsigned int>(m.vertices.size() / 11);
-      float vd[] = {
-        x0,1,z0, 0,1,0, 0.5f+0.5f*x0,0.5f-0.5f*z0, 1,1,1,
-        x1,1,z1, 0,1,0, 0.5f+0.5f*x1,0.5f-0.5f*z1, 1,1,1
-      };
-      m.vertices.insert(m.vertices.end(), vd, vd+22);
+      unsigned int b = static_cast<unsigned int>(m.vertices.size() / BB_VF);
+      bb_vert_push_(m, x0,1,z0, 0,1,0, 0.5f+0.5f*x0, 0.5f-0.5f*z0);
+      bb_vert_push_(m, x1,1,z1, 0,1,0, 0.5f+0.5f*x1, 0.5f-0.5f*z1);
       m.indices.push_back(center); m.indices.push_back(b+1); m.indices.push_back(b);
     }
 
     // Bottom cap (-Y)
-    center = static_cast<unsigned int>(m.vertices.size() / 11);
-    float bc[11] = { 0,-1,0, 0,-1,0, 0.5f,0.5f, 1,1,1 };
-    m.vertices.insert(m.vertices.end(), bc, bc+11);
+    center = static_cast<unsigned int>(m.vertices.size() / BB_VF);
+    bb_vert_push_(m, 0,-1,0, 0,-1,0, 0.5f,0.5f);
     for (int i = 0; i < segs; ++i) {
       float a0 = two_pi * i / segs;
       float a1 = two_pi * (i+1) / segs;
       float x0=cosf(a0), z0=sinf(a0), x1=cosf(a1), z1=sinf(a1);
-      unsigned int b = static_cast<unsigned int>(m.vertices.size() / 11);
-      float vd[] = {
-        x0,-1,z0, 0,-1,0, 0.5f+0.5f*x0,0.5f+0.5f*z0, 1,1,1,
-        x1,-1,z1, 0,-1,0, 0.5f+0.5f*x1,0.5f+0.5f*z1, 1,1,1
-      };
-      m.vertices.insert(m.vertices.end(), vd, vd+22);
+      unsigned int b = static_cast<unsigned int>(m.vertices.size() / BB_VF);
+      bb_vert_push_(m, x0,-1,z0, 0,-1,0, 0.5f+0.5f*x0, 0.5f+0.5f*z0);
+      bb_vert_push_(m, x1,-1,z1, 0,-1,0, 0.5f+0.5f*x1, 0.5f+0.5f*z1);
       m.indices.push_back(center); m.indices.push_back(b); m.indices.push_back(b+1);
     }
   }
@@ -269,31 +249,24 @@ static inline bb_MeshData_ bb_gen_cone_(int segs, bool open) {
     float nxa=xm*slope_n, nya=slope_n, nza=zm*slope_n;
     float u0=(float)i/segs, u1=(float)(i+1)/segs, um=(u0+u1)*0.5f;
 
-    unsigned int base = static_cast<unsigned int>(m.vertices.size() / 11);
-    float vd[] = {
-      x0,-1,z0, nx0,ny0,nz0, u0,1, 1,1,1,
-      x1,-1,z1, nx1,ny1,nz1, u1,1, 1,1,1,
-      0,  1, 0, nxa,nya,nza, um,0, 1,1,1
-    };
-    m.vertices.insert(m.vertices.end(), vd, vd+33);
+    unsigned int base = static_cast<unsigned int>(m.vertices.size() / BB_VF);
+    bb_vert_push_(m, x0,-1,z0, nx0,ny0,nz0, u0,1);
+    bb_vert_push_(m, x1,-1,z1, nx1,ny1,nz1, u1,1);
+    bb_vert_push_(m, 0,  1, 0, nxa,nya,nza, um,0);
     m.indices.push_back(base); m.indices.push_back(base+1); m.indices.push_back(base+2);
   }
 
   if (!open) {
     // Bottom cap (-Y)
-    unsigned int center = static_cast<unsigned int>(m.vertices.size() / 11);
-    float bc[11] = { 0,-1,0, 0,-1,0, 0.5f,0.5f, 1,1,1 };
-    m.vertices.insert(m.vertices.end(), bc, bc+11);
+    unsigned int center = static_cast<unsigned int>(m.vertices.size() / BB_VF);
+    bb_vert_push_(m, 0,-1,0, 0,-1,0, 0.5f,0.5f);
     for (int i = 0; i < segs; ++i) {
       float a0 = two_pi * i / segs;
       float a1 = two_pi * (i+1) / segs;
       float x0=cosf(a0), z0=sinf(a0), x1=cosf(a1), z1=sinf(a1);
-      unsigned int b = static_cast<unsigned int>(m.vertices.size() / 11);
-      float vd[] = {
-        x0,-1,z0, 0,-1,0, 0.5f+0.5f*x0,0.5f+0.5f*z0, 1,1,1,
-        x1,-1,z1, 0,-1,0, 0.5f+0.5f*x1,0.5f+0.5f*z1, 1,1,1
-      };
-      m.vertices.insert(m.vertices.end(), vd, vd+22);
+      unsigned int b = static_cast<unsigned int>(m.vertices.size() / BB_VF);
+      bb_vert_push_(m, x0,-1,z0, 0,-1,0, 0.5f+0.5f*x0, 0.5f+0.5f*z0);
+      bb_vert_push_(m, x1,-1,z1, 0,-1,0, 0.5f+0.5f*x1, 0.5f+0.5f*z1);
       m.indices.push_back(center); m.indices.push_back(b); m.indices.push_back(b+1);
     }
   }
@@ -379,7 +352,7 @@ static inline void bb_mesh_aabb_(const bb_MeshEntity_* me,
   maxX = maxY = maxZ = -FLT_MAX;
   for (const auto& s : me->surfaces) {
     const auto& v = s.vertices;
-    for (size_t i = 0; i + 10 < v.size(); i += 11) {
+    for (size_t i = 0; i + BB_VF - 1 < v.size(); i += BB_VF) {
       if (v[i]   < minX) minX = v[i];
       if (v[i]   > maxX) maxX = v[i];
       if (v[i+1] < minY) minY = v[i+1];
@@ -471,7 +444,7 @@ inline void bb_ScaleMesh(int h, float x_scale, float y_scale, float z_scale) {
   auto* me = bb_mesh_ent_(h);
   if (!me) return;
   for (auto& s : me->surfaces)
-    for (size_t i = 0; i + 10 < s.vertices.size(); i += 11) {
+    for (size_t i = 0; i + BB_VF - 1 < s.vertices.size(); i += BB_VF) {
       s.vertices[i]     *= x_scale;
       s.vertices[i + 1] *= y_scale;
       s.vertices[i + 2] *= z_scale;
@@ -483,7 +456,7 @@ inline void bb_PositionMesh(int h, float x, float y, float z) {
   auto* me = bb_mesh_ent_(h);
   if (!me) return;
   for (auto& s : me->surfaces)
-    for (size_t i = 0; i + 10 < s.vertices.size(); i += 11) {
+    for (size_t i = 0; i + BB_VF - 1 < s.vertices.size(); i += BB_VF) {
       s.vertices[i]     += x;
       s.vertices[i + 1] += y;
       s.vertices[i + 2] += z;
@@ -507,7 +480,7 @@ inline void bb_RotateMesh(int h, float pitch, float yaw, float roll) {
     c = R[2] * x + R[6] * y + R[10] * z;
   };
   for (auto& s : me->surfaces)
-    for (size_t i = 0; i + 10 < s.vertices.size(); i += 11) {
+    for (size_t i = 0; i + BB_VF - 1 < s.vertices.size(); i += BB_VF) {
       turn(s.vertices[i],     s.vertices[i + 1], s.vertices[i + 2]);
       turn(s.vertices[i + 3], s.vertices[i + 4], s.vertices[i + 5]);
     }
@@ -538,7 +511,7 @@ inline void bb_FitMesh(int h, float x, float y, float z,
   }
 
   for (auto& s : me->surfaces)
-    for (size_t i = 0; i + 10 < s.vertices.size(); i += 11) {
+    for (size_t i = 0; i + BB_VF - 1 < s.vertices.size(); i += BB_VF) {
       s.vertices[i]     = (s.vertices[i]     - x0) * sx + x;
       s.vertices[i + 1] = (s.vertices[i + 1] - y0) * sy + y;
       s.vertices[i + 2] = (s.vertices[i + 2] - z0) * sz + z;
@@ -557,7 +530,7 @@ inline void bb_FlipMesh(int h) {
   for (auto& s : me->surfaces) {
     for (size_t i = 0; i + 2 < s.indices.size(); i += 3)
       std::swap(s.indices[i + 1], s.indices[i + 2]);
-    for (size_t i = 0; i + 10 < s.vertices.size(); i += 11) {
+    for (size_t i = 0; i + BB_VF - 1 < s.vertices.size(); i += BB_VF) {
       s.vertices[i + 3] = -s.vertices[i + 3];
       s.vertices[i + 4] = -s.vertices[i + 4];
       s.vertices[i + 5] = -s.vertices[i + 5];
@@ -576,16 +549,16 @@ inline void bb_UpdateNormals(int h) {
   auto* me = bb_mesh_ent_(h);
   if (!me) return;
   for (auto& s : me->surfaces) {
-    const size_t n = s.vertices.size() / 11;
+    const size_t n = s.vertices.size() / BB_VF;
     if (!n) continue;
     std::vector<float> acc(n * 3, 0.0f);
 
     for (size_t t = 0; t + 2 < s.indices.size(); t += 3) {
       unsigned a = s.indices[t], b = s.indices[t + 1], c = s.indices[t + 2];
       if (a >= n || b >= n || c >= n) continue;
-      const float* pa = &s.vertices[a * 11];
-      const float* pb = &s.vertices[b * 11];
-      const float* pc = &s.vertices[c * 11];
+      const float* pa = &s.vertices[a * BB_VF];
+      const float* pb = &s.vertices[b * BB_VF];
+      const float* pc = &s.vertices[c * BB_VF];
       float ux = pb[0] - pa[0], uy = pb[1] - pa[1], uz = pb[2] - pa[2];
       float vx = pc[0] - pa[0], vy = pc[1] - pa[1], vz = pc[2] - pa[2];
       // Kreuzprodukt in der Reihenfolge, die zur Umlaufrichtung unserer
@@ -604,9 +577,9 @@ inline void bb_UpdateNormals(int h) {
       float nx = acc[v * 3], ny = acc[v * 3 + 1], nz = acc[v * 3 + 2];
       float len = std::sqrt(nx * nx + ny * ny + nz * nz);
       if (len > 1e-9f) { nx /= len; ny /= len; nz /= len; }
-      s.vertices[v * 11 + 3] = nx;
-      s.vertices[v * 11 + 4] = ny;
-      s.vertices[v * 11 + 5] = nz;
+      s.vertices[v * BB_VF + 3] = nx;
+      s.vertices[v * BB_VF + 4] = ny;
+      s.vertices[v * BB_VF + 5] = nz;
     }
   }
   bb_mesh_touch_(me);
@@ -644,7 +617,7 @@ inline void bb_LightMesh(int h, float red, float green, float blue,
   const float r = red / 255.0f, g = green / 255.0f, b = blue / 255.0f;
 
   for (auto& s : me->surfaces)
-    for (size_t i = 0; i + 10 < s.vertices.size(); i += 11) {
+    for (size_t i = 0; i + BB_VF - 1 < s.vertices.size(); i += BB_VF) {
       float f = 1.0f;
       if (range > 0.0f) {
         float dx = light_x - s.vertices[i];
@@ -660,7 +633,7 @@ inline void bb_LightMesh(int h, float red, float green, float blue,
           f = (range / d) * nl;
         }
       }
-      float* c = &s.vertices[i + 8];
+      float* c = &s.vertices[i + 10];   // r,g,b der Vertexfarbe
       c[0] = bb_vcol_(c[0] + r * f);
       c[1] = bb_vcol_(c[1] + g * f);
       c[2] = bb_vcol_(c[2] + b * f);
@@ -683,7 +656,7 @@ inline void bb_AddMesh(int source_mesh, int dest_mesh) {
   bb_MeshData_& into = dst->surfaces[0];
 
   for (const auto& s : src->surfaces) {
-    const unsigned base = static_cast<unsigned>(into.vertices.size() / 11);
+    const unsigned base = static_cast<unsigned>(into.vertices.size() / BB_VF);
     into.vertices.insert(into.vertices.end(), s.vertices.begin(), s.vertices.end());
     for (unsigned idx : s.indices) into.indices.push_back(base + idx);
   }
@@ -747,7 +720,7 @@ inline int bb_MeshesIntersect(int mesh_a, int mesh_b) {
     for (const auto& s : e->surfaces)
       for (size_t t = 0; t + 2 < s.indices.size(); t += 3)
         for (int k = 0; k < 3; ++k) {
-          const float* p = &s.vertices[s.indices[t + k] * 11];
+          const float* p = &s.vertices[s.indices[t + k] * BB_VF];
           float o[3]; to_world(e, p, o);
           out.insert(out.end(), o, o + 3);
         }

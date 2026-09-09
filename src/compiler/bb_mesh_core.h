@@ -27,8 +27,22 @@
 // bb_MeshData_ — CPU-side geometry + GPU handle set
 // ============================================================
 
+// Floats je Vertex. Bis 3D-15 waren es 11 (Ort, Normale, ein UV-Paar und
+// eine Farbe ohne Alpha). Die Vertexbefehle brauchen mehr: das Original
+// fuehrt **zwei** Texturkoordinatensaetze und eine Farbe **mit** Alpha
+// (Surface::Vertex hat tex_coords[2][2] und ein gepacktes ARGB).
+//
+//   [0..2]  Ort            [3..5]  Normale
+//   [6..7]  u,v Satz 0     [8..9]  u,v Satz 1
+//   [10..13] r,g,b,a       (0-1)
+//
+// Satz 1 wird gespeichert und ueber VertexU/VertexV ausgelesen, aber noch
+// nicht gezeichnet - TextureCoords 1 waehlt ihn im Original aus, und diese
+// Auswahl gibt es bei uns bisher weder vorher noch jetzt.
+inline constexpr int BB_VF = 14;
+
 struct bb_MeshData_ {
-  std::vector<float>        vertices;  // interleaved, 11 floats per vertex
+  std::vector<float>        vertices;  // verschraenkt, BB_VF Floats je Vertex
   std::vector<unsigned int> indices;   // 3 indices per triangle
 
   GLuint vao      = 0;
@@ -44,6 +58,18 @@ struct bb_MeshData_ {
 // Must be called while a GL context is current.
 // Sets dirty=false and updates triCount.
 // ============================================================
+
+// Einen Vertex anhaengen. Beide Texturkoordinatensaetze bekommen dasselbe
+// Paar und die Farbe ist deckendes Weiss - genau das macht auch AddVertex im
+// Original (bbAddVertex setzt tex_coords[0] und [1] gleich und color auf
+// 0xffffffff).
+inline void bb_vert_push_(bb_MeshData_& m,
+                          float x, float y, float z,
+                          float nx, float ny, float nz,
+                          float u, float v) {
+  const float vd[BB_VF] = { x, y, z, nx, ny, nz, u, v, u, v, 1, 1, 1, 1 };
+  m.vertices.insert(m.vertices.end(), vd, vd + BB_VF);
+}
 
 inline void bb_mesh_upload_(bb_MeshData_* m) {
   if (!m || m->vertices.empty() || m->indices.empty()) return;
@@ -69,7 +95,7 @@ inline void bb_mesh_upload_(bb_MeshData_* m) {
                m->indices.data(), GL_STATIC_DRAW);
 
   // Vertex attribute pointers (offsets as byte offsets into the VBO)
-  constexpr GLsizei stride = 11 * sizeof(float);
+  constexpr GLsizei stride = BB_VF * sizeof(float);
 
   glEnableVertexAttribArray(0);  // a_pos
   glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride,
@@ -83,9 +109,9 @@ inline void bb_mesh_upload_(bb_MeshData_* m) {
   glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride,
                         (const void*)(uintptr_t)(6 * sizeof(float)));
 
-  glEnableVertexAttribArray(3);  // a_color   — byte offset 32
-  glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, stride,
-                        (const void*)(uintptr_t)(8 * sizeof(float)));
+  glEnableVertexAttribArray(3);  // a_color   — vier Werte ab Float 10
+  glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, stride,
+                        (const void*)(uintptr_t)(10 * sizeof(float)));
 
   glBindVertexArray(0);
 

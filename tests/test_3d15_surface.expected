@@ -1,0 +1,44 @@
+countsurfaces leer
+createsurface handle
+countsurfaces nach create
+getsurface 1 ist s
+getsurface 1 stabil
+getsurface 0
+getsurface hinter dem ende
+countvertices leer
+counttriangles leer
+addvertex indizes
+countvertices
+addtriangle index
+counttriangles
+trianglevertex
+vertexkoordinaten
+normale vorgabe 0
+farbe vorgabe weiss
+alpha vorgabe 1
+addvertex satz 0
+addvertex satz 1
+vertexw immer 1
+vertexcoords
+vertexnormal
+texcoords satz 0 gesetzt
+texcoords satz 1 unberuehrt
+texcoords satz 1 gesetzt
+texcoords satz 0 unberuehrt
+vertexcolor geklemmt
+vertexcolor alpha vorgabe
+vertexcolor alpha ueber byte
+vertexcolor alpha geklemmt
+meshwidth folgt den vertices
+countsurfaces zwei
+getsurface 2 ist s2
+createsurface behaelt s
+findsurface findet s2
+findsurface ohne treffer
+getsurfacebrush kopie
+paintsurface findet s
+clearsurface
+wuerfel eine flaeche
+wuerfel 24 vertices
+wuerfel 12 dreiecke
+fertig

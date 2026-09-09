@@ -843,24 +843,28 @@ Sprachobjekt.
       jeder Flaeche — im Bild dasselbe, aber die Flaeche behaelt ihre
       eigene Textur.
 
-**Teil 2 — Flaechen und Vertices**
+**Teil 2 — Flaechen und Vertices ✓ COMPLETE**
 
-- [ ] `bb_Surface_` ist ein Wrapper-Handle auf `bb_MeshData_` innerhalb einer `MeshEntity_`
-- [ ] `bb_CreateSurface(mesh, brush=0)` → surface handle
-- [ ] `bb_FindSurface(mesh, brush)` → surface handle (erste passende)
-- [ ] `bb_AddVertex(surf, x,y,z, u=0,v=0,w=1)` → vertex index
-- [ ] `bb_AddTriangle(surf, v0, v1, v2)` → triangle index
-- [ ] `bb_VertexCoords(surf, idx, x, y, z)` — setter
-- [ ] `bb_VertexNormal(surf, idx, nx, ny, nz)` — setter
-- [ ] `bb_VertexTexCoords(surf, idx, u, v, w=1, set=0)` — setter
-- [ ] `bb_VertexColor(surf, idx, r, g, b, a=1)` — setter
-- [ ] `bb_VertexX/Y/Z/NX/NY/NZ/U/V/W(surf, idx)` — Getter → float
-- [ ] `bb_TriangleVertex(surf, tri, corner)` → vertex index
-- [ ] `bb_CountSurfaces(mesh)`, `bb_CountVertices(surf)`, `bb_CountTriangles(surf)`
-- [ ] `bb_GetSurface(mesh, index)` → surface handle (1-basiert)
-- [ ] `bb_PaintSurface(surf, brush)`, `bb_ClearSurface(surf, verts=1, tris=1)`
-- [ ] Upload beim nächsten `UpdateWorld` (dirty flag)
-- **Test:** `tests/test_3d15_surface.bb` — baut Triangle-Mesh aus einzelnen Vertices
+- [x] Ein Flaechenhandle meint **(Entity, Index)**, nicht die Adresse — ein
+      `CreateSurface` verschiebt den Vektor. Handles sind stabil:
+      `GetSurface(m,1)` gibt zweimal dasselbe und dasselbe wie
+      `CreateSurface`.
+- [x] `CreateSurface`, `FindSurface`, `GetSurface`, `GetSurfaceBrush`,
+      `PaintSurface`, `ClearSurface`, `CountVertices`, `CountTriangles`,
+      `AddVertex`, `AddTriangle`, `TriangleVertex`, `VertexCoords`,
+      `VertexNormal`, `VertexTexCoords`, `VertexColor` und die
+      dreizehn Getter.
+- [x] Der Vertex hat jetzt **14 Floats** statt 11: zwei
+      Texturkoordinatensaetze und eine Farbe **mit** Alpha, wie
+      `Surface::Vertex` im Original (`tex_coords[2][2]`, gepacktes ARGB).
+- [x] Am laufenden Original nachgemessen: 62 Werte, **58 gleich**. Die
+      vier Abweichungen sind eine bewusste (`GetSurface(m,0)` liest dort
+      hinter den Vektor) und drei Befunde: BUG-65 (Wuerfel-UV, jetzt
+      exakt vermessen) und BUG-69 (`CreateSphere` zerlegt anders).
+- [ ] Satz 1 wird gespeichert und ausgelesen, aber noch nicht gezeichnet:
+      `TextureCoords 1` waehlt ihn im Original aus, diese Auswahl gibt es
+      bei uns noch nicht.
+- **Test:** `tests/test_3d15_surface.bb` — 43 Zusicherungen, alle gemessen
 
 ---
 

@@ -20,7 +20,7 @@
 //   location 0 — vec3  a_pos    (x, y, z)
 //   location 1 — vec3  a_normal (nx, ny, nz)
 //   location 2 — vec2  a_uv    (u, v)
-//   location 3 — vec3  a_color (r, g, b)  — used by EntityFX Bit2 (3D-10)
+//   location 3 — vec4  a_color (r, g, b, a) — EntityFX Bit 2 und 32 (3D-15)
 
 #include "bb_gl_ctx.h"
 #include <iostream>
@@ -204,9 +204,9 @@ static constexpr const char* BB_GLSL_TEXTURED_VERT = R"glsl(
 #version 330 core
 layout(location = 0) in vec3 a_pos;
 layout(location = 2) in vec2 a_uv;
-layout(location = 3) in vec3 a_color;
+layout(location = 3) in vec4 a_color;
 uniform mat4 u_mvp;
-out vec3 v_color;
+out vec4 v_color;
 )glsl";
 
 static constexpr const char* BB_GLSL_TEXTURED_VERT_MAIN = R"glsl(
@@ -221,15 +221,16 @@ static constexpr const char* BB_GLSL_TEXTURED_FRAG = R"glsl(
 #version 330 core
 uniform vec4 u_color;
 uniform int  u_fx;
-in vec3 v_color;
+in vec4 v_color;
 )glsl";
 
 static constexpr const char* BB_GLSL_TEXTURED_FRAG_MAIN = R"glsl(
 out vec4 frag_color;
 void main() {
-    // EntityFX 2: Vertexfarbe statt Entityfarbe.
+    // FX 2: Vertexfarbe statt Entityfarbe, FX 32: Vertexalpha dazu.
     vec4 base = u_color;
-    if ((u_fx & 2) != 0) base.rgb = v_color;
+    if ((u_fx & 2)  != 0) base.rgb = v_color.rgb;
+    if ((u_fx & 32) != 0) base.a  *= v_color.a;
     frag_color = clamp(bb_tex_apply(base), 0.0, 1.0);
 }
 )glsl";
@@ -248,14 +249,14 @@ static constexpr const char* BB_GLSL_LIT_VERT = R"glsl(
 layout(location = 0) in vec3 a_pos;
 layout(location = 1) in vec3 a_normal;
 layout(location = 2) in vec2 a_uv;
-layout(location = 3) in vec3 a_color;
+layout(location = 3) in vec4 a_color;
 uniform mat4 u_mvp;
 uniform mat4 u_model;
 out vec3 v_pos;
 out vec3 v_normal;
 // EntityFX 4 (flatshaded) braucht dieselbe Normale ohne Interpolation.
 flat out vec3 v_normal_flat;
-out vec3 v_color;
+out vec4 v_color;
 )glsl";
 
 static constexpr const char* BB_GLSL_LIT_VERT_MAIN = R"glsl(
@@ -293,16 +294,20 @@ uniform float u_light_cos_outer[8];
 
 uniform int   u_fx;          // EntityFX (3D-10)
 flat in vec3  v_normal_flat;
-in vec3       v_color;
+in vec4       v_color;
 )glsl";
 
 static constexpr const char* BB_GLSL_LIT_FRAG_MAIN = R"glsl(
 out vec4 frag_color;
 
 void main() {
-    // EntityFX 2: Vertexfarbe statt Entityfarbe (die Deckkraft bleibt).
+    // FX 2: Vertexfarbe statt Entityfarbe, FX 32: Vertexalpha dazu. Das
+    // Original nennt Bit 32 FX_VERTEXALPHA (blitz3d/brush.cpp) - bis 3D-15
+    // hat es bei uns nur das Blending eingeschaltet, weil es gar keine
+    // Vertexalpha gab.
     vec4 base = u_color;
-    if ((u_fx & 2) != 0) base.rgb = v_color;
+    if ((u_fx & 2)  != 0) base.rgb = v_color.rgb;
+    if ((u_fx & 32) != 0) base.a  *= v_color.a;
     base = bb_tex_apply(base);
 
     // EntityFX 1 (full-bright): weder Lichter noch Umgebungslicht. Gemessen:

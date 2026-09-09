@@ -595,7 +595,7 @@ inline int bb_load_3ds_(const bbString& file, int parent) {
         if (vit != g.vmap.end()) {
           out[k] = vit->second;
         } else {
-          unsigned ni = static_cast<unsigned>(surf.vertices.size() / 11);
+          unsigned ni = static_cast<unsigned>(surf.vertices.size() / BB_VF);
           // Achsen: blitz(x,y,z) = 3ds(x,z,y) - gemessen, siehe Kopf.
           // Gemessen mit einer Vierquadrantentextur: das Original zeigt
           // die linke obere Ecke des Bildes an der linken oberen Ecke der
@@ -606,11 +606,7 @@ inline int bb_load_3ds_(const bbString& file, int parent) {
           float pc_[3];
           bb_loader_apply_(lm, o.vx[vi] - tx[0], o.vy[vi] - tx[1],
                            o.vz[vi] - tx[2], pc_);
-          const float vd[11] = { pc_[0], pc_[1], pc_[2],
-                                 0, 0, 0,
-                                 u, v,
-                                 1, 1, 1 };
-          surf.vertices.insert(surf.vertices.end(), vd, vd + 11);
+          bb_vert_push_(surf, pc_[0], pc_[1], pc_[2], 0, 0, 0, u, v);
           g.vmap.emplace(vkey, ni);
           out[k] = ni;
         }
@@ -808,18 +804,14 @@ inline void bb_x_mesh_(bb_XBuild_& B, const bb_XObj_& o, const bb_XMat_& tform) 
     auto emit = [&](unsigned vi) -> unsigned {
       auto it = vm.find(vi);
       if (it != vm.end()) return it->second;
-      const unsigned ni = static_cast<unsigned>(surf.vertices.size() / 11);
+      const unsigned ni = static_cast<unsigned>(surf.vertices.size() / BB_VF);
       const float* q = &px[vi * 3];
-      const float vd[11] = {
-        q[0], q[1], q[2],
-        nrm.empty() ? 0.0f : nrm[vi * 3],
-        nrm.empty() ? 0.0f : nrm[vi * 3 + 1],
-        nrm.empty() ? 0.0f : nrm[vi * 3 + 2],
-        uv.empty() ? 0.0f : uv[vi * 2],
-        uv.empty() ? 0.0f : uv[vi * 2 + 1],
-        1, 1, 1
-      };
-      surf.vertices.insert(surf.vertices.end(), vd, vd + 11);
+      bb_vert_push_(surf, q[0], q[1], q[2],
+                    nrm.empty() ? 0.0f : nrm[vi * 3],
+                    nrm.empty() ? 0.0f : nrm[vi * 3 + 1],
+                    nrm.empty() ? 0.0f : nrm[vi * 3 + 2],
+                    uv.empty()  ? 0.0f : uv[vi * 2],
+                    uv.empty()  ? 0.0f : uv[vi * 2 + 1]);
       vm.emplace(vi, ni);
       return ni;
     };
