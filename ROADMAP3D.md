@@ -824,7 +824,26 @@ Sprachobjekt.
 ---
 
 ### 3D-15 · Surface API (Prozedurale Meshes)
-*Dateien: `bb_surface.h` (neu)*
+*Dateien: `bb_brush.h` (neu), `bb_surface.h` (neu)*
+
+**Teil 1 — Brushes als Sprachobjekte ✓ COMPLETE**
+
+- [x] `bb_Brush_` ist aus `bb_mesh_core.h` nach `bb_brush.h` gezogen und
+      um `blend` und `fx` erweitert; `bb_Entity_` haelt jetzt einen davon
+      statt sieben loser Felder — im Original ist das Aussehen einer
+      Entity genau ein Brush, `EntityColor` ruft `m->setColor`.
+- [x] `CreateBrush`, `LoadBrush`, `FreeBrush`, `BrushColor`, `BrushAlpha`,
+      `BrushShininess`, `BrushTexture`, `GetBrushTexture`, `BrushBlend`,
+      `BrushFX`, `PaintEntity`, `PaintMesh`, `GetEntityBrush`
+- [x] Flaechen- und Entitybrush werden nach der Formel aus
+      `blitz3d/brush.cpp` verrechnet: Farbe und Deckkraft mal, **Glanz
+      plus** (vorher das Groessere), Blend von der Entity falls gesetzt,
+      FX bitweise oder, Texturen von der Entity ueberschrieben.
+- [x] `EntityTexture` schreibt in den Brush der **Entity** statt in den
+      jeder Flaeche — im Bild dasselbe, aber die Flaeche behaelt ihre
+      eigene Textur.
+
+**Teil 2 — Flaechen und Vertices**
 
 - [ ] `bb_Surface_` ist ein Wrapper-Handle auf `bb_MeshData_` innerhalb einer `MeshEntity_`
 - [ ] `bb_CreateSurface(mesh, brush=0)` → surface handle

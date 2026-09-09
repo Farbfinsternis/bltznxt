@@ -19,27 +19,13 @@
 
 #include "bb_shader.h"
 #include "bb_texture.h"
+#include "bb_brush.h"   // bb_Brush_ liegt seit 3D-15 dort
 #include <cstdint>   // uintptr_t
 #include <vector>
 
 // ============================================================
 // bb_MeshData_ — CPU-side geometry + GPU handle set
 // ============================================================
-
-// Was eine Flaeche an Aussehen mitbringt. Im Original ist das der Brush:
-// LoadMesh legt fuer jedes Material eine eigene Flaeche an, und Flaechen
-// mit gleichem Brush fasst es zusammen (gemessen, siehe bb_loader.h).
-// Die Texturen haengen deshalb an der Flaeche und nicht an der Entity;
-// EntityTexture schreibt sie in alle Flaechen.
-struct bb_Brush_ {
-  float        r = 255.0f, g = 255.0f, b = 255.0f;
-  float        alpha     = 1.0f;
-  float        shininess = 0.0f;
-  // 3DS kennt zweiseitige Materialien (Chunk 0xA081); solche Flaechen
-  // werden ohne Rueckseitenentfernung gezeichnet (3D-13).
-  bool         twosided  = false;
-  bb_TexSlots_ tex;
-};
 
 struct bb_MeshData_ {
   std::vector<float>        vertices;  // interleaved, 11 floats per vertex

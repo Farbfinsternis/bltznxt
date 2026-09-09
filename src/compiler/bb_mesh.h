@@ -339,12 +339,32 @@ inline void bb_EntityTexture(int entity, int texture, int frame = 0, int index =
   auto* me = bb_mesh_ent_(entity);
   if (!me) return;
   if (index < 0 || index >= BB_TEX_SLOTS) return;
-  // Die Textur haengt an der Flaeche (am Brush), EntityTexture setzt sie in
-  // allen Flaechen des Netzes - ein Netz aus einer Datei kann mehrere haben.
-  for (auto& s : me->surfaces) {
-    s.brush.tex.tex[index]   = bb_texture_ref_(texture);
-    s.brush.tex.frame[index] = frame;
-  }
+  // Seit 3D-15 landet sie im Brush der **Entity** und nicht mehr in dem
+  // jeder Flaeche. Im Bild ist das dasselbe - beim Verrechnen ueberschreibt
+  // die Entity die Lage der Flaeche -, aber die Flaeche behaelt ihre eigene
+  // Textur. Vorher hat EntityTexture sie ueberschrieben, und ein
+  // GetSurfaceBrush danach haette die falsche gemeldet.
+  me->brush.tex.tex[index]   = bb_texture_ref_(texture);
+  me->brush.tex.frame[index] = frame;
+}
+
+// ============================================================
+// PaintMesh (3D-15)
+// ============================================================
+//
+// Legt den Brush in **jede** Flaeche des Netzes; im Original ist das
+// Rep::paint, eine Schleife ueber alle Surfaces mit setBrush. Auch hier
+// eine Kopie - spaetere Aenderungen am Brush erreichen das Netz nicht mehr.
+//
+// Der Unterschied zu PaintEntity ist genau der, den die Doku zu CreateBrush
+// beschreibt: PaintEntity faerbt das Ganze auf einen Schlag, PaintMesh
+// setzt das Aussehen jeder einzelnen Flaeche neu und macht damit
+// unterschiedliche Flaechen gleich.
+inline void bb_PaintMesh(int mesh, int brush) {
+  auto*      me = bb_mesh_ent_(mesh);
+  bb_Brush_* b  = bb_brush_get_(brush);
+  if (!me || !b) return;
+  for (auto& s : me->surfaces) s.brush = *b;
 }
 
 // ============================================================
@@ -789,19 +809,6 @@ static inline bool bb_tri_tri_hit_(const float* a0, const float* a1, const float
   return true;
 }
 
-// ---- PaintMesh ----
-
-// Brushes gibt es noch nicht (3D-15). Ein stiller Rueckfall waere hier
-// besonders irrefuehrend, weil PaintMesh das Aussehen aendern soll.
-inline void bb_PaintMesh(int /*mesh*/, int /*brush*/) {
-  static bool warned = false;
-  if (!warned) {
-    warned = true;
-    std::cerr << "[runtime] PaintMesh: Brushes sind noch nicht umgesetzt - "
-                 "ohne Wirkung (3D-13)\n";
-  }
-}
-
 // ============================================================
 // Render helper — called from bb_graphics3d.h per camera pass
 //
@@ -818,13 +825,16 @@ inline void bb_PaintMesh(int /*mesh*/, int /*brush*/) {
 // Vorgabemodus ist: ein Alphawert unter 1, ein anderer Blendmodus,
 // EntityFX 32 oder eine Texturlage mit Alphaflag.
 static inline bool bb_ent_translucent_(const bb_MeshEntity_* me) {
-  if (me->alpha < 1.0f)  return true;
-  if (me->blend != 1)    return true;
-  if (me->fx & 32)       return true;
+  if (me->brush.alpha < 1.0f) return true;
+  if (me->brush.blend >= 2)   return true;
+  if (me->brush.fx & 32)      return true;
   for (const auto& s : me->surfaces) {
-    if (s.brush.alpha < 1.0f) return true;
+    const bb_Brush_ br = bb_brush_combine_(s.brush, me->brush);
+    if (br.alpha < 1.0f) return true;
+    if (br.blend >= 2)   return true;
+    if (br.fx & 32)      return true;
     for (int i = 0; i < BB_TEX_SLOTS; ++i)
-      if (s.brush.tex.tex[i] && (s.brush.tex.tex[i]->flags & BB_TEX_ALPHA))
+      if (br.tex.tex[i] && (br.tex.tex[i]->flags & BB_TEX_ALPHA))
         return true;
   }
   return false;
@@ -834,7 +844,9 @@ static inline void bb_render_meshes_(bb_Shader_* shader,
                                       const float* view,
                                       const float* proj,
                                       const float* cam_pos) {
-  struct Item { bb_MeshEntity_* me; float alpha; float dist; bool translucent; };
+  // "fade" ist nur der Faktor aus EntityAutoFade; die Deckkraft entsteht
+  // erst je Flaeche aus dem verrechneten Brush.
+  struct Item { bb_MeshEntity_* me; float fade; float dist; bool translucent; };
   std::vector<Item> items;
   items.reserve(bb_entities_.size());
 
@@ -850,16 +862,18 @@ static inline void bb_render_meshes_(bb_Shader_* shader,
 
     // EntityAutoFade: gemessen alpha = (far - Abstand) / (far - near),
     // geklemmt, mit dem Abstand zum Ursprung des Entity.
-    float alpha = me->alpha;
+    float fade = 1.0f;
     if (me->fadeFar > me->fadeNear) {
       float f = (me->fadeFar - dist) / (me->fadeFar - me->fadeNear);
-      alpha *= (f < 0.0f) ? 0.0f : (f > 1.0f ? 1.0f : f);
+      fade = (f < 0.0f) ? 0.0f : (f > 1.0f ? 1.0f : f);
     }
     // Alpha 0 wird laut Doku gar nicht gezeichnet - und bleibt trotzdem fuer
     // Kollisionen vorhanden, anders als HideEntity.
-    if (alpha <= 0.0f) continue;
+    const float ent_alpha = me->brush.alpha * fade;
+    if (ent_alpha <= 0.0f) continue;
 
-    items.push_back({ me, alpha, dist, bb_ent_translucent_(me) || alpha < 1.0f });
+    items.push_back({ me, fade, dist,
+                      bb_ent_translucent_(me) || ent_alpha < 1.0f });
   }
 
   std::sort(items.begin(), items.end(), [](const Item& a, const Item& b) {
@@ -884,20 +898,13 @@ static inline void bb_render_meshes_(bb_Shader_* shader,
 
     // ---- Blending ----
     // Am Original gemessen: 1 = Alpha (Vorgabe), 2 = Multiply, 3 = Add. Der
-    // eigene Roadmap-Entwurf hatte 2 und 3 vertauscht.
+    // eigene Roadmap-Entwurf hatte 2 und 3 vertauscht. Der Modus selbst
+    // kommt seit 3D-15 je Flaeche aus dem verrechneten Brush.
     const bool want_blend = it.translucent;
     if (want_blend != blend_on) {
       blend_on = want_blend;
       if (want_blend) glEnable(GL_BLEND); else glDisable(GL_BLEND);
       blend_mode = 0;
-    }
-    if (want_blend && me->blend != blend_mode) {
-      blend_mode = me->blend;
-      switch (blend_mode) {
-        case 2:  glBlendFunc(GL_DST_COLOR, GL_ZERO);            break;
-        case 3:  glBlendFunc(GL_SRC_ALPHA, GL_ONE);             break;
-        default: glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-      }
     }
 
     // ---- Z-Puffer ----
@@ -908,30 +915,36 @@ static inline void bb_render_meshes_(bb_Shader_* shader,
       if (want_depth) glEnable(GL_DEPTH_TEST); else glDisable(GL_DEPTH_TEST);
     }
 
-    bb_shader_uniform_i(shader, "u_fx", me->fx);
-
-    // Farbe, Deckkraft, Glanz und Texturen kommen je Flaeche aus deren
-    // Brush und werden mit den Werten der Entity verrechnet - so wie im
-    // Original, wo EntityColor die Brushfarbe multipliziert.
+    // Jede Flaeche bringt ihren eigenen Brush mit; der wird mit dem der
+    // Entity verrechnet - Farbe und Deckkraft mal, Glanz plus, FX oder,
+    // Texturen von der Entity ueberschrieben. Die Formel steht in
+    // bb_brush.h und stammt aus blitz3d/brush.cpp.
     for (auto& surf : me->surfaces) {
-      const bb_Brush_& br = surf.brush;
+      const bb_Brush_ br = bb_brush_combine_(surf.brush, me->brush);
+
+      if (want_blend && br.blend != blend_mode) {
+        blend_mode = br.blend;
+        switch (blend_mode) {
+          case 2:  glBlendFunc(GL_DST_COLOR, GL_ZERO);            break;
+          case 3:  glBlendFunc(GL_SRC_ALPHA, GL_ONE);             break;
+          default: glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        }
+      }
 
       // Rueckseitenentfernung: das Original entfernt Rueckseiten
-      // (die Kamera im Wuerfel sieht den Hintergrund), EntityFX 16
-      // schaltet das je Entity ab - und ein zweiseitiges Material aus
-      // der Datei je Flaeche (3D-13).
-      const bool want_cull = ((me->fx & 16) == 0) && !br.twosided;
+      // (die Kamera im Wuerfel sieht den Hintergrund), FX 16 schaltet das
+      // ab - und ein zweiseitiges Material aus der Datei je Flaeche (3D-13).
+      const bool want_cull = ((br.fx & 16) == 0) && !br.twosided;
       if (want_cull != cull_on) {
         cull_on = want_cull;
         if (want_cull) glEnable(GL_CULL_FACE); else glDisable(GL_CULL_FACE);
       }
-      float color[4] = { me->colR * br.r / (255.0f * 255.0f),
-                         me->colG * br.g / (255.0f * 255.0f),
-                         me->colB * br.b / (255.0f * 255.0f),
-                         it.alpha * br.alpha };
-      bb_shader_uniform_f(shader, "u_shininess",
-                          (br.shininess > me->shininess) ? br.shininess
-                                                         : me->shininess);
+      bb_shader_uniform_i(shader, "u_fx", br.fx);
+      float color[4] = { br.r / 255.0f,
+                         br.g / 255.0f,
+                         br.b / 255.0f,
+                         br.alpha * it.fade };
+      bb_shader_uniform_f(shader, "u_shininess", br.shininess);
       bb_texture_bind_(shader, br.tex);
       bb_mesh_draw_(&surf, shader, mvp, me->world, color, nullptr);
       bb_tris_rendered_ += surf.triCount;

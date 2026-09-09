@@ -15,6 +15,7 @@
 #include <unordered_map>
 #include <vector>
 #include "bb_string.h"
+#include "bb_brush.h"   // bb_Brush_ - das Aussehen als Wert (3D-15)
 
 // ============================================================
 // Entity kind tag
@@ -39,17 +40,12 @@ struct bb_Entity_ {
   // ist der Z-Puffer fuer dieses Entity abgeschaltet.
   int      order   = 0;
 
-  // ---- Aussehen (3D-10) ----
-  // Vorgaben aus help/commands/3d_commands/: Farbe 255,255,255, Alpha 1,
-  // Shininess 0, Blend 1 (Alpha), FX 0. Farbe und Alpha sind Gleitkomma,
-  // weil das Original "EntityColor entity,red#,green#,blue#" fuehrt.
-  float    alpha     = 1.0f;
-  float    colR = 255.0f, colG = 255.0f, colB = 255.0f;
-  float    shininess = 0.0f;
-  int      blend     = 1;       // 1 = Alpha, 2 = Multiply, 3 = Add
-  int      fx        = 0;       // 1 Fullbright, 2 Vertexfarben, 4 Flat,
-                                // 8 kein Nebel, 16 keine Rueckseitenentfernung,
-                                // 32 Alphablending erzwingen
+  // ---- Aussehen (3D-10, seit 3D-15 ein Brush) ----
+  // Im Original ist das Aussehen einer Entity genau ein Brush: EntityColor
+  // ruft m->setColor, und das schreibt in den Brush des Modells. Hier steht
+  // es deshalb auch als einer - dann sind PaintEntity und GetEntityBrush
+  // nichts weiter als Zuweisung und Kopie.
+  bb_Brush_ brush;
   float    fadeNear = 0.0f, fadeFar = 0.0f;   // EntityAutoFade, 0/0 = aus
 
   // Local transform
@@ -683,7 +679,7 @@ inline void bb_EntityOrder(int h, int order) {
 inline void bb_EntityAlpha(int h, float alpha) {
   bb_Entity_* e = bb_entity_get_(h);
   if (!e) return;
-  e->alpha = (alpha < 0.0f) ? 0.0f : (alpha > 1.0f ? 1.0f : alpha);
+  e->brush.alpha = (alpha < 0.0f) ? 0.0f : (alpha > 1.0f ? 1.0f : alpha);
 }
 
 // 0-255, Vorgabe 255,255,255. Die Farbe wird mit dem Beleuchtungsergebnis
@@ -691,23 +687,49 @@ inline void bb_EntityAlpha(int h, float alpha) {
 inline void bb_EntityColor(int h, float r, float g, float b) {
   bb_Entity_* e = bb_entity_get_(h);
   if (!e) return;
-  e->colR = r; e->colG = g; e->colB = b;
+  e->brush.r = r; e->brush.g = g; e->brush.b = b;
 }
 
 inline void bb_EntityShininess(int h, float shininess) {
   bb_Entity_* e = bb_entity_get_(h);
-  if (e) e->shininess = shininess;
+  if (e) e->brush.shininess = shininess;
 }
 
-// 1 = Alpha (Vorgabe), 2 = Multiply, 3 = Add.
+// 1 = Alpha, 2 = Multiply, 3 = Add. Die Vorgabe ist 0 - "nicht gesetzt";
+// das Original leitet daraus "deckend" ab, solange weder die Deckkraft noch
+// eine Textur etwas anderes verlangt.
 inline void bb_EntityBlend(int h, int blend) {
   bb_Entity_* e = bb_entity_get_(h);
-  if (e) e->blend = blend;
+  if (e) e->brush.blend = blend;
 }
 
 inline void bb_EntityFX(int h, int fx) {
   bb_Entity_* e = bb_entity_get_(h);
-  if (e) e->fx = fx;
+  if (e) e->brush.fx = fx;
+}
+
+// ============================================================
+// Brush einer Entity (3D-15)
+// ============================================================
+
+// Legt den Brush **ab**, er wird nicht gemerkt: das Original ruft
+// m->setBrush( *b ) mit einer Wertklasse. Wer den Brush danach aendert,
+// aendert diese Entity nicht mehr. Und weil es der ganze Brush ist, setzt
+// PaintEntity auch Deckkraft, Glanz, Blend, FX und Texturen neu - ein
+// vorher gesetztes EntityColor ist danach weg.
+inline void bb_PaintEntity(int entity, int brush) {
+  bb_Entity_* e = bb_entity_get_(entity);
+  bb_Brush_*  b = bb_brush_get_(brush);
+  if (!e || !b) return;
+  e->brush = *b;
+}
+
+// Eine Kopie, kein Handle auf das Original - deshalb sagt die Doku, man
+// solle sie mit FreeBrush wieder loswerden.
+inline int bb_GetEntityBrush(int entity) {
+  bb_Entity_* e = bb_entity_get_(entity);
+  if (!e) return 0;
+  return bb_brush_register_(e->brush);
 }
 
 // Gemessen: alpha = (far - Abstand) / (far - near), geklemmt auf 0..1, wobei

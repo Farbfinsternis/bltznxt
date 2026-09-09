@@ -1,0 +1,20 @@
+grundfall
+entityalpha 0
+paintentity nach alpha 0
+brush nachtraeglich auf 0
+paintentity mit alpha 0
+paintentity mit frischem brush
+paintmesh mit alpha 0
+paintmesh mit alpha 1
+paintentity mit freigegebenem brush
+getentitybrush neues handle
+kopie geaendert, nicht aufgetragen
+kopie aufgetragen
+loadbrush fehlend
+loadbrush geladen
+getbrushtexture lage 0
+textur groesse
+getbrushtexture leere lage
+textur ueberlebt freetexture
+brushtexture ausserhalb ok
+fertig
