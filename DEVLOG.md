@@ -931,6 +931,65 @@ gelaufen.
 
 ---
 
+### Nachtrag (2026-09-09, BUG-64): der verschluckte Befehl vor dem Doppelpunkt
+
+Beim Schreiben des 3D-10-Tests scheiterte `UpdateWorld : RenderWorld` an einer
+Meldung von g++: `duplicate label 'lbl_updateworld'`. Der Parser las einen
+**Bezeichner vor einem Doppelpunkt als Sprungmarke** — aus zwei Befehlen wurden
+zwei gleichnamige Marken und **kein einziger Aufruf**.
+
+**Das Schlimme daran ist nicht der Fehler, sondern wie er sich zeigte.** Die
+Meldung kam nur, weil dieselbe Marke zweimal in einer Funktion stand. Bei einem
+einzigen Vorkommen uebersetzte das Programm anstandslos und der Befehl war weg.
+`compare_samples.sh` konnte diese Klasse nie sehen: dort laeuft nur das
+Frontend, und das Frontend nahm die Programme an.
+
+**Das Original kennt die Schreibweise gar nicht.** Gemessen: `meinlabel:` in
+eigener Zeile ergibt dort `Function 'meinlabel' not found` — der Bezeichner ist
+ein Aufruf, der Doppelpunkt der Anweisungstrenner. Sprungmarken schreibt
+Blitz3D ausschliesslich als `.name`; `.meinlabel` mit `Goto meinlabel` wird
+angenommen. Der Zweig im Parser war also von Anfang an eine Zutat, die es in
+der Sprache nicht gibt — eingebaut in Milestone 11 und im DEVLOG damals sogar
+ausdruecklich als „colon-label" vermerkt.
+
+Der Zweig ist ersatzlos entfernt. Ein Bezeichner vor `:` faellt jetzt in den
+Aufrufpfad, dessen Argumentschleife ohnehin am `:` endet — ein parameterloser
+Befehl vor dem Trenner ergibt damit einen Aufruf ohne Argumente.
+
+**Was das an echtem Fremdcode bewirkt.** Acht der 130 mitgelieferten
+Beispielprogramme enthalten die Form; fuenf davon kommen bei uns durchs
+Frontend, und bei allen fuenf faellt die falsche Marke weg. Das schoenste
+Beispiel steht in `samples/AGore/start.bb`:
+
+```blitzbasic
+If cnt=0 Print "No 3D Graphics modes detected.":WaitKey:End
+```
+
+Vorher wurde `WaitKey` verschluckt — die Fehlermeldung waere also unlesbar
+durchgeblitzt und das Programm sofort beendet, was genau wie ein Absturz
+aussieht. Jetzt steht `bb_WaitKey();` im Emittat.
+
+**`tests/test_goto.bb` hat die Fehlannahme gedeckt.** Die Datei pruefte die
+Doppelpunktform ausdruecklich („Test 1: Goto + colon-label on same line") und
+stand deshalb schon laenger in der Fundliste von `compare_reference.sh` — dort
+allerdings wegen `Goto .done`, sodass der eigentliche Grund nie auffiel. Sie
+ist jetzt auf `.label` umgeschrieben und damit gueltiges Blitz3D; ihre
+`.expected` bleibt unveraendert, das Verhalten ist also dasselbe.
+
+**Nicht mitgeaendert:** `Goto .label` und `Gosub .label` nehmen wir weiterhin
+an, obwohl das Original sie mit `Expecting identifier` ablehnt. Das ist „wir
+laxer" — eine Entscheidung, kein stilles Falschergebnis, und der neue
+`test_goto.bb` sagt das im Kopf.
+
+**Abgesichert:** Emittatvergleich alt/neu ueber 91 Programme — **90 identisch,
+1 abweichend**, und das eine ist der neue Test. 44 Negativtests mit woertlich
+gleicher Diagnose. Alle **71 `.expected` und 33 `.expected_err` gruen**.
+`compare_reference.sh`: „wir nehmen an, das Original lehnt ab" **8 → 7**,
+gleiches Urteil **123 → 125**. Gegenprobe: `tests/test_bug64_colon_call.bb`
+scheitert mit dem alten Compiler und wird vom Original angenommen.
+
+---
+
 ### Parser: colon as statement separator — If/Else bug fixed
 
 Colon (`:`) already worked as a statement separator in the main loop via
@@ -1952,6 +2011,8 @@ All `Data` statements across the entire program form **one flat sequential pool*
 - **`GosubStmt` AST node** — stores lowercase label name
 - **Parser — `:` separator** — `skipNewlines()` now also skips `OPERATOR(":")` tokens; call-arg loop and `parseReturn()` stop at `:`
 - **Parser — label detection** — at statement level: `OPERATOR(".")` + ID → dot-label; ID + `OPERATOR(":")` → colon-label
+  *(Die Doppelpunktform ist am 2026-09-09 mit BUG-64 wieder entfernt worden: das
+  Original kennt sie nicht, und sie verschluckte den Befehl in `RenderWorld : Flip`.)*
 - **Parser — GOTO / GOSUB** — both accept `Goto label` and `Goto .label` forms
 - **Emitter — LabelStmt** → `lbl_name:;` (null statement satisfies C++ label grammar)
 - **Emitter — GotoStmt** → `goto lbl_name;`

@@ -1,13 +1,24 @@
 ; Milestone 11: Goto, Gosub, Return (Legacy Flow)
+;
+; Sprungmarken schreibt Blitz3D ausschliesslich als ".name" - gemessen am
+; Original: "skip:" in eigener Zeile ergibt dort "Function 'skip' not found",
+; der Bezeichner ist also ein Aufruf und der Doppelpunkt der Anweisungstrenner
+; (BUG-64). Bis 2026-09-09 stand hier die Doppelpunktform und hat diese
+; Fehlannahme gedeckt.
+;
+; Nach Goto und Gosub steht der Name **ohne** Punkt; "Goto .done" lehnt das
+; Original mit "Expecting identifier" ab. Wir nehmen beide Formen an - das ist
+; eine bewusste Grosszuegigkeit, aber diese Datei bleibt bei der Schreibweise
+; des Originals, damit sie gueltiges Blitz3D ist.
 
-; --- Test 1: Goto + colon-label on same line ---
+; --- Test 1: Goto vorwaerts ---
 Goto skip
 Print "SKIP"
-skip:
+.skip
 Print "OK"
 
-; --- Test 2: Goto with dot-label syntax ---
-Goto .done
+; --- Test 2: Goto ueber eine zweite Marke ---
+Goto done
 Print "SKIP2"
 .done
 Print "OK2"
@@ -17,9 +28,9 @@ Gosub greet
 Print "Back from Gosub"
 Goto endprog
 
-greet:
+.greet
 Print "Hello from Gosub"
 Return
 
-endprog:
+.endprog
 Print "Done"

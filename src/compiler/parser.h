@@ -260,15 +260,19 @@ private:
     if (t.type == TokenType::ID) {
       Token nameTok = advance();
 
-      // labelname: → LabelStmt (must check before type-hint consumption)
-      if (peek().type == TokenType::OPERATOR && peek().value == ":") {
-        advance(); // consume ':'
-        std::string lo = nameTok.value;
-        std::transform(lo.begin(), lo.end(), lo.begin(), ::tolower);
-        auto s = std::make_unique<LabelStmt>(lo);
-        s->line = nameTok.line;
-        return s;
-      }
+      // Ein Bezeichner vor einem Doppelpunkt ist KEINE Sprungmarke (BUG-64).
+      // Bis 2026-09-09 stand hier ein Zweig, der genau das annahm - damit
+      // wurde aus "UpdateWorld : RenderWorld" zweimal die Marke
+      // "lbl_updateworld" und **kein einziger Aufruf**. Der Befehl verschwand
+      // lautlos; aufgefallen ist es nur, weil g++ ueber die doppelte Marke
+      // stolperte. Gemessen am Original: "meinlabel:" in eigener Zeile ergibt
+      // dort "Function 'meinlabel' not found" - der Bezeichner ist ein
+      // Aufruf, der Doppelpunkt der Anweisungstrenner. Sprungmarken schreibt
+      // Blitz3D ausschliesslich als ".name" (siehe den Zweig weiter oben).
+      //
+      // Ohne den Zweig faellt der Bezeichner in den Aufrufpfad unten, dessen
+      // Argumentschleife ohnehin am ":" endet - ein parameterloser Befehl vor
+      // dem Trenner ergibt also einen Aufruf ohne Argumente.
 
       // Optional type-hint suffix on the variable name (x#, s$, n%, f!) and,
       // since BUG-47, the object tag "p.T". The reference reads every variable
