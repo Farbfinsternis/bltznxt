@@ -77,21 +77,48 @@ static inline void bb_mesh_push_quad_(bb_MeshData_& m,
 // bb_gen_cube_ — unit cube [-1,+1] on each axis, 6 quads
 // ============================================================
 
+// Die 24 Vertices stehen hier Zeile fuer Zeile so, wie das Original sie
+// meldet - Reihenfolge der Flaechen, Reihenfolge der Ecken, Normalen und
+// Texturkoordinaten (BUG-65, gemessen ueber GetSurface und die
+// Vertex-Getter, siehe Buglist). Jede Flaeche laeuft von der oberen linken
+// Ecke im Uhrzeigersinn: (0,0), (1,0), (1,1), (0,1).
+//
+// **Die Dreiecke laufen dabei andersherum als im Original.** Unser
+// Renderer spiegelt die z-Achse in der Sichtmatrix (Entities blicken nach
+// +Z, GL nach -Z), und dadurch ist bei uns die im Modellraum
+// LINKSHAENDIG nach aussen zeigende Umlaufrichtung die vordere. Das ist
+// keine Vermutung: mit der Reihenfolge des Originals wird jede Flaeche
+// weggeschnitten, und die Netze aus den Loadern - die dieselbe Konvention
+// tragen wie das Original - werden bei uns nur deshalb richtig gezeichnet,
+// weil die Loadermatrix die Haendigkeit umkehrt. Gemessen wird das ueber
+// die Breite der Silhouette mit und ohne EntityFX 16.
+//
+// TriangleVertex meldet dadurch (0,2,1) statt (0,1,2). Das ist die einzige
+// bewusste Abweichung; die Vertextabelle selbst stimmt Zahl fuer Zahl.
 static inline bb_MeshData_ bb_gen_cube_() {
   bb_MeshData_ m;
 
-  // +X face
-  bb_mesh_push_quad_(m,  1,-1,-1, 0,1,  1, 1,-1, 0,0,  1, 1, 1, 1,0,  1,-1, 1, 1,1,  1,0,0);
-  // -X face
-  bb_mesh_push_quad_(m, -1,-1, 1, 0,1, -1, 1, 1, 0,0, -1, 1,-1, 1,0, -1,-1,-1, 1,1, -1,0,0);
-  // +Y face
-  bb_mesh_push_quad_(m, -1, 1,-1, 0,1,  1, 1,-1, 0,0,  1, 1, 1, 1,0, -1, 1, 1, 1,1,  0,1,0);
-  // -Y face
-  bb_mesh_push_quad_(m, -1,-1, 1, 0,1,  1,-1, 1, 0,0,  1,-1,-1, 1,0, -1,-1,-1, 1,1,  0,-1,0);
-  // +Z face
-  bb_mesh_push_quad_(m, -1,-1, 1, 0,1, -1, 1, 1, 0,0,  1, 1, 1, 1,0,  1,-1, 1, 1,1,  0,0,1);
-  // -Z face
-  bb_mesh_push_quad_(m,  1,-1,-1, 0,1,  1, 1,-1, 0,0, -1, 1,-1, 1,0, -1,-1,-1, 1,1,  0,0,-1);
+  struct Ecke { float x, y, z, u, v; };
+  struct Flaeche { float nx, ny, nz; Ecke e[4]; };
+  static const Flaeche flaechen[6] = {
+    { 0,0,-1, { {-1, 1,-1, 0,0}, { 1, 1,-1, 1,0}, { 1,-1,-1, 1,1}, {-1,-1,-1, 0,1} } },
+    { 1,0, 0, { { 1, 1,-1, 0,0}, { 1, 1, 1, 1,0}, { 1,-1, 1, 1,1}, { 1,-1,-1, 0,1} } },
+    { 0,0, 1, { { 1, 1, 1, 0,0}, {-1, 1, 1, 1,0}, {-1,-1, 1, 1,1}, { 1,-1, 1, 0,1} } },
+    {-1,0, 0, { {-1, 1, 1, 0,0}, {-1, 1,-1, 1,0}, {-1,-1,-1, 1,1}, {-1,-1, 1, 0,1} } },
+    { 0,1, 0, { {-1, 1, 1, 0,0}, { 1, 1, 1, 1,0}, { 1, 1,-1, 1,1}, {-1, 1,-1, 0,1} } },
+    { 0,-1,0, { {-1,-1,-1, 0,0}, { 1,-1,-1, 1,0}, { 1,-1, 1, 1,1}, {-1,-1, 1, 0,1} } },
+  };
+
+  for (const Flaeche& f : flaechen) {
+    const unsigned base = static_cast<unsigned>(m.vertices.size() / BB_VF);
+    for (const Ecke& e : f.e)
+      bb_vert_push_(m, e.x, e.y, e.z, f.nx, f.ny, f.nz, e.u, e.v);
+    // Gegen den Umlaufsinn des Originals - siehe oben.
+    m.indices.push_back(base);     m.indices.push_back(base + 2);
+    m.indices.push_back(base + 1);
+    m.indices.push_back(base);     m.indices.push_back(base + 3);
+    m.indices.push_back(base + 2);
+  }
 
   m.dirty = true;
   return m;
@@ -200,7 +227,7 @@ static inline bb_MeshData_ bb_gen_cylinder_(int segs, bool open) {
       unsigned int b = static_cast<unsigned int>(m.vertices.size() / BB_VF);
       bb_vert_push_(m, x0,1,z0, 0,1,0, 0.5f+0.5f*x0, 0.5f-0.5f*z0);
       bb_vert_push_(m, x1,1,z1, 0,1,0, 0.5f+0.5f*x1, 0.5f-0.5f*z1);
-      m.indices.push_back(center); m.indices.push_back(b+1); m.indices.push_back(b);
+      m.indices.push_back(center); m.indices.push_back(b); m.indices.push_back(b+1);
     }
 
     // Bottom cap (-Y)
@@ -213,7 +240,7 @@ static inline bb_MeshData_ bb_gen_cylinder_(int segs, bool open) {
       unsigned int b = static_cast<unsigned int>(m.vertices.size() / BB_VF);
       bb_vert_push_(m, x0,-1,z0, 0,-1,0, 0.5f+0.5f*x0, 0.5f+0.5f*z0);
       bb_vert_push_(m, x1,-1,z1, 0,-1,0, 0.5f+0.5f*x1, 0.5f+0.5f*z1);
-      m.indices.push_back(center); m.indices.push_back(b); m.indices.push_back(b+1);
+      m.indices.push_back(center); m.indices.push_back(b+1); m.indices.push_back(b);
     }
   }
 
@@ -267,7 +294,7 @@ static inline bb_MeshData_ bb_gen_cone_(int segs, bool open) {
       unsigned int b = static_cast<unsigned int>(m.vertices.size() / BB_VF);
       bb_vert_push_(m, x0,-1,z0, 0,-1,0, 0.5f+0.5f*x0, 0.5f+0.5f*z0);
       bb_vert_push_(m, x1,-1,z1, 0,-1,0, 0.5f+0.5f*x1, 0.5f+0.5f*z1);
-      m.indices.push_back(center); m.indices.push_back(b); m.indices.push_back(b+1);
+      m.indices.push_back(center); m.indices.push_back(b+1); m.indices.push_back(b);
     }
   }
 
