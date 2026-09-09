@@ -394,42 +394,134 @@ inline float bb_MeshDepth(int h) {
 // Render helper — called from bb_graphics3d.h per camera pass
 // ============================================================
 
+// ============================================================
+// Render helper — called from bb_graphics3d.h per camera pass
+//
+// Zeichenreihenfolge (3D-10), am Original nachgemessen:
+//   1. EntityOrder absteigend - ein Wert > 0 wird zuerst und damit hinter
+//      allem gezeichnet, ein Wert < 0 zuletzt und damit vor allem. Bei einem
+//      Wert ungleich 0 ist ausserdem der Z-Puffer abgeschaltet.
+//   2. Innerhalb derselben Ordnung erst die deckenden, dann die
+//      durchscheinenden Flaechen von hinten nach vorn. Ohne das zeigt eine
+//      Glasscheibe, was zufaellig vor ihr gezeichnet wurde.
+// ============================================================
+
+// Braucht dieses Entity Blending? Alles, was nicht deckend Alpha 1 im
+// Vorgabemodus ist: ein Alphawert unter 1, ein anderer Blendmodus,
+// EntityFX 32 oder eine Texturlage mit Alphaflag.
+static inline bool bb_ent_translucent_(const bb_MeshEntity_* me) {
+  if (me->alpha < 1.0f)  return true;
+  if (me->blend != 1)    return true;
+  if (me->fx & 32)       return true;
+  for (int i = 0; i < BB_TEX_SLOTS; ++i)
+    if (me->tex.tex[i] && (me->tex.tex[i]->flags & BB_TEX_ALPHA)) return true;
+  return false;
+}
+
 static inline void bb_render_meshes_(bb_Shader_* shader,
                                       const float* view,
-                                      const float* proj) {
-  float color[4] = { 1, 1, 1, 1 };
-  bool  blend_on = false;
+                                      const float* proj,
+                                      const float* cam_pos) {
+  struct Item { bb_MeshEntity_* me; float alpha; float dist; bool translucent; };
+  std::vector<Item> items;
+  items.reserve(bb_entities_.size());
 
   for (auto& [h, ent] : bb_entities_) {
     if (!ent->visible) continue;
     if (ent->kind() != bb_EntityKind_::Mesh) continue;
     auto* me = static_cast<bb_MeshEntity_*>(ent.get());
 
-    // MVP = proj * view * model
-    float vm[16], mvp[16];
-    mat4_mul_(vm,  proj, view);
-    mat4_mul_(mvp, vm,   me->world);
+    float dx = me->world[12] - cam_pos[0];
+    float dy = me->world[13] - cam_pos[1];
+    float dz = me->world[14] - cam_pos[2];
+    float dist = sqrtf(dx*dx + dy*dy + dz*dz);
 
-    // Texturen der Entity auf die Kanaele legen. Eine Lage mit Alphaflag
-    // braucht Blending; sortiert wird noch nicht, das kommt mit EntityBlend
-    // und EntityOrder (3D-10).
-    const bool blend = bb_texture_bind_(shader, me->tex);
-    if (blend != blend_on) {
-      blend_on = blend;
-      if (blend) {
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-      } else {
-        glDisable(GL_BLEND);
+    // EntityAutoFade: gemessen alpha = (far - Abstand) / (far - near),
+    // geklemmt, mit dem Abstand zum Ursprung des Entity.
+    float alpha = me->alpha;
+    if (me->fadeFar > me->fadeNear) {
+      float f = (me->fadeFar - dist) / (me->fadeFar - me->fadeNear);
+      alpha *= (f < 0.0f) ? 0.0f : (f > 1.0f ? 1.0f : f);
+    }
+    // Alpha 0 wird laut Doku gar nicht gezeichnet - und bleibt trotzdem fuer
+    // Kollisionen vorhanden, anders als HideEntity.
+    if (alpha <= 0.0f) continue;
+
+    items.push_back({ me, alpha, dist, bb_ent_translucent_(me) || alpha < 1.0f });
+  }
+
+  std::sort(items.begin(), items.end(), [](const Item& a, const Item& b) {
+    if (a.me->order != b.me->order) return a.me->order > b.me->order;
+    if (a.translucent != b.translucent) return !a.translucent;
+    if (a.translucent) return a.dist > b.dist;   // hinten zuerst
+    return false;
+  });
+
+  bool  blend_on   = false;
+  int   blend_mode = 0;
+  bool  cull_on    = true;
+  bool  depth_on   = true;
+  float vm[16];
+  mat4_mul_(vm, proj, view);
+
+  for (const Item& it : items) {
+    bb_MeshEntity_* me = it.me;
+
+    float mvp[16];
+    mat4_mul_(mvp, vm, me->world);
+
+    // Texturen der Entity auf die Kanaele legen.
+    const bool tex_alpha = bb_texture_bind_(shader, me->tex);
+
+    // ---- Blending ----
+    // Am Original gemessen: 1 = Alpha (Vorgabe), 2 = Multiply, 3 = Add. Der
+    // eigene Roadmap-Entwurf hatte 2 und 3 vertauscht.
+    const bool want_blend = it.translucent || tex_alpha;
+    if (want_blend != blend_on) {
+      blend_on = want_blend;
+      if (want_blend) glEnable(GL_BLEND); else glDisable(GL_BLEND);
+      blend_mode = 0;
+    }
+    if (want_blend && me->blend != blend_mode) {
+      blend_mode = me->blend;
+      switch (blend_mode) {
+        case 2:  glBlendFunc(GL_DST_COLOR, GL_ZERO);            break;
+        case 3:  glBlendFunc(GL_SRC_ALPHA, GL_ONE);             break;
+        default: glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
       }
     }
+
+    // ---- Rueckseitenentfernung ----
+    // Gemessen: das Original entfernt Rueckseiten (die Kamera im Wuerfel
+    // sieht den Hintergrund), EntityFX 16 schaltet das ab.
+    const bool want_cull = (me->fx & 16) == 0;
+    if (want_cull != cull_on) {
+      cull_on = want_cull;
+      if (want_cull) glEnable(GL_CULL_FACE); else glDisable(GL_CULL_FACE);
+    }
+
+    // ---- Z-Puffer ----
+    // Laut Doku schaltet eine Ordnung ungleich 0 das Z-Buffering ab.
+    const bool want_depth = (me->order == 0);
+    if (want_depth != depth_on) {
+      depth_on = want_depth;
+      if (want_depth) glEnable(GL_DEPTH_TEST); else glDisable(GL_DEPTH_TEST);
+    }
+
+    float color[4] = { me->colR / 255.0f, me->colG / 255.0f,
+                       me->colB / 255.0f, it.alpha };
+    bb_shader_uniform_i(shader, "u_fx",        me->fx);
+    bb_shader_uniform_f(shader, "u_shininess", me->shininess);
 
     for (auto& surf : me->surfaces) {
       bb_mesh_draw_(&surf, shader, mvp, me->world, color, nullptr);
       bb_tris_rendered_ += surf.triCount;
     }
   }
-  if (blend_on) glDisable(GL_BLEND);
+
+  if (blend_on)  glDisable(GL_BLEND);
+  if (!cull_on)  glEnable(GL_CULL_FACE);
+  if (!depth_on) glEnable(GL_DEPTH_TEST);
 }
 
 #endif // BB_MESH_H

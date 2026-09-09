@@ -849,6 +849,88 @@ und alle nicht blockierenden 3D-Tests neu gebaut und gelaufen.
 
 ---
 
+### Nachtrag (2026-09-09, 3D-10): Aussehen der Entities
+
+`EntityAlpha` steht in **35**, `EntityFX` in **29**, `EntityColor` in **25** der
+130 mitgelieferten Beispielprogramme. Neu sind die sechs Befehle, die
+Zeichenreihenfolge und die Rueckseitenentfernung.
+
+**Der eigene Roadmap-Entwurf hatte `EntityBlend` 2 und 3 vertauscht** — dort
+stand „1=Normal, 2=Additive, 3=Multiply", `EntityBlend.htm` fuehrt
+`1 Alpha, 2 Multiply, 3 Add`. Jeder Laserstrahl und jedes Feuer waere
+multiplikativ gezeichnet worden (also unsichtbar dunkel) und jeder Schatten
+additiv. Das ist innerhalb von drei Schritten das dritte Mal, dass der eigene
+Entwurf eine Zahlentabelle erfunden hat, die in der mitgelieferten Doku
+danebensteht — nach den Texturflags (3D-11) und dem Lichttyp (3D-12).
+
+**Diesmal habe ich nicht nur nachgeschlagen, sondern durchgerechnet.** 38
+Faelle im laufenden Original gemessen, wieder ueber `ReadPixel` in eine
+Textdatei; 34 davon durch unsere Runtime nachgestellt und mit `glReadPixels`
+zurueckgelesen. **34 von 34 Bildpunkten stimmen zeichengenau ueberein.** Zwei
+Befunde haetten sich anders nicht zeigen koennen:
+
+**Geklemmt wird nach der Multiplikation mit der Entityfarbe, nicht davor.**
+Farbe 255,128,0, ein volles Licht, Umgebungslicht 64,32,16 — das Original
+liefert **255,144,0**. Der Gruenanteil steigt also *ueber* die eingestellten
+128 hinaus, weil erst `(Licht + Umgebung) * Farbe` gerechnet und dann geklemmt
+wird. Unser Shader klemmte das Licht zuerst und haette 128 geliefert. Die
+Differenz ist klein genug, um beim Hinsehen durchzugehen, und gross genug, um
+jede helle Szene anders aussehen zu lassen.
+
+**Eine Szene ohne Licht ist mittelgrau, nicht weiss.** Ein weisser Wuerfel ohne
+jedes Licht und ohne `AmbientLight` kommt im Original als **127,127,127**
+heraus — genau die Vorgabe von `AmbientLight`, die 3D-12 schon aus der Doku
+uebernommen hatte. Bei uns war er weiss, weil ohne Licht der TEXTURED-Shader
+zeichnete und der das Umgebungslicht gar nicht kennt. Netze zeichnet jetzt
+immer der LIT-Shader; mit `AmbientLight 0,0,0` ist der Wuerfel schwarz, mit
+`255,255,255` weiss, dazwischen linear — alle drei gemessen.
+
+Weiter gemessen und uebernommen: full-bright ignoriert **auch** das
+Umgebungslicht; Rueckseiten werden entfernt (eine Kamera im Inneren eines
+Wuerfels sieht dort den Hintergrund, mit `EntityFX 16` die Innenseiten);
+`EntityAutoFade` rechnet `alpha = (far − Abstand) / (far − near)` mit dem
+Abstand zum **Ursprung** des Entity (bei `5,10` gemessen: 1.0, 0.8, 0.6, 0.4,
+0.2, 0 an den Ganzzahlpunkten); `EntityOrder > 0` zeichnet zuerst und damit
+hinter allem, `< 0` zuletzt und damit vor allem.
+
+**Drei Nebenbefunde, alle mit Zahlen belegt und als Fehler festgehalten:**
+
+- **BUG-64: `RenderWorld : Flip` verliert den Befehl.** Unser Parser liest
+  einen Bezeichner vor einem Doppelpunkt als Sprungmarke; `UpdateWorld :
+  RenderWorld` erzeugt zweimal `lbl_updateworld:` und **keinen einzigen
+  Aufruf**. Aufgefallen ist es nur, weil g++ ueber die doppelte Marke
+  stolperte — bei einem einzigen Vorkommen waere der Befehl lautlos
+  verschwunden. Das Original kennt die Schreibweise gar nicht: `meinlabel:`
+  ergibt dort `Function 'meinlabel' not found`, Sprungmarken sind
+  ausschliesslich `.name`. Acht der 130 Beispielprogramme sind betroffen. Der
+  eigene Test umgeht die Form bewusst und sagt im Kopf, warum.
+  **`compare_samples.sh` kann diese Klasse nicht sehen**, weil dort nur das
+  Frontend laeuft und das Frontend die Programme annimmt.
+- **BUG-65: die Texturkoordinaten von `CreateCube` sind gespiegelt.** Derselbe
+  Aufbau in beiden Systemen, Textur mit schwarzer linker Haelfte: das Original
+  zeigt links schwarz, wir links rot. Die Geometrie stimmt — ein Wuerfel bei
+  `x=+2` erscheint in beiden Systemen rechts —, es ist die UV-Belegung der
+  Flaeche.
+- **BUG-66: `EntityShininess` rechnet je Bildpunkt, das Original je Vertex.**
+  Im Original wird der Glanzpunkt mit **steigendem** Shininess *dunkler*
+  (64 → 93 → 91 → 75 bei 0, 0.25, 0.5, 1), obwohl die Flaeche genau in die
+  Spiegelrichtung zeigt. Das geht nur, wenn je Vertex gerechnet und
+  interpoliert wird. Bis zu diesem Schritt tat `EntityShininess` bei uns
+  ueberhaupt nichts, weil `u_shininess` nie hochgeladen wurde.
+
+**Wirkung:** unbekannte Befehle **124 → 118** verschieden und **2057 → 1814**
+Vorkommen; sechs Befehle sind verschwunden, keiner neu. Vollstaendig
+uebersetzende Beispieldateien bleiben bei 36 — die 35 Dateien mit `EntityAlpha`
+brauchen zusaetzlich Netze aus Dateien und das Brush-System.
+
+**Abgesichert:** Emittatvergleich alt/neu ueber 90 Programme (89 identisch, 0
+abweichend, 1 nur vom alten Compiler abgelehnt — der neue Test, also die
+Gegenprobe), 44 Negativtests mit gleicher Diagnose, `compare_reference.sh`
+ohne neue Abweichung, alle nicht blockierenden 3D-Tests neu gebaut und
+gelaufen.
+
+---
+
 ### Parser: colon as statement separator — If/Else bug fixed
 
 Colon (`:`) already worked as a statement separator in the main loop via

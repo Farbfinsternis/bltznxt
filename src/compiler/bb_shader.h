@@ -204,11 +204,14 @@ static constexpr const char* BB_GLSL_TEXTURED_VERT = R"glsl(
 #version 330 core
 layout(location = 0) in vec3 a_pos;
 layout(location = 2) in vec2 a_uv;
+layout(location = 3) in vec3 a_color;
 uniform mat4 u_mvp;
+out vec3 v_color;
 )glsl";
 
 static constexpr const char* BB_GLSL_TEXTURED_VERT_MAIN = R"glsl(
 void main() {
+    v_color = a_color;
     bb_tex_vert(a_uv);
     gl_Position = u_mvp * vec4(a_pos, 1.0);
 }
@@ -217,12 +220,17 @@ void main() {
 static constexpr const char* BB_GLSL_TEXTURED_FRAG = R"glsl(
 #version 330 core
 uniform vec4 u_color;
+uniform int  u_fx;
+in vec3 v_color;
 )glsl";
 
 static constexpr const char* BB_GLSL_TEXTURED_FRAG_MAIN = R"glsl(
 out vec4 frag_color;
 void main() {
-    frag_color = bb_tex_apply(u_color);
+    // EntityFX 2: Vertexfarbe statt Entityfarbe.
+    vec4 base = u_color;
+    if ((u_fx & 2) != 0) base.rgb = v_color;
+    frag_color = clamp(bb_tex_apply(base), 0.0, 1.0);
 }
 )glsl";
 
@@ -240,10 +248,14 @@ static constexpr const char* BB_GLSL_LIT_VERT = R"glsl(
 layout(location = 0) in vec3 a_pos;
 layout(location = 1) in vec3 a_normal;
 layout(location = 2) in vec2 a_uv;
+layout(location = 3) in vec3 a_color;
 uniform mat4 u_mvp;
 uniform mat4 u_model;
 out vec3 v_pos;
 out vec3 v_normal;
+// EntityFX 4 (flatshaded) braucht dieselbe Normale ohne Interpolation.
+flat out vec3 v_normal_flat;
+out vec3 v_color;
 )glsl";
 
 static constexpr const char* BB_GLSL_LIT_VERT_MAIN = R"glsl(
@@ -251,6 +263,8 @@ void main() {
     vec4 wp  = u_model * vec4(a_pos, 1.0);
     v_pos    = wp.xyz;
     v_normal = mat3(u_model) * a_normal;
+    v_normal_flat = v_normal;
+    v_color  = a_color;
     bb_tex_vert(a_uv);
     gl_Position = u_mvp * vec4(a_pos, 1.0);
 }
@@ -276,13 +290,31 @@ uniform int   u_light_type[8];
 uniform vec3  u_light_dir[8];
 uniform float u_light_cos_inner[8];
 uniform float u_light_cos_outer[8];
+
+uniform int   u_fx;          // EntityFX (3D-10)
+flat in vec3  v_normal_flat;
+in vec3       v_color;
 )glsl";
 
 static constexpr const char* BB_GLSL_LIT_FRAG_MAIN = R"glsl(
 out vec4 frag_color;
 
 void main() {
-    vec3 N      = normalize(v_normal);
+    // EntityFX 2: Vertexfarbe statt Entityfarbe (die Deckkraft bleibt).
+    vec4 base = u_color;
+    if ((u_fx & 2) != 0) base.rgb = v_color;
+    base = bb_tex_apply(base);
+
+    // EntityFX 1 (full-bright): weder Lichter noch Umgebungslicht. Gemessen:
+    // die Flaeche zeigt genau die Entityfarbe, auch bei gesetztem
+    // AmbientLight.
+    if ((u_fx & 1) != 0) {
+        frag_color = clamp(base, 0.0, 1.0);
+        return;
+    }
+
+    // EntityFX 4 (flatshaded): dieselbe Normale fuer das ganze Dreieck.
+    vec3 N      = normalize(((u_fx & 4) != 0) ? v_normal_flat : v_normal);
     vec3 V      = normalize(u_view_pos - v_pos);
     vec3 result = u_ambient;
 
@@ -320,8 +352,12 @@ void main() {
         }
     }
 
-    vec4 base = bb_tex_apply(u_color);
-    frag_color = vec4(clamp(result, 0.0, 1.0) * base.rgb, base.a);
+    // Geklemmt wird **nach** der Multiplikation mit der Entityfarbe, nicht
+    // davor. Am Original gemessen: Farbe 255,128,0 mit einem vollen Licht und
+    // Umgebungslicht 64,32,16 ergibt 255,144,0 - der Gruenanteil steigt also
+    // ueber 128 hinaus. Mit der umgekehrten Reihenfolge waere es 128
+    // geblieben.
+    frag_color = vec4(clamp(result * base.rgb, 0.0, 1.0), base.a);
 }
 )glsl";
 

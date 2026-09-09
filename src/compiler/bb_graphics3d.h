@@ -170,6 +170,13 @@ inline void bb_RenderWorld(float tween = 1.0f) {
   glEnable(GL_DEPTH_TEST);
   glDepthFunc(GL_LESS);
 
+  // Rueckseiten werden entfernt - am Original gemessen: eine Kamera im Inneren
+  // eines Wuerfels sieht dort den Hintergrund, nicht die Innenseiten.
+  // EntityFX 16 schaltet es je Entity wieder ab (3D-10).
+  glEnable(GL_CULL_FACE);
+  glCullFace(GL_BACK);
+  glFrontFace(GL_CCW);
+
   for (auto* cam : cams) {
     // Viewport — Blitz3D y=0 is top-left; GL y=0 is bottom-left, so flip.
     int vw = (cam->vpW > 0) ? cam->vpW : bb_gfx_width_;
@@ -195,18 +202,21 @@ inline void bb_RenderWorld(float tween = 1.0f) {
     else
       bb_cam_proj_persp_(cam, aspect);
 
-    // Sichtbare Lichter einsammeln und den passenden Shader waehlen. Ohne
-    // Licht zeichnet der TEXTURED-Shader; bei u_tex_count == 0 bleibt darin
-    // genau u_color uebrig, das Bild ist also dasselbe wie zuvor mit UNLIT
-    // (3D-11, vorher 3D-12).
+    // Netze zeichnet immer der LIT-Shader, auch ohne ein einziges Licht -
+    // sonst faellt das Umgebungslicht unter den Tisch. Am Original gemessen
+    // (3D-10): ein weisser Wuerfel ohne jedes Licht und ohne AmbientLight
+    // kommt als **127,127,127** heraus, nicht weiss; das ist genau die
+    // Vorgabe 127,127,127 von AmbientLight. Mit AmbientLight 0,0,0 ist er
+    // schwarz, mit 255,255,255 weiss. Bis 3D-11 zeichnete hier ohne Licht der
+    // TEXTURED-Shader, der das Umgebungslicht gar nicht kennt.
     int n = bb_collect_lights_();
-    bb_Shader_ *sh = (n > 0 && bb_shader_lit_) ? bb_shader_lit_
-                                               : bb_shader_textured_;
-    if (!sh) sh = bb_shader_unlit_;
+    bb_Shader_ *sh = bb_shader_lit_;
+    if (!sh) sh = bb_shader_textured_ ? bb_shader_textured_ : bb_shader_unlit_;
     if (sh) {
       bb_shader_bind_(sh);
       if (sh == bb_shader_lit_) bb_upload_lights_(sh, n, cam);
-      bb_render_meshes_(sh, cam->view, cam->proj);
+      const float cam_pos[3] = { cam->world[12], cam->world[13], cam->world[14] };
+      bb_render_meshes_(sh, cam->view, cam->proj, cam_pos);
     }
   }
 }

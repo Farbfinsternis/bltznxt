@@ -443,30 +443,75 @@ statt zu stuerzen.
 
 ---
 
-### 3D-10 · Entity Appearance
-*Dateien: `bb_entity_core.h`, `bb_mesh.h`*
+### 3D-10 · Entity Appearance ✓ COMPLETE
+*Dateien: `bb_entity_core.h`, `bb_mesh.h`, `bb_shader.h`, `bb_graphics3d.h`*
 
-- [ ] `bb_Entity_` um `alpha`, `colorR/G/B`, `shininess`, `blend`, `fx` erweitern
-- [ ] `bb_EntityAlpha(h, a)` — 0.0–1.0; alpha < 1.0 → Blend-Mode aktivieren
-- [ ] `bb_EntityColor(h, r, g, b)` — 0–255 (Blitz3D-Konvention)
-- [ ] `bb_EntityShininess(h, s)` — 0.0–1.0 für Specular
-- [ ] `bb_EntityBlend(h, mode)` — 1=Normal, 2=Additive, 3=Multiply
-- [ ] `bb_EntityFX(h, fx)` — Bitmask: Bit1=Fullbright, Bit2=Vertex-Color, Bit4=Flat, Bit8=No-Fog
-- [ ] `bb_EntityAutoFade(h, near, far)` — Alpha-Fade mit Kamera-Distanz
-- [ ] Blend-Mode in `bb_mesh_draw_()` umsetzen:
-      - Normal: `glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)`
-      - Additive: `glBlendFunc(GL_SRC_ALPHA, GL_ONE)`
-      - Multiply: `glBlendFunc(GL_DST_COLOR, GL_ZERO)`
-- **Test:** `tests/test_3d10_appearance.bb`
-  ```blitzbasic
-  Graphics3D 800,600,32,1
-  Local cam  = CreateCamera()
-  PositionEntity cam, 0,0,-5
-  Local cube = CreateCube()
-  EntityColor cube, 255, 0, 0
-  EntityAlpha cube, 0.7
-  UpdateWorld : RenderWorld : Flip : WaitKey
-  ```
+`EntityAlpha` steht in **35**, `EntityFX` in **29**, `EntityColor` in **25** der
+130 mitgelieferten Beispielprogramme.
+
+- [x] `bb_Entity_` um `alpha`, `colR/G/B`, `shininess`, `blend`, `fx` und
+      `fadeNear/fadeFar` erweitert
+- [x] `bb_EntityAlpha(h, alpha#)` — 0-1, Vorgabe 1; bei 0 wird gar nicht
+      gezeichnet, das Entity bleibt aber anders als bei `HideEntity` bestehen
+- [x] `bb_EntityColor(h, r#, g#, b#)` — 0-255, **Gleitkomma** wie im Original
+- [x] `bb_EntityShininess(h, s#)` — laedt `u_shininess` hoch, das der
+      LIT-Shader seit 3D-07 liest, aber nie bekommen hat
+- [x] `bb_EntityBlend(h, mode)` — **1 = Alpha (Vorgabe), 2 = Multiply, 3 = Add**
+- [x] `bb_EntityFX(h, fx)` — 1 full-bright, 2 Vertexfarben, 4 flatshaded,
+      8 kein Nebel, 16 keine Rueckseitenentfernung, 32 Alphablending erzwingen
+- [x] `bb_EntityAutoFade(h, near#, far#)`
+- [x] Zeichenreihenfolge: `EntityOrder` absteigend, darin deckend vor
+      durchscheinend, durchscheinend von hinten nach vorn
+- [x] Rueckseitenentfernung eingeschaltet (`GL_CULL_FACE`, `GL_CCW`)
+- [ ] `EntityFX 8` (kein Nebel) bleibt wirkungslos, solange es keinen Nebel
+      gibt (3D-14); `EntityFX 32` erzwingt Blending, aber Vertex-Alpha gibt es
+      erst mit den Vertexbefehlen (3D-15)
+
+**Der eigene Roadmap-Entwurf hatte `EntityBlend` 2 und 3 vertauscht** („1=Normal,
+2=Additive, 3=Multiply"). `EntityBlend.htm` fuehrt `1 Alpha, 2 Multiply,
+3 Add` — jeder Laserstrahl und jedes Feuer waere multiplikativ gezeichnet
+worden und jeder Schatten additiv. Der Entwurf hatte ausserdem `EntityFX` 16
+und 32 nicht.
+
+**Die Zahlen dahinter sind am laufenden Original nachgemessen**, wieder ueber
+`ReadPixel` in eine Datei statt am Bild. 38 Faelle gemessen, 34 davon durch
+unsere Runtime nachgestellt und mit `glReadPixels` zurueckgelesen: **34 von 34
+Bildpunkten stimmen zeichengenau ueberein.** Was die Messung entschieden hat:
+
+- **Geklemmt wird nach der Multiplikation mit der Entityfarbe, nicht davor.**
+  Farbe 255,128,0 mit vollem Licht und Umgebungslicht 64,32,16 ergibt
+  **255,144,0** — der Gruenanteil steigt ueber 128. Unser Shader klemmte
+  vorher zuerst und haette 128 geliefert.
+- **Ohne jedes Licht ist eine Szene mittelgrau, nicht weiss.** Ein weisser
+  Wuerfel ohne Licht und ohne `AmbientLight` kommt als **127,127,127** heraus,
+  also genau die Vorgabe von `AmbientLight`. Netze zeichnet deshalb jetzt
+  immer der LIT-Shader; bis 3D-11 uebernahm ohne Licht der TEXTURED-Shader,
+  der das Umgebungslicht gar nicht kennt.
+- **Full-bright ignoriert auch das Umgebungslicht**, nicht nur die Lichter.
+- **Rueckseiten werden entfernt.** Eine Kamera im Inneren eines Wuerfels sieht
+  dort den Hintergrund; mit `EntityFX 16` die Innenseiten.
+- **`EntityAutoFade`:** `alpha = (far − Abstand) / (far − near)`, geklemmt, mit
+  dem Abstand von der Kamera zum **Ursprung** des Entity. Bei `5,10` gemessen:
+  d=5 → deckend, d=6 → 0.8, d=7 → 0.6, d=8 → 0.4, d=9 → 0.2, d=10 → unsichtbar.
+- **`EntityOrder`:** ein Wert > 0 wird zuerst und damit hinter allem
+  gezeichnet, ein Wert < 0 zuletzt und damit vor allem; bei einem Wert
+  ungleich 0 ist der Z-Puffer fuer dieses Entity abgeschaltet.
+
+**Offen und bewusst nicht behauptet:** `EntityShininess` rechnet bei uns je
+Bildpunkt, im Original je Vertex — gemessen daran, dass der Glanzpunkt dort mit
+steigendem Shininess *dunkler* wird (BUG-66). Vertex-Alpha fehlt, weil das
+Vertexformat keinen Alphakanal hat. Und die Sortierung wechselt nicht innerhalb
+eines Netzes: ein Objekt mit mehreren durchscheinenden Flaechen kann sich
+selbst falsch ueberdecken.
+
+- **Signaturvergleich:** alle sechs Befehle gegen `blitzcc +k` — keine
+  Abweichung, einschliesslich der Gleitkommaparameter von `EntityColor`, wo
+  Integer stillschweigend abgeschnitten haetten (vgl. BUG-62).
+- **Test:** `tests/test_3d10_appearance.bb` — prueft, was die Sprache sehen
+  kann: Annahme der Befehle, Unversehrtheit des Entity, und dass ein nicht
+  gezeichnetes Entity aus `TrisRendered()` verschwindet (Alpha 0, AutoFade
+  jenseits von far, `HideEntity`). Das *Aussehen* sichert er nicht zu; dafuer
+  steht die Messung oben.
 
 ---
 

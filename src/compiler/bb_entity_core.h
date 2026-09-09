@@ -34,7 +34,23 @@ struct bb_Entity_ {
   int      parent  = 0;         // handle of parent entity, 0 = root
   std::vector<int> children;    // handles of direct children
   bool     visible = true;
-  int      order   = 0;         // render order (lower drawn first)
+  // Zeichenreihenfolge (3D-10). Am Original gemessen: > 0 zuerst und damit
+  // hinter allem, < 0 zuletzt und damit vor allem; bei einem Wert ungleich 0
+  // ist der Z-Puffer fuer dieses Entity abgeschaltet.
+  int      order   = 0;
+
+  // ---- Aussehen (3D-10) ----
+  // Vorgaben aus help/commands/3d_commands/: Farbe 255,255,255, Alpha 1,
+  // Shininess 0, Blend 1 (Alpha), FX 0. Farbe und Alpha sind Gleitkomma,
+  // weil das Original "EntityColor entity,red#,green#,blue#" fuehrt.
+  float    alpha     = 1.0f;
+  float    colR = 255.0f, colG = 255.0f, colB = 255.0f;
+  float    shininess = 0.0f;
+  int      blend     = 1;       // 1 = Alpha, 2 = Multiply, 3 = Add
+  int      fx        = 0;       // 1 Fullbright, 2 Vertexfarben, 4 Flat,
+                                // 8 kein Nebel, 16 keine Rueckseitenentfernung,
+                                // 32 Alphablending erzwingen
+  float    fadeNear = 0.0f, fadeFar = 0.0f;   // EntityAutoFade, 0/0 = aus
 
   // Local transform
   float px = 0, py = 0, pz = 0;   // position
@@ -650,6 +666,58 @@ inline int bb_GetChild(int h, int index) {
 inline void bb_EntityOrder(int h, int order) {
   bb_Entity_* e = bb_entity_get_(h);
   if (e) e->order = order;
+}
+
+// ============================================================
+// Aussehen (3D-10)
+//
+// Alle Zusagen sind am laufenden Original nachgemessen, nicht dem eigenen
+// Roadmap-Entwurf entnommen - der hatte bei EntityBlend die Modi 2 und 3
+// vertauscht (siehe DEVLOG). Gemessen wurde jeweils der Bildpunkt in der
+// Mitte einer Wuerfelflaeche ueber bekanntem Hintergrund.
+// ============================================================
+
+// 0-1, Vorgabe 1. Ein Wert von 0 wird laut Doku gar nicht gezeichnet, bleibt
+// aber im Gegensatz zu HideEntity fuer Kollisionen vorhanden - gemessen:
+// der Hintergrund steht unveraendert da.
+inline void bb_EntityAlpha(int h, float alpha) {
+  bb_Entity_* e = bb_entity_get_(h);
+  if (!e) return;
+  e->alpha = (alpha < 0.0f) ? 0.0f : (alpha > 1.0f ? 1.0f : alpha);
+}
+
+// 0-255, Vorgabe 255,255,255. Die Farbe wird mit dem Beleuchtungsergebnis
+// und der Textur multipliziert; geklemmt wird erst danach.
+inline void bb_EntityColor(int h, float r, float g, float b) {
+  bb_Entity_* e = bb_entity_get_(h);
+  if (!e) return;
+  e->colR = r; e->colG = g; e->colB = b;
+}
+
+inline void bb_EntityShininess(int h, float shininess) {
+  bb_Entity_* e = bb_entity_get_(h);
+  if (e) e->shininess = shininess;
+}
+
+// 1 = Alpha (Vorgabe), 2 = Multiply, 3 = Add.
+inline void bb_EntityBlend(int h, int blend) {
+  bb_Entity_* e = bb_entity_get_(h);
+  if (e) e->blend = blend;
+}
+
+inline void bb_EntityFX(int h, int fx) {
+  bb_Entity_* e = bb_entity_get_(h);
+  if (e) e->fx = fx;
+}
+
+// Gemessen: alpha = (far - Abstand) / (far - near), geklemmt auf 0..1, wobei
+// der Abstand von der Kamera zum **Ursprung** des Entity zaehlt. Bei near
+// und naeher ist es deckend, bei far und weiter unsichtbar.
+inline void bb_EntityAutoFade(int h, float near_dist, float far_dist) {
+  bb_Entity_* e = bb_entity_get_(h);
+  if (!e) return;
+  e->fadeNear = near_dist;
+  e->fadeFar  = far_dist;
 }
 
 inline bbString bb_EntityClass(int h) {
