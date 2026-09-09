@@ -1205,6 +1205,93 @@ Original nimmt die neue Testdatei an.
 
 ---
 
+### Nachtrag (2026-09-09, 3D-13): der Quelltext haette es schneller gesagt
+
+**Blitz3D ist seit 2014 offen** (zlib-Lizenz, `blitz-research/blitz3d`), und
+das README dieses Projekts nennt den Quelltext ausdruecklich als
+Verhaltensreferenz: "when a question comes up about what the language actually
+does, the answer is read out of the original compiler rather than guessed at".
+Beim `.3ds`-Loader habe ich das nicht getan und die sechs Regeln stattdessen
+aus Messungen rekonstruiert. Das hat gehalten — aber teuer, und an einer
+Stelle nicht ganz.
+
+**Zwei der sechs standen sogar in der mitgelieferten Doku**, eine Datei neben
+`LoadMesh.htm`, die ich gelesen hatte. `LoaderMatrix.htm`:
+
+```
+LoaderMatrix "x",1,0,0,0,1,0,0,0,1    ; no change in coord system
+LoaderMatrix "3ds",1,0,0,0,0,1,0,1,0  ; swap y/z axis'
+```
+
+Das ist der Achsentausch wortwoertlich — und der Umlaufsinn gleich mit, denn
+eine Vertauschungsmatrix hat Determinante −1. Ich hatte `LoadMesh.htm` gelesen
+und aufgehoert, statt das Verzeichnis nach "Loader" zu durchsuchen.
+
+**Vier weitere bestaetigt der Quelltext, drei davon woertlich:**
+
+| Befund | `blitz3d/loader_3ds.cpp` |
+|---|---|
+| v umkehren | `v.tex_coords[0][1]=1-uv[1];` |
+| Farbe nur ohne Textur | `mat.setTexture(...); mat.setColor( Vector(1,1,1) );` |
+| Umlaufsinn | `if( conv_tform.m.i.cross(conv_tform.m.j).dot(conv_tform.m.k)<0 ) flip_tris=true;` |
+| Drehpunkt | `pivot=conv_tform*pivot; ... mesh->transform( -pivot );` |
+| Flaechen je Brush | `map<Brush,Surf*> brush_map;` in `meshloader.cpp` |
+
+**Und einer war falsch hergeleitet.** Zum lokalen Koordinatensystem (0x4160)
+hatte ich aus den Messungen geschlossen: "wird ignoriert". Der Quelltext zeigt
+etwas anderes — es wird zur Weltmatrix des Netzes, die Vertices werden mit dem
+Kehrwert in den lokalen Raum geholt, und beim Einschmelzen kommt es wieder
+heraus:
+
+```cpp
+mesh->setWorldTform( tform );
+Transform inv_tform=-tform;
+for( ... ) v.coords=inv_tform * v.coords;
+```
+
+Netto stehen die rohen Koordinaten da, mein Ergebnis stimmte also. Die
+Verschiebung durch den Drehpunkt aber nicht ganz: ausmultipliziert ergibt die
+Kette `v' = L·(v − M·pivot)`, wobei M **nur** der Dreh- und Skalenanteil von
+0x4160 ist. Der Translationsanteil hebt sich zwischen Hin- und Rueckweg auf —
+meine gemessene Fassung hatte ihn addiert. Auf den zehn Testdateien macht das
+0.03 bis 0.15 Einheiten aus, an der Kamera ein Viertelpixel. **Meine
+Silhouettenmessung konnte das nicht sehen, und sie hat es auch nicht
+gesehen.** Es ist jetzt korrigiert.
+
+**Was daraus folgt, ist keine neue Regel, sondern die vorhandene richtig
+angewandt.** Das Absicherungsverfahren dieses Projekts sagt: der Quelltext
+sagt, was gemeint ist, das laufende Original sagt, was herauskommt, und wo
+beides zu haben ist, gilt die Messung. Richtig — aber das ist eine Regel fuer
+den **Konflikt**, nicht fuer die Reihenfolge. Die Reihenfolge muss sein:
+zuerst lesen, was dasteht, dann messen, ob es stimmt. Messen allein liefert
+eine Formel, die zu den Datenpunkten passt; ob es *die* Formel ist, sagt nur
+der Quelltext. Genau der Unterschied kostet hier einen Translationsanteil.
+
+**Konkret hinzugekommen ist `LoaderMatrix`** — ein Befehl, den ich gar nicht
+hatte. Der Achsentausch ist jetzt kein Sonderfall des `.3ds`-Lesers mehr,
+sondern eine Matrix je Dateiendung mit den dokumentierten Vorgaben; der
+Umlaufsinn folgt ihrer Determinante, so wie im Original. Ein Programm kann die
+Matrix damit aendern, und der Test haelt beide Faelle fest: mit der
+Einheitsmatrix wird aus 3DS 12×4×6 ein Netz von w=12, h=4, d=6, mit der
+Vorgabe w=12, h=6, d=4.
+
+**Gegenprobe nach der Korrektur:** dieselben zehn Modelldateien, diesmal bei
+voller Aufloesung statt im 4-Pixel-Raster und mit weit gestellter
+Kamerareichweite. Alle zehn Silhouetten stimmen auf ein Pixel im
+Begrenzungsrechteck, die Pixelzahlen auf 0.3 bis 3 Prozent. Dabei fiel auch
+auf, dass zwei fruehere Ausreisser Messfehler waren: `wcrate1.3ds` lag mit
+seiner Kante genau auf den Rasterpunkten, und `fighter.3ds` ragte bei
+Kameraabstand 1054 durch die voreingestellte hintere Schnittebene von 1000.
+Beides verschwindet, sobald man richtig misst — **auch das Messverfahren
+gehoert geprueft**, nicht nur das Ergebnis.
+
+**Abgesichert:** Emittatvergleich gegen den Stand vor dieser Korrektur ueber
+93 Programme (92 identisch, 1 nur vom aelteren Compiler abgelehnt — der um
+`LoaderMatrix` erweiterte Test), 44 Negativtests mit gleicher Diagnose, alle
+73 `.expected` gruen, `LoaderMatrix` gegen `blitzcc +k` ohne Abweichung.
+
+---
+
 ### Parser: colon as statement separator — If/Else bug fixed
 
 Colon (`:`) already worked as a statement separator in the main loop via

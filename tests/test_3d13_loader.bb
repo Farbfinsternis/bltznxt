@@ -82,4 +82,21 @@ If LoadMesh("tests/assets/test_grid.png") = 0 Then Print "fremde endung" Else Pr
 ;        was hinter dem Puffer liegt.
 If LoadMesh("tests/assets/test_broken.3ds") = 0 Then Print "kaputte datei" Else Print "FEHLER kaputte datei"
 
+; --- 10) LoaderMatrix. Der Achsentausch ist im Original kein Sonderfall
+;         des .3ds-Lesers, sondern eine Matrix je Endung, die das
+;         Programm aendern kann. Vorgabe laut Doku:
+;           LoaderMatrix "3ds",1,0,0, 0,0,1, 0,1,0
+;         Setzt man dort die Einheitsmatrix, entfaellt der Tausch und
+;         aus 3DS x=12, y=4, z=6 wird w=12, h=4, d=6.
+LoaderMatrix "3ds", 1,0,0, 0,1,0, 0,0,1
+e = LoadMesh("tests/assets/test_box.3ds")
+If MeshWidth(e) = 12 And MeshHeight(e) = 4 And MeshDepth(e) = 6 Then Print "loadermatrix einheit" Else Print "FEHLER loadermatrix einheit"
+FreeEntity e
+
+; Vorgabe wieder herstellen
+LoaderMatrix "3ds", 1,0,0, 0,0,1, 0,1,0
+e = LoadMesh("tests/assets/test_box.3ds")
+If MeshWidth(e) = 12 And MeshHeight(e) = 6 And MeshDepth(e) = 4 Then Print "loadermatrix zurueck" Else Print "FEHLER loadermatrix zurueck"
+FreeEntity e
+
 Print "fertig"

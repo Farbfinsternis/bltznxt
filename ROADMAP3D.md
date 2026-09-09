@@ -706,6 +706,8 @@ gleichem Brush zusammenfassen.
 - [x] Flaechen je Brush, gleiche Brushes zusammengefasst
 - [x] Glaettungsgruppen (0x4150): Vertices werden nur innerhalb derselben
       Gruppe geteilt, ohne Gruppe bleibt die Flaeche flach
+- [x] `bb_LoaderMatrix(ext$, xx#..zz#)` — Matrix je Endung mit den
+      dokumentierten Vorgaben; der Umlaufsinn folgt ihrer Determinante
 - [x] Brush je Flaeche statt Textur je Entity — `EntityTexture` schreibt in
       alle Flaechen, so wie das Original alle Brushes eines Netzes setzt
 - [ ] `.x` (36 der 51 Dateien sind Text, 11 binaer) und `.b3d`
@@ -714,22 +716,30 @@ gleichem Brush zusammenfassen.
 **Sechs Dinge am laufenden Original nachgemessen — jedes einzelne haette man
 plausibel anders gemacht, und keines meldet sich von selbst:**
 
-1. **Die Achsen tauschen y und z:** blitz(x,y,z) = 3ds(x,z,y). 3D Studio ist
-   rechtshaendig mit z nach oben. Nachweis ueber `MeshWidth/Height/Depth` an
-   zehn Dateien.
-2. **Das lokale Koordinatensystem (0x4160) wird nicht auf die Vertices
-   angewandt.** Sechs der zehn Dateien haben dort keine Einheitsmatrix —
-   `wcrate1.3ds` eine Skalierung von 13.583, `fighter.3ds` eine von 0.257,
-   `rock.3DS` eine Drehung um rund 6 Grad. Die gemeldeten Ausmasse
-   entsprechen trotzdem genau den **rohen** Vertexkoordinaten.
-3. **Der Drehpunkt aus dem Keyframe-Abschnitt wird abgezogen.** Er steht dort
-   in lokalen Einheiten, muss also durch die Achsenmatrix — genau dafuer wird
-   sie ueberhaupt gelesen. Das ist **nicht** dasselbe wie "das Netz
+1. **Die Achsen tauschen y und z** — aber nicht fest verdrahtet, sondern
+   ueber eine **Matrix je Dateiendung**, die `LoaderMatrix` setzt. Die
+   Vorgaben stehen in `help/commands/3d_commands/LoaderMatrix.htm`:
+   `"x",1,0,0,0,1,0,0,0,1` und `"3ds",1,0,0,0,0,1,0,1,0`. Der Umlaufsinn
+   folgt aus dem Vorzeichen ihrer Determinante.
+2. **Das lokale Koordinatensystem (0x4160) hebt sich heraus.** Der Loader
+   des Originals macht es zur Weltmatrix des Netzes und holt die Vertices mit
+   deren Kehrwert in den lokalen Raum; beim Einschmelzen zu einem Netz kommt
+   es wieder heraus. Netto stehen die **rohen** Vertexkoordinaten da — was
+   sechs Dateien mit nicht-trivialer Matrix (`wcrate1.3ds` Skalierung 13.583,
+   `fighter.3ds` 0.257, `rock.3DS` eine Drehung um 6 Grad) auch zeigen. Wer
+   die Matrix anwendet, macht die Kiste um das Dreizehnfache zu gross.
+3. **Der Drehpunkt aus dem Keyframe-Abschnitt wird abgezogen**, und zwar mit
+   dem Dreh- und Skalenanteil der lokalen Matrix multipliziert:
+
+       v' = L * ( v - M * pivot )
+
+   L ist die Loadermatrix, M der 3x3-Anteil von 0x4160. Der Translationsanteil
+   von 0x4160 faellt heraus. Das ist **nicht** dasselbe wie "das Netz
    zentrieren": `rock.3DS`, `solid01.3ds` und die vier Teile von
    `rocket.3ds` haben ausgeruecktes AABB-Zentrum und Drehpunkt 0, und das
    Original verschiebt sie nicht.
-4. **Der Umlaufsinn kehrt sich um.** Der Achsentausch dreht die Haendigkeit;
-   ohne Vertauschen zweier Indizes zeigt die Rueckseitenentfernung die
+4. **Der Umlaufsinn kehrt sich um,** wenn die Loadermatrix die Haendigkeit
+   dreht; ohne Vertauschen zweier Indizes zeigt die Rueckseitenentfernung die
    Rueckseite. Eine geschlossene Kiste sieht in der Silhouette dann
    unveraendert aus und ist nur seitenverkehrt beleuchtet und texturiert.
 5. **Die v-Koordinate laeuft andersherum.** Mit einer Vierquadrantentextur

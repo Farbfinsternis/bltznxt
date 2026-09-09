@@ -62,6 +62,68 @@
 //     landen im Brush der Flaeche.
 // ============================================================
 
+// ============================================================
+// Loadermatrix  (LoaderMatrix)
+//
+// Der Achsentausch ist im Original kein Sonderfall des .3ds-Lesers,
+// sondern eine **Matrix je Dateiendung**, die das Programm aendern kann.
+// help/commands/3d_commands/LoaderMatrix.htm nennt die Vorgaben:
+//
+//   LoaderMatrix "x"  ,1,0,0, 0,1,0, 0,0,1   ; unveraendert
+//   LoaderMatrix "3ds",1,0,0, 0,0,1, 0,1,0   ; y/z vertauscht
+//
+// Die drei Zahlentripel sind die **Spalten**: wohin x, y und z gehen.
+// Aus dem Vorzeichen der Determinante folgt, ob der Umlaufsinn kippt -
+// eine Vertauschung hat Determinante -1, also muessen zwei Indizes
+// getauscht werden. Damit stimmt der Umlaufsinn auch dann noch, wenn ein
+// Programm die Matrix selbst setzt.
+// ============================================================
+
+inline bbString bb_file_ext_lower_(const bbString& file) {
+  size_t dot = file.find_last_of('.');
+  if (dot == bbString::npos) return "";
+  bbString e = file.substr(dot);
+  for (auto& c : e) c = static_cast<char>(::tolower((unsigned char)c));
+  return e;
+}
+
+struct bb_LoaderMat_ { float m[9]; };
+
+// Endung ohne Punkt und klein geschrieben.
+inline std::unordered_map<std::string, bb_LoaderMat_> bb_loader_mats_ = {
+  { "x"  , { { 1,0,0, 0,1,0, 0,0,1 } } },
+  { "3ds", { { 1,0,0, 0,0,1, 0,1,0 } } },
+};
+
+inline std::string bb_loader_key_(const bbString& ext) {
+  std::string e(ext);
+  if (!e.empty() && e[0] == '.') e.erase(0, 1);
+  for (auto& c : e) c = static_cast<char>(::tolower((unsigned char)c));
+  return e;
+}
+
+inline void bb_LoaderMatrix(const bbString& file_ext,
+                            float xx, float xy, float xz,
+                            float yx, float yy, float yz,
+                            float zx, float zy, float zz) {
+  bb_LoaderMat_ m = { { xx, xy, xz, yx, yy, yz, zx, zy, zz } };
+  bb_loader_mats_[bb_loader_key_(file_ext)] = m;
+}
+
+// Spalten mal Vektor.
+inline void bb_loader_apply_(const bb_LoaderMat_& m, float x, float y, float z,
+                             float* out) {
+  out[0] = m.m[0] * x + m.m[3] * y + m.m[6] * z;
+  out[1] = m.m[1] * x + m.m[4] * y + m.m[7] * z;
+  out[2] = m.m[2] * x + m.m[5] * y + m.m[8] * z;
+}
+
+inline float bb_loader_det_(const bb_LoaderMat_& m) {
+  return m.m[0] * (m.m[4] * m.m[8] - m.m[5] * m.m[7])
+       - m.m[3] * (m.m[1] * m.m[8] - m.m[2] * m.m[7])
+       + m.m[6] * (m.m[1] * m.m[5] - m.m[2] * m.m[4]);
+}
+
 // ---- Chunkkennungen ----
 enum : uint16_t {
   BB_3DS_MAIN      = 0x4D4D, BB_3DS_EDIT      = 0x3D3D,
@@ -417,6 +479,14 @@ inline int bb_load_3ds_(const bbString& file, int parent) {
     mat_tex[i] = bb_LoadTexture(cand.string(), 1);
   }
 
+  // Die Matrix zur Endung; ohne Eintrag bleibt alles unveraendert.
+  bb_LoaderMat_ lm = { { 1,0,0, 0,1,0, 0,0,1 } };
+  {
+    auto it = bb_loader_mats_.find(bb_loader_key_(bb_file_ext_lower_(file)));
+    if (it != bb_loader_mats_.end()) lm = it->second;
+  }
+  const bool flip = bb_loader_det_(lm) < 0.0f;
+
   auto ent = std::make_unique<bb_MeshEntity_>();
 
   // Ein Eintrag je Brush. Der Vertexschluessel enthaelt die Glaettungsgruppe:
@@ -432,18 +502,26 @@ inline int bb_load_3ds_(const bbString& file, int parent) {
     const bool has_uv = o.tu.size() >= o.vx.size();
 
     // Das Netz wird so verschoben, dass der Drehpunkt des Objekts im
-    // Ursprung liegt. Der Drehpunkt steht im Keyframe-Abschnitt in
-    // **lokalen** Einheiten, muss also durch die Achsenmatrix - deren
-    // Skalierung ist genau der Grund, warum sie ueberhaupt gelesen wird.
-    // Gemessen an wcrate1.3ds (13.583), oildrum.3ds und fighter.3ds
-    // (0.257); Dateien mit Drehpunkt 0 und Einheitsachsen bleiben
-    // unveraendert, und genau die verschiebt das Original auch nicht.
-    float tx[3] = { o.org[0], o.org[1], o.org[2] };
+    // Ursprung liegt. Wie genau, steht im Quelltext des Originals
+    // (blitz3d/loader_3ds.cpp): die lokale Matrix wird die Weltmatrix des
+    // Netzes, die Vertices werden mit deren Kehrwert in den lokalen Raum
+    // geholt, dort um -pivot verschoben, und beim Einschmelzen zu einem
+    // Netz wieder herausgerechnet. Ausmultipliziert bleibt davon
+    //
+    //     v' = L * ( v - M * pivot )
+    //
+    // uebrig: L ist die Loadermatrix, M der **Dreh- und Skalenanteil** der
+    // lokalen Matrix. Ihr Translationsanteil faellt heraus - er hebt sich
+    // zwischen Hin- und Rueckweg auf. Genau den hatte die erste, allein
+    // aus Messungen abgeleitete Fassung hier faelschlich addiert; auf den
+    // Testdateien machte das unter 0.2 Einheiten aus und war im Bild nicht
+    // zu sehen.
+    float tx[3] = { 0.0f, 0.0f, 0.0f };
     auto pit = sc.pivots.find(o.name);
     if (pit != sc.pivots.end()) {
       const std::array<float, 3>& pv = pit->second;
       for (int k = 0; k < 3; ++k)
-        tx[k] += o.axes[k] * pv[0] + o.axes[3 + k] * pv[1] + o.axes[6 + k] * pv[2];
+        tx[k] = o.axes[k] * pv[0] + o.axes[3 + k] * pv[1] + o.axes[6 + k] * pv[2];
     }
 
     for (size_t fi = 0; fi < o.fa.size(); ++fi) {
@@ -502,10 +580,10 @@ inline int bb_load_3ds_(const bbString& file, int parent) {
           // Texturen fangen oben an - also umkehren.
           float u = has_uv ? o.tu[vi] : 0.0f;
           float v = has_uv ? (1.0f - o.tv[vi]) : 0.0f;
-          const float px_ = o.vx[vi] - tx[0];
-          const float py_ = o.vy[vi] - tx[1];
-          const float pz_ = o.vz[vi] - tx[2];
-          const float vd[11] = { px_, pz_, py_,
+          float pc_[3];
+          bb_loader_apply_(lm, o.vx[vi] - tx[0], o.vy[vi] - tx[1],
+                           o.vz[vi] - tx[2], pc_);
+          const float vd[11] = { pc_[0], pc_[1], pc_[2],
                                  0, 0, 0,
                                  u, v,
                                  1, 1, 1 };
@@ -514,15 +592,15 @@ inline int bb_load_3ds_(const bbString& file, int parent) {
           out[k] = ni;
         }
       }
-      // Der Achsentausch y/z kehrt die Haendigkeit um, also auch den
-      // Umlaufsinn: was in der Datei von aussen gegen den Uhrzeigersinn
-      // laeuft, laeuft nach dem Tausch mit dem Uhrzeigersinn. Ohne dieses
-      // Vertauschen zeigt die Rueckseitenentfernung die **Rueckseite** des
-      // Modells - eine geschlossene Kiste sieht in der Silhouette dann
-      // unveraendert aus, ist aber seitenverkehrt beleuchtet und texturiert.
+      // Kehrt die Loadermatrix die Haendigkeit um, kippt auch der
+      // Umlaufsinn - das Original entscheidet das genauso am Vorzeichen
+      // der Determinante. Ohne das Vertauschen zeigt die
+      // Rueckseitenentfernung die **Rueckseite** des Modells; eine
+      // geschlossene Kiste sieht in der Silhouette dann unveraendert aus
+      // und ist nur seitenverkehrt beleuchtet und texturiert.
       surf.indices.push_back(out[0]);
-      surf.indices.push_back(out[2]);
-      surf.indices.push_back(out[1]);
+      surf.indices.push_back(flip ? out[2] : out[1]);
+      surf.indices.push_back(flip ? out[1] : out[2]);
     }
   }
 
@@ -535,14 +613,6 @@ inline int bb_load_3ds_(const bbString& file, int parent) {
 // ============================================================
 // LoadMesh / LoadAnimMesh
 // ============================================================
-
-inline bbString bb_file_ext_lower_(const bbString& file) {
-  size_t dot = file.find_last_of('.');
-  if (dot == bbString::npos) return "";
-  bbString e = file.substr(dot);
-  for (auto& c : e) c = static_cast<char>(::tolower((unsigned char)c));
-  return e;
-}
 
 inline int bb_LoadMesh(const bbString& file, int parent = 0) {
   const bbString ext = bb_file_ext_lower_(file);

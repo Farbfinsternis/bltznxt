@@ -227,6 +227,7 @@ inline constexpr CmdInfo kCommands[] = {
   { "LoadAnimMesh",        "%", "file$,parent%?" },
   { "LoadAnimTexture",     "%", "file$,flags%,width%,height%,first%,count%" },
   { "LoadBuffer",          "%", "buf%,file$" },
+  { "LoaderMatrix",        "",  "file_ext$,xx#,xy#,xz#,yx#,yy#,yz#,zx#,zy#,zz#" },
   { "LoadFont",            "%", "name$,height%?,bold%?,italic%?,underline%?" },
   { "LoadImage",           "%", "file$" },
   { "LoadMesh",            "%", "file$,parent%?" },
