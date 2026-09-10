@@ -45,6 +45,8 @@ class BeforeExpr;
 class AfterExpr;
 class InsertStmt;
 class ForEachStmt;
+class VectorAccess;
+class VectorAssignStmt;
 class Program;
 
 // ---- Visitor ----
@@ -89,6 +91,8 @@ public:
   virtual void visit(AfterExpr     *node) = 0;
   virtual void visit(InsertStmt    *node) = 0;
   virtual void visit(ForEachStmt   *node) = 0;
+  virtual void visit(VectorAccess  *node) = 0;
+  virtual void visit(VectorAssignStmt *node) = 0;
   virtual void visit(Program       *node) = 0;
 };
 
@@ -160,8 +164,13 @@ public:
   enum Scope { LOCAL, GLOBAL };
   Scope scope;
   std::string name;
-  std::string typeHint; // #  %  !  $
+  std::string typeHint; // #  %  !  $  .TypeName
   std::unique_ptr<ExprNode> initValue;
+  // "Local a[3]" - ein festes Array mit eckigen Klammern (BUG-59). Die
+  // Referenz fuehrt das als eigene Sprachform (VectorDeclNode/VectorType),
+  // nicht als Sonderfall von Dim: genau EIN Index, die Groesse muss konstant
+  // sein, und "a[n]" hat die Indizes 0..n, also n+1 Elemente.
+  std::unique_ptr<ExprNode> vecSize; // nullptr = kein festes Array
   VarDecl(Scope s, std::string n, std::string th,
           std::unique_ptr<ExprNode> init = nullptr)
       : scope(s), name(std::move(n)), typeHint(std::move(th)),
@@ -246,6 +255,12 @@ public:
     std::string name;
     std::string hint;                       // #  %  $  .TypeName  oder ""
     std::unique_ptr<ExprNode> defaultValue;  // nullptr = keine Vorgabe
+    // "Function f(v[2])" - ein festes Array als Parameter. Am laufenden
+    // Original gemessen (2026-09-10): die Uebergabe ist eine REFERENZ, eine
+    // Funktion die v[0] beschreibt aendert das Array des Aufrufers. Die
+    // Groesse gehoert zum Typ: ein a[3] an ein v[2] ist dort
+    // "Illegal type conversion" (BUG-59).
+    std::unique_ptr<ExprNode> vecSize;       // nullptr = einfacher Parameter
   };
   std::string name;
   std::string returnHint; // #  %  !  $  .TypeName  or "" (= int, as in Blitz3D)
@@ -372,7 +387,11 @@ class TypeDecl : public StmtNode {
 public:
   struct Field {
     std::string name;
-    std::string typeHint; // %  #  $  or "" (default int handle)
+    std::string typeHint; // %  #  $  .TypeName  or "" (default int handle)
+    // "Field a[3]" - dasselbe feste Array wie bei Local/Global (BUG-59).
+    // Im Original gehoert es dem Objekt: New legt es genullt an, Delete
+    // gibt es frei - bbObjNew und bbObjDelete behandeln BBTYPE_VEC eigens.
+    std::unique_ptr<ExprNode> vecSize; // nullptr = einfaches Feld
   };
   std::string        name;
   std::vector<Field> fields;
@@ -487,6 +506,31 @@ public:
 };
 
 // ---- Root ----
+
+// a[i] - ein Element eines festen Arrays, lesend. Die Referenz baut das in
+// parseVar() als Postfix-Kette neben dem Feldtrenner auf, beide beliebig
+// verschachtelt ("k\\kind[0]\\wert"), und laesst genau einen Index zu:
+// "exprs->size()!=1" ist dort "Expecting ']'" (BUG-59).
+class VectorAccess : public ExprNode {
+public:
+  std::unique_ptr<ExprNode> base;  // was links davon steht
+  std::unique_ptr<ExprNode> index;
+  VectorAccess(std::unique_ptr<ExprNode> b, std::unique_ptr<ExprNode> i)
+      : base(std::move(b)), index(std::move(i)) {}
+  void accept(ASTVisitor *v) override { v->visit(this); }
+};
+
+// a[i] = wert, auch am Ende einer Kette ("k\\feld[i] = wert").
+class VectorAssignStmt : public StmtNode {
+public:
+  std::unique_ptr<ExprNode> base;
+  std::unique_ptr<ExprNode> index;
+  std::unique_ptr<ExprNode> value;
+  VectorAssignStmt(std::unique_ptr<ExprNode> b, std::unique_ptr<ExprNode> i,
+                   std::unique_ptr<ExprNode> val)
+      : base(std::move(b)), index(std::move(i)), value(std::move(val)) {}
+  void accept(ASTVisitor *v) override { v->visit(this); }
+};
 
 class Program : public ASTNode {
 public:

@@ -72,10 +72,19 @@ private:
   struct Ty {
     enum K { UNKNOWN, INT, FLOAT, STR, OBJ } k = UNKNOWN;
     std::string obj; // type name when k == OBJ
+    // Festes Array mit eckigen Klammern ("Local a[3]"). k traegt dann
+    // den ELEMENTtyp; das Array selbst ist im Original ein eigener Typ
+    // (VectorType) und laesst sich weder zuweisen noch als Ganzes
+    // rechnen (BUG-59).
+    bool vec = false;
 
     bool numeric() const { return k == INT || k == FLOAT; }
     bool known() const { return k != UNKNOWN; }
     std::string name() const {
+      if (vec) return "array of " + elemName();
+      return elemName();
+    }
+    std::string elemName() const {
       switch (k) {
         case INT:   return "int";
         case FLOAT: return "float";
@@ -85,7 +94,7 @@ private:
       }
     }
     bool sameAs(const Ty &o) const {
-      if (k != o.k) return false;
+      if (k != o.k || vec != o.vec) return false;
       return k != OBJ || toLower(obj) == toLower(o.obj);
     }
   };
@@ -100,6 +109,13 @@ private:
     if (h == "#") return mk(Ty::FLOAT);
     if (!h.empty() && h[0] == '.') return mk(Ty::OBJ, h.substr(1));
     return mk(Ty::INT); // "%" or none — Blitz3D's default
+  }
+
+  // Dasselbe fuer eine Deklaration, die ein festes Array sein kann.
+  static Ty fromHint(const std::string &h, bool isVec) {
+    Ty t = fromHint(h);
+    t.vec = isVec;
+    return t;
   }
 
   using Scope = std::unordered_map<std::string, Ty>;
@@ -128,7 +144,10 @@ private:
     for (auto &n : nodes) {
       if (auto *td = dynamic_cast<TypeDecl *>(n.get())) {
         auto &fields = types_[toLower(td->name)];
-        for (auto &f : td->fields) fields[toLower(f.name)] = fromHint(f.typeHint);
+        for (auto &f : td->fields)
+          fields[toLower(f.name)] = fromHint(f.typeHint, f.vecSize != nullptr);
+        for (auto &f : td->fields)
+          checkVecSize(f.vecSize.get(), f.name, td->line, td->col);
         // The names as they were written, in declaration order: a
         // suggestion should read the way the source spells it, and the
         // order settles a tie reproducibly (WEAK-14, Stufe 2).
@@ -138,7 +157,8 @@ private:
       } else if (auto *fn = dynamic_cast<FunctionDecl *>(n.get())) {
         FuncInfo fi;
         fi.ret = fromHint(fn->returnHint);
-        for (auto &p : fn->params) fi.params.push_back(fromHint(p.hint));
+        for (auto &p : fn->params)
+          fi.params.push_back(fromHint(p.hint, p.vecSize != nullptr));
         // Pflicht ist alles bis zum LETZTEN Parameter ohne Vorgabe - am
         // Original gemessen: "F(a=1,b)" verlangt beide Argumente, weil b keine
         // Vorgabe hat. Eine Vorgabe vor einem Parameter ohne Vorgabe ist damit
@@ -152,7 +172,8 @@ private:
         arrays_[toLower(ds->name)] = ArrayInfo{fromHint(ds->typeHint), ds->dims.size()};
       } else if (auto *vd = dynamic_cast<VarDecl *>(n.get())) {
         if (vd->scope == VarDecl::GLOBAL)
-          globals_[toLower(vd->name)] = fromHint(vd->typeHint);
+          globals_[toLower(vd->name)] =
+              fromHint(vd->typeHint, vd->vecSize != nullptr);
       } else if (auto *cd = dynamic_cast<ConstDecl *>(n.get())) {
         globals_[toLower(cd->name)] = fromHint(cd->typeHint);
         constNames_.insert(toLower(cd->name));
@@ -191,6 +212,20 @@ private:
     return false;
   }
 
+  // Die Groesse eines festen Arrays muss konstant sein: die Referenz
+  // meldet "Blitz array sizes must be constant" in VectorDeclNode::proto,
+  // sobald der Ausdruck kein ConstNode ist. Ein Const ist zulaessig, eine
+  // Variable nicht - beides am Original gemessen (BUG-59). Geprueft wird
+  // wie beim Vorgabewert eines Parameters nur die FORM; den Wert braucht
+  // es hier nicht, weil der Emitter den Ausdruck als C++-Feldgroesse
+  // weiterreicht und ein Const dort als constexpr steht.
+  void checkVecSize(ExprNode *size, const std::string &name, int line,
+                    int col) {
+    if (!size || isConstExpr(size)) return;
+    error(line, col,
+          "the size of the array '" + name + "' must be constant");
+  }
+
   void checkFunctions(const std::vector<std::unique_ptr<ASTNode>> &nodes) {
     for (auto &n : nodes) {
       if (auto *pr = dynamic_cast<Program *>(n.get())) {
@@ -199,14 +234,16 @@ private:
         // Erst hier, nicht schon in collect(): ein Const darf hinter der
         // Funktion stehen, die es als Vorgabe benutzt - das Original nimmt das
         // an. Waehrend collect() laeuft, ist constNames_ noch unvollstaendig.
-        for (auto &p : fn->params)
+        for (auto &p : fn->params) {
           if (p.defaultValue && !isConstExpr(p.defaultValue.get()))
             error(p.defaultValue->line, p.defaultValue->col,
                   "the default value of '" + p.name +
                       "' must be a constant expression");
+          checkVecSize(p.vecSize.get(), p.name, fn->line, fn->col);
+        }
         Scope local;
         for (auto &p : fn->params)
-          local[toLower(p.name)] = fromHint(p.hint);
+          local[toLower(p.name)] = fromHint(p.hint, p.vecSize != nullptr);
         scope_      = &local;
         returnType_ = fromHint(fn->returnHint);
         inFunction_ = true;
@@ -241,6 +278,7 @@ private:
     if (dynamic_cast<const CallExpr *>(e))     return true;
     if (dynamic_cast<const ArrayAccess *>(e))  return true;
     if (dynamic_cast<const FieldAccess *>(e))  return true;
+    if (dynamic_cast<const VectorAccess *>(e)) return true;
     if (auto *be = dynamic_cast<const BinaryExpr *>(e))
       return mentionsRuntimeValue(be->left.get()) ||
              mentionsRuntimeValue(be->right.get());
@@ -311,8 +349,30 @@ private:
   // fuer Objekt an String, Objekt an Integer, String an Objekt und ebenso fuer
   // zwei verschiedene Types. Genau das wird jetzt hier geprueft - vorher wurde
   // es an keiner Stelle geprueft (BUG-55).
+  // Eine Zuweisung an ein ganzes Array - oder eines als Wert - lehnt das
+  // Original mit "Blitz arrays can not be assigned to" ab, "b = a"
+  // genauso wie "a = 5" (gemessen). Ohne diese Sperre wuerde aus "b = a"
+  // eine stille Kopie: zwei std::array gleicher Groesse sind in C++
+  // zuweisbar (BUG-59).
+  void checkNotVec(const Ty &t, int line, int col) {
+    if (t.vec) error(line, col, "Blitz arrays can not be assigned to");
+  }
+
   void checkAssign(const Ty &target, const Ty &value, const char *what,
                    int line, int col) {
+    // Ein festes Array passt nur auf ein festes Array. Als Argument ist
+    // das der Normalfall - die Uebergabe ist eine Referenz -, gemischt
+    // mit einem Skalar ist es "Illegal type conversion" im Original
+    // (gemessen, BUG-59). Die Groesse gehoert dort zwar zum Typ, wird
+    // hier aber nicht mitgefuehrt; ein a[3] an einem v[2] faellt erst
+    // dem C++-Uebersetzer auf.
+    if (target.vec != value.vec) {
+      if (target.known() && value.known())
+        error(line, col, std::string(what) + ": cannot pass " +
+                             value.name() + " where " + target.name() +
+                             " is expected");
+      return;
+    }
     if (!target.known() || !value.known()) return;
     if (target.k != Ty::OBJ && value.k != Ty::OBJ) return; // Zahl/String: frei
     if (target.sameAs(value)) return;
@@ -336,7 +396,8 @@ private:
     if (auto *pr = dynamic_cast<Program *>(n)) {
       for (auto &s : pr->nodes) stmt(s.get());
     } else if (auto *vd = dynamic_cast<VarDecl *>(n)) {
-      Ty t = fromHint(vd->typeHint);
+      Ty t = fromHint(vd->typeHint, vd->vecSize != nullptr);
+      checkVecSize(vd->vecSize.get(), vd->name, vd->line, vd->col);
       if (vd->scope == VarDecl::GLOBAL && (blockDepth_ > 0 || inFunction_))
         error(vd->line, vd->col,
               "'Global' is only allowed at the top level of the main program, "
@@ -345,6 +406,8 @@ private:
       if (vd->scope == VarDecl::LOCAL) declare(vd->name, t);
       if (vd->initValue)
         checkAssign(t, expr(vd->initValue.get()), "Local", vd->line, vd->col);
+      // "Local a[3] = 1" gibt es nicht: der Parser laesst Groesse und
+      // Initialisierer nicht zusammen zu, und das Original auch nicht.
     } else if (auto *cd = dynamic_cast<ConstDecl *>(n)) {
       if (blockDepth_ > 0 || inFunction_)
         error(cd->line, cd->col,
@@ -356,16 +419,20 @@ private:
       Ty val = expr(as->value.get());
       const Ty *known = lookup(as->name);
       if (known) {
-        if (!checkTag(as->name, as->typeHint, as->line, as->col))
+        if (!checkTag(as->name, as->typeHint, as->line, as->col)) {
+          checkNotVec(*known, as->line, as->col);
           checkAssign(*known, val, "assignment", as->line, as->col);
+        }
       } else {
         // Eine neue Variable mit Tag: der Wert muss zum Tag passen. Fuer Zahlen
         // und Strings prueft das nichts mehr (die wandeln frei, BUG-53), fuer
         // Objekte schon - sonst waere "p.T = New U" die einzige der sechs
         // Zuweisungsstellen ohne diese Pruefung (BUG-55).
-        if (!as->typeHint.empty())
+        if (!as->typeHint.empty()) {
+          checkNotVec(val, as->line, as->col);
           checkAssign(fromHint(as->typeHint), val, "assignment", as->line,
                       as->col);
+        }
         declare(as->name, as->typeHint.empty() ? val : fromHint(as->typeHint));
       }
     } else if (auto *rd = dynamic_cast<ReadStmt *>(n)) {
@@ -389,6 +456,14 @@ private:
       Ty val = expr(fas->value.get());
       Ty f   = fieldType(obj, fas->fieldName, fas->line, fas->col);
       checkAssign(f, val, "field assignment", fas->line, fas->col);
+    } else if (auto *vas = dynamic_cast<VectorAssignStmt *>(n)) {
+      // Der Elementtyp eines festen Arrays wird hier noch nicht
+      // mitgefuehrt (Ty kennt keine Array-Kategorie), also bleibt es
+      // beim Durchlaufen der Teilausdruecke - sonst entginge diesem
+      // Zweig jede Pruefung, die sonst ueberall greift.
+      expr(vas->base.get());
+      expr(vas->index.get());
+      expr(vas->value.get());
     } else if (auto *is = dynamic_cast<IfStmt *>(n)) {
       expr(is->condition.get());
       block(is->thenBlock);
@@ -522,6 +597,22 @@ private:
     if (auto *fa = dynamic_cast<FieldAccess *>(e)) {
       Ty obj = expr(fa->object.get());
       return fieldType(obj, fa->fieldName, fa->line, fa->col);
+    }
+    if (auto *va = dynamic_cast<VectorAccess *>(e)) {
+      Ty b = expr(va->base.get());
+      expr(va->index.get());
+      // "Variable must be a Blitz array" meldet VectorVarNode::semant,
+      // sobald die Basis keinen VectorType hat. Ein unbekannter Typ
+      // bleibt still: eine fehlende Pruefung ist besser als eine
+      // erfundene.
+      if (b.known() && !b.vec) {
+        error(va->line, va->col,
+              "'[...]' needs a Blitz array, but this is " + b.name());
+        return Ty();
+      }
+      Ty elem = b;
+      elem.vec = false;
+      return elem;
     }
     if (auto *ne = dynamic_cast<NewExpr *>(e)) {
       knownType(ne->typeName, ne->line, ne->col);

@@ -104,6 +104,9 @@ static void collectCallsExpr(const ExprNode *e,
     collectCallsExpr(ue->expr.get(), out);
   } else if (auto *fa = dynamic_cast<const FieldAccess *>(e)) {
     collectCallsExpr(fa->object.get(), out);
+  } else if (auto *va = dynamic_cast<const VectorAccess *>(e)) {
+    collectCallsExpr(va->base.get(), out);
+    collectCallsExpr(va->index.get(), out);
   } else if (auto *aa = dynamic_cast<const ArrayAccess *>(e)) {
     for (auto &idx : aa->indices) collectCallsExpr(idx.get(), out);
   } else if (auto *bef = dynamic_cast<const BeforeExpr *>(e)) {
@@ -130,6 +133,10 @@ static void collectCallsNode(const ASTNode *node,
   } else if (auto *fas = dynamic_cast<const FieldAssignStmt *>(node)) {
     collectCallsExpr(fas->object.get(), out);
     collectCallsExpr(fas->value.get(), out);
+  } else if (auto *vas = dynamic_cast<const VectorAssignStmt *>(node)) {
+    collectCallsExpr(vas->base.get(), out);
+    collectCallsExpr(vas->index.get(), out);
+    collectCallsExpr(vas->value.get(), out);
   } else if (auto *is = dynamic_cast<const IfStmt *>(node)) {
     collectCallsExpr(is->condition.get(), out);
     collectCallsBlock(is->thenBlock, out);

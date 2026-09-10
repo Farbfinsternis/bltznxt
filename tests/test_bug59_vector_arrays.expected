@@ -1,0 +1,14 @@
+1 uebergabe a[0]=99
+2 anfang int=0 str=[] flt=0
+3 letztes element c[3]=77
+4 const-groesse g[2]=5
+5 zaehler=1
+6 feld anfang=0
+6 feld gesetzt=5,7
+7 verkettet=42
+7 leer ist Null? 1
+8 summe=12
+9 global gl[0]=11 dim d(0)=22
+9 global in funktion gl[0]=11
+9 global nach funktion gl[1]=44
+10 hinter label h[1]=33

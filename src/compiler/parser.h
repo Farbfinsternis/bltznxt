@@ -298,15 +298,65 @@ private:
                                   "Expected type name after '.'").value;
       }
 
-      // Field assignment: var\field = expr  (Blitz3D \ field separator)
-      if (peek().type == TokenType::OPERATOR && peek().value == "\\") {
-        advance(); // consume '\'
-        Token fname = expect(TokenType::ID, "Expected field name after \\");
-        parseOptionalTypeTag(); // "p\f#" - read and dropped (BUG-31)
+      // Zuweisung an ein Ziel mit Postfix-Kette: "p\feld = x", "a[i] = x",
+      // "k\kind[0]\wert = x". Bis hierher kannte der Statement-Parser
+      // GENAU EINE Feldebene und gar keinen Index; alles darueber hinaus
+      // endete in "Expected '=' (got '\\')" bzw. "(got '[')" - BUG-59 und
+      // BUG-60. Die Referenz kennt diesen Unterschied nicht: parseVar() liest
+      // links vom "=" dieselbe Kette wie in einem Ausdruck.
+      if (peek().type == TokenType::OPERATOR &&
+          (peek().value == "\\" || peek().value == "[")) {
+        std::unique_ptr<ExprNode> target = std::make_unique<VarExpr>(nameTok.value);
+        target->line = nameTok.line;
+        target->col  = nameTok.col;
+
+        // Das jeweils LETZTE Glied bleibt liegen: es wird zum
+        // Zuweisungsknoten, alles davor ist der Ausdruck links davon.
+        enum { NONE, FIELD, INDEX } last = NONE;
+        std::string lastField;
+        std::unique_ptr<ExprNode> lastIndex;
+        auto flush = [&]() {
+          if (last == FIELD)
+            target = std::make_unique<FieldAccess>(std::move(target), lastField);
+          else if (last == INDEX)
+            target = std::make_unique<VectorAccess>(std::move(target),
+                                                    std::move(lastIndex));
+          last = NONE;
+        };
+
+        for (;;) {
+          if (peek().type == TokenType::OPERATOR && peek().value == "\\") {
+            flush();
+            advance();
+            lastField =
+                expect(TokenType::ID, "Expected field name after \\").value;
+            parseOptionalTypeTag(); // "p\f#" - read and dropped (BUG-31)
+            last = FIELD;
+          } else if (peek().type == TokenType::OPERATOR && peek().value == "[") {
+            flush();
+            advance();
+            lastIndex = parseExpr();
+            if (peek().type == TokenType::OPERATOR && peek().value == ",")
+              error(peek().line, peek().col,
+                    "Blitz arrays are one-dimensional; expected ']'");
+            expect(TokenType::OPERATOR, "Expected ']'", "]");
+            last = INDEX;
+          } else {
+            break;
+          }
+        }
+
         expect(TokenType::OPERATOR, "Expected '='", "=");
         auto val = parseExpr();
-        auto s = std::make_unique<FieldAssignStmt>(
-            std::make_unique<VarExpr>(nameTok.value), fname.value, std::move(val));
+        if (last == INDEX) {
+          auto s = std::make_unique<VectorAssignStmt>(
+              std::move(target), std::move(lastIndex), std::move(val));
+          s->line = nameTok.line;
+          s->col  = nameTok.col;
+          return s;
+        }
+        auto s = std::make_unique<FieldAssignStmt>(std::move(target), lastField,
+                                                   std::move(val));
         s->line = nameTok.line;
         return s;
       }
@@ -600,6 +650,47 @@ private:
     return "";
   }
 
+  // Dasselbe, aber einschliesslich des Objekt-Tags ".TypeName" - das ist der
+  // vollstaendige parseTypeTag() der Referenz:
+  //
+  //   case '%': case '#': case '$': next; return das Zeichen
+  //   case '.': next; return parseIdent()
+  //
+  // Wo diese Fassung fehlte, ging ein Objekt-Tag stillschweigend verloren:
+  // "Field child.T" wurde zu einem int, und alles was hinter dem Tag noch
+  // auf der Zeile stand, verschwand mit ihm (BUG-60).
+  std::string parseTypeTag() {
+    if (peek().type == TokenType::OPERATOR &&
+        (peek().value == "#" || peek().value == "%" ||
+         peek().value == "$"))
+      return advance().value;
+    if (peek().type == TokenType::OPERATOR && peek().value == ".") {
+      advance();
+      return "." + expect(TokenType::ID, "Expected type name after '.'").value;
+    }
+    return "";
+  }
+
+  // Die Groesse eines festen Arrays, "[n]", falls eine dasteht.
+  //
+  // Die Referenz liest hier eine ExprSeq und besteht danach auf genau einem
+  // Ausdruck ("exprs->size()!=1 || curr()!=']'" -> exp("']'")), weshalb
+  // "a[2,2]" dort mit "Expecting ']'" abgelehnt wird - gemessen. Die Groesse
+  // selbst muss konstant sein; das prueft die semantische Phase, nicht der
+  // Parser, denn ein Const ist zulaessig und der Parser kennt dessen Wert
+  // nicht (BUG-59).
+  std::unique_ptr<ExprNode> parseOptionalVecSize() {
+    if (!(peek().type == TokenType::OPERATOR && peek().value == "["))
+      return nullptr;
+    advance(); // [
+    auto size = parseExpr();
+    if (peek().type == TokenType::OPERATOR && peek().value == ",")
+      error(peek().line, peek().col,
+            "Blitz arrays are one-dimensional; expected ']'");
+    expect(TokenType::OPERATOR, "Expected ']'", "]");
+    return size;
+  }
+
   std::unique_ptr<StmtNode> parseFor() {
     int ln = peek().line;
     advance(); // FOR
@@ -792,17 +883,11 @@ private:
 
     while (true) {
       Token nameTok = expect(TokenType::ID, "Expected variable name");
-      std::string typeHint;
-      if (peek().type == TokenType::OPERATOR &&
-          (peek().value == "#" || peek().value == "%" ||
-           peek().value == "$")) {
-        typeHint = advance().value;
-      } else if (peek().type == TokenType::OPERATOR && peek().value == ".") {
-        // Object type annotation: v.Vec → typeHint = ".Vec"
-        advance(); // consume '.'
-        if (peek().type == TokenType::ID)
-          typeHint = "." + advance().value;
-      }
+      std::string typeHint = parseTypeTag();
+
+      // Der Tag steht VOR der Klammer: "Local a#[2]" und "Local a.T[2]"
+      // nimmt das Original an, "Local a[2]#" nicht - gemessen (BUG-59).
+      auto vecSize = parseOptionalVecSize();
 
       std::unique_ptr<ExprNode> init;
       if (peek().type == TokenType::OPERATOR && peek().value == "=") {
@@ -812,6 +897,7 @@ private:
 
       auto vd  = std::make_unique<VarDecl>(scope, nameTok.value, typeHint,
                                             std::move(init));
+      vd->vecSize = std::move(vecSize);
       vd->line = nameTok.line;
       vd->col  = nameTok.col;
       list->nodes.push_back(std::move(vd));
@@ -948,6 +1034,8 @@ private:
           }
           hint = "." + advance().value;
         }
+        // "F(v[2])" - ein festes Array als Parameter (BUG-59).
+        auto pvec = parseOptionalVecSize();
         // Vorgabewert (BUG-49). Das Original verlangt hier einen konstanten
         // Ausdruck; "1+1" und ein Const gehen, eine Variable nicht.
         std::unique_ptr<ExprNode> defVal;
@@ -956,7 +1044,8 @@ private:
           defVal = parseExpr();
         }
         func->params.push_back(
-            FunctionDecl::Param{p.value, hint, std::move(defVal)});
+            FunctionDecl::Param{p.value, hint, std::move(defVal),
+                                std::move(pvec)});
         if (peek().type == TokenType::OPERATOR && peek().value == ",")
           advance();
       }
@@ -1072,14 +1161,14 @@ private:
         // Parse comma-separated field declarations: name[hint], name[hint], ...
         while (true) {
           Token fieldTok = expect(TokenType::ID, "Expected field name after Field");
-          std::string hint;
-          if (peek().type == TokenType::OPERATOR &&
-              (peek().value == "%" || peek().value == "#" ||
-               peek().value == "$"))
-            hint = advance().value;
+          // Der volle Tag, Objekttypen eingeschlossen: bis hierher las
+          // die Schleife nur die drei skalaren und liess ein ".T" samt
+          // allem, was ihm folgte, stillschweigend liegen (BUG-60).
+          std::string hint = parseTypeTag();
           TypeDecl::Field f;
           f.name     = fieldTok.value;
           f.typeHint = hint;
+          f.vecSize  = parseOptionalVecSize(); // "Field a[3]" (BUG-59)
           td->fields.push_back(std::move(f));
           if (peek().type == TokenType::OPERATOR && peek().value == ",")
             advance();
@@ -1368,18 +1457,38 @@ private:
   }
 
   // Handles postfix field access: obj\field (chained: a\b\c)
+  // Die Postfix-Kette: Feldtrenner und Arrayindex, beliebig oft und
+  // beliebig gemischt - genau die Schleife aus parseVar() der Referenz,
+  // die dort "case '\'" und "case '['" nebeneinander behandelt. Damit
+  // liest sich "k\kind[0]\wert" in einem Zug (BUG-59).
   std::unique_ptr<ExprNode> parsePostfix() {
     auto left = parsePrimary();
-    while (peek().type == TokenType::OPERATOR && peek().value == "\\") {
-      int ln = peek().line;
-      advance(); // consume '\'
-      Token fname = expect(TokenType::ID, "Expected field name after \\");
-      parseOptionalTypeTag(); // "p\f#" on the reading side too (BUG-31).
-                              // It used to fall through to the statement
-                              // parser, which silently dropped it.
-      auto fa  = std::make_unique<FieldAccess>(std::move(left), fname.value);
-      fa->line = ln;
-      left = std::move(fa);
+    for (;;) {
+      if (peek().type == TokenType::OPERATOR && peek().value == "\\") {
+        int ln = peek().line;
+        advance(); // consume '\'
+        Token fname = expect(TokenType::ID, "Expected field name after \\");
+        parseOptionalTypeTag(); // "p\f#" on the reading side too (BUG-31).
+                                // It used to fall through to the statement
+                                // parser, which silently dropped it.
+        auto fa  = std::make_unique<FieldAccess>(std::move(left), fname.value);
+        fa->line = ln;
+        left = std::move(fa);
+      } else if (peek().type == TokenType::OPERATOR && peek().value == "[") {
+        int ln = peek().line, cl = peek().col;
+        advance(); // [
+        auto idx = parseExpr();
+        if (peek().type == TokenType::OPERATOR && peek().value == ",")
+          error(peek().line, peek().col,
+                "Blitz arrays are one-dimensional; expected ']'");
+        expect(TokenType::OPERATOR, "Expected ']'", "]");
+        auto va  = std::make_unique<VectorAccess>(std::move(left), std::move(idx));
+        va->line = ln;
+        va->col  = cl;
+        left = std::move(va);
+      } else {
+        break;
+      }
     }
     return left;
   }

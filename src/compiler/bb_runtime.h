@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <iostream>
 #include <vector>
+#include <array>     // feste Arrays: "Local a[3]" wird std::array (BUG-59)
 #include "bb_string.h"  // bbString typedef + string functions
 #include "bb_math.h"    // math functions + Pi constant
 #include "bb_system.h"  // MilliSecs, CurrentDate, CurrentTime, Delay

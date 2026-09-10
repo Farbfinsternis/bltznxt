@@ -13,6 +13,19 @@
 #include <unordered_set>
 
 class Emitter : public ASTVisitor {
+  // Zielmarke fuer ein festes Array in einer Parameterliste: es wird als
+  // Referenz uebergeben, also darf convFor() nichts darum wickeln.
+  static constexpr const char *kVecHint = "[]";
+
+  // Ein Name, den ein Rumpf anlegt: Schreibweise, Tag und - fuer
+  // "Local a[3]" - die Groesse des festen Arrays (BUG-59). Steht hier
+  // oben, weil collectLocals() den Typ in seiner Parameterliste fuehrt.
+  struct LocalDecl {
+    std::string name;   // kleingeschrieben
+    std::string hint;
+    ExprNode   *vecSize = nullptr;
+  };
+
 public:
   void emit(Program *prog, const std::string &outputPath) {
     output.str("");
@@ -47,16 +60,39 @@ public:
 
     output << "#include \"bb_runtime.h\"\n\n";
 
-    // Emit type struct definitions + linked-list helpers (before functions)
-    for (auto &n : prog->nodes)
-      if (auto *td = dynamic_cast<TypeDecl *>(n.get()))
-        emitTypeDecl(td);
+    // Alle Typnamen vorab deklarieren, damit ein Feld auf einen erst
+    // spaeter erklaerten Typ zeigen darf: in KBSplines.bb steht "Field
+    // keylist.KeyFrame[...]" in Type Motion, und Type KeyFrame kommt
+    // danach. Fuer ein blosses "struct X *" genuegte die implizite
+    // Deklaration, innerhalb eines Template-Arguments
+    // (std::array<struct X *, N>) ist sie unnoetig heikel.
+    {
+      bool anyType = false;
+      for (auto &n : prog->nodes)
+        if (auto *td = dynamic_cast<TypeDecl *>(n.get())) {
+          output << "struct bb_" << toLower(td->name) << ";\n";
+          anyType = true;
+        }
+      if (anyType) output << "\n";
+    }
 
     // Emit constants at file scope. In Blitz3D a Const belongs to the whole
     // program, not to the statement stream: parseStmtSeq puts it into its own
     // list (consts->push_back( parseVarDecl( DECL_GLOBAL,true ) )). Emitting it
     // inside main() would hide it from every function (BUG-33).
+    //
+    // Vor den Typen, nicht danach: seit BUG-59 darf ein Feld ein festes
+    // Array sein, und dessen Groesse ist in C++ Teil des Typs. In
+    // KBSplines.bb steht "Field keylist.KeyFrame[nkeyframes-1]" - stuende
+    // das constexpr erst hinter dem Struct, waere der Name dort unbekannt.
+    // Umgekehrt kann ein Const nie einen Typ brauchen: sein Wert muss
+    // konstant sein.
     collectConsts(prog->nodes);
+
+    // Emit type struct definitions + linked-list helpers (before functions)
+    for (auto &n : prog->nodes)
+      if (auto *td = dynamic_cast<TypeDecl *>(n.get()))
+        emitTypeDecl(td);
 
     // Emit global variable declarations at file scope (visible to all functions)
     collectGlobals(prog->nodes);
@@ -249,7 +285,7 @@ public:
     }
 
     // LOCAL variable declaration
-    auto [type, defVal] = hintToType(node->typeHint);
+    auto [type, defVal] = declType(node->typeHint, node->vecSize.get());
 
     // Already declared at the top of the body by hoistLocals() — the
     // declaration here would be jumped over by a Goto/Gosub.
@@ -579,8 +615,15 @@ public:
     output << rtype << " fn_" << toLower(node->name) << "(";
     for (size_t i = 0; i < node->params.size(); ++i) {
       auto &p = node->params[i];
-      auto [ptype, defVal] = hintToType(p.hint);
-      output << ptype << " var_" << toLower(p.name);
+      auto [ptype, defVal] = declType(p.hint, p.vecSize.get());
+      output << ptype;
+      // Ein festes Array wird als Referenz uebergeben. Am laufenden
+      // Original gemessen: eine Funktion, die v[0] beschreibt, aendert
+      // das Array des Aufrufers (BUG-59). Die Groesse steckt im Typ,
+      // also lehnt schon C++ ein a[3] an einem v[2] ab - dort ist es
+      // "Illegal type conversion".
+      if (p.vecSize) output << "&";
+      output << " var_" << toLower(p.name);
       if (withDefaults && i >= firstTrailingDefault && p.defaultValue) {
         output << " = ";
         emitConverted(p.defaultValue.get(), p.hint); // Zieltyp wie ueberall
@@ -614,8 +657,8 @@ public:
     // type helper).
     auto savedObjectTypes = varObjectTypes;
     auto savedVarHints    = varHints_;
-    for (auto &[pname, phint, pdef] : node->params) {
-      (void)pdef;
+    for (auto &[pname, phint, pdef, pvec] : node->params) {
+      (void)pdef; (void)pvec;
       std::string lo = pname;
       std::transform(lo.begin(), lo.end(), lo.begin(),
                      [](unsigned char c){ return (char)std::tolower(c); });
@@ -892,6 +935,34 @@ public:
     output << ";\n";
   }
 
+  // a[i] - ein Element eines festen Arrays. Die Groesse steckt im C++-Typ
+  // (std::array), der Index ist derselbe wie im Quelltext: die Referenz
+  // rechnet "basis + index*4" ohne jede Verschiebung, "a[n]" hat also die
+  // Indizes 0..n und n+1 Elemente (BUG-59).
+  void visit(VectorAccess *node) override {
+    bool prev = inExprCtx; inExprCtx = true;
+    node->base->accept(this);
+    output << "[";
+    emitExpr(node->index.get());
+    output << "]";
+    inExprCtx = prev;
+  }
+
+  // a[i] = wert. Der Zielausdruck emittiert sich selbst als lvalue - das
+  // gilt fuer eine Variable ebenso wie fuer eine ganze Kette wie
+  // "k\\feld", weil visit(FieldAccess*) genau das schon liefert.
+  void visit(VectorAssignStmt *node) override {
+    output << ind();
+    bool prev = inExprCtx; inExprCtx = true;
+    node->base->accept(this);
+    output << "[";
+    emitExpr(node->index.get());
+    output << "] = ";
+    inExprCtx = prev;
+    emitExpr(node->value.get());
+    output << ";\n";
+  }
+
   void visit(LabelStmt *node) override {
     // Labels must be followed by a statement in C++; use null statement.
     output << "lbl_" << toLower(node->name) << ":;\n";
@@ -931,6 +1002,7 @@ private:
   std::unordered_set<std::string> hoistedLocals_;     // declared up front (Goto-safe)
   std::unordered_set<std::string> foreachVars_;       // For-Each counters of the body being hoisted
   std::unordered_set<std::string> writtenNames_;      // names that body declares or writes to
+  std::unordered_set<std::string> vecVars_;           // feste Arrays des laufenden Rumpfes
   std::string returnDefault_ = "0";                  // default value of the current function
   std::string returnHint_;                           // Blitz-Rueckgabetag der laufenden Funktion
   // Skalartag jeder bekannten Variablen ("%", "#", "$" oder ""). Nur fuer die
@@ -989,6 +1061,9 @@ private:
       for (auto &i : aa->indices) out.push_back(i.get());
     } else if (auto *fa = dynamic_cast<FieldAccess *>(e)) {
       out.push_back(fa->object.get());
+    } else if (auto *va = dynamic_cast<VectorAccess *>(e)) {
+      out.push_back(va->base.get());
+      out.push_back(va->index.get());
     } else if (auto *be2 = dynamic_cast<BeforeExpr *>(e)) {
       out.push_back(be2->object.get());
     } else if (auto *ae = dynamic_cast<AfterExpr *>(e)) {
@@ -1029,6 +1104,7 @@ private:
       return exprWrites(as->value.get());
     }
     if (dynamic_cast<ArrayAssignStmt *>(n) || dynamic_cast<FieldAssignStmt *>(n) ||
+        dynamic_cast<VectorAssignStmt *>(n) ||
         dynamic_cast<DimStmt *>(n)         || dynamic_cast<ReadStmt *>(n) ||
         dynamic_cast<RestoreStmt *>(n)     || dynamic_cast<DeleteStmt *>(n) ||
         dynamic_cast<InsertStmt *>(n))
@@ -1102,6 +1178,7 @@ private:
       return globalVarNames.count(toLower(ve->name)) != 0;
     if (dynamic_cast<ArrayAccess *>(e))  return true;
     if (dynamic_cast<FieldAccess *>(e))  return true;
+    if (dynamic_cast<VectorAccess *>(e)) return true;
     if (dynamic_cast<FirstExpr *>(e))    return true;
     if (dynamic_cast<LastExpr *>(e))     return true;
     if (dynamic_cast<BeforeExpr *>(e))   return true;
@@ -1180,6 +1257,8 @@ private:
       pinList(ops);
     } else if (auto *fa = dynamic_cast<FieldAssignStmt *>(n)) {
       pinList({fa->object.get(), fa->value.get()});
+    } else if (auto *va = dynamic_cast<VectorAssignStmt *>(n)) {
+      pinList({va->base.get(), va->index.get(), va->value.get()});
     } else if (auto *ds = dynamic_cast<DimStmt *>(n)) {
       std::vector<ExprNode *> ops;
       for (auto &d : ds->dims) ops.push_back(d.get());
@@ -1242,7 +1321,14 @@ private:
     // Struct definition
     output << "struct " << sname << " {\n";
     for (auto &f : td->fields) {
-      auto [ftype, fdefault] = hintToType(f.typeHint);
+      // Ein Feld kann ein festes Array sein ("Field cv#[8]") und seit
+      // BUG-60 auch einen Objekttyp tragen ("Field kind.Knoten"). Beides
+      // zusammen kommt vor: "Field keylist.KeyFrame[nkeyframes-1]".
+      // Als std::array im Struct gehoert es dem Objekt und wird mit ihm
+      // angelegt und freigegeben - genau wie im Original, wo bbObjNew
+      // ein BBTYPE_VEC-Feld ueber _bbVecAlloc genullt anlegt und
+      // bbObjDelete es wieder freigibt.
+      auto [ftype, fdefault] = declType(f.typeHint, f.vecSize.get());
       output << "    " << ftype << " var_" << toLower(f.name) << " = " << fdefault << ";\n";
     }
     output << "    " << spname << "__next__ = nullptr;\n";
@@ -1450,11 +1536,11 @@ private:
   // VarDeclNode::translate in the reference is "if( expr ) g->code( ... )",
   // so a bare "Local x" inside a loop does not re-zero x on every pass.
   void hoistLocals(const std::vector<std::unique_ptr<ASTNode>> &nodes) {
-    std::vector<std::pair<std::string, std::string>> found; // name (lower), hint
+    std::vector<LocalDecl> found;
     foreachVars_.clear();
     writtenNames_.clear();
     collectLocals(nodes, found);
-    for (auto &[lo, hint] : found) {
+    for (auto &[lo, hint, vecSize] : found) {
       if (declaredVars.count(lo)) continue; // global, parameter or seen already
       // A Const and a Dim'd array live at file scope, and visit(FunctionDecl*)
       // reseeds declaredVars from globalVarNames alone - inside a function
@@ -1470,10 +1556,11 @@ private:
       // hoisted as before - it is a local like any other, and BUG-23 needs it
       // in front of any label.
       if (foreachVars_.count(lo) && !writtenNames_.count(lo)) continue;
-      auto [type, defVal] = hintToType(hint);
+      auto [type, defVal] = declType(hint, vecSize);
       output << ind() << type << " var_" << lo << " = " << defVal << ";\n";
       declaredVars.insert(lo);
       hoistedLocals_.insert(lo);
+      if (vecSize) vecVars_.insert(lo);
       varHints_[lo] = hint;
       if (!hint.empty() && hint[0] == '.')
         varObjectTypes[lo] = toLower(hint.substr(1));
@@ -1502,7 +1589,7 @@ private:
   //
   // Does not descend into FunctionDecl — those bodies hoist their own.
   void collectLocals(const std::vector<std::unique_ptr<ASTNode>> &nodes,
-                     std::vector<std::pair<std::string, std::string>> &out) {
+                     std::vector<LocalDecl> &out) {
     for (auto &n : nodes) {
       if (auto *vd = dynamic_cast<VarDecl *>(n.get())) {
         // Name before initialiser, unlike VarDeclNode::proto, which semants
@@ -1510,7 +1597,8 @@ private:
         // which the reference rejects as a duplicate variable name anyway;
         // taking the name first keeps the hoisted type the tagged one instead
         // of an int that visit(VarDecl*) would then redeclare as a string.
-        if (vd->scope == VarDecl::LOCAL) addWritten(out, vd->name, vd->typeHint);
+        if (vd->scope == VarDecl::LOCAL)
+          addWritten(out, vd->name, vd->typeHint, vd->vecSize.get());
         collectExprLocals(vd->initValue.get(), out);
       } else if (auto *as = dynamic_cast<AssignStmt *>(n.get())) {
         addWritten(out, as->name, as->typeHint);
@@ -1563,6 +1651,10 @@ private:
       } else if (auto *fas = dynamic_cast<FieldAssignStmt *>(n.get())) {
         collectExprLocals(fas->object.get(), out);
         collectExprLocals(fas->value.get(), out);
+      } else if (auto *vas = dynamic_cast<VectorAssignStmt *>(n.get())) {
+        collectExprLocals(vas->base.get(), out);
+        collectExprLocals(vas->index.get(), out);
+        collectExprLocals(vas->value.get(), out);
       } else if (auto *rs = dynamic_cast<ReturnStmt *>(n.get())) {
         collectExprLocals(rs->value.get(), out);
       } else if (auto *del = dynamic_cast<DeleteStmt *>(n.get())) {
@@ -1583,20 +1675,22 @@ private:
   // First mention wins, tag included — the reference types the variable where
   // its decl is inserted and rejects a later contradicting tag with
   // "Variable type mismatch".
-  static void addLocal(std::vector<std::pair<std::string, std::string>> &out,
-                       const std::string &name, const std::string &hint) {
+  static void addLocal(std::vector<LocalDecl> &out,
+                       const std::string &name, const std::string &hint,
+                       ExprNode *vecSize = nullptr) {
     std::string lo = toLower(name);
     for (auto &e : out)
-      if (e.first == lo) return;
-    out.emplace_back(lo, hint);
+      if (e.name == lo) return;
+    out.push_back(LocalDecl{lo, hint, vecSize});
   }
 
   // Same, for a name this body declares or writes to rather than merely
   // reads. Only these keep their hoisted declaration when the name is also a
   // For Each counter - see hoistLocals().
-  void addWritten(std::vector<std::pair<std::string, std::string>> &out,
-                  const std::string &name, const std::string &hint) {
-    addLocal(out, name, hint);
+  void addWritten(std::vector<LocalDecl> &out,
+                  const std::string &name, const std::string &hint,
+                  ExprNode *vecSize = nullptr) {
+    addLocal(out, name, hint, vecSize);
     writtenNames_.insert(toLower(name));
   }
 
@@ -1604,7 +1698,7 @@ private:
   // and Last mention none; an array or field name is not a variable of its
   // own, but the index expressions and the object it hangs off are.
   void collectExprLocals(const ExprNode *e,
-                         std::vector<std::pair<std::string, std::string>> &out) {
+                         std::vector<LocalDecl> &out) {
     if (!e) return;
     if (auto *ve = dynamic_cast<const VarExpr *>(e)) {
       addLocal(out, ve->name, ve->typeHint);
@@ -1619,6 +1713,9 @@ private:
       for (auto &i : aa->indices) collectExprLocals(i.get(), out);
     } else if (auto *fa = dynamic_cast<const FieldAccess *>(e)) {
       collectExprLocals(fa->object.get(), out);
+    } else if (auto *va = dynamic_cast<const VectorAccess *>(e)) {
+      collectExprLocals(va->base.get(), out);
+      collectExprLocals(va->index.get(), out);
     } else if (auto *bx = dynamic_cast<const BeforeExpr *>(e)) {
       collectExprLocals(bx->object.get(), out);
     } else if (auto *ax = dynamic_cast<const AfterExpr *>(e)) {
@@ -1673,7 +1770,7 @@ private:
         globalVarNames.insert(lo);
         declaredVars.insert(lo); // prevent implicit re-declaration inside functions
         varHints_[lo] = vd->typeHint;
-        auto [type, defVal] = hintToType(vd->typeHint);
+        auto [type, defVal] = declType(vd->typeHint, vd->vecSize.get());
         output << type << " var_" << lo << " = " << defVal << ";\n";
       }
     }
@@ -1706,7 +1803,11 @@ private:
     if (isUser) {
       auto it = userFuncDecls_.find(lo);
       if (it == userFuncDecls_.end() || !it->second) return out;
-      for (auto &p : it->second->params) out.push_back(p.hint);
+      // Ein festes Array wird als Referenz uebergeben und darf nicht
+      // durch bb_ToInt und Verwandte laufen - der Marker haelt es aus
+      // der Umwandlung heraus (BUG-59).
+      for (auto &p : it->second->params)
+        out.push_back(p.vecSize ? std::string(kVecHint) : p.hint);
       return out;
     }
     for (const auto &c : kCommands) {
@@ -1738,6 +1839,7 @@ private:
   // ist. Objektziele wandeln nie (BUG-53, am Original gemessen).
   static const char *convFor(const std::string &hint) {
     if (hint == "?") return nullptr;                    // beliebiger Parameter
+    if (hint == kVecHint) return nullptr;               // festes Array
     if (!hint.empty() && hint[0] == '.') return nullptr; // Objektziel
     if (hint == "$") return "bb_Str";
     if (hint == "#") return "bb_ToFloat";
@@ -1783,6 +1885,38 @@ private:
     if (!hint.empty() && hint[0] == '.')
       return {"struct bb_" + toLower(hint.substr(1)) + " *", "nullptr"};
     return {"int", "0"}; // "%" or empty → int
+  }
+
+  // Rendert einen Ausdruck in eine Zeichenkette, statt ihn in den Strom zu
+  // schreiben. Gebraucht wird das dort, wo der Wert Teil eines Typnamens
+  // wird - die Groesse eines festen Arrays steht in C++ im Typ.
+  std::string exprToString(ExprNode *e) {
+    std::stringstream tmp;
+    std::swap(output, tmp);
+    bool prev = inExprCtx; inExprCtx = true;
+    e->accept(this);
+    inExprCtx = prev;
+    std::swap(output, tmp);
+    return tmp.str();
+  }
+
+  // Typ und Anfangswert einer Deklaration, feste Arrays eingeschlossen.
+  //
+  // "Local a[3]" wird zu std::array<int,(3)+1> - das "+1", weil "a[n]" im
+  // Original die Indizes 0..n hat: VectorDeclNode::proto legt
+  // "sizes.push_back( n+1 )" ab. Die Groesse bleibt der Ausdruck aus dem
+  // Quelltext; ein Const ist dort zulaessig und steht bei uns als constexpr
+  // auf Dateiebene, taugt also als Feldgroesse. Dass sie konstant sein muss,
+  // prueft die semantische Phase - hier faellt es sonst als C++-Meldung an.
+  //
+  // "{}" als Anfangswert nullt jedes Element, wie _bbVecAlloc es mit seinem
+  // memset tut; fuer bbString ist es der Standardkonstruktor, also "".
+  std::pair<std::string, std::string> declType(const std::string &hint,
+                                               ExprNode *vecSize) {
+    auto [type, defVal] = hintToType(hint);
+    if (!vecSize) return {type, defVal};
+    return {"std::array<" + type + ", (" + exprToString(vecSize) + ") + 1>",
+            "{}"};
   }
 
   // Map Blitz3D operators to their C++ equivalents
