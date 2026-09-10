@@ -123,7 +123,8 @@ inline const bbString &bb_Str(const bbString &s) { return s; }
 
 // String -> Zahl folgt der Referenz, die dafuer atoi/atof benutzt: fuehrender
 // Zahlanteil zaehlt, der Rest wird ignoriert, gar keine Ziffer ergibt 0. Kein
-// Fehler, keine Ausnahme - anders als bb_Int(bbString) fuer das Sprach-Int().
+// Fehler, keine Ausnahme. Das Sprach-Int() und Float() gehen seit BUG-82
+// denselben Weg - siehe dort.
 inline int bb_ToInt(const bbString &s) { return std::atoi(s.c_str()); }
 inline int bb_ToInt(int n)             { return n; }
 // Float -> Int bleibt hier bewusst das, was der erzeugte C++-Code bisher schon
@@ -189,20 +190,29 @@ inline bool bb_CaseEq(const bbString &s, float c)          { return s == bb_Str(
 inline bool bb_CaseEq(const bbString &s, double c)         { return s == bb_Str(c); }
 inline bool bb_CaseEq(const bbString &s, const bbString &c){ return s == c; }
 
-inline int bb_Int(const bbString &s) {
-    try { return std::stoi(s); }
-    catch (...) {
-        std::cerr << "[runtime] Int(): invalid value \"" << s << "\"\n";
-        return 0;
-    }
-}
-inline float bb_Float(const bbString &s) {
-    try { return std::stof(s); }
-    catch (...) {
-        std::cerr << "[runtime] Float(): invalid value \"" << s << "\"\n";
-        return 0.0f;
-    }
-}
+// Das Sprach-Int() und Float() sind DIESELBE Umwandlung wie an einer
+// Zuweisungsgrenze, also genau bb_ToInt/bb_ToFloat (BUG-82). Vorher standen
+// hier std::stoi und std::stof mit einem catch, der "[runtime] Int(): invalid
+// value" auf stderr schrieb - eine Meldung, die das Original nicht kennt und
+// die bei gueltigen Programmen erscheint: die BirdDemo erzeugt davon 42
+// Zeilen, weil ihr Splineleser ueber Felder laeuft, die leer sein duerfen.
+//
+// Der Tausch ist aber nicht nur eine Frage der Ausgabe - die beiden Familien
+// rechnen verschieden, an neun am Original gemessenen Stellen:
+//
+//   Int("99999999999")   Original 1215752191, stoi warf und lieferte 0
+//   Int("2147483648")    Original -2147483648, stoi warf
+//   Float("1e40")        Original unendlich, stof warf
+//   Float("0x10")        Original 0, stof liest Hex und liefert 16
+//   Float("nan")         Original 0, stof liefert NaN
+//
+// atoi/atof dieser Werkzeugkette treffen dagegen ALLE zehn Messwerte des
+// Originals, den Ueberlauf eingeschlossen: dort laeuft die Ziffernaufsammlung
+// modulo 2^32 um, statt wie stoi zu werfen oder wie strtol zu klemmen. Sie
+// kennen ausserdem weder Hex noch "inf"/"nan" - dieselbe C89-Grammatik, die
+// auch das Original annimmt.
+inline int   bb_Int(const bbString &s)   { return bb_ToInt(s); }
+inline float bb_Float(const bbString &s) { return bb_ToFloat(s); }
 inline int      bb_Len(const bbString &s)   { return static_cast<int>(s.size()); }
 
 // ---- Extraction ----
