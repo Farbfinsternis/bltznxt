@@ -3,6 +3,7 @@
 
 #include <cmath>
 #include <cstdlib>   // rand, srand, RAND_MAX
+#include <type_traits> // is_integral_v — _bb_mod picks % or fmod
 
 // ============================================================
 //  BlitzNext Math Runtime  —  bb_math.h
@@ -54,6 +55,32 @@ inline int   bb_Int(int x)     { return x; }
 
 // Sgn — returns sign of x as -1, 0, or 1
 inline int   bb_Sgn(float x)   { return (x > 0.0f) - (x < 0.0f); }
+
+// Mod — Blitz3D's remainder operator, which C++ "%" only covers for integers.
+//
+// The reference keeps two runtime functions and picks between them in
+// ArithExprNode::translate (compiler/exprnode.cpp): "__bbMod" for two ints,
+// "__bbFMod" as soon as one side is a float. bbruntime/basic.cpp defines them
+// as "return x%y" and "return (float)fmod(x,y)". ArithExprNode::semant casts
+// BOTH sides to float when either one is, so a mixed Mod is a float Mod and
+// yields a float — measured at the running original: 7 Mod 2.0 is 1.0, and
+// 7.5 Mod 3 is 1.5 (BUG-73).
+//
+// Both C's "%" and fmod take the sign of the dividend, which the same
+// measurement confirms for the original: -7 Mod 3 = -1, 7 Mod -3 = 1,
+// -7.5 Mod 2.0 = -1.5. Constant folding in the reference uses the very same
+// two operations, so compile time and run time agree there as they do here.
+//
+// A template rather than four overloads, because a double slips in whenever
+// "^" is involved (std::pow returns one) and would be ambiguous between an
+// int and a float parameter. A string never reaches this: the semantic pass
+// rejects it first with "Operator cannot be applied to strings", word for
+// word as the original does.
+template <typename A, typename B>
+inline auto _bb_mod(A x, B y) {
+  if constexpr (std::is_integral_v<A> && std::is_integral_v<B>) return x % y;
+  else return (float)std::fmod((double)x, (double)y);
+}
 
 // ---- Random Numbers ----
 // Blitz3D: Rnd = float result, Rand = integer result

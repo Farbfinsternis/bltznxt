@@ -178,6 +178,17 @@ public:
       output << ", ";
       emitOperand(node->right.get());
       output << ")";
+    } else if (node->op == "MOD") {
+      // C++ "%" is integers only, Blitz3D's Mod is not: the reference emits
+      // __bbMod for two ints and __bbFMod (fmod) as soon as one side is a
+      // float. _bb_mod in bb_math.h makes that same choice from the operand
+      // types, which is where the emitter has to leave it - it has no type
+      // information of its own (BUG-73).
+      output << "_bb_mod(";
+      emitOperand(node->left.get());
+      output << ", ";
+      emitOperand(node->right.get());
+      output << ")";
     } else if (node->op == "SHR") {
       // SHR is a logical (unsigned) right shift — cast left operand to unsigned
       output << "((int)((unsigned int)(";
@@ -1781,9 +1792,9 @@ private:
     if (op == "AND") return "&";
     if (op == "OR")  return "|";
     if (op == "XOR") return "^";
-    if (op == "MOD") return "%";
     if (op == "SHL") return "<<";
-    // SHR is handled as a special case in visit(BinaryExpr*) — not reached here
+    // MOD and SHR are handled as special cases in visit(BinaryExpr*) — not
+    // reached here
     if (op == "SAR") return ">>";
     return op; // +  -  *  /  <  >  <=  >=
   }
