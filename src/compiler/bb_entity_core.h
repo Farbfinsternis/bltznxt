@@ -289,6 +289,15 @@ static inline void mat4_extract_euler_YXZ_(const float m[16],
   if (sz < 1e-8f) sz = 1;
   // Normalised rotation elements (row 1)
   float r10 = m[1]/sx;   // cx*sz
+  // Bei einer halben Drehung ist dieser Zaehler eine Null, und ihr
+  // VORZEICHEN entscheidet im atan2 unten, ob der Rollwert +180 oder
+  // -180 wird - zwei Namen fuer dieselbe Lage. Am Original gemessen
+  // (2026-09-10) ist es dort +180: "RotateEntity e,200,0,0" liefert
+  // Roll 180, ebenso "RotateEntity e,100,30,0". Eine negative Null aus
+  // der Matrixmultiplikation wuerde uns -180 liefern, deshalb wird sie
+  // hier eingeebnet. Der YAW-Zaehler bleibt unberuehrt: dort meldet das
+  // Original im selben Kippfall -180, hat also dieselbe negative Null.
+  if (r10 == 0.0f) r10 = 0.0f;
   float r11 = m[5]/sy;   // cx*cz
   float r12 = m[9]/sz;   // -sx  → rx = asin(-r12)
   float r02 = m[8]/sz;   // sy*cx
@@ -538,28 +547,57 @@ inline float bb_EntityZ(int h, int glob = 0) {
   return glob ? e->world[14] : e->pz;
 }
 
+// Die drei Winkel-Getter lesen die LAGE zurueck, nicht das Hineingegebene
+// (BUG-83). Am Original gemessen (2026-09-10):
+//
+//   RotateEntity e,0,370,0   ->  Yaw 10        (nicht 370)
+//   RotateEntity e,0,181.2,0 ->  Yaw -178.8    (Bereich (-180,180])
+//   RotateEntity e,200,0,0   ->  -20/-180/180  (jenseits 90 Grad Nick kippt
+//                                               die Zerlegung, es wird nicht
+//                                               nur der Wert umgeschlagen)
+//   RotateEntity e,100,30,0  ->  80/-150/180
+//
+// Bis dahin gaben wir fuer den lokalen Fall e->rx/ry/rz zurueck, also genau
+// das, was RotateEntity hineingeschrieben hatte. Solange alle drei Winkel im
+// Bereich liegen, ist das dasselbe - deshalb faellt es erst an einem echten
+// Programm auf. Jedes Programm, das einen Winkel ZURUECKLIEST und damit
+// rechnet, bekam davor ein stilles Falschergebnis.
+//
+// Der gespeicherte Wert bleibt absichtlich unberuehrt: normalisiert wird nur
+// beim Lesen. Wuerde RotateEntity selbst normalisieren, ginge jede Transform
+// durch eine zusaetzliche Zerlegung, und die Bahnen wuerden sich um
+// Rundungsstellen verschieben - die Gegenprobe an der BirdDemo haengt genau
+// daran.
+static inline void bb_entity_local_euler_(const bb_Entity_* e,
+                                          float& rx, float& ry, float& rz) {
+  float R[16];
+  mat4_make_euler_YXZ_(R, e->rx, e->ry, e->rz);
+  mat4_extract_euler_YXZ_(R, rx, ry, rz);
+}
+
+
 inline float bb_EntityPitch(int h, int glob = 0) {
   bb_Entity_* e = bb_entity_get_(h);
   if (!e) return 0;
-  if (!glob) return e->rx;
   float rx, ry, rz;
-  mat4_extract_euler_YXZ_(e->world, rx, ry, rz);
+  if (glob) mat4_extract_euler_YXZ_(e->world, rx, ry, rz);
+  else      bb_entity_local_euler_(e, rx, ry, rz);
   return rx;
 }
 inline float bb_EntityYaw(int h, int glob = 0) {
   bb_Entity_* e = bb_entity_get_(h);
   if (!e) return 0;
-  if (!glob) return e->ry;
   float rx, ry, rz;
-  mat4_extract_euler_YXZ_(e->world, rx, ry, rz);
+  if (glob) mat4_extract_euler_YXZ_(e->world, rx, ry, rz);
+  else      bb_entity_local_euler_(e, rx, ry, rz);
   return ry;
 }
 inline float bb_EntityRoll(int h, int glob = 0) {
   bb_Entity_* e = bb_entity_get_(h);
   if (!e) return 0;
-  if (!glob) return e->rz;
   float rx, ry, rz;
-  mat4_extract_euler_YXZ_(e->world, rx, ry, rz);
+  if (glob) mat4_extract_euler_YXZ_(e->world, rx, ry, rz);
+  else      bb_entity_local_euler_(e, rx, ry, rz);
   return rz;
 }
 
