@@ -1,0 +1,5 @@
+bytes: 65 66 13 10 13 10 67 13 10
+z1=[AB]
+z2=[]
+z3=[C]
+filepos nach WriteLine AB = 4

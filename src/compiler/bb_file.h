@@ -143,11 +143,21 @@ inline void bb_WriteString(int handle, const bbString &s) {
 }
 
 // Writes a string followed by a newline character.
+// Das Zeilenende ist CRLF, nicht LF. bbWriteLine in bbruntime/bbstream.cpp
+// schreibt den String und danach ausdruecklich s->write( "\r\n",2 ) - zwei
+// Bytes, unabhaengig vom Betriebssystem, denn ein Blitz3D-Stream ist immer
+// binaer (unsere Handles ebenso: "wb", "rb", "r+b"). Am laufenden Original
+// gemessen (2026-09-10): "AB", "" und "C" ergeben die Bytes
+// 65 66 13 10 13 10 67 13 10, und FilePos steht nach WriteLine "AB" auf 4.
+//
+// bb_ReadLine braucht dafuer nichts: es verwirft jedes '\r' und bricht bei
+// '\n' ab, genau wie bbReadLine. Zwischen zwei Blitz3D-Programmen faellt der
+// Unterschied deshalb nicht auf - nach aussen schon (BUG-77).
 inline void bb_WriteLine(int handle, const bbString &s) {
   FILE *f = bb_file_get_(handle);
   if (!f) return;
   std::fwrite(s.c_str(), 1, s.size(), f);
-  std::fputc('\n', f);
+  std::fwrite("\r\n", 1, 2, f);
 }
 
 // WriteBytes / ReadBytes are implemented in bb_bank.h (requires bank handles).
