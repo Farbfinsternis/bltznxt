@@ -918,6 +918,8 @@ private:
   std::unordered_set<std::string> typeNames;          // registered Type names
   std::unordered_set<std::string> declaredVars;       // lowercase declared var names
   std::unordered_set<std::string> hoistedLocals_;     // declared up front (Goto-safe)
+  std::unordered_set<std::string> foreachVars_;       // For-Each counters of the body being hoisted
+  std::unordered_set<std::string> writtenNames_;      // names that body declares or writes to
   std::string returnDefault_ = "0";                  // default value of the current function
   std::string returnHint_;                           // Blitz-Rueckgabetag der laufenden Funktion
   // Skalartag jeder bekannten Variablen ("%", "#", "$" oder ""). Nur fuer die
@@ -1438,9 +1440,25 @@ private:
   // so a bare "Local x" inside a loop does not re-zero x on every pass.
   void hoistLocals(const std::vector<std::unique_ptr<ASTNode>> &nodes) {
     std::vector<std::pair<std::string, std::string>> found; // name (lower), hint
+    foreachVars_.clear();
+    writtenNames_.clear();
     collectLocals(nodes, found);
     for (auto &[lo, hint] : found) {
       if (declaredVars.count(lo)) continue; // global, parameter or seen already
+      // A Const and a Dim'd array live at file scope, and visit(FunctionDecl*)
+      // reseeds declaredVars from globalVarNames alone - inside a function
+      // body neither is in it. Without these two guards a mere *read* of a
+      // constant in a function would hoist a local of the same name in front
+      // of it and silently shadow the value (BUG-72).
+      if (hoistedConsts_.count(lo) || hoistedDims_.count(lo)) continue;
+      // A For Each counter that this body never declares or writes to is left
+      // to visit(ForEachStmt*), which declares it inside the loop with the
+      // object's own pointer type; hoisting an int of that name in front of
+      // it would only put a dead, wrongly typed variable there. A counter the
+      // body does declare ("Local q.Punkt" before "For q = Each Punkt") is
+      // hoisted as before - it is a local like any other, and BUG-23 needs it
+      // in front of any label.
+      if (foreachVars_.count(lo) && !writtenNames_.count(lo)) continue;
       auto [type, defVal] = hintToType(hint);
       output << ind() << type << " var_" << lo << " = " << defVal << ";\n";
       declaredVars.insert(lo);
@@ -1451,47 +1469,149 @@ private:
     }
   }
 
-  // Every name this body declares as a local, in source order: Local, an
-  // implicit declaration by first assignment, and Read's auto-declaration.
+  // Every name this body brings into being, in source order. In Blitz3D that
+  // is not only Local, a first assignment and Read's auto-declaration, but
+  // every mere *mention*: IdentVarNode::semant looks the name up with
+  // findDecl() and, finding nothing, runs its "ugly auto decl!" —
+  // insertDecl( ident,t,DECL_LOCAL ) into the decl list of the enclosing
+  // body. Reading and writing go through exactly the same place (BUG-72).
+  //
+  // Measured against the running original (2026-09-10): a function does not
+  // see a name the main program created that way — it wrote "func zz=0" while
+  // main still read 42 — so the scope is the body, which is what this pass
+  // already models. A function name used without parentheses is not a call
+  // but an implicit variable there ("g=0", not 7), because findDecl searches
+  // decls while functions live in funcDecls; names are therefore deliberately
+  // NOT filtered against userFunctions here.
+  //
+  // The order of the walk follows the reference's semant order, because the
+  // first mention decides the type: AssNode does var before expr, IfNode and
+  // WhileNode the condition before the body, RepeatNode the body before the
+  // Until condition, ForNode the counter before from/to/step.
+  //
   // Does not descend into FunctionDecl — those bodies hoist their own.
   void collectLocals(const std::vector<std::unique_ptr<ASTNode>> &nodes,
                      std::vector<std::pair<std::string, std::string>> &out) {
-    auto add = [&out](const std::string &name, const std::string &hint) {
-      std::string lo = toLower(name);
-      for (auto &e : out)
-        if (e.first == lo) return; // first spelling and hint win
-      out.emplace_back(lo, hint);
-    };
     for (auto &n : nodes) {
       if (auto *vd = dynamic_cast<VarDecl *>(n.get())) {
-        if (vd->scope == VarDecl::LOCAL) add(vd->name, vd->typeHint);
+        // Name before initialiser, unlike VarDeclNode::proto, which semants
+        // the expression first. That order only differs for "Local s$ = s",
+        // which the reference rejects as a duplicate variable name anyway;
+        // taking the name first keeps the hoisted type the tagged one instead
+        // of an int that visit(VarDecl*) would then redeclare as a string.
+        if (vd->scope == VarDecl::LOCAL) addWritten(out, vd->name, vd->typeHint);
+        collectExprLocals(vd->initValue.get(), out);
       } else if (auto *as = dynamic_cast<AssignStmt *>(n.get())) {
-        add(as->name, as->typeHint);
+        addWritten(out, as->name, as->typeHint);
+        collectExprLocals(as->value.get(), out);
       } else if (auto *rd = dynamic_cast<ReadStmt *>(n.get())) {
-        add(rd->name, rd->typeHint);
+        addWritten(out, rd->name, rd->typeHint);
       } else if (auto *prog = dynamic_cast<Program *>(n.get())) {
         collectLocals(prog->nodes, out);
       } else if (auto *if_ = dynamic_cast<IfStmt *>(n.get())) {
+        collectExprLocals(if_->condition.get(), out);
         collectLocals(if_->thenBlock, out);
         collectLocals(if_->elseBlock, out);
       } else if (auto *wh = dynamic_cast<WhileStmt *>(n.get())) {
+        collectExprLocals(wh->condition.get(), out);
         collectLocals(wh->block, out);
       } else if (auto *rp = dynamic_cast<RepeatStmt *>(n.get())) {
         collectLocals(rp->block, out);
+        collectExprLocals(rp->condition.get(), out);
       } else if (auto *fr = dynamic_cast<ForStmt *>(n.get())) {
         // The loop variable counts too (BUG-19): since it is declared in front
         // of the loop rather than inside the C++ for-init, a Goto past the
         // whole loop would otherwise cross its initialisation, which is what
         // BUG-23 was about. An array element or a field counter is not a local
-        // and declares nothing (BUG-30).
-        if (!fr->target) add(fr->varName, fr->typeHint);
+        // and declares nothing (BUG-30) — but what stands inside it does.
+        if (!fr->target) addWritten(out, fr->varName, fr->typeHint);
+        else             collectExprLocals(fr->target.get(), out);
+        collectExprLocals(fr->start.get(), out);
+        collectExprLocals(fr->end.get(), out);
+        collectExprLocals(fr->step.get(), out);
         collectLocals(fr->block, out);
       } else if (auto *sel = dynamic_cast<SelectStmt *>(n.get())) {
-        for (auto &c : sel->cases) collectLocals(c.block, out);
+        collectExprLocals(sel->expr.get(), out);
+        for (auto &c : sel->cases) {
+          for (auto &ce : c.expressions) collectExprLocals(ce.get(), out);
+          collectLocals(c.block, out);
+        }
         collectLocals(sel->defaultBlock, out);
       } else if (auto *fe = dynamic_cast<ForEachStmt *>(n.get())) {
+        // The iteration variable is not hoisted: visit(ForEachStmt*) declares
+        // it inside the loop with the object's own pointer type, so an int of
+        // the same name in front of it would only shadow it. hoistLocals()
+        // skips the name for that reason.
+        foreachVars_.insert(toLower(fe->varName));
         collectLocals(fe->block, out);
+      } else if (auto *ds = dynamic_cast<DimStmt *>(n.get())) {
+        for (auto &d : ds->dims) collectExprLocals(d.get(), out);
+      } else if (auto *aas = dynamic_cast<ArrayAssignStmt *>(n.get())) {
+        for (auto &i : aas->indices) collectExprLocals(i.get(), out);
+        collectExprLocals(aas->value.get(), out);
+      } else if (auto *fas = dynamic_cast<FieldAssignStmt *>(n.get())) {
+        collectExprLocals(fas->object.get(), out);
+        collectExprLocals(fas->value.get(), out);
+      } else if (auto *rs = dynamic_cast<ReturnStmt *>(n.get())) {
+        collectExprLocals(rs->value.get(), out);
+      } else if (auto *del = dynamic_cast<DeleteStmt *>(n.get())) {
+        collectExprLocals(del->object.get(), out);
+      } else if (auto *ins = dynamic_cast<InsertStmt *>(n.get())) {
+        collectExprLocals(ins->object.get(), out);
+        collectExprLocals(ins->target.get(), out);
+      } else if (auto *ex = dynamic_cast<ExprNode *>(n.get())) {
+        // A command statement ("Print x", "MoveEntity e,0,0,1") reaches the
+        // emitter as a bare expression node, not as a statement node.
+        collectExprLocals(ex, out);
       }
+      // A ConstDecl is not walked: the reference demands a constant
+      // expression there, so it can mention no variable.
+    }
+  }
+
+  // First mention wins, tag included — the reference types the variable where
+  // its decl is inserted and rejects a later contradicting tag with
+  // "Variable type mismatch".
+  static void addLocal(std::vector<std::pair<std::string, std::string>> &out,
+                       const std::string &name, const std::string &hint) {
+    std::string lo = toLower(name);
+    for (auto &e : out)
+      if (e.first == lo) return;
+    out.emplace_back(lo, hint);
+  }
+
+  // Same, for a name this body declares or writes to rather than merely
+  // reads. Only these keep their hoisted declaration when the name is also a
+  // For Each counter - see hoistLocals().
+  void addWritten(std::vector<std::pair<std::string, std::string>> &out,
+                  const std::string &name, const std::string &hint) {
+    addLocal(out, name, hint);
+    writtenNames_.insert(toLower(name));
+  }
+
+  // Every name an expression mentions, in source order. A literal, New, First
+  // and Last mention none; an array or field name is not a variable of its
+  // own, but the index expressions and the object it hangs off are.
+  void collectExprLocals(const ExprNode *e,
+                         std::vector<std::pair<std::string, std::string>> &out) {
+    if (!e) return;
+    if (auto *ve = dynamic_cast<const VarExpr *>(e)) {
+      addLocal(out, ve->name, ve->typeHint);
+    } else if (auto *be = dynamic_cast<const BinaryExpr *>(e)) {
+      collectExprLocals(be->left.get(), out);
+      collectExprLocals(be->right.get(), out);
+    } else if (auto *ue = dynamic_cast<const UnaryExpr *>(e)) {
+      collectExprLocals(ue->expr.get(), out);
+    } else if (auto *ce = dynamic_cast<const CallExpr *>(e)) {
+      for (auto &a : ce->args) collectExprLocals(a.get(), out);
+    } else if (auto *aa = dynamic_cast<const ArrayAccess *>(e)) {
+      for (auto &i : aa->indices) collectExprLocals(i.get(), out);
+    } else if (auto *fa = dynamic_cast<const FieldAccess *>(e)) {
+      collectExprLocals(fa->object.get(), out);
+    } else if (auto *bx = dynamic_cast<const BeforeExpr *>(e)) {
+      collectExprLocals(bx->object.get(), out);
+    } else if (auto *ax = dynamic_cast<const AfterExpr *>(e)) {
+      collectExprLocals(ax->object.get(), out);
     }
   }
 
