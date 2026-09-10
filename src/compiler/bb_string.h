@@ -28,14 +28,83 @@ inline bbString bb_Str(double f) {
 // In Blitz3D a "+" with a string on either side makes the whole expression a
 // string and casts the other side to string (compiler/exprnode.cpp,
 // ArithExprNode::semant). These overloads give the generated C++ the same rule,
-// so "Score: " + n behaves as it does in Blitz3D. Other operators on strings
-// stay unresolved on purpose — Blitz3D rejects them too.
+// so "Score: " + n behaves as it does in Blitz3D. Vergleiche folgen derselben
+// Regel und stehen gleich darunter (BUG-79); die uebrigen Operatoren bleiben
+// auf Zeichenketten mit Absicht unaufgeloest — Blitz3D lehnt sie ebenfalls ab.
 inline bbString operator+(const bbString &s, int n)    { return s + bb_Str(n); }
 inline bbString operator+(int n, const bbString &s)    { return bb_Str(n) + s; }
 inline bbString operator+(const bbString &s, float f)  { return s + bb_Str((double)f); }
 inline bbString operator+(float f, const bbString &s)  { return bb_Str((double)f) + s; }
 inline bbString operator+(const bbString &s, double f) { return s + bb_Str(f); }
 inline bbString operator+(double f, const bbString &s) { return bb_Str(f) + s; }
+
+// ---- Vergleiche mit gemischten Typen (BUG-79) ------------------------------
+//
+// Steht auf EINER Seite eines Vergleichs eine Zeichenkette, so vergleicht
+// Blitz3D BEIDE Seiten als Zeichenkette. Die Referenz bestimmt dafuer in
+// RelExprNode::semant (compiler/exprnode.cpp) einen gemeinsamen Vergleichstyp
+// und castet beide Seiten darauf: String schlaegt Float schlaegt Int, also
+// dieselbe Stufenfolge wie bei der Arithmetik.
+//
+// Am laufenden Original gemessen (2026-09-10), weil die Richtung sonst leicht
+// falsch herum geraet: 9 < "10" ist FALSCH und "9" > 10 ist WAHR - verglichen
+// wird "9" gegen "10", nicht 9 gegen 10. Ebenso ist 10 = "10.0" falsch und
+// 2.0 < "12" falsch. Verglichen wird zeichenweise, mit Unterscheidung von
+// Gross und Klein ("A" < "a") und vorzeichenlos (Chr(200) > "A") - beides tut
+// std::string von sich aus.
+//
+// Wie bei den operator+ darueber steht die Regel in der Runtime und nicht im
+// Emitter: der Emitter kennt den Typ eines Ausdrucks nicht, die
+// Ueberladungsaufloesung schon. Der erzeugte C++-Text bleibt dadurch Zeichen
+// fuer Zeichen derselbe; es uebersetzt nur, was bisher gar nicht uebersetzte.
+//
+// Umgewandelt wird ueber dasselbe bb_Str() wie beim Verketten. Damit stimmt
+// der Vergleich mit unserer eigenen Ausgabe ueberein, und er wird zusammen mit
+// BUG-68 richtig: das Original schreibt Str(1.0) als "1.0", wir als "1",
+// weshalb 1.0 = "1" bei uns wahr und im Original falsch ist. Das ist die
+// bekannte Abweichung der Zahlformatierung, kein zweiter Befund.
+
+inline bool operator==(const bbString &s, int n)    { return s == bb_Str(n); }
+inline bool operator==(int n, const bbString &s)    { return bb_Str(n) == s; }
+inline bool operator==(const bbString &s, float f)  { return s == bb_Str((double)f); }
+inline bool operator==(float f, const bbString &s)  { return bb_Str((double)f) == s; }
+inline bool operator==(const bbString &s, double f) { return s == bb_Str(f); }
+inline bool operator==(double f, const bbString &s) { return bb_Str(f) == s; }
+
+inline bool operator!=(const bbString &s, int n)    { return s != bb_Str(n); }
+inline bool operator!=(int n, const bbString &s)    { return bb_Str(n) != s; }
+inline bool operator!=(const bbString &s, float f)  { return s != bb_Str((double)f); }
+inline bool operator!=(float f, const bbString &s)  { return bb_Str((double)f) != s; }
+inline bool operator!=(const bbString &s, double f) { return s != bb_Str(f); }
+inline bool operator!=(double f, const bbString &s) { return bb_Str(f) != s; }
+
+inline bool operator< (const bbString &s, int n)    { return s <  bb_Str(n); }
+inline bool operator< (int n, const bbString &s)    { return bb_Str(n) <  s; }
+inline bool operator< (const bbString &s, float f)  { return s <  bb_Str((double)f); }
+inline bool operator< (float f, const bbString &s)  { return bb_Str((double)f) <  s; }
+inline bool operator< (const bbString &s, double f) { return s <  bb_Str(f); }
+inline bool operator< (double f, const bbString &s) { return bb_Str(f) <  s; }
+
+inline bool operator> (const bbString &s, int n)    { return s >  bb_Str(n); }
+inline bool operator> (int n, const bbString &s)    { return bb_Str(n) >  s; }
+inline bool operator> (const bbString &s, float f)  { return s >  bb_Str((double)f); }
+inline bool operator> (float f, const bbString &s)  { return bb_Str((double)f) >  s; }
+inline bool operator> (const bbString &s, double f) { return s >  bb_Str(f); }
+inline bool operator> (double f, const bbString &s) { return bb_Str(f) >  s; }
+
+inline bool operator<=(const bbString &s, int n)    { return s <= bb_Str(n); }
+inline bool operator<=(int n, const bbString &s)    { return bb_Str(n) <= s; }
+inline bool operator<=(const bbString &s, float f)  { return s <= bb_Str((double)f); }
+inline bool operator<=(float f, const bbString &s)  { return bb_Str((double)f) <= s; }
+inline bool operator<=(const bbString &s, double f) { return s <= bb_Str(f); }
+inline bool operator<=(double f, const bbString &s) { return bb_Str(f) <= s; }
+
+inline bool operator>=(const bbString &s, int n)    { return s >= bb_Str(n); }
+inline bool operator>=(int n, const bbString &s)    { return bb_Str(n) >= s; }
+inline bool operator>=(const bbString &s, float f)  { return s >= bb_Str((double)f); }
+inline bool operator>=(float f, const bbString &s)  { return bb_Str((double)f) >= s; }
+inline bool operator>=(const bbString &s, double f) { return s >= bb_Str(f); }
+inline bool operator>=(double f, const bbString &s) { return bb_Str(f) >= s; }
 
 // ---- Implizite Umwandlung an Zuweisungsgrenzen (BUG-53) --------------------
 //
@@ -68,6 +137,57 @@ inline float bb_ToFloat(const bbString &s) { return (float)std::atof(s.c_str());
 inline float bb_ToFloat(int n)             { return (float)n; }
 inline float bb_ToFloat(float f)           { return f; }
 inline float bb_ToFloat(double f)          { return (float)f; }
+
+// Eine Schleifengrenze ist KEIN Vergleich in diesem Sinn, obwohl der Emitter
+// dafuer "<=" schreibt. Am Original gemessen (2026-09-10): "For i = 1 To '10'"
+// laeuft zehnmal, waehrend "10" > "9" ein Zeichenkettenvergleich ist - die
+// Grenze wird also zur Zahl gewandelt, nicht der Zaehler zur Zeichenkette.
+// Gemessen ist auch, dass sie zur KOMMAZAHL wird: "To '3.7'" laeuft dreimal,
+// "To 3.7" dagegen viermal, weil eine konstante Kommazahl auf den Zaehlertyp
+// gerundet wird. Ein gewandelter String nimmt diesen Weg nicht.
+//
+// Ohne diesen Helfer haetten die Vergleichsueberladungen weiter oben aus einem
+// lauten Uebersetzungsfehler ein stilles Falschergebnis gemacht: "For i = 1
+// To '10'" haette einmal statt zehnmal gelaufen, weil "2" <= "10" falsch ist.
+// Fuer Zahlen ist er ein reiner Durchreicher und aendert nichts - auch nicht
+// den Typ, weshalb hier kein bb_ToFloat(int) steht.
+inline int    bb_ToNum(int n)              { return n; }
+inline float  bb_ToNum(float f)            { return f; }
+inline double bb_ToNum(double f)           { return f; }
+inline float  bb_ToNum(const bbString &s)  { return bb_ToFloat(s); }
+
+// Ein "Case" ist ebenfalls kein Vergleich im Sinn der Ueberladungen oben,
+// obwohl der Emitter dafuer "==" schreibt. Am Original gemessen (2026-09-10):
+// der Case-Wert wird auf den Typ des SELECT-Ausdrucks gewandelt, nicht auf
+// einen gemeinsamen Typ beider Seiten.
+//   Select 10   : Case "010"  trifft   (Zeichenkette -> Zahl, atoi)
+//   Select "9.0": Case 9      trifft NICHT ("9" gegen "9.0")
+//   Select 1    : Case "1.7"  trifft   (atoi schneidet ab, es wird nicht gerundet)
+//   Select 1.5# : Case "1.5"  trifft
+//   Select "abc": Case 0      trifft NICHT
+// Die dritte Zeile ist der Beleg, dass hier atoi und keine Rundung wirkt; die
+// zweite, dass die Richtung am SELECT haengt und nicht am staerkeren Typ.
+//
+// Ohne diesen Helfer haetten die Vergleichsueberladungen "Select 10 : Case
+// '010'" still am Default vorbeigefuehrt - vorher scheiterte diese Form
+// wenigstens laut an C++. Zahl gegen Zahl bleibt Zeichen fuer Zeichen das,
+// was der erzeugte Code vorher schon rechnete.
+inline bool bb_CaseEq(int s, int c)                        { return s == c; }
+inline bool bb_CaseEq(int s, float c)                      { return s == c; }
+inline bool bb_CaseEq(int s, double c)                     { return s == c; }
+inline bool bb_CaseEq(float s, int c)                      { return s == c; }
+inline bool bb_CaseEq(float s, float c)                    { return s == c; }
+inline bool bb_CaseEq(float s, double c)                   { return s == c; }
+inline bool bb_CaseEq(double s, int c)                     { return s == c; }
+inline bool bb_CaseEq(double s, float c)                   { return s == c; }
+inline bool bb_CaseEq(double s, double c)                  { return s == c; }
+inline bool bb_CaseEq(int s, const bbString &c)            { return s == bb_ToInt(c); }
+inline bool bb_CaseEq(float s, const bbString &c)          { return s == bb_ToFloat(c); }
+inline bool bb_CaseEq(double s, const bbString &c)         { return (float)s == bb_ToFloat(c); }
+inline bool bb_CaseEq(const bbString &s, int c)            { return s == bb_Str(c); }
+inline bool bb_CaseEq(const bbString &s, float c)          { return s == bb_Str((double)c); }
+inline bool bb_CaseEq(const bbString &s, double c)         { return s == bb_Str(c); }
+inline bool bb_CaseEq(const bbString &s, const bbString &c){ return s == c; }
 
 inline int bb_Int(const bbString &s) {
     try { return std::stoi(s); }

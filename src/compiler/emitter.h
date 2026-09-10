@@ -441,6 +441,18 @@ public:
       else              output << "var_" << v;
     };
 
+    // Grenze und Schrittweite gehen durch bb_ToNum(). Fuer Zahlen ist das ein
+    // Durchreicher; eine Zeichenkette wird zur Zahl, wie am Original gemessen
+    // ("For i = 1 To '10'" laeuft zehnmal). Ohne diese Wandlung wuerden die
+    // Vergleichsueberladungen aus BUG-79 hier greifen und die Grenze mit dem
+    // Zaehler als Zeichenkette vergleichen - ein stilles Falschergebnis an
+    // einer Stelle, die vorher wenigstens laut scheiterte.
+    auto bound = [&](ASTNode *e) {
+      output << "bb_ToNum(";
+      emitExpr(e);
+      output << ")";
+    };
+
     // Declare only what does not exist yet, and in the enclosing scope so it
     // outlives the loop - the same rule visit(AssignStmt*) uses for an
     // implicitly created variable. An untagged variable is an int in Blitz3D,
@@ -469,7 +481,7 @@ public:
       indentLevel++;
 
       output << ind() << "const auto _step_" << v << " = ";
-      emitExpr(node->step.get());
+      bound(node->step.get());
       output << ";\n";
 
       output << ind() << "for (";
@@ -479,11 +491,11 @@ public:
       output << "; (_step_" << v << " > 0 ? ";
       counter();
       output << " <= ";
-      emitExpr(node->end.get());
+      bound(node->end.get());
       output << " : ";
       counter();
       output << " >= ";
-      emitExpr(node->end.get());
+      bound(node->end.get());
       output << "); ";
       counter();
       output << " += _step_" << v << ") {\n";
@@ -504,7 +516,7 @@ public:
       output << "; ";
       counter();
       output << " <= ";
-      emitExpr(node->end.get());
+      bound(node->end.get());
       output << "; ++";
       counter();
       output << ") {\n";
@@ -527,8 +539,12 @@ public:
       output << ind() << (first ? "if" : "else if") << " (";
       bool prev = inExprCtx; inExprCtx = true;
       for (size_t i = 0; i < c.expressions.size(); ++i) {
-        output << "_sel_ == ";
+        // Nicht "_sel_ == ...": ein Case wandelt seinen Wert auf den Typ des
+        // Select-Ausdrucks (am Original gemessen, siehe bb_CaseEq). Fuer zwei
+        // Zahlen ist der Helfer genau der Vergleich, der hier vorher stand.
+        output << "bb_CaseEq(_sel_, ";
         c.expressions[i]->accept(this);
+        output << ")";
         if (i + 1 < c.expressions.size()) output << " || ";
       }
       inExprCtx = prev;

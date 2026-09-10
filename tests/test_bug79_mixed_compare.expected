@@ -1,0 +1,42 @@
+K  9 <  '10'   = 0
+K '9' >  10    = 1
+K '9' <  10    = 0
+K  10 >= '9'   = 0
+K '9' <= 9     = 1
+K '9' >= 10    = 1
+K '9' <> 10    = 1
+K  10 =  '10'  = 1
+K  10 =  '10.0'= 0
+K '1' <> 1     = 0
+K  0  =  ''    = 0
+K  1.5 = '1.5' = 1
+K  1.5 = '1.50'= 0
+K  2.0 < '12'  = 0
+K  1.5 < '2'   = 1
+K '2' > 1.5    = 1
+K  10 <  9     = 0
+K  2  <  1.5   = 0
+K  1.5 < 2     = 1
+K 'abc' < 'abd'= 1
+K 'A' < 'a'    = 1
+K 'a' < 'B'    = 0
+K ''  < 'a'    = 1
+K 'A' = 'A'    = 1
+K Chr(200)>'A' = 1
+V  s <  i      = 0
+V  i <  s      = 1
+V  s >  i      = 1
+V  i =  s      = 0
+V  f <  s      = 1
+V  n =  '-5'   = 1
+V  n <  '-40'  = 0
+V Int('1')<>'1'= 0
+S For 1 To '10'  = 10
+S For 1 To '3.7' = 3
+S For Step '3'   = 4
+C str '9'  vs 9     = trifft
+C int 10   vs '010' = trifft
+C str '9.0' vs 9    = Default
+C int 1    vs '1.7' = trifft
+C flt 1.5  vs '1.5' = trifft
+C str 'abc' vs 0    = Default
