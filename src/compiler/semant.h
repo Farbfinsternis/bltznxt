@@ -392,6 +392,11 @@ private:
   // ------------------------------------------------------------ statements
   void stmt(ASTNode *n) {
     if (!n) return;
+    // Program traegt keine eigene Position; alles andere schon.
+    if (n->line > 0 && !dynamic_cast<Program *>(n)) {
+      stmtLine_ = n->line;
+      stmtCol_  = n->col;
+    }
 
     if (auto *pr = dynamic_cast<Program *>(n)) {
       for (auto &s : pr->nodes) stmt(s.get());
@@ -673,7 +678,23 @@ private:
   }
 
   Ty fieldType(const Ty &obj, const std::string &field, int line, int col) {
-    if (obj.k != Ty::OBJ) return Ty();
+    // Ein Feldzugriff braucht einen Objekttyp. FieldVarNode::semant in
+    // compiler/varnode.cpp meldet sonst "Variable must be a Type" - am
+    // Original gemessen (2026-09-10) fuer eine implizite Int-Variable, fuer
+    // eine nie erwaehnte, fuer String und Float, fuer ein Element eines
+    // Dim-Arrays und fuer ein festes Array, auch fuer eines aus Objekten,
+    // solange kein Index dahintersteht. Angenommen werden dort ein
+    // Objektparameter, eine For-Each-Variable und eine Kette ueber ein
+    // Objektfeld (BUG-60).
+    //
+    // Ein UNBEKANNTER Typ bleibt still - dieselbe Zurueckhaltung wie bei
+    // VectorAccess: eine fehlende Pruefung ist besser als eine erfundene.
+    if (obj.k != Ty::OBJ || obj.vec) {
+      if (obj.known())
+        error(stmtLine_ > 0 ? stmtLine_ : line,
+              stmtLine_ > 0 ? stmtCol_ : col, "Variable must be a Type");
+      return Ty();
+    }
     auto t = types_.find(toLower(obj.obj));
     if (t == types_.end()) return Ty();
     auto f = t->second.find(toLower(field));
@@ -788,6 +809,12 @@ private:
   const SourceMap *map_        = nullptr;
   int              errors_     = 0;
   int              blockDepth_ = 0; // 0 = top level of the body being walked
+  // Position der Anweisung, die gerade geprueft wird. Das Original
+  // meldet "Variable must be a Type" nicht an der Variablen, sondern am
+  // Anfang der Anweisung - gemessen an "a = 1 : Print a\x", wo es Spalte
+  // 9 nennt und nicht 15 (BUG-74).
+  int              stmtLine_   = 0;
+  int              stmtCol_    = 0;
 
   std::unordered_map<std::string, std::unordered_map<std::string, Ty>> types_;
   std::vector<std::string>                            typeNames_;  // as written

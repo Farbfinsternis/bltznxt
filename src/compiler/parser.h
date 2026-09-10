@@ -358,6 +358,9 @@ private:
         auto s = std::make_unique<FieldAssignStmt>(std::move(target), lastField,
                                                    std::move(val));
         s->line = nameTok.line;
+        s->col  = nameTok.col; // fehlte, anders als bei jedem Nachbarn - jede
+                               // Meldung an dieser Anweisung landete in
+                               // Spalte 1 (aufgefallen bei BUG-74)
         return s;
       }
 

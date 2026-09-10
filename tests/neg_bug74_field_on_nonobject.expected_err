@@ -1,0 +1,1 @@
+tests/neg_bug74_field_on_nonobject.bb:11:5: error: Variable must be a Type
