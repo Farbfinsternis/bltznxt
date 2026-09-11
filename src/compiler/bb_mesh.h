@@ -737,6 +737,10 @@ inline int bb_MeshesIntersect(int mesh_a, int mesh_b) {
   float ax0, ax1, ay0, ay1, az0, az1, bx0, bx1, by0, by1, bz0, bz1;
   bb_mesh_aabb_(A, ax0, ax1, ay0, ay1, az0, az1);
   bb_mesh_aabb_(B, bx0, bx1, by0, by1, bz0, bz1);
+  // Beide Weltmatrizen auffrischen, bevor sie gelesen werden - sonst rechnet
+  // der Schnitttest mit der Lage vor dem letzten PositionEntity (BUG-71).
+  bb_entity_refresh_world_(A);
+  bb_entity_refresh_world_(B);
   // Die Huellkoerper stehen in Modellkoordinaten; die Weltmatrix der Entity
   // kommt dazu.
   auto to_world = [](const bb_MeshEntity_* e, const float* p, float* o) {

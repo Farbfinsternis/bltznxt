@@ -68,6 +68,32 @@ int main(int argc, char** argv) {
   mitte(90,  "yaw 90");
   mitte(-90, "yaw -90");
 
+  // ---- BUG-71: wirkt eine Verschiebung sofort im Bild? ----
+  //
+  // Im Original wirkt `PositionEntity` sofort, auch fuer das Gezeichnete -
+  // gemessen (2026-09-11): der Wuerfel verschwindet aus der Bildmitte, ohne
+  // dass ein UpdateWorld dazwischen steht. Bei uns schrieb lange nur
+  // UpdateWorld die Weltmatrix, also zeichnete der Renderpfad ihn an der
+  // alten Stelle weiter. Die Kontrollstellung davor gehoert dazu: eine
+  // Messung, die immer dasselbe meldet, misst meistens sich selbst.
+  {
+    bb_RotateEntity(cam, 0, 0, 0);
+    bb_PositionEntity(cam, 0, 0, -5);
+    bb_FreeEntity(links);
+    bb_PositionEntity(rechts, 0, 0, 0);   // vor die Kamera
+    bb_UpdateWorld();
+    bb_RenderWorld();
+    glReadPixels(0, 0, W, H, GL_RGBA, GL_UNSIGNED_BYTE, px.data());
+    const size_t k = (static_cast<size_t>(H / 2) * W + W / 2) * 4;
+    std::fprintf(f, "kontrollstellung: r=%d (erwartet hoch)\n", (int)px[k]);
+
+    bb_PositionEntity(rechts, 100, 0, 0); // weit weg - OHNE UpdateWorld
+    bb_RenderWorld();
+    glReadPixels(0, 0, W, H, GL_RGBA, GL_UNSIGNED_BYTE, px.data());
+    std::fprintf(f, "nach PositionEntity ohne UpdateWorld: r=%d (erwartet 0)\n",
+                 (int)px[k]);
+  }
+
   std::fclose(f);
   return 0;
 }

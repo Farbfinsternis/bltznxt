@@ -143,6 +143,19 @@ inline void bb_RenderWorld(float tween = 1.0f) {
   (void)tween;
   if (!bb_gl_active_) return;
 
+  // Die Weltmatrizen der ganzen Szene auffrischen, bevor irgendetwas
+  // gezeichnet wird (BUG-71). Am Original gemessen (2026-09-11): ein
+  // `PositionEntity` gefolgt von `RenderWorld` **ohne** UpdateWorld setzt das
+  // Entity dort sofort um - der Wuerfel verschwindet aus dem Bild. Bei uns
+  // zeichnete der Renderpfad ihn bis zum naechsten UpdateWorld an der alten
+  // Stelle weiter.
+  //
+  // Hier laeuft bewusst der Sammeldurchlauf ueber alle Wurzeln und nicht die
+  // Kette je Entity: gezeichnet wird ohnehin die ganze Szene, und das ist ein
+  // Durchlauf statt einer Kette je Objekt. Dass UpdateWorld dieselbe Arbeit
+  // gleich noch einmal tut, faellt gegen das Zeichnen nicht ins Gewicht.
+  bb_entity_update_all_();
+
   // Lazy-compile shaders on first call (GL context must be active).
   if (!bb_shaders_ready_) bb_shaders_init_();
 

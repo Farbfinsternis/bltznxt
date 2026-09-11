@@ -456,13 +456,30 @@ static inline void mat3_xform_vec_(float out[3], const float c[9],
   out[2] = c[2]*x + c[5]*y + c[8]*z;
 }
 
-// Die Weltmatrix einer Entity holen, vorher aufgefrischt. Gibt nullptr fuer
-// Handle 0 - das ist im Original der Weltraum, und dort geschieht nichts.
+// Die aufgefrischte Weltmatrix einer Entity.
+//
+// **Jeder Befehl, der die Weltlage liest, geht hier durch** - das ist die
+// Antwort auf BUG-71. Im Original stellt sich die Frage nicht: dort rechnet
+// `getWorldTform()` nach, sobald jemand liest, und ein frisches
+// `PositionEntity` wirkt sofort. Bei uns schrieb lange nur bb_UpdateWorld die
+// Matrix, also rechnete jeder Leser mit der Lage der vorigen Runde.
+//
+// Die Korrektheit sitzt bewusst **am Lesepunkt** und nicht in einem
+// Gueltig-Kennzeichen an den einundzwanzig Stellen, die die lokale Lage
+// setzen. Ein vergessenes Kennzeichen waere genau die Sorte Fehler, die wir
+// jagen - still und ohne Meldung; ein vergessener Lesepunkt faellt dagegen im
+// Vergleich gegen das Original sofort auf.
+static inline const float* bb_entity_world_(bb_Entity_* e) {
+  bb_entity_refresh_world_(e);
+  return e->world;
+}
+
+// Dasselbe ueber ein Handle. Gibt nullptr fuer Handle 0 - das ist im Original
+// der Weltraum, und dort geschieht nichts.
 static inline const float* bb_tform_world_(int h) {
   bb_Entity_* e = bb_entity_get_(h);
   if (!e) return nullptr;
-  bb_entity_refresh_world_(e);
-  return e->world;
+  return bb_entity_world_(e);
 }
 
 // src == 0 bedeutet Weltraum, dest == 0 ebenso. Die Reihenfolge ist die des
@@ -583,7 +600,7 @@ inline void bb_PositionEntity(int h, float x, float y, float z, int glob = 0) {
     bb_Entity_* p = bb_entity_get_(e->parent);
     if (!p) { e->px = x; e->py = y; e->pz = z; return; }
     float inv[16];
-    if (mat4_inverse_(inv, p->world)) {
+    if (mat4_inverse_(inv, bb_entity_world_(p))) {
       float lp[3];
       mat4_xform_pt_(lp, inv, x, y, z);
       e->px = lp[0]; e->py = lp[1]; e->pz = lp[2];
@@ -624,7 +641,7 @@ inline void bb_TranslateEntity(int h, float dx, float dy, float dz, int glob = 0
       bb_Entity_* p = bb_entity_get_(e->parent);
       if (!p) { e->px += dx; e->py += dy; e->pz += dz; return; }
       float inv[16];
-      if (mat4_inverse_(inv, p->world)) {
+      if (mat4_inverse_(inv, bb_entity_world_(p))) {
         float d[3];
         // Transform delta as a vector (no translation)
         d[0] = inv[0]*dx + inv[4]*dy + inv[8]*dz;
@@ -657,7 +674,7 @@ inline void bb_RotateEntity(int h, float rx, float ry, float rz, int glob = 0) {
     float Rw[16]; mat4_make_euler_YXZ_(Rw, rx, ry, rz);
     // Invert parent world matrix
     float inv_pw[16];
-    if (!mat4_inverse_(inv_pw, p->world)) { e->rx = rx; e->ry = ry; e->rz = rz; return; }
+    if (!mat4_inverse_(inv_pw, bb_entity_world_(p))) { e->rx = rx; e->ry = ry; e->rz = rz; return; }
     // local_rot = inv_pw * Rw
     float Rl[16]; mat4_mul_(Rl, inv_pw, Rw);
     mat4_extract_euler_YXZ_(Rl, e->rx, e->ry, e->rz);
@@ -699,12 +716,18 @@ inline void bb_PointEntity(int h, int target, float roll = 0.0f) {
   bb_Entity_* e  = bb_entity_get_(h);
   bb_Entity_* tg = bb_entity_get_(target);
   if (!e || !tg) return;
-  float dx = tg->world[12] - e->world[12];
-  float dy = tg->world[13] - e->world[13];
-  float dz = tg->world[14] - e->world[14];
+  const float* wt = bb_entity_world_(tg);
+  const float* we = bb_entity_world_(e);
+  float dx = wt[12] - we[12];
+  float dy = wt[13] - we[13];
+  float dz = wt[14] - we[14];
   float xz = sqrtf(dx*dx + dz*dz);
-  e->ry = atan2f(dx, dz) * BB_R2D_;
-  e->rx = atan2f(-dy, xz) * BB_R2D_;
+  // Gier und Nick einer Richtung, wie Vector::yaw()/pitch() im Original
+  // (blitz3d/geom.h:108): beide mit fuehrendem Minus. Das Minus beim Gier
+  // fehlte hier und fiel nicht auf, solange die Gierdrehung selbst herumlief
+  // (BUG-84) - zwei Vorzeichenfehler, die sich gegenseitig verdeckten.
+  e->ry = -atan2f(dx, dz) * BB_R2D_;
+  e->rx = -atan2f(dy, xz) * BB_R2D_;
   e->rz = roll;
 }
 
@@ -725,7 +748,7 @@ inline void bb_AlignToVector(int h, float nx, float ny, float nz,
   // for 0<rate<1 we blend current and target (approximation via Euler lerp).
   if (axis == 3) {          // align Z axis → similar to PointEntity
     float xz = sqrtf(nx*nx + nz*nz);
-    float tgy = atan2f(nx, nz) * BB_R2D_;
+    float tgy = -atan2f(nx, nz) * BB_R2D_;
     float tgx = atan2f(-ny, xz) * BB_R2D_;
     if (rate >= 1.0f) { e->ry = tgy; e->rx = tgx; }
     else { e->ry += (tgy - e->ry) * rate; e->rx += (tgx - e->rx) * rate; }
@@ -738,7 +761,7 @@ inline void bb_AlignToVector(int h, float nx, float ny, float nz,
   } else {                   // align X axis (axis=1)
     float yz = sqrtf(ny*ny + nz*nz);
     float tgz = atan2f(-ny, yz) * BB_R2D_;
-    float tgy = atan2f(nx, nz) * BB_R2D_;
+    float tgy = -atan2f(nx, nz) * BB_R2D_;
     if (rate >= 1.0f) { e->rz = tgz; e->ry = tgy; }
     else { e->rz += (tgz - e->rz) * rate; e->ry += (tgy - e->ry) * rate; }
   }
@@ -763,17 +786,17 @@ inline void bb_ResetEntity(int h) {
 inline float bb_EntityX(int h, int glob = 0) {
   bb_Entity_* e = bb_entity_get_(h);
   if (!e) return 0;
-  return glob ? e->world[12] : e->px;
+  return glob ? bb_entity_world_(e)[12] : e->px;
 }
 inline float bb_EntityY(int h, int glob = 0) {
   bb_Entity_* e = bb_entity_get_(h);
   if (!e) return 0;
-  return glob ? e->world[13] : e->py;
+  return glob ? bb_entity_world_(e)[13] : e->py;
 }
 inline float bb_EntityZ(int h, int glob = 0) {
   bb_Entity_* e = bb_entity_get_(h);
   if (!e) return 0;
-  return glob ? e->world[14] : e->pz;
+  return glob ? bb_entity_world_(e)[14] : e->pz;
 }
 
 // Die drei Winkel-Getter lesen die LAGE zurueck, nicht das Hineingegebene
@@ -809,7 +832,7 @@ inline float bb_EntityPitch(int h, int glob = 0) {
   bb_Entity_* e = bb_entity_get_(h);
   if (!e) return 0;
   float rx, ry, rz;
-  if (glob) mat4_extract_euler_YXZ_(e->world, rx, ry, rz);
+  if (glob) mat4_extract_euler_YXZ_(bb_entity_world_(e), rx, ry, rz);
   else      bb_entity_local_euler_(e, rx, ry, rz);
   return rx;
 }
@@ -817,7 +840,7 @@ inline float bb_EntityYaw(int h, int glob = 0) {
   bb_Entity_* e = bb_entity_get_(h);
   if (!e) return 0;
   float rx, ry, rz;
-  if (glob) mat4_extract_euler_YXZ_(e->world, rx, ry, rz);
+  if (glob) mat4_extract_euler_YXZ_(bb_entity_world_(e), rx, ry, rz);
   else      bb_entity_local_euler_(e, rx, ry, rz);
   return ry;
 }
@@ -825,7 +848,7 @@ inline float bb_EntityRoll(int h, int glob = 0) {
   bb_Entity_* e = bb_entity_get_(h);
   if (!e) return 0;
   float rx, ry, rz;
-  if (glob) mat4_extract_euler_YXZ_(e->world, rx, ry, rz);
+  if (glob) mat4_extract_euler_YXZ_(bb_entity_world_(e), rx, ry, rz);
   else      bb_entity_local_euler_(e, rx, ry, rz);
   return rz;
 }
@@ -834,9 +857,11 @@ inline float bb_EntityDistance(int h1, int h2) {
   bb_Entity_* a = bb_entity_get_(h1);
   bb_Entity_* b = bb_entity_get_(h2);
   if (!a || !b) return 0;
-  float dx = a->world[12] - b->world[12];
-  float dy = a->world[13] - b->world[13];
-  float dz = a->world[14] - b->world[14];
+  const float* wa = bb_entity_world_(a);
+  const float* wb = bb_entity_world_(b);
+  float dx = wa[12] - wb[12];
+  float dy = wa[13] - wb[13];
+  float dz = wa[14] - wb[14];
   return sqrtf(dx*dx + dy*dy + dz*dz);
 }
 
@@ -851,7 +876,7 @@ inline void bb_EntityParent(int h, int new_parent, int glob = 0) {
 
   // If preserving world coords, snapshot world matrix before any change.
   float saved_world[16];
-  if (glob) memcpy(saved_world, e->world, 64);
+  if (glob) memcpy(saved_world, bb_entity_world_(e), 64);
 
   // Detach from current parent
   if (e->parent) {
@@ -875,7 +900,7 @@ inline void bb_EntityParent(int h, int new_parent, int glob = 0) {
     if (new_parent) {
       bb_Entity_* np = bb_entity_get_(new_parent);
       float inv_pw[16];
-      if (np && mat4_inverse_(inv_pw, np->world))
+      if (np && mat4_inverse_(inv_pw, bb_entity_world_(np)))
         mat4_mul_(local, inv_pw, saved_world);
       else
         memcpy(local, saved_world, 64);
