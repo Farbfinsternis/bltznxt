@@ -1,0 +1,1 @@
+tests/neg_bug87_label_fremde_funktion.bb:2:2: error: Undefined label 'marke'

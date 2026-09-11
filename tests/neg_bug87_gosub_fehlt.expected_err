@@ -1,0 +1,1 @@
+tests/neg_bug87_gosub_fehlt.bb:1:1: error: Undefined label 'nixda'

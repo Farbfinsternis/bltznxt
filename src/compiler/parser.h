@@ -202,8 +202,8 @@ private:
       if (kw == "INSERT")  return parseInsert();
 
       if (kw == "GOTO") {
-        int ln = t.line;
-        advance();
+        int ln = t.line, cl = t.col;   // die Spalte fehlte hier, anders als
+        advance();                     // beim Nachbarn Gosub (vgl. BUG-74)
         // Accept both "Goto label" and "Goto .label"
         if (peek().type == TokenType::OPERATOR && peek().value == ".") advance();
         Token lblTok = expect(TokenType::ID, "Expected label name after Goto");
@@ -211,6 +211,7 @@ private:
         std::transform(lo.begin(), lo.end(), lo.begin(), ::tolower);
         auto s = std::make_unique<GotoStmt>(lo);
         s->line = ln;
+        s->col  = cl;
         return s;
       }
       if (kw == "GOSUB") {
@@ -1364,7 +1365,7 @@ private:
   // ------------------------------------------------------------------ RESTORE
 
   std::unique_ptr<RestoreStmt> parseRestore() {
-    int ln = peek().line;
+    int ln = peek().line, cl = peek().col;
     advance(); // RESTORE
     std::string label;
     // Optional dot-label or plain label after Restore
@@ -1380,6 +1381,7 @@ private:
     }
     auto s  = std::make_unique<RestoreStmt>(label);
     s->line = ln;
+    s->col  = cl;
     return s;
   }
 

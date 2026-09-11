@@ -53,6 +53,11 @@ public:
 
     collect(prog->nodes);
 
+    // Die Labels des Hauptprogramms - ohne die der Funktionen, die ihre
+    // eigenen haben.
+    labels_.clear();
+    sammleLabels(prog->nodes);
+
     // Main body: everything that is not a function declaration.
     Scope main;
     scope_      = &main;
@@ -140,6 +145,54 @@ private:
   // --------------------------------------------------------------- collect
   // Registers types, functions, Dim'd arrays, globals and constants up front,
   // so that forward references work the same way they do in the emitter.
+  // Die Labels des Bereichs, der gerade geprueft wird.
+  //
+  // **Labels sind funktionslokal**, am Original gemessen (2026-09-11): ein
+  // `Goto` in einer Funktion erreicht ein Label im Hauptprogramm nicht, und
+  // umgekehrt meldet das Original in beiden Richtungen `Undefined label`.
+  // Deshalb wird diese Menge je Bereich neu gefuellt und nicht einmal fuer
+  // das ganze Programm.
+  std::unordered_set<std::string> labels_;
+
+  // Labels eines Bereichs einsammeln - rekursiv durch alle Bloecke, aber
+  // **nicht** in eine Funktionsdeklaration hinein, denn deren Labels gehoeren
+  // ihr allein. Ein Vorlauf ist noetig, weil ein Label hinter seiner
+  // Verwendung stehen darf (auch das gemessen; `Goto spaet` vor `.spaet` nimmt
+  // das Original an).
+  void sammleLabels(const std::vector<std::unique_ptr<ASTNode>> &nodes) {
+    for (auto &n : nodes) {
+      if (auto *lb = dynamic_cast<LabelStmt *>(n.get())) {
+        labels_.insert(toLower(lb->name));
+      } else if (dynamic_cast<FunctionDecl *>(n.get())) {
+        continue; // eigener Bereich
+      } else if (auto *pr = dynamic_cast<Program *>(n.get())) {
+        sammleLabels(pr->nodes);
+      } else if (auto *is = dynamic_cast<IfStmt *>(n.get())) {
+        sammleLabels(is->thenBlock); sammleLabels(is->elseBlock);
+      } else if (auto *ws = dynamic_cast<WhileStmt *>(n.get())) {
+        sammleLabels(ws->block);
+      } else if (auto *rs = dynamic_cast<RepeatStmt *>(n.get())) {
+        sammleLabels(rs->block);
+      } else if (auto *fs = dynamic_cast<ForStmt *>(n.get())) {
+        sammleLabels(fs->block);
+      } else if (auto *ss = dynamic_cast<SelectStmt *>(n.get())) {
+        for (auto &c : ss->cases) sammleLabels(c.block);
+        sammleLabels(ss->defaultBlock);
+      } else if (auto *fes = dynamic_cast<ForEachStmt *>(n.get())) {
+        sammleLabels(fes->block);
+      }
+    }
+  }
+
+  // Ein Sprungziel, das es nicht gibt (BUG-87). Ohne diese Pruefung erzeugt
+  // der Emitter `goto lbl_x;` bzw. `bb_DataRestore(__data_at_x__)` und der
+  // Nutzer bekommt eine g++-Meldung ueber Code, den er nie geschrieben hat.
+  void pruefeLabel(const std::string &name, int line, int col) {
+    if (name.empty()) return;
+    if (labels_.count(toLower(name))) return;
+    error(line, col, "Undefined label '" + name + "'");
+  }
+
   void collect(const std::vector<std::unique_ptr<ASTNode>> &nodes) {
     for (auto &n : nodes) {
       if (auto *td = dynamic_cast<TypeDecl *>(n.get())) {
@@ -247,6 +300,8 @@ private:
         scope_      = &local;
         returnType_ = fromHint(fn->returnHint);
         inFunction_ = true;
+        labels_.clear();
+        sammleLabels(fn->body);
         for (auto &s : fn->body) stmt(s.get());
         inFunction_ = false;
       }
@@ -443,7 +498,14 @@ private:
     } else if (auto *rd = dynamic_cast<ReadStmt *>(n)) {
       if (lookup(rd->name)) checkTag(rd->name, rd->typeHint, rd->line, rd->col);
       else declare(rd->name, fromHint(rd->typeHint));
-
+    // Die drei Anweisungen mit einem Sprungziel (BUG-87). `Restore` ohne
+    // Label setzt auf den Anfang zurueck und braucht keines.
+    } else if (auto *gt = dynamic_cast<GotoStmt *>(n)) {
+      pruefeLabel(gt->label, gt->line, gt->col);
+    } else if (auto *gs = dynamic_cast<GosubStmt *>(n)) {
+      pruefeLabel(gs->label, gs->line, gs->col);
+    } else if (auto *rst = dynamic_cast<RestoreStmt *>(n)) {
+      pruefeLabel(rst->label, rst->line, rst->col);
     } else if (auto *aas = dynamic_cast<ArrayAssignStmt *>(n)) {
       Ty val = expr(aas->value.get());
       for (auto &i : aas->indices) expr(i.get());

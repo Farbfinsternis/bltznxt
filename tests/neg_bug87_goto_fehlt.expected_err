@@ -1,0 +1,1 @@
+tests/neg_bug87_goto_fehlt.bb:1:1: error: Undefined label 'nixda'

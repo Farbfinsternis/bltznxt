@@ -1502,8 +1502,16 @@ private:
         }
       } else if (auto *prog = dynamic_cast<Program *>(n.get())) {
         collectData(prog->nodes, idx);
-      } else if (auto *fn = dynamic_cast<FunctionDecl *>(n.get())) {
-        collectData(fn->body, idx);
+      } else if (dynamic_cast<FunctionDecl *>(n.get())) {
+        // **Nicht** in eine Funktion hinein. Data gibt es dort ohnehin nicht
+        // ("'Data' can only appear in main program", compiler/parser.cpp:302),
+        // und ein `Restore` auf ein Label in einer Funktion lehnt das Original
+        // ab, weil Labels funktionslokal sind (BUG-87). Frueher stieg der
+        // Sammler hier ab und legte fuer JEDES Label eine globale Konstante
+        // `__data_at_x__` an - zwei gleichnamige Labels in verschiedenen
+        // Bereichen, im Original voellig zulaessig, ergaben damit erzeugtes
+        // C++ mit einer doppelten Deklaration.
+        continue;
       } else if (auto *if_ = dynamic_cast<IfStmt *>(n.get())) {
         collectData(if_->thenBlock, idx);
         collectData(if_->elseBlock, idx);
