@@ -239,6 +239,19 @@ static inline void mat4_make_scale_(float m[16], float x, float y, float z) {
 
 // Combined Euler rotation YXZ (Blitz3D convention): R = Ry * Rx * Rz
 // Derived analytically to avoid 3× matmul overhead.
+//
+// Die drei Einzelmatrizen stehen im Original in `blitz3d/geom.h:450`, jeweils
+// als ihre drei Spalten geschrieben:
+//
+//   pitchMatrix(q)  (1,0,0)      (0,cos,sin)   (0,-sin,cos)
+//   yawMatrix(q)    (cos,0,sin)  (0,1,0)       (-sin,0,cos)
+//   rollMatrix(q)   (cos,sin,0)  (-sin,cos,0)  (0,0,1)
+//
+// und rotationMatrix ist yawMatrix*pitchMatrix*rollMatrix - dieselbe
+// Reihenfolge wie hier. Bis zum 2026-09-11 stand **sy hier mit umgekehrtem
+// Vorzeichen**: Pitch und Roll stimmten, die Gierdrehung lief herum
+// (BUG-84). Gemessen hat das eine Kamera gezeigt, die nach `RotateEntity
+// cam,0,90,0` im Original nach -X blickt und bei uns nach +X.
 static inline void mat4_make_euler_YXZ_(float m[16],
                                          float rx_d, float ry_d, float rz_d) {
   float rx = rx_d * BB_D2R_, ry = ry_d * BB_D2R_, rz = rz_d * BB_D2R_;
@@ -246,11 +259,11 @@ static inline void mat4_make_euler_YXZ_(float m[16],
   float cy = cosf(ry), sy = sinf(ry);
   float cz = cosf(rz), sz = sinf(rz);
   // Column 0
-  m[0] = cy*cz + sy*sx*sz;   m[1] = cx*sz;  m[2]  = -sy*cz + cy*sx*sz;  m[3]  = 0;
+  m[0] = cy*cz - sy*sx*sz;   m[1] = cx*sz;  m[2]  = sy*cz + cy*sx*sz;   m[3]  = 0;
   // Column 1
-  m[4] = -cy*sz + sy*sx*cz;  m[5] = cx*cz;  m[6]  = sy*sz  + cy*sx*cz;  m[7]  = 0;
+  m[4] = -cy*sz - sy*sx*cz;  m[5] = cx*cz;  m[6]  = -sy*sz + cy*sx*cz;  m[7]  = 0;
   // Column 2
-  m[8] = sy*cx;               m[9] = -sx;    m[10] = cy*cx;               m[11] = 0;
+  m[8] = -sy*cx;              m[9] = -sx;    m[10] = cy*cx;               m[11] = 0;
   // Column 3
   m[12] = 0; m[13] = 0; m[14] = 0; m[15] = 1;
 }
@@ -338,13 +351,13 @@ static inline void mat4_extract_euler_YXZ_(const float m[16],
   if (r10 == 0.0f) r10 = 0.0f;
   float r11 = m[5]/sy;   // cx*cz
   float r12 = m[9]/sz;   // -sx  → rx = asin(-r12)
-  float r02 = m[8]/sz;   // sy*cx
+  float r02 = m[8]/sz;   // -sy*cx  (das Vorzeichen kommt unten dazu, BUG-84)
   float r22 = m[10]/sz;  // cy*cx
   float pit = asinf(std::max(-1.0f, std::min(1.0f, -r12)));
   rx = pit * BB_R2D_;
   float cp = cosf(pit);
   if (cp > 1e-4f) {
-    ry = atan2f(r02/cp, r22/cp) * BB_R2D_;
+    ry = atan2f(-r02/cp, r22/cp) * BB_R2D_;
     rz = atan2f(r10/cp, r11/cp) * BB_R2D_;
   } else {
     // Gimbal lock — roll assigned arbitrarily, yaw=0

@@ -1,0 +1,13 @@
+gier 90 nach -x
+gier 90 z ist null
+gier -90 nach +x
+gier 180 nach -z
+nick 90 nach -y
+roll 90 nach +y
+vertex start
+vertex nach gier
+vertex z nach gier
+turn zweimal 45
+gier gelesen
+gier negativ gelesen
+fertig
