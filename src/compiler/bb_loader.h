@@ -552,10 +552,10 @@ inline int bb_load_3ds_(const bbString& file, int parent) {
       auto it = groups.find(key);
       if (it == groups.end()) {
         Group gnew;
-        gnew.surf = ent->surfaces.size();
-        ent->surfaces.emplace_back();
+        gnew.surf = ent->surfaces().size();
+        ent->surfaces().emplace_back();
         surf_mat.push_back(mi);
-        bb_Brush_& br = ent->surfaces.back().brush;
+        bb_Brush_& br = ent->surfaces().back().brush;
         if (m) {
           // Gemessen: die Diffusfarbe aus der Datei gilt nur, solange die
           // Flaeche **keine** Textur hat. rocket.3ds hat vier Materialien
@@ -577,7 +577,7 @@ inline int bb_load_3ds_(const bbString& file, int parent) {
         it = groups.emplace(key, std::move(gnew)).first;
       }
       Group& g = it->second;
-      bb_MeshData_& surf = ent->surfaces[g.surf];
+      bb_MeshData_& surf = ent->surfaces()[g.surf];
 
       const uint32_t sm = (fi < o.smooth.size()) ? o.smooth[fi] : 0;
       const uint16_t idx[3] = { o.fa[fi], o.fb[fi], o.fc[fi] };
@@ -623,7 +623,7 @@ inline int bb_load_3ds_(const bbString& file, int parent) {
     }
   }
 
-  for (auto& s : ent->surfaces) s.dirty = true;
+  for (auto& s : ent->surfaces()) s.dirty = true;
   int h = bb_entity_register_(std::move(ent), parent);
   bb_UpdateNormals(h);
   return h;
@@ -698,9 +698,9 @@ inline size_t bb_x_surface_(bb_XBuild_& B, const bb_XMatState_& m) {
   const std::string key = bb_x_brush_key_(m);
   auto it = B.surf_of.find(key);
   if (it != B.surf_of.end()) return it->second;
-  const size_t idx = B.ent->surfaces.size();
-  B.ent->surfaces.emplace_back();
-  bb_Brush_& br = B.ent->surfaces.back().brush;
+  const size_t idx = B.ent->surfaces().size();
+  B.ent->surfaces().emplace_back();
+  bb_Brush_& br = B.ent->surfaces().back().brush;
   br.r = m.r; br.g = m.g; br.b = m.b;
   br.alpha = m.alpha;
   if (m.tex) { br.tex.tex[0] = bb_texture_ref_(m.tex); br.tex.frame[0] = 0; }
@@ -798,7 +798,7 @@ inline void bb_x_mesh_(bb_XBuild_& B, const bb_XObj_& o, const bb_XMat_& tform) 
     int mi = (f < face_mat.size()) ? face_mat[f] : 0;
     if (mi < 0 || mi >= static_cast<int>(mats.size())) mi = 0;
     const size_t si = bb_x_surface_(B, mats[mi]);
-    bb_MeshData_& surf = B.ent->surfaces[si];
+    bb_MeshData_& surf = B.ent->surfaces()[si];
     auto& vm = remap[si];
 
     auto emit = [&](unsigned vi) -> unsigned {
@@ -920,11 +920,11 @@ inline int bb_load_x_(const bbString& file, int parent) {
   bool any_normals = false;
   bb_x_walk_(B, roots, bb_x_ident_(), any_normals);
 
-  if (ent->surfaces.empty()) {
+  if (ent->surfaces().empty()) {
     std::cerr << "[runtime] LoadMesh: '" << file << "' enthaelt kein Netz\n";
     return 0;
   }
-  for (auto& s : ent->surfaces) s.dirty = true;
+  for (auto& s : ent->surfaces()) s.dirty = true;
   int h = bb_entity_register_(std::move(ent), parent);
   // Nur rechnen, wenn die Datei keine brauchbaren Normalen mitbrachte -
   // genauso entscheidet das Original.

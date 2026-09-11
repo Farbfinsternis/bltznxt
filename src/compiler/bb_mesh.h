@@ -22,13 +22,37 @@
 // bb_MeshEntity_ — entity with surfaces (one MeshData per surface)
 // ============================================================
 
-struct bb_MeshEntity_ : bb_Entity_ {
+// Die Flaechen liegen hinter einem geteilten Zeiger, weil CopyEntity im
+// Original die Geometrie *teilt* statt sie zu vervielfaeltigen: dort haelt
+// MeshModel einen refgezaehlten `rep`, und der Kopierkonstruktor uebernimmt
+// ihn, statt ihn zu kopieren (`blitz3d/meshmodel.cpp:167`). Am Original
+// gemessen (2026-09-11): nach `RotateMesh original` liegt der erste Vertex
+// der **Kopie** bei +1 statt -1, und ein `ScaleMesh` auf die Kopie bewegt
+// umgekehrt auch das Original. Deshalb trennt CopyMesh (tiefe Kopie) und
+// CopyEntity (geteilte Flaechen) sich hier, nicht nur dem Namen nach.
+struct bb_MeshRep_ {
   std::vector<bb_MeshData_> surfaces;  // each surface = one draw call
+
+  ~bb_MeshRep_() {
+    for (auto& s : surfaces) bb_mesh_free_gpu_(&s);
+  }
+};
+
+struct bb_MeshEntity_ : bb_Entity_ {
+  std::shared_ptr<bb_MeshRep_> rep = std::make_shared<bb_MeshRep_>();
+
+  std::vector<bb_MeshData_>&       surfaces()       { return rep->surfaces; }
+  const std::vector<bb_MeshData_>& surfaces() const { return rep->surfaces; }
 
   bb_EntityKind_ kind() const override { return bb_EntityKind_::Mesh; }
 
-  ~bb_MeshEntity_() override {
-    for (auto& s : surfaces) bb_mesh_free_gpu_(&s);
+  // Der Klon teilt den `rep`, kopiert aber den Entity-Teil (Lage, Name,
+  // Aussehen) fuer sich - genau wie MeshModel::MeshModel(const MeshModel&).
+  std::unique_ptr<bb_Entity_> clone() const override {
+    auto c = std::make_unique<bb_MeshEntity_>();
+    bb_entity_copy_fields_(*c, *this);
+    c->rep = rep;
+    return c;
   }
 };
 
@@ -308,7 +332,7 @@ static inline bb_MeshData_ bb_gen_cone_(int segs, bool open) {
 
 static inline int bb_mesh_create_(bb_MeshData_ surf, int parent) {
   auto ent = std::make_unique<bb_MeshEntity_>();
-  ent->surfaces.push_back(std::move(surf));
+  ent->surfaces().push_back(std::move(surf));
   return bb_entity_register_(std::move(ent), parent);
 }
 
@@ -364,7 +388,7 @@ inline void bb_PaintMesh(int mesh, int brush) {
   auto*      me = bb_mesh_ent_(mesh);
   bb_Brush_* b  = bb_brush_get_(brush);
   if (!me || !b) return;
-  for (auto& s : me->surfaces) s.brush = *b;
+  for (auto& s : me->surfaces()) s.brush = *b;
 }
 
 // ============================================================
@@ -377,7 +401,7 @@ static inline void bb_mesh_aabb_(const bb_MeshEntity_* me,
                                   float& minZ, float& maxZ) {
   minX = minY = minZ =  FLT_MAX;
   maxX = maxY = maxZ = -FLT_MAX;
-  for (const auto& s : me->surfaces) {
+  for (const auto& s : me->surfaces()) {
     const auto& v = s.vertices;
     for (size_t i = 0; i + BB_VF - 1 < v.size(); i += BB_VF) {
       if (v[i]   < minX) minX = v[i];
@@ -450,7 +474,7 @@ inline float bb_MeshDepth(int h) {
 
 // Jede Aenderung an den Vertices muss neu auf die Grafikkarte.
 static inline void bb_mesh_touch_(bb_MeshEntity_* me) {
-  for (auto& s : me->surfaces) s.dirty = true;
+  for (auto& s : me->surfaces()) s.dirty = true;
 }
 
 // ---- CreateMesh: leeres Netz, Geometrie kommt mit AddMesh oder 3D-15 ----
@@ -462,7 +486,7 @@ inline int bb_CreateMesh(int parent = 0) {
 
 inline int bb_CountSurfaces(int h) {
   auto* me = bb_mesh_ent_(h);
-  return me ? static_cast<int>(me->surfaces.size()) : 0;
+  return me ? static_cast<int>(me->surfaces().size()) : 0;
 }
 
 // ---- ScaleMesh / PositionMesh / RotateMesh ----
@@ -470,7 +494,7 @@ inline int bb_CountSurfaces(int h) {
 inline void bb_ScaleMesh(int h, float x_scale, float y_scale, float z_scale) {
   auto* me = bb_mesh_ent_(h);
   if (!me) return;
-  for (auto& s : me->surfaces)
+  for (auto& s : me->surfaces())
     for (size_t i = 0; i + BB_VF - 1 < s.vertices.size(); i += BB_VF) {
       s.vertices[i]     *= x_scale;
       s.vertices[i + 1] *= y_scale;
@@ -482,7 +506,7 @@ inline void bb_ScaleMesh(int h, float x_scale, float y_scale, float z_scale) {
 inline void bb_PositionMesh(int h, float x, float y, float z) {
   auto* me = bb_mesh_ent_(h);
   if (!me) return;
-  for (auto& s : me->surfaces)
+  for (auto& s : me->surfaces())
     for (size_t i = 0; i + BB_VF - 1 < s.vertices.size(); i += BB_VF) {
       s.vertices[i]     += x;
       s.vertices[i + 1] += y;
@@ -506,7 +530,7 @@ inline void bb_RotateMesh(int h, float pitch, float yaw, float roll) {
     b = R[1] * x + R[5] * y + R[9]  * z;
     c = R[2] * x + R[6] * y + R[10] * z;
   };
-  for (auto& s : me->surfaces)
+  for (auto& s : me->surfaces())
     for (size_t i = 0; i + BB_VF - 1 < s.vertices.size(); i += BB_VF) {
       turn(s.vertices[i],     s.vertices[i + 1], s.vertices[i + 2]);
       turn(s.vertices[i + 3], s.vertices[i + 4], s.vertices[i + 5]);
@@ -520,7 +544,7 @@ inline void bb_FitMesh(int h, float x, float y, float z,
                        float width, float height, float depth,
                        int uniform = 0) {
   auto* me = bb_mesh_ent_(h);
-  if (!me || me->surfaces.empty()) return;
+  if (!me || me->surfaces().empty()) return;
 
   float x0, x1, y0, y1, z0, z1;
   bb_mesh_aabb_(me, x0, x1, y0, y1, z0, z1);
@@ -537,7 +561,7 @@ inline void bb_FitMesh(int h, float x, float y, float z,
     sx = sy = sz = s;
   }
 
-  for (auto& s : me->surfaces)
+  for (auto& s : me->surfaces())
     for (size_t i = 0; i + BB_VF - 1 < s.vertices.size(); i += BB_VF) {
       s.vertices[i]     = (s.vertices[i]     - x0) * sx + x;
       s.vertices[i + 1] = (s.vertices[i + 1] - y0) * sy + y;
@@ -554,7 +578,7 @@ inline void bb_FitMesh(int h, float x, float y, float z,
 inline void bb_FlipMesh(int h) {
   auto* me = bb_mesh_ent_(h);
   if (!me) return;
-  for (auto& s : me->surfaces) {
+  for (auto& s : me->surfaces()) {
     for (size_t i = 0; i + 2 < s.indices.size(); i += 3)
       std::swap(s.indices[i + 1], s.indices[i + 2]);
     for (size_t i = 0; i + BB_VF - 1 < s.vertices.size(); i += BB_VF) {
@@ -575,7 +599,7 @@ inline void bb_FlipMesh(int h) {
 inline void bb_UpdateNormals(int h) {
   auto* me = bb_mesh_ent_(h);
   if (!me) return;
-  for (auto& s : me->surfaces) {
+  for (auto& s : me->surfaces()) {
     const size_t n = s.vertices.size() / BB_VF;
     if (!n) continue;
     std::vector<float> acc(n * 3, 0.0f);
@@ -643,7 +667,7 @@ inline void bb_LightMesh(int h, float red, float green, float blue,
   if (!me) return;
   const float r = red / 255.0f, g = green / 255.0f, b = blue / 255.0f;
 
-  for (auto& s : me->surfaces)
+  for (auto& s : me->surfaces())
     for (size_t i = 0; i + BB_VF - 1 < s.vertices.size(); i += BB_VF) {
       float f = 1.0f;
       if (range > 0.0f) {
@@ -679,10 +703,10 @@ inline void bb_AddMesh(int source_mesh, int dest_mesh) {
   auto* src = bb_mesh_ent_(source_mesh);
   auto* dst = bb_mesh_ent_(dest_mesh);
   if (!src || !dst || src == dst) return;
-  if (dst->surfaces.empty()) dst->surfaces.emplace_back();
-  bb_MeshData_& into = dst->surfaces[0];
+  if (dst->surfaces().empty()) dst->surfaces().emplace_back();
+  bb_MeshData_& into = dst->surfaces()[0];
 
-  for (const auto& s : src->surfaces) {
+  for (const auto& s : src->surfaces()) {
     const unsigned base = static_cast<unsigned>(into.vertices.size() / BB_VF);
     into.vertices.insert(into.vertices.end(), s.vertices.begin(), s.vertices.end());
     for (unsigned idx : s.indices) into.indices.push_back(base + idx);
@@ -744,7 +768,7 @@ inline int bb_MeshesIntersect(int mesh_a, int mesh_b) {
   // Dreieck gegen Dreieck in Weltkoordinaten.
   std::vector<float> TA, TB;
   auto collect = [&to_world](const bb_MeshEntity_* e, std::vector<float>& out) {
-    for (const auto& s : e->surfaces)
+    for (const auto& s : e->surfaces())
       for (size_t t = 0; t + 2 < s.indices.size(); t += 3)
         for (int k = 0; k < 3; ++k) {
           const float* p = &s.vertices[s.indices[t + k] * BB_VF];
@@ -828,7 +852,7 @@ static inline bool bb_ent_translucent_(const bb_MeshEntity_* me) {
   if (me->brush.alpha < 1.0f) return true;
   if (me->brush.blend >= 2)   return true;
   if (me->brush.fx & 32)      return true;
-  for (const auto& s : me->surfaces) {
+  for (const auto& s : me->surfaces()) {
     const bb_Brush_ br = bb_brush_combine_(s.brush, me->brush);
     if (br.alpha < 1.0f) return true;
     if (br.blend >= 2)   return true;
@@ -919,7 +943,7 @@ static inline void bb_render_meshes_(bb_Shader_* shader,
     // Entity verrechnet - Farbe und Deckkraft mal, Glanz plus, FX oder,
     // Texturen von der Entity ueberschrieben. Die Formel steht in
     // bb_brush.h und stammt aus blitz3d/brush.cpp.
-    for (auto& surf : me->surfaces) {
+    for (auto& surf : me->surfaces()) {
       const bb_Brush_ br = bb_brush_combine_(surf.brush, me->brush);
 
       if (want_blend && br.blend != blend_mode) {

@@ -61,8 +61,8 @@ inline bb_MeshData_* bb_surface_get_(int h) {
   auto* me = bb_mesh_ent_(it->second.ent);
   if (!me) return nullptr;
   const int i = it->second.idx;
-  if (i < 0 || i >= static_cast<int>(me->surfaces.size())) return nullptr;
-  return &me->surfaces[i];
+  if (i < 0 || i >= static_cast<int>(me->surfaces().size())) return nullptr;
+  return &me->surfaces()[i];
 }
 
 // Nach jeder Aenderung an der Geometrie muss die Flaeche neu hochgeladen
@@ -80,16 +80,16 @@ inline int bb_GetSurface(int mesh, int surface_index) {
   auto* me = bb_mesh_ent_(mesh);
   if (!me) return 0;
   if (surface_index < 1 ||
-      surface_index > static_cast<int>(me->surfaces.size())) return 0;
+      surface_index > static_cast<int>(me->surfaces().size())) return 0;
   return bb_surface_handle_(mesh, surface_index - 1);
 }
 
 inline int bb_CreateSurface(int mesh, int brush = 0) {
   auto* me = bb_mesh_ent_(mesh);
   if (!me) return 0;
-  me->surfaces.emplace_back();
-  if (auto* b = bb_brush_get_(brush)) me->surfaces.back().brush = *b;
-  return bb_surface_handle_(mesh, static_cast<int>(me->surfaces.size()) - 1);
+  me->surfaces().emplace_back();
+  if (auto* b = bb_brush_get_(brush)) me->surfaces().back().brush = *b;
+  return bb_surface_handle_(mesh, static_cast<int>(me->surfaces().size()) - 1);
 }
 
 // Gleichheit zweier Brushes. Das Original vergleicht den ganzen
@@ -111,8 +111,8 @@ inline int bb_FindSurface(int mesh, int brush) {
   auto* me = bb_mesh_ent_(mesh);
   auto* b  = bb_brush_get_(brush);
   if (!me || !b) return 0;
-  for (size_t i = 0; i < me->surfaces.size(); ++i)
-    if (bb_brush_same_(me->surfaces[i].brush, *b))
+  for (size_t i = 0; i < me->surfaces().size(); ++i)
+    if (bb_brush_same_(me->surfaces()[i].brush, *b))
       return bb_surface_handle_(mesh, static_cast<int>(i));
   return 0;
 }

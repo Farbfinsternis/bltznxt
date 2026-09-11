@@ -88,6 +88,7 @@ inline constexpr CmdInfo kCommands[] = {
   { "Confirm",             "%", "msg$" },
   { "CopyBank",            "",  "src%,srcOffset%,dst%,dstOffset%,count%" },
   { "CopyFile",            "",  "src$,dst$" },
+  { "CopyEntity",          "%", "entity%,parent%?" },
   { "CopyImage",           "%", "handle%" },
   { "CopyMesh",            "%", "mesh%,parent%?" },
   { "CopyPixel",           "",  "sx%,sy%,sbuf%,dx%,dy%,dbuf%?" },

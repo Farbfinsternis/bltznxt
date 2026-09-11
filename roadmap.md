@@ -656,7 +656,7 @@ Each milestone is scoped to fit within a single AI-session context window:
 ### Milestone 58: Entity Creation & Hierarchy
 *Touch: `bb_entity.h` (new file)*
 - [ ] `bb_CreatePivot(parent)` → pivot entity handle
-- [ ] `bb_CopyEntity(entity, parent)`
+- [x] `bb_CopyEntity(entity, parent)` — geteilte Geometrie, Kinder rekursiv; Kamera/Licht werden zum Pivot (am Original gemessen)
 - [ ] `bb_FreeEntity(entity)` → recursive free
 - [ ] `bb_EntityParent(entity, parent, glob)` (re-parent)
 - [ ] `bb_EntityOrder(entity, order)` (render order)

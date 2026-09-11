@@ -63,6 +63,17 @@ struct bb_Entity_ {
 
   virtual ~bb_Entity_() = default;
   virtual bb_EntityKind_ kind() const = 0;
+
+  // Eine Kopie dieser Entity ohne Verwandtschaft (kein Handle, kein Parent,
+  // keine Kinder) - das Gegenstueck zu Entity::clone() im Original.
+  //
+  // Die Vorgabe liefert einen **Pivot**, und das ist kein Notbehelf, sondern
+  // die gemessene Regel: im Original ueberschreiben Camera, Light und Terrain
+  // `clone()` nicht, erben also `Object::clone()`, das ein nacktes `Object`
+  // baut (`blitz3d/object.h:29`). `EntityClass$(CopyEntity(light))` meldet im
+  // Original darum "Pivot", ebenso fuer eine Kamera (gemessen 2026-09-11).
+  // Wer eine Art wirklich kopierbar machen will, ueberschreibt hier.
+  virtual std::unique_ptr<bb_Entity_> clone() const;
 };
 
 // ============================================================
@@ -72,6 +83,33 @@ struct bb_Entity_ {
 struct bb_PivotEntity_ : bb_Entity_ {
   bb_EntityKind_ kind() const override { return bb_EntityKind_::Pivot; }
 };
+
+// Den Entity-Teil von `src` nach `dst` uebernehmen: Name, Sichtbarkeit,
+// Reihenfolge, Aussehen und die **lokale** Lage. Handle, Parent und Kinder
+// bleiben aus, die setzt der Aufrufer.
+//
+// Das Original kopiert beim Pivot-Klon streng genommen kein Aussehen (der
+// Brush sitzt dort in Model, nicht in Entity). Bei uns liegt er in
+// bb_Entity_; ihn mitzunehmen ist nicht beobachtbar, weil ein Pivot nicht
+// gezeichnet wird.
+inline void bb_entity_copy_fields_(bb_Entity_& dst, const bb_Entity_& src) {
+  dst.name     = src.name;
+  dst.visible  = src.visible;
+  dst.order    = src.order;
+  dst.brush    = src.brush;
+  dst.fadeNear = src.fadeNear;
+  dst.fadeFar  = src.fadeFar;
+  dst.px = src.px; dst.py = src.py; dst.pz = src.pz;
+  dst.rx = src.rx; dst.ry = src.ry; dst.rz = src.rz;
+  dst.sx = src.sx; dst.sy = src.sy; dst.sz = src.sz;
+  memcpy(dst.world, src.world, sizeof(dst.world));
+}
+
+inline std::unique_ptr<bb_Entity_> bb_Entity_::clone() const {
+  auto c = std::make_unique<bb_PivotEntity_>();
+  bb_entity_copy_fields_(*c, *this);
+  return c;
+}
 
 // ============================================================
 // Global entity registry
@@ -337,6 +375,51 @@ inline void bb_entity_update_all_() {
   for (auto& [h, e] : bb_entities_)
     if (e->parent == 0)
       bb_update_entity_world_(e.get(), nullptr);
+}
+
+// ============================================================
+// CopyEntity
+// ============================================================
+
+// Steht hier unten und nicht bei CreatePivot, weil die frische Kopie ihre
+// Weltmatrix braucht: unsere Getter lesen `world` direkt und nur
+// bb_UpdateWorld schreibt es, im Original rechnet der Getter selbst nach.
+// Ohne das traegt eine Kopie mit Parent bis zum naechsten UpdateWorld die
+// Weltlage des Originals.
+
+// Den Teilbaum kopieren - erst die Entity selbst, dann rekursiv die Kinder
+// an die Kopie. Genau die Reihenfolge von Object::copy() im Original
+// (`blitz3d/object.cpp:28`), damit auch die Handles in derselben Folge
+// vergeben werden.
+inline int bb_copy_entity_tree_(int h, int parent) {
+  const bb_Entity_* e = bb_entity_get_(h);
+  if (!e) return 0;
+
+  std::unique_ptr<bb_Entity_> c = e->clone();
+  if (!c) return 0;
+
+  // Kopie der Kinderliste: die Rekursion haengt an die **Kopie** an, aber
+  // ein Kind koennte im Prinzip dieselbe Liste beruehren.
+  const std::vector<int> kids = e->children;
+
+  int nh = bb_entity_register_(std::move(c), parent);
+  for (int k : kids) bb_copy_entity_tree_(k, nh);
+  return nh;
+}
+
+// Am Original gemessen (2026-09-11): Name, lokale Lage und Winkel wandern
+// mit, die Kinder werden rekursiv mitkopiert (samt Enkeln), ohne Parent ist
+// die Kopie eine Wurzel, und mit Parent bleibt die **lokale** Lage stehen -
+// die Doku ("created at the parent entity's position") beschreibt nur den
+// Fall, dass das Original lokal auf 0,0,0 sitzt.
+inline int bb_CopyEntity(int h, int parent = 0) {
+  int nh = bb_copy_entity_tree_(h, parent);
+  if (!nh) return 0;
+
+  bb_Entity_* ne = bb_entity_get_(nh);
+  bb_Entity_* p  = parent ? bb_entity_get_(parent) : nullptr;
+  if (ne) bb_update_entity_world_(ne, p ? p->world : nullptr);
+  return nh;
 }
 
 // ============================================================
