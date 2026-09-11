@@ -732,39 +732,103 @@ inline void bb_PointEntity(int h, int target, float roll = 0.0f) {
 }
 
 // ============================================================
-// AlignToVector — smoothly align entity axis to a world-space vector
-// axis: 1=X, 2=Y, 3=Z  |  rate: 0=no change, 1=immediate
+// AlignToVector — eine Achse der Entity auf einen Weltvektor drehen
+// axis: 1=X, 2=Y, 3=Z  |  rate: 0 = gar nicht, 1 = sofort
 // ============================================================
 
+// Das Original (`bbblitz3d.cpp:1855`) setzt **keine** Winkel neu zusammen. Es
+// nimmt die vorhandene Weltrotation, sucht deren Achse `tv` (i, j oder k),
+// und dreht sie auf dem kuerzesten Weg auf das Ziel:
+//
+//   dp = ax . tv                      wie weit ist es noch
+//   cp = ax x tv                      worum gedreht wird
+//   neue Rotation = Quat(Winkel um cp) * alte
+//
+// Dass die **vorhandene** Lage der Ausgangspunkt ist, ist der ganze Punkt des
+// Befehls: die uebrigen zwei Freiheitsgrade bleiben, wie sie waren. Unsere
+// frueherere Fassung baute stattdessen Eulerwinkel aus zwei atan2 je Achse
+// neu auf und warf die Ausgangslage damit weg - sie traf 2 von 15 gemessenen
+// Faellen (BUG-86).
+//
+// Hier ohne Quaternionen, weil unsere Lage in Eulerwinkeln steht: dieselbe
+// Drehung als Matrix nach Rodrigues, von links auf die Weltrotation, danach
+// zurueck in Winkel und als **Welt**rotation gesetzt (das Original ruft
+// setWorldRotation, nicht setLocalRotation - bei einem Elternteil ist das ein
+// Unterschied).
 inline void bb_AlignToVector(int h, float nx, float ny, float nz,
                               int axis, float rate = 1.0f) {
   bb_Entity_* e = bb_entity_get_(h);
-  if (!e || rate <= 0.0f) return;
+  if (!e) return;
+
+  // EPSILON ist im Original .000001f (geom.h).
+  const float EPS = 1e-6f;
   float len = sqrtf(nx*nx + ny*ny + nz*nz);
-  if (len < 1e-8f) return;
+  if (len <= EPS) return;
   nx /= len; ny /= len; nz /= len;
 
-  // For rate=1 (immediate) we set the entity axis directly;
-  // for 0<rate<1 we blend current and target (approximation via Euler lerp).
-  if (axis == 3) {          // align Z axis → similar to PointEntity
-    float xz = sqrtf(nx*nx + nz*nz);
-    float tgy = -atan2f(nx, nz) * BB_R2D_;
-    float tgx = atan2f(-ny, xz) * BB_R2D_;
-    if (rate >= 1.0f) { e->ry = tgy; e->rx = tgx; }
-    else { e->ry += (tgy - e->ry) * rate; e->rx += (tgx - e->rx) * rate; }
-  } else if (axis == 2) {   // align Y axis
-    float xz = sqrtf(nx*nx + nz*nz);
-    float tgx = atan2f(ny, xz) * BB_R2D_;
-    float tgy = atan2f(-nx, nz) * BB_R2D_;
-    if (rate >= 1.0f) { e->rx = tgx; e->ry = tgy; }
-    else { e->rx += (tgx - e->rx) * rate; e->ry += (tgy - e->ry) * rate; }
-  } else {                   // align X axis (axis=1)
-    float yz = sqrtf(ny*ny + nz*nz);
-    float tgz = atan2f(-ny, yz) * BB_R2D_;
-    float tgy = -atan2f(nx, nz) * BB_R2D_;
-    if (rate >= 1.0f) { e->rz = tgz; e->ry = tgy; }
-    else { e->rz += (tgz - e->rz) * rate; e->ry += (tgy - e->ry) * rate; }
+  // Die drei Achsen der Weltrotation: die Spalten der Weltmatrix, von der
+  // Skalierung befreit.
+  const float* w = bb_entity_world_(e);
+  float spalte[3][3];
+  for (int c = 0; c < 3; ++c) {
+    float x = w[c*4 + 0], y = w[c*4 + 1], z = w[c*4 + 2];
+    float l = sqrtf(x*x + y*y + z*z);
+    if (l < 1e-8f) l = 1;
+    spalte[c][0] = x/l; spalte[c][1] = y/l; spalte[c][2] = z/l;
   }
+
+  const int a = (axis == 1) ? 0 : (axis == 2 ? 1 : 2);
+  const float* tv = spalte[a];
+
+  float dp = nx*tv[0] + ny*tv[1] + nz*tv[2];
+  if (dp >= 1 - EPS) return;            // schon ausgerichtet
+
+  float achse[3], winkel;
+  if (dp <= -1 + EPS) {
+    // Genau entgegengesetzt: das Kreuzprodukt gibt keine Achse her. Das
+    // Original nimmt dann die naechste Achse der Entity selbst - zu x das j,
+    // zu y das k, zu z das i - und dreht um eine halbe Umdrehung.
+    const int b = (axis == 1) ? 1 : (axis == 2 ? 2 : 0);
+    achse[0] = spalte[b][0]; achse[1] = spalte[b][1]; achse[2] = spalte[b][2];
+    winkel = BB_PI_ * rate;
+  } else {
+    // Das Original schreibt `cp = ax.cross(tv)`, hier steht **tv x ax**.
+    // Das ist kein Fluechtigkeitsfehler: die Quaternionen dort drehen
+    // andersherum als eine Rodrigues-Matrix (vgl. pitchQuat mit p/-2 in
+    // geom.h). Am laufenden Original nachgemessen - mit der woertlichen
+    // Reihenfolge kamen alle fuenfzehn Winkeltripel vorzeichengespiegelt
+    // heraus.
+    achse[0] = tv[1]*nz - tv[2]*ny;
+    achse[1] = tv[2]*nx - tv[0]*nz;
+    achse[2] = tv[0]*ny - tv[1]*nx;
+    float al = sqrtf(achse[0]*achse[0] + achse[1]*achse[1] + achse[2]*achse[2]);
+    if (al < 1e-8f) return;
+    achse[0] /= al; achse[1] /= al; achse[2] /= al;
+    winkel = acosf(std::max(-1.0f, std::min(1.0f, dp))) * rate;
+  }
+
+  // Rodrigues: Drehung um `achse` mit `winkel`, spaltenweise.
+  const float c = cosf(winkel), s = sinf(winkel), t = 1 - c;
+  const float ux = achse[0], uy = achse[1], uz = achse[2];
+  float R[16];
+  R[0]  = t*ux*ux + c;     R[1]  = t*ux*uy + s*uz;  R[2]  = t*ux*uz - s*uy;  R[3]  = 0;
+  R[4]  = t*ux*uy - s*uz;  R[5]  = t*uy*uy + c;     R[6]  = t*uy*uz + s*ux;  R[7]  = 0;
+  R[8]  = t*ux*uz + s*uy;  R[9]  = t*uy*uz - s*ux;  R[10] = t*uz*uz + c;     R[11] = 0;
+  R[12] = 0; R[13] = 0; R[14] = 0; R[15] = 1;
+
+  // Die alte Weltrotation als Matrix (ohne Lage und Skalierung), dann R davor.
+  float W[16] = {
+    spalte[0][0], spalte[0][1], spalte[0][2], 0,
+    spalte[1][0], spalte[1][1], spalte[1][2], 0,
+    spalte[2][0], spalte[2][1], spalte[2][2], 0,
+    0, 0, 0, 1
+  };
+  float neu[16];
+  mat4_mul_(neu, R, W);
+
+  float rx, ry, rz;
+  mat4_extract_euler_YXZ_(neu, rx, ry, rz);
+  bb_RotateEntity(h, rx, ry, rz, 1);
 }
 
 // ============================================================
