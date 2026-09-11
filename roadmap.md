@@ -782,8 +782,8 @@ Each milestone is scoped to fit within a single AI-session context window:
 *Touch: `bb_3dmath.h` (new file)*
 - [ ] `bb_VectorDistance(x1, y1, z1, x2, y2, z2)` (→ float)
 - [ ] `bb_VectorYaw(dx, dy, dz)`, `bb_VectorPitch(dx, dy, dz)` → angles in degrees
-- [ ] `bb_TFormPoint(x, y, z, src, dst)`, `bb_TFormVector(x, y, z, src, dst)`, `bb_TFormNormal(x, y, z, src, dst)`
-- [ ] `bb_TFormedX()`, `bb_TFormedY()`, `bb_TFormedZ()` → last TForm result
+- [x] `bb_TFormPoint(x, y, z, src, dst)`, `bb_TFormVector(x, y, z, src, dst)`, `bb_TFormNormal(x, y, z, src, dst)` — TFormNormal nimmt die Kofaktormatrix, nicht die Matrix (die Doku sagt etwas anderes)
+- [x] `bb_TFormedX()`, `bb_TFormedY()`, `bb_TFormedZ()` → last TForm result
 - [ ] `bb_GetMatElement(entity, row, col)` → matrix element
 - **Test:** `Print VectorDistance(0,0,0, 3,4,0)` → 5.0
 

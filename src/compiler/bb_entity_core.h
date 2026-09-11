@@ -390,6 +390,139 @@ inline void bb_entity_update_all_() {
       bb_update_entity_world_(e.get(), nullptr);
 }
 
+// Die Weltmatrix **dieser einen** Entity auffrischen, ohne die ganze Szene zu
+// durchlaufen: die Elternkette hinauf sammeln, dann von der Wurzel herab
+// rechnen. Die Kinder bleiben unberuehrt - wer sie braucht, nimmt
+// bb_update_entity_world_.
+//
+// Das Original kennt diesen Schritt nicht, weil `getWorldTform()` dort
+// verzoegert nachrechnet, sobald jemand liest. Bei uns schreibt nur
+// bb_UpdateWorld die Matrix, weshalb ein `PositionEntity` gefolgt von einem
+// lesenden Befehl mit der Lage der vorigen Runde rechnet (BUG-71). Gemessen
+// am Original (2026-09-11): `TFormPoint` liefert dort **ohne** UpdateWorld
+// dasselbe wie damit.
+inline void bb_entity_refresh_world_(bb_Entity_* e) {
+  if (!e) return;
+  std::vector<bb_Entity_*> kette;
+  for (bb_Entity_* p = e; p; p = p->parent ? bb_entity_get_(p->parent) : nullptr)
+    kette.push_back(p);
+  for (auto it = kette.rbegin(); it != kette.rend(); ++it) {
+    bb_Entity_* c = *it;
+    float local[16];
+    mat4_local_(local, c);
+    bb_Entity_* p = c->parent ? bb_entity_get_(c->parent) : nullptr;
+    if (p) mat4_mul_(c->world, p->world, local);
+    else   memcpy(c->world, local, 64);
+  }
+}
+
+// ============================================================
+// TFormPoint / TFormVector / TFormNormal (+ TFormedX/Y/Z)
+// ============================================================
+
+// Das Ergebnis der letzten Umrechnung. Im Original genau dasselbe: ein
+// statisches `Vector tformed` in bbblitz3d.cpp, das alle drei Befehle
+// beschreiben und die drei Getter lesen.
+inline float bb_tformed_[3] = { 0, 0, 0 };
+
+// Nur den 3x3-Anteil anwenden - ein Vektor traegt keine Verschiebung.
+static inline void mat4_xform_vec_(float out[3], const float m[16],
+                                    float x, float y, float z) {
+  out[0] = m[0]*x + m[4]*y + m[8]*z;
+  out[1] = m[1]*x + m[5]*y + m[9]*z;
+  out[2] = m[2]*x + m[6]*y + m[10]*z;
+}
+
+// Die Kofaktormatrix des 3x3-Anteils, Spalte fuer Spalte aus
+// `Matrix::cofactor()` (`blitz3d/geom.h:304`) uebernommen. Unsere Spalten
+// m[0..2], m[4..6], m[8..10] entsprechen dort i, j, k.
+//
+// Sie ist det(M) * (M^-1)^T und damit die richtige Matrix fuer eine
+// **Normale**: bei ungleichmaessiger Skalierung bleibt sie senkrecht auf der
+// Flaeche, waehrend die Matrix selbst sie verkippen wuerde.
+static inline void mat4_cofactor3_(float out[9], const float m[16]) {
+  const float ix = m[0], iy = m[1], iz = m[2];
+  const float jx = m[4], jy = m[5], jz = m[6];
+  const float kx = m[8], ky = m[9], kz = m[10];
+  out[0] =  (jy*kz - jz*ky); out[1] = -(jx*kz - jz*kx); out[2] =  (jx*ky - jy*kx);
+  out[3] = -(iy*kz - iz*ky); out[4] =  (ix*kz - iz*kx); out[5] = -(ix*ky - iy*kx);
+  out[6] =  (iy*jz - iz*jy); out[7] = -(ix*jz - iz*jx); out[8] =  (ix*jy - iy*jx);
+}
+
+static inline void mat3_xform_vec_(float out[3], const float c[9],
+                                    float x, float y, float z) {
+  out[0] = c[0]*x + c[3]*y + c[6]*z;
+  out[1] = c[1]*x + c[4]*y + c[7]*z;
+  out[2] = c[2]*x + c[5]*y + c[8]*z;
+}
+
+// Die Weltmatrix einer Entity holen, vorher aufgefrischt. Gibt nullptr fuer
+// Handle 0 - das ist im Original der Weltraum, und dort geschieht nichts.
+static inline const float* bb_tform_world_(int h) {
+  bb_Entity_* e = bb_entity_get_(h);
+  if (!e) return nullptr;
+  bb_entity_refresh_world_(e);
+  return e->world;
+}
+
+// src == 0 bedeutet Weltraum, dest == 0 ebenso. Die Reihenfolge ist die des
+// Originals: erst mit der Quelle in den Weltraum, dann mit der Inversen des
+// Ziels hinein (`bbblitz3d.cpp:1608`).
+inline void bb_TFormPoint(float x, float y, float z, int src, int dest) {
+  float p[3] = { x, y, z };
+  if (const float* w = bb_tform_world_(src))
+    mat4_xform_pt_(p, w, p[0], p[1], p[2]);
+  if (const float* w = bb_tform_world_(dest)) {
+    float inv[16];
+    if (mat4_inverse_(inv, w)) mat4_xform_pt_(p, inv, p[0], p[1], p[2]);
+  }
+  bb_tformed_[0] = p[0]; bb_tformed_[1] = p[1]; bb_tformed_[2] = p[2];
+}
+
+inline void bb_TFormVector(float x, float y, float z, int src, int dest) {
+  float p[3] = { x, y, z };
+  if (const float* w = bb_tform_world_(src))
+    mat4_xform_vec_(p, w, p[0], p[1], p[2]);
+  if (const float* w = bb_tform_world_(dest)) {
+    float inv[16];
+    if (mat4_inverse_(inv, w)) mat4_xform_vec_(p, inv, p[0], p[1], p[2]);
+  }
+  bb_tformed_[0] = p[0]; bb_tformed_[1] = p[1]; bb_tformed_[2] = p[2];
+}
+
+// **Nicht** dasselbe wie TFormVector plus Normalisierung, auch wenn die Doku
+// genau das behauptet ("This is exactly the same as TFormVector but with one
+// added feature"). Der Quelltext nimmt die Kofaktormatrix, und gemessen am
+// Original (2026-09-11) trennen sich beide, sobald ungleichmaessig skaliert
+// wird: bei Skalierung 1,2,4 und Gierung 90 liefert `TFormNormal 1,1,0` die
+// Werte (0, 0.447, 0.894), ein von Hand normalisiertes `TFormVector` dagegen
+// (0, 0.894, 0.447).
+//
+// Der Nullvektor ergibt NaN, weil `Vector::normalize()` im Original ohne
+// Schutz durch die Laenge teilt - hier ebenso, und zwar absichtlich.
+inline void bb_TFormNormal(float x, float y, float z, int src, int dest) {
+  float p[3] = { x, y, z };
+  if (const float* w = bb_tform_world_(src)) {
+    float c[9];
+    mat4_cofactor3_(c, w);
+    mat3_xform_vec_(p, c, p[0], p[1], p[2]);
+  }
+  if (const float* w = bb_tform_world_(dest)) {
+    float inv[16];
+    if (mat4_inverse_(inv, w)) {
+      float c[9];
+      mat4_cofactor3_(c, inv);
+      mat3_xform_vec_(p, c, p[0], p[1], p[2]);
+    }
+  }
+  float len = sqrtf(p[0]*p[0] + p[1]*p[1] + p[2]*p[2]);
+  bb_tformed_[0] = p[0]/len; bb_tformed_[1] = p[1]/len; bb_tformed_[2] = p[2]/len;
+}
+
+inline float bb_TFormedX() { return bb_tformed_[0]; }
+inline float bb_TFormedY() { return bb_tformed_[1]; }
+inline float bb_TFormedZ() { return bb_tformed_[2]; }
+
 // ============================================================
 // CopyEntity
 // ============================================================

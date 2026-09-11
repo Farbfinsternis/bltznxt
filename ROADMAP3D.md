@@ -995,11 +995,11 @@ Sprachobjekt.
 - [ ] `bb_VectorDistance(x1,y1,z1, x2,y2,z2)` → float
 - [ ] `bb_VectorYaw(dx,dy,dz)` → degrees
 - [ ] `bb_VectorPitch(dx,dy,dz)` → degrees
-- [ ] `bb_TFormPoint(x,y,z, src, dst)` — transformiert Punkt von src-Space in dst-Space
+- [x] `bb_TFormPoint(x,y,z, src, dst)` — transformiert Punkt von src-Space in dst-Space
       (0 = Weltkoordinaten)
-- [ ] `bb_TFormVector(x,y,z, src, dst)` — ohne Translation
-- [ ] `bb_TFormNormal(x,y,z, src, dst)` — normalisierter Vektor
-- [ ] `bb_TFormedX/Y/Z()` — Ergebnis des letzten TForm-Calls
+- [x] `bb_TFormVector(x,y,z, src, dst)` — ohne Translation
+- [x] `bb_TFormNormal(x,y,z, src, dst)` — Kofaktormatrix, danach normalisiert
+- [x] `bb_TFormedX/Y/Z()` — Ergebnis des letzten TForm-Calls
 - [ ] `bb_GetMatElement(entity, row, col)` → float (Welt-Matrix-Element)
 - **Test:** `tests/test_3d21_math.bb`
   ```blitzbasic
