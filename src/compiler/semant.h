@@ -443,6 +443,7 @@ private:
     } else if (auto *rd = dynamic_cast<ReadStmt *>(n)) {
       if (lookup(rd->name)) checkTag(rd->name, rd->typeHint, rd->line, rd->col);
       else declare(rd->name, fromHint(rd->typeHint));
+
     } else if (auto *aas = dynamic_cast<ArrayAssignStmt *>(n)) {
       Ty val = expr(aas->value.get());
       for (auto &i : aas->indices) expr(i.get());
@@ -582,6 +583,13 @@ private:
         case TokenType::FLOAT_LIT:  return mk(Ty::FLOAT);
         default:                    return mk(Ty::INT);
       }
+    }
+    // Ein gelesener Data-Wert passt sich dem Ziel an (bb_DataVal wandelt nach
+    // int, float und bbString). Ohne Tag traegt er deshalb keinen eigenen Typ
+    // mit, sonst wuerde `Read a$` an einer Data-Zahl zu Unrecht klagen.
+    if (auto *dr = dynamic_cast<DataReadExpr *>(e)) {
+      if (dr->typeHint.empty()) return Ty();
+      return fromHint(dr->typeHint);
     }
     if (auto *ve = dynamic_cast<VarExpr *>(e)) {
       checkTag(ve->name, ve->typeHint, ve->line, ve->col);

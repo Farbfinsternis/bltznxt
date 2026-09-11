@@ -1,0 +1,2 @@
+tests/neg_bug85_read_komma.bb:1:8: error: Expected variable name after Read (got '
+')

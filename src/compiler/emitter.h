@@ -813,6 +813,21 @@ public:
     }
   }
 
+  // Der Wert wandelt sich beim Zuweisen von selbst: bb_DataVal traegt
+  // Konvertierungsoperatoren nach int, float und bbString (bb_runtime.h). Wo
+  // ein Tag dabeisteht, wird trotzdem ausdruecklich gewandelt - `Read a$`
+  // soll auch dann eine Zeichenkette liefern, wenn in der Data-Zeile eine
+  // Zahl steht.
+  void visit(DataReadExpr *node) override {
+    if (node->typeHint.empty()) {
+      output << "bb_DataRead()";
+    } else {
+      auto [type, defVal] = hintToType(node->typeHint);
+      (void)defVal;
+      output << "(" << type << ")bb_DataRead()";
+    }
+  }
+
   void visit(RestoreStmt *node) override {
     if (node->label.empty()) {
       output << ind() << "bb_DataRestore();\n";

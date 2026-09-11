@@ -5,6 +5,7 @@
 #include <iostream>
 #include <vector>
 #include <array>     // feste Arrays: "Local a[3]" wird std::array (BUG-59)
+#include <type_traits>  // bb_DataVal: ein Konversionsoperator statt vier
 #include "bb_string.h"  // bbString typedef + string functions
 #include "bb_math.h"    // math functions + Pi constant
 #include "bb_system.h"  // MilliSecs, CurrentDate, CurrentTime, Delay
@@ -85,14 +86,7 @@ struct bb_DataVal {
   explicit bb_DataVal(const bbString &v)
       : kind(KIND_STR), sval(v) {}
 
-  operator int()     const {
-    return kind == KIND_STR ? std::stoi(sval) : ival;
-  }
-  operator float()   const {
-    return kind == KIND_STR ? std::stof(sval) : fval;
-  }
-  operator double()  const { return static_cast<double>(operator float()); }
-  operator bbString() const {
+  bbString alsKette() const {
     switch (kind) {
       case KIND_INT:   return std::to_string(ival);
       case KIND_FLOAT: {
@@ -101,6 +95,32 @@ struct bb_DataVal {
         return buf;
       }
       default:         return sval;
+    }
+  }
+
+  // **Ein** Konversionsoperator statt vier, und zwar nur fuer die drei
+  // Zieltypen, die die Sprache kennt.
+  //
+  // Mit vier einzelnen Operatoren war `feld$ = wert` mehrdeutig: bbString ist
+  // ein std::string, und dessen Zuweisung nimmt auch ein einzelnes `char` -
+  // dorthin fuehrt der Weg ueber `operator int`. Solange jedes Read seinen
+  // Wert selbst castete, fiel das nicht auf; seit ein Feld das Ziel sein darf
+  // (BUG-85), steht die Zuweisung ohne Cast da und der Uebersetzer bricht ab.
+  //
+  // Die Umwandlung Zeichenkette -> Zahl geht ueber bb_ToInt/bb_ToFloat, also
+  // ueber atoi/atof wie in der Referenz. Vorher stand hier std::stoi, das bei
+  // "abc" eine **Ausnahme wirft**, wo das Original stillschweigend 0 liefert -
+  // derselbe Unterschied, der bei Int() BUG-82 war, nur eine Ebene tiefer.
+  template <class T, class = std::enable_if_t<
+      std::is_same_v<T, int>   || std::is_same_v<T, float> ||
+      std::is_same_v<T, double> || std::is_same_v<T, bbString>>>
+  operator T() const {
+    if constexpr (std::is_same_v<T, bbString>) {
+      return alsKette();
+    } else if constexpr (std::is_same_v<T, int>) {
+      return kind == KIND_STR ? bb_ToInt(sval) : ival;
+    } else {
+      return static_cast<T>(kind == KIND_STR ? bb_ToFloat(sval) : fval);
     }
   }
 };

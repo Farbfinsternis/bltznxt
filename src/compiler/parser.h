@@ -23,6 +23,7 @@ public:
     errorCount     = 0;
     tooManyErrors_ = false;
     dimmedArrays.clear();
+    nachschlag_.clear();
     preScanDims(toks); // forward-reference fix: collect all Dim names first
     auto prog = std::make_unique<Program>();
 
@@ -33,8 +34,7 @@ public:
       if (peekKw() == "FUNCTION") {
         prog->nodes.push_back(parseFunctionDecl());
       } else {
-        auto s = parseStatement();
-        if (s) prog->nodes.push_back(std::move(s));
+        parseStatementInto(prog->nodes);
       }
     }
     return prog;
@@ -160,6 +160,19 @@ private:
   }
 
   // ------------------------------------------------------------------ statements
+
+  // Eine Anweisung lesen und samt ihres Nachschlags anhaengen.
+  //
+  // **Der einzige Weg, eine Anweisung zu lesen.** `parseStatement()` allein
+  // reicht nicht mehr, seit eine Quelltextzeile mehr als eine Anweisung
+  // ergeben kann (`Read a,b,c`); wer es direkt aufruft, verliert die
+  // zusaetzlichen stillschweigend.
+  void parseStatementInto(std::vector<std::unique_ptr<ASTNode>> &out) {
+    auto s = parseStatement();
+    if (s) out.push_back(std::move(s));
+    for (auto &n : nachschlag_) out.push_back(std::move(n));
+    nachschlag_.clear();
+  }
 
   std::unique_ptr<ASTNode> parseStatement() {
     skipNewlines();
@@ -487,8 +500,7 @@ private:
       if (peek().type == TokenType::KEYWORD && peek().value == "FUNCTION")
         break;
 
-      auto s = parseStatement();
-      if (s) block.push_back(std::move(s));
+      parseStatementInto(block);
     }
     return block;
   }
@@ -532,8 +544,7 @@ private:
           kw == "FOREVER" || kw == "NEXT")
         break;
       size_t before = pos;
-      auto s = parseStatement();
-      if (s) body.push_back(std::move(s));
+      parseStatementInto(body);
       if (pos == before) break; // parseStatement made no progress - do not spin
     }
     return body;
@@ -1222,17 +1233,131 @@ private:
 
   // ------------------------------------------------------------------ READ
 
-  std::unique_ptr<ReadStmt> parseRead() {
+  // `Read` nimmt eine Liste von Zielen, und ein Ziel ist alles, was auch
+  // links von einem "=" stehen darf. Im Original steht dafuer genau das hier
+  // (`compiler/parser.cpp:288`):
+  //
+  //     case READ:
+  //         do{ toker->next(); VarNode *var=parseVar();
+  //             stmts->push_back( d_new ReadNode( var ) );
+  //         }while( toker->curr()==',' );
+  //
+  // Zwei Dinge folgen daraus. Erstens ist `Read a,b,c` **drei** Anweisungen,
+  // nicht eine mit drei Zielen - die erste geben wir zurueck, die weiteren
+  // gehen in den Nachschlag (siehe `nachschlag_`). Zweitens ist das Ziel
+  // nicht auf einen Namen beschraenkt: `Read arr(1)` und `Read peld` nimmt
+  // das Original an, gemessen am 2026-09-11. Beide bekommen hier denselben
+  // Zuweisungsknoten wie eine gewoehnliche Zuweisung, nur mit einem
+  // DataReadExpr als Wert.
+  std::unique_ptr<ASTNode> parseRead() {
     int ln = peek().line;
     advance(); // READ
+
+    std::unique_ptr<ASTNode> erste;
+    for (;;) {
+      auto ziel = parseReadTarget(ln);
+      if (!ziel) break;
+      if (!erste) erste = std::move(ziel);
+      else        nachschlag_.push_back(std::move(ziel));
+      if (peek().type == TokenType::OPERATOR && peek().value == ",") {
+        advance();
+        continue;
+      }
+      break;
+    }
+    return erste;
+  }
+
+  // Ein einzelnes Ziel eines Read.
+  std::unique_ptr<ASTNode> parseReadTarget(int ln) {
     Token nameTok = expect(TokenType::ID, "Expected variable name after Read");
     std::string typeHint;
     if (peek().type == TokenType::OPERATOR &&
         (peek().value == "#" || peek().value == "%" ||
          peek().value == "$"))
       typeHint = advance().value;
+
+    // Kette aus "eld" und "[i]" - dieselbe Form wie links von einem "=".
+    if (peek().type == TokenType::OPERATOR &&
+        (peek().value == "\\" || peek().value == "[")) {
+      std::unique_ptr<ExprNode> target = std::make_unique<VarExpr>(nameTok.value);
+      target->line = nameTok.line;
+      target->col  = nameTok.col;
+
+      enum { NONE, FIELD, INDEX } last = NONE;
+      std::string lastField;
+      std::unique_ptr<ExprNode> lastIndex;
+      auto flush = [&]() {
+        if (last == FIELD)
+          target = std::make_unique<FieldAccess>(std::move(target), lastField);
+        else if (last == INDEX)
+          target = std::make_unique<VectorAccess>(std::move(target),
+                                                  std::move(lastIndex));
+        last = NONE;
+      };
+      for (;;) {
+        if (peek().type == TokenType::OPERATOR && peek().value == "\\") {
+          flush();
+          advance();
+          lastField = expect(TokenType::ID, "Expected field name after \\").value;
+          parseOptionalTypeTag();
+          last = FIELD;
+        } else if (peek().type == TokenType::OPERATOR && peek().value == "[") {
+          flush();
+          advance();
+          lastIndex = parseExpr();
+          if (peek().type == TokenType::OPERATOR && peek().value == ",")
+            error(peek().line, peek().col,
+                  "Blitz arrays are one-dimensional; expected ']'");
+          expect(TokenType::OPERATOR, "Expected ']'", "]");
+          last = INDEX;
+        } else {
+          break;
+        }
+      }
+      auto wert = std::make_unique<DataReadExpr>(typeHint);
+      if (last == INDEX) {
+        auto s = std::make_unique<VectorAssignStmt>(
+            std::move(target), std::move(lastIndex), std::move(wert));
+        s->line = ln; s->col = nameTok.col;
+        return s;
+      }
+      auto s = std::make_unique<FieldAssignStmt>(std::move(target), lastField,
+                                                 std::move(wert));
+      s->line = ln; s->col = nameTok.col;
+      return s;
+    }
+
+    // Element eines mit Dim angelegten Arrays: "Read arr(1)".
+    {
+      std::string lo = nameTok.value;
+      std::transform(lo.begin(), lo.end(), lo.begin(), ::tolower);
+      if (dimmedArrays.count(lo) &&
+          peek().type == TokenType::OPERATOR && peek().value == "(") {
+        advance();
+        auto stmt = std::make_unique<ArrayAssignStmt>(
+            nameTok.value, std::make_unique<DataReadExpr>(typeHint));
+        stmt->typeHint = typeHint;
+        stmt->line = ln;
+        stmt->col  = nameTok.col;
+        while (true) {
+          stmt->indices.push_back(parseExpr());
+          if (peek().type == TokenType::OPERATOR && peek().value == ",")
+            advance();
+          else
+            break;
+        }
+        expect(TokenType::OPERATOR, "Expected ')'", ")");
+        return stmt;
+      }
+    }
+
+    // Der haeufige Fall: ein schlichter Name. Er behaelt seinen eigenen
+    // Knoten, damit die Deklarationsregeln in semant.h und die Ausgabe im
+    // Emitter unveraendert bleiben.
     auto s  = std::make_unique<ReadStmt>(nameTok.value, typeHint);
     s->line = ln;
+    s->col  = nameTok.col;
     return s;
   }
 
@@ -1656,6 +1781,13 @@ private:
   int                             errorCount;
   bool                            tooManyErrors_;
   std::unordered_set<std::string> dimmedArrays; // lowercase names of Dim'd arrays
+
+  // Anweisungen, die beim Lesen der zuletzt geparsten zusaetzlich entstanden
+  // sind. Bisher braucht das nur `Read a,b,c`: das ist im Original **drei**
+  // ReadNodes, nicht eine Anweisung mit drei Zielen. Geleert wird der
+  // Nachschlag ausschliesslich in `parseStatementInto()` - deshalb geht auch
+  // niemand mehr direkt an `parseStatement()`.
+  std::vector<std::unique_ptr<ASTNode>> nachschlag_;
 };
 
 #endif // BLITZNEXT_PARSER_H

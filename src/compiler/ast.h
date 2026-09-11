@@ -33,6 +33,7 @@ class GotoStmt;
 class GosubStmt;
 class DataStmt;
 class ReadStmt;
+class DataReadExpr;
 class RestoreStmt;
 class TypeDecl;
 class NewExpr;
@@ -79,6 +80,7 @@ public:
   virtual void visit(GosubStmt    *node) = 0;
   virtual void visit(DataStmt     *node) = 0;
   virtual void visit(ReadStmt     *node) = 0;
+  virtual void visit(DataReadExpr *node) = 0;
   virtual void visit(RestoreStmt  *node) = 0;
   virtual void visit(TypeDecl      *node) = 0;
   virtual void visit(NewExpr       *node) = 0;
@@ -371,6 +373,21 @@ public:
   std::string typeHint; // % # ! $ or ""
   ReadStmt(std::string n, std::string th)
       : name(std::move(n)), typeHint(std::move(th)) {}
+  void accept(ASTVisitor *v) override { v->visit(this); }
+};
+
+// Der naechste Wert aus den Data-Zeilen, als Ausdruck.
+//
+// Warum ein Ausdruck und nicht nur ein Teil von ReadStmt: das Original liest
+// das Ziel eines Read mit demselben `parseVar()` wie links von einem "="
+// (`compiler/parser.cpp:288`), also auch `Read arr(1)` und `Read peld`.
+// Als Ausdruck laesst sich der gelesene Wert in genau dieselben
+// Zuweisungsknoten einsetzen, die eine gewoehnliche Zuweisung erzeugt - statt
+// jede Zielform in ReadStmt noch einmal nachzubauen.
+class DataReadExpr : public ExprNode {
+public:
+  std::string typeHint; // % # ! $ oder "" - bestimmt die Wandlung
+  explicit DataReadExpr(std::string th = "") : typeHint(std::move(th)) {}
   void accept(ASTVisitor *v) override { v->visit(this); }
 };
 

@@ -1,0 +1,2 @@
+tests/neg_bug85_read_leer.bb:1:5: error: Expected variable name after Read (got '
+')
