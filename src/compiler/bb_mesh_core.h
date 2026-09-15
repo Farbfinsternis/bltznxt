@@ -166,6 +166,7 @@ inline void bb_mesh_draw_(bb_MeshData_* mesh,
 
 inline void bb_mesh_free_gpu_(bb_MeshData_* m) {
   if (!m) return;
+  if (m->ebo || m->vbo || m->vao) bb_gl_use_(); // FreeEntity kommt nach 2D (BUG-63)
   if (m->ebo) { glDeleteBuffers(1, &m->ebo); m->ebo = 0; }
   if (m->vbo) { glDeleteBuffers(1, &m->vbo); m->vbo = 0; }
   if (m->vao) { glDeleteVertexArrays(1, &m->vao); m->vao = 0; }

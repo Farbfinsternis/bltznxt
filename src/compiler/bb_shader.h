@@ -462,6 +462,7 @@ inline void bb_shaders_init_() {
 // ============================================================
 
 inline void bb_shader_quit_() {
+  bb_gl_use_(); // BUG-63
   auto del = [](bb_Shader_*& s) {
     if (!s) return;
     if (s->program) glDeleteProgram(s->program);

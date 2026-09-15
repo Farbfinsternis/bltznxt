@@ -525,15 +525,36 @@ inline void bb_Graphics3D(int w, int h, int depth = 32, int mode = 0) {
   // Load all GL 3.3 Core function pointers.
   bb_gl_load_();
 
-  // SDL_Renderer on the same window for 2D coexistence (Plot, Text, DrawImage…).
-  // In SDL3 this creates a separate GPU renderer that draws over the GL backbuffer.
-  // SDL_RenderFlush() in bb_Flip / bb_RenderWorld syncs the two.
-  bb_renderer_ = SDL_CreateRenderer(bb_window_, nullptr);
+  // SDL_Renderer fuer die 2D-Befehle (Plot, Text, DrawImage, …) auf demselben
+  // Fenster - ausdruecklich das OpenGL-Backend (BUG-63). Ohne Angabe waehlt
+  // SDL unter Windows direct3d11, und das zeichnet in einen eigenen Puffer:
+  // gemessen (2026-09-15) war im 3D-Modus keine einzige 2D-Zeichnung auf dem
+  // Bildschirm, und LockBuffer/ReadPixel/GetColor lasen aus diesem Puffer, sahen
+  // also das 3D-Bild nicht. Der GL-Renderer hat einen eigenen Kontext, zeichnet
+  // aber in denselben Backbuffer des Fensters wie RenderWorld; beide kommen in
+  // der Reihenfolge der Befehle ins Bild, wie im Original.
+  //
+  // Waehrend des Anlegens stehen die Attribute auf GL 2.1: der GL-Renderer von
+  // SDL verlangt diese Version und legt das Fenster sonst neu an (gemessen:
+  // anderes HWND). Danach wieder 3.3 Core, und unser Kontext wird aktuell.
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,  0);
+  bb_renderer_ = SDL_CreateRenderer(bb_window_, "opengl");
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,  SDL_GL_CONTEXT_PROFILE_CORE);
+  if (!bb_renderer_) {
+    std::cerr << "[runtime] Graphics3D: OpenGL 2D renderer unavailable ("
+              << SDL_GetError() << ") - 2D drawing will not appear over 3D\n";
+    bb_renderer_ = SDL_CreateRenderer(bb_window_, nullptr);
+  }
   if (!bb_renderer_) {
     std::cerr << "[runtime] Graphics3D: SDL_CreateRenderer failed"
                  " — 2D commands unavailable: " << SDL_GetError() << "\n";
     // Not fatal: 3D rendering still works without the 2D renderer.
   }
+  SDL_GL_MakeCurrent(bb_window_, bb_gl_ctx_);
 
   bb_gl_active_    = true;
   bb_gl_quit_hook_ = bb_gl_quit_;

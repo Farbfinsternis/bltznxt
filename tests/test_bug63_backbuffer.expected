@@ -1,0 +1,18 @@
+frame 1 mitte 127,0,0
+frame 1 rand  0,0,255
+frame 1 rect  0,255,0
+frame 1 links gesetzt 1
+frame 1 readpixel mitte 127,0,0
+frame 1 getcolor rand 0,0,255
+frame 2 mitte 127,0,0
+frame 2 rand  0,0,255
+frame 2 rect  0,255,0
+frame 2 links gesetzt 0
+frame 2 readpixel mitte 127,0,0
+frame 2 getcolor rand 0,0,255
+frame 3 mitte 127,0,0
+frame 3 rand  0,0,255
+frame 3 rect  0,255,0
+frame 3 links gesetzt 0
+frame 3 readpixel mitte 127,0,0
+frame 3 getcolor rand 0,0,255

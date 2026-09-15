@@ -82,6 +82,7 @@ struct bb_Texture_ {
     // Nur solange der Kontext lebt. Ein Handle, das das Programmende
     // ueberdauert, zeigte sonst in einen toten Treiber.
     if (!bb_gl_active_ || !glDeleteTextures) return;
+    bb_gl_use_(); // FreeTexture kommt oft nach 2D-Zeichnen (BUG-63)
     for (auto &f : frames)
       if (f.id) { glDeleteTextures(1, &f.id); f.id = 0; }
   }

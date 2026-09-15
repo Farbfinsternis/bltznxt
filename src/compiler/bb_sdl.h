@@ -25,6 +25,16 @@ inline SDL_GLContext bb_gl_ctx_          = nullptr;
 inline bool          bb_gl_active_       = false;
 inline bool          bb_sdl_initialized_ = false;
 
+// Unseren GL-Kontext aktuell machen. Im 3D-Modus arbeitet der 2D-Renderer in
+// einem eigenen GL-Kontext (bb_Graphics3D in bb_gl_ctx.h) und laesst ihn nach
+// jedem Zeichnen aktuell stehen; jeder GL-Aufruf der Runtime ausserhalb von
+// RenderWorld muss deshalb vorher hierher (BUG-63). Billig, wenn der Kontext
+// schon stimmt.
+inline void bb_gl_use_() {
+  if (bb_gl_ctx_ && bb_window_ && SDL_GL_GetCurrentContext() != bb_gl_ctx_)
+    SDL_GL_MakeCurrent(bb_window_, bb_gl_ctx_);
+}
+
 // ---- Keyboard state (raw SDL scancodes; read by bb_input.h) ----
 //
 // Indexed by SDL_Scancode (max value 511; we allocate 512 slots).

@@ -906,14 +906,58 @@ inline int bb_pixel_read_(const uint8_t* p) {
 // gesetzte. Im Original sind das `ReadPixel ( x,y[,buffer] )` (BUG-44).
 inline int bb_ReadPixel(int x, int y, int buf = bb_active_buffer_) {
     auto it = bb_buf_locks_.find(buf);
-    if (it == bb_buf_locks_.end() || !it->second.locked) return 0;
+    if (it == bb_buf_locks_.end() || !it->second.locked) {
+        // Ohne LockBuffer sperrt ReadPixel im Original selbst (lock, getPixel,
+        // unlock). Bis BUG-63 lieferte es hier ungesperrt immer 0. Fuer den
+        // Bildschirm genuegt ein einzelner Bildpunkt statt des ganzen Puffers.
+        if (buf == BB_BACK_BUFFER_H || buf == BB_FRONT_BUFFER_H) {
+            if (!bb_renderer_ || x < 0 || y < 0 ||
+                x >= bb_gfx_width_ || y >= bb_gfx_height_) return 0;
+            SDL_Rect rect = { x, y, 1, 1 };
+            SDL_Surface* surf = SDL_RenderReadPixels(bb_renderer_, &rect);
+            if (!surf) return 0;
+            Uint8 px[4] = { 0, 0, 0, 255 };
+            SDL_ReadSurfacePixel(surf, 0, 0, &px[0], &px[1], &px[2], &px[3]);
+            SDL_DestroySurface(surf);
+            return bb_pixel_read_(px);
+        }
+        bb_LockBuffer(buf);
+        auto lk = bb_buf_locks_.find(buf);
+        int v = 0;
+        if (lk != bb_buf_locks_.end() && lk->second.locked) {
+            const uint8_t* q = bb_buf_pixel_(lk->second, x, y);
+            if (q) v = bb_pixel_read_(q);
+        }
+        bb_UnlockBuffer(buf);
+        return v;
+    }
     const uint8_t* p = bb_buf_pixel_(it->second, x, y);
     return p ? bb_pixel_read_(p) : 0;
 }
 
 inline void bb_WritePixel(int x, int y, int color, int buf = bb_active_buffer_) {
     auto it = bb_buf_locks_.find(buf);
-    if (it == bb_buf_locks_.end() || !it->second.locked) return;
+    if (it == bb_buf_locks_.end() || !it->second.locked) {
+        // Wie ReadPixel: ungesperrt sperrt WritePixel selbst (BUG-63). Auf dem
+        // Bildschirm ist das ein einzelner Punkt in genau dieser Farbe.
+        if (buf == BB_BACK_BUFFER_H || buf == BB_FRONT_BUFFER_H) {
+            if (!bb_renderer_) return;
+            SDL_SetRenderDrawColor(bb_renderer_, (color >> 16) & 0xFF,
+                                   (color >> 8) & 0xFF, color & 0xFF, 255);
+            SDL_RenderPoint(bb_renderer_, (float)x, (float)y);
+            return;
+        }
+        bb_LockBuffer(buf);
+        auto lk = bb_buf_locks_.find(buf);
+        if (lk != bb_buf_locks_.end() && lk->second.locked) {
+            if (uint8_t* q = bb_buf_pixel_(lk->second, x, y)) {
+                bb_pixel_write_(q, color);
+                lk->second.dirty = true;
+            }
+        }
+        bb_UnlockBuffer(buf);
+        return;
+    }
     uint8_t* p = bb_buf_pixel_(it->second, x, y);
     if (!p) return;
     bb_pixel_write_(p, color);

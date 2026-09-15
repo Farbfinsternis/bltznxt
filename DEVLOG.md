@@ -1,5 +1,44 @@
 # BlitzNext Developer Log
 
+## 2026-09-15 — 2D and 3D share one back buffer (BUG-63)
+
+`LockBuffer BackBuffer()` after `RenderWorld` read 0 everywhere. Measured
+against the original, now available again at `F:\dev\Blitz3D`, with the same
+program writing its readings to a file. The original returned the clear
+colour, the cube (127,0,0) and the 2D drawing on top, locked or not. We
+returned only the 2D points when locked, 0 when not, and `GetColor` returned
+black.
+
+The cause turned out larger than the entry assumed. `Graphics3D` created the 2D
+renderer with SDL's default backend, which on Windows is direct3d11: a separate
+buffer next to the GL back buffer. A diagnostic build with `glReadPixels` found
+the original's exact 3D values in the GL buffer and none of the 2D drawing.
+Since `Flip` presents only the GL buffer, **no 2D drawing was ever on screen in
+a `Graphics3D` program**. Window-only screenshots confirm it: the original
+shows the rectangle and text over the cube, we showed only the cube.
+
+`bb_Graphics3D` now asks for the OpenGL renderer backend. It has its own
+context but draws into the same back buffer as `RenderWorld`, so both land in
+command order and `SDL_RenderReadPixels` sees both. While it is created, the GL
+attributes are set to 2.1; without that, SDL recreates the window (measured: a
+different HWND). Because the 2D renderer leaves its own context current,
+`bb_gl_use_()` restores ours before every GL call outside `RenderWorld`: mesh
+and texture release, `Wireframe`, shader cleanup, and the swap in `Flip`.
+
+Found on the way: `ReadPixel` and `WritePixel` did nothing without
+`LockBuffer`. In the original they lock by themselves, and now they do here
+too; on the screen as a single pixel.
+
+All nine readings of the measurement program now match the original.
+
+New test: `test_bug63_backbuffer`. It runs three frames mixing 2D drawing,
+texture loading, `FreeEntity`/`FreeTexture` after 2D, and `Wireframe`. Its
+expected output is the original's, character for character. Built against the
+previous runtime it reads black for the cube and the background. Full suite:
+216 passed, 0 failed.
+
+---
+
 ## 2026-09-15 — compare_commands.py compares parameter types (BUG-62)
 
 The tool compared arity, return type and the order of parameter names, but

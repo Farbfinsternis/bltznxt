@@ -268,6 +268,7 @@ inline void bb_WBuffer(int)   { /* not applicable in GL 3.3 Core   */ }
 inline void bb_AntiAlias(int) { /* use multisampling via SDL attrs  */ }
 
 inline void bb_Wireframe(int on) {
+  bb_gl_use_(); // sonst traefe der Zustand den Kontext des 2D-Renderers (BUG-63)
   if (glPolygonMode)
     glPolygonMode(GL_FRONT_AND_BACK, on ? GL_LINE : GL_FILL);
 }

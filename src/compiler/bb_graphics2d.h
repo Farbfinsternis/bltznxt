@@ -263,8 +263,11 @@ inline void bb_Cls() {
 inline void bb_Flip(int vblank = 1) {
   int want = vblank ? 1 : 0;
   if (bb_gl_active_) {
-    // 3D mode: flush pending 2D draws, then swap the GL backbuffer.
+    // 3D mode: flush pending 2D draws, then swap the GL backbuffer. Der
+    // 2D-Renderer zeichnet in denselben Backbuffer, laesst aber seinen eigenen
+    // Kontext aktuell - Swap-Intervall und Swap gehoeren unserem (BUG-63).
     if (bb_renderer_) SDL_FlushRenderer(bb_renderer_);
+    bb_gl_use_();
     if (want != bb_vsync_mode_) {
       SDL_GL_SetSwapInterval(want);
       bb_vsync_mode_ = want;
