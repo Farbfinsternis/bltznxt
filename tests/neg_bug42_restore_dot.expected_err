@@ -1,0 +1,1 @@
+tests/neg_bug42_restore_dot.bb:5:1: error: Duplicate label 'daten' (first defined at tests/neg_bug42_restore_dot.bb:3:9)

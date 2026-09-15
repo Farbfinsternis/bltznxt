@@ -159,6 +159,27 @@ private:
     return t;
   }
 
+  // Das Ziel von Goto und Gosub, klein geschrieben. Die Referenz liest es mit
+  // parseIdent() (compiler/parser.cpp): der Name steht ohne Punkt, der Punkt
+  // gehoert nur zur Definition der Marke. "Goto .done" meldet sie am Punkt
+  // (BUG-42). Ein Name hinter dem Punkt wird mitgelesen, damit keine zweite
+  // Meldung folgt; "" steht fuer ein Ziel, das schon gemeldet ist.
+  std::string parseJumpTarget(const std::string &kw) {
+    Token t = peek();
+    if (t.type == TokenType::OPERATOR && t.value == ".") {
+      advance();
+      error(t.line, t.col, "the label after '" + kw +
+                               "' is written without '.': " + kw + " name");
+      if (peek().type == TokenType::ID) advance();
+      return "";
+    }
+    Token lbl = expect(TokenType::ID, ("Expected label name after " + kw).c_str());
+    if (lbl.type != TokenType::ID) return "";
+    std::string lo = lbl.value;
+    std::transform(lo.begin(), lo.end(), lo.begin(), ::tolower);
+    return lo;
+  }
+
   // ------------------------------------------------------------------ statements
 
   // Eine Anweisung lesen und samt ihres Nachschlags anhaengen.
@@ -204,12 +225,7 @@ private:
       if (kw == "GOTO") {
         int ln = t.line, cl = t.col;   // die Spalte fehlte hier, anders als
         advance();                     // beim Nachbarn Gosub (vgl. BUG-74)
-        // Accept both "Goto label" and "Goto .label"
-        if (peek().type == TokenType::OPERATOR && peek().value == ".") advance();
-        Token lblTok = expect(TokenType::ID, "Expected label name after Goto");
-        std::string lo = lblTok.value;
-        std::transform(lo.begin(), lo.end(), lo.begin(), ::tolower);
-        auto s = std::make_unique<GotoStmt>(lo);
+        auto s  = std::make_unique<GotoStmt>(parseJumpTarget("Goto"));
         s->line = ln;
         s->col  = cl;
         return s;
@@ -217,12 +233,7 @@ private:
       if (kw == "GOSUB") {
         int ln = t.line, cl = t.col;
         advance();
-        // Accept both "Gosub label" and "Gosub .label"
-        if (peek().type == TokenType::OPERATOR && peek().value == ".") advance();
-        Token lblTok = expect(TokenType::ID, "Expected label name after Gosub");
-        std::string lo = lblTok.value;
-        std::transform(lo.begin(), lo.end(), lo.begin(), ::tolower);
-        auto s = std::make_unique<GosubStmt>(lo);
+        auto s  = std::make_unique<GosubStmt>(parseJumpTarget("Gosub"));
         s->line = ln;
         s->col  = cl;
         return s;
@@ -257,16 +268,21 @@ private:
 
     // ---- .labelname → LabelStmt ----
     if (t.type == TokenType::OPERATOR && t.value == ".") {
-      int ln = t.line;
       advance(); // consume '.'
       if (peek().type == TokenType::ID) {
         Token lblTok = advance();
         std::string lo = lblTok.value;
         std::transform(lo.begin(), lo.end(), lo.begin(), ::tolower);
         auto s = std::make_unique<LabelStmt>(lo);
-        s->line = ln;
+        s->line = t.line;
+        s->col  = t.col;
         return s;
       }
+      // Ein Punkt ohne Namen wurde bis 2026-09-15 still uebergangen; die
+      // Referenz liest den Namen mit parseIdent() und meldet das Fehlen an
+      // der Stelle dahinter (BUG-42).
+      Token nx = peek();
+      error(nx.line, nx.col, "Expected label name after '.'");
       return nullptr;
     }
 
@@ -1368,14 +1384,11 @@ private:
     int ln = peek().line, cl = peek().col;
     advance(); // RESTORE
     std::string label;
-    // Optional dot-label or plain label after Restore
-    if (peek().type == TokenType::OPERATOR && peek().value == ".") {
-      advance(); // consume '.'
-      if (peek().type == TokenType::ID) {
-        label = advance().value;
-        std::transform(label.begin(), label.end(), label.begin(), ::tolower);
-      }
-    } else if (peek().type == TokenType::ID) {
+    // Nur ein Bezeichner ist ein Ziel. Die Referenz prueft
+    // "if( toker->next()==IDENT )" und liest sonst ein Restore ohne Ziel;
+    // ein ".d" dahinter ist dort die naechste Anweisung - die Definition
+    // einer Marke. Bis 2026-09-15 wurde der Punkt hier geschluckt (BUG-42).
+    if (peek().type == TokenType::ID) {
       label = advance().value;
       std::transform(label.begin(), label.end(), label.begin(), ::tolower);
     }

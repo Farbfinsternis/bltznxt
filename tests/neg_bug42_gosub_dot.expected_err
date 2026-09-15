@@ -1,0 +1,1 @@
+tests/neg_bug42_gosub_dot.bb:2:7: error: the label after 'Gosub' is written without '.': Gosub name

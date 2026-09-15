@@ -1,0 +1,1 @@
+tests/neg_bug42_dot_ohne_name.bb:2:2: error: Expected label name after '.'

@@ -1,5 +1,40 @@
 # BlitzNext Developer Log
 
+## 2026-09-15 — Jump targets without a dot, and duplicate labels (BUG-42)
+
+`Goto .done` and `Gosub .done` are no longer accepted. In the original
+`compiler/parser.cpp`, `case GOTO` and `case GOSUB` read the target with
+`parseIdent()`; only the label definition `.done` has a dot. The error is
+reported at the dot, matching the original's `10:6` for the old
+`test_goto.bb`, and the name behind it is consumed so no `Undefined label`
+follows.
+
+Three findings in the same place:
+
+- A `.` without a name was silently skipped. It now reports
+  `Expected label name after '.'`.
+- `case RESTORE` only takes an `IDENT`. Anything else is a `Restore` without a
+  target, and `.d` after it is the next statement: a label definition. We
+  swallowed the dot and jumped to `d`. `parseRestore()` now does what the
+  original does, so `Restore .d` with no other `.d` resets to the start.
+- Duplicate labels in one scope went through the frontend and failed in g++.
+  `sammleLabels()` now reports
+  `Duplicate label 'x' (first defined at file:line:col)` at the second
+  definition, as `LabelNode::semant` does in `compiler/stmtnode.cpp`. For
+  `Restore .d` the reference points straight at the cause. `LabelStmt` now
+  carries its column.
+
+New tests: `test_bug42_labels` (rejected by the previous compiler with
+`Undefined label 'zweite'`), `neg_bug42_goto_dot`, `neg_bug42_gosub_dot`,
+`neg_bug42_dot_ohne_name`, `neg_bug42_label_doppelt`, `neg_bug42_restore_dot`
+(all five accepted by the previous frontend).
+
+Validation: emitted C++ compared over 187 programs: 119 byte-identical, 62
+rejected by both with the same diagnostic, the six differences being the new
+tests. Full suite: 179 passed, 0 failed.
+
+---
+
 ## 2026-09-15 — Not only at the start of an expression (BUG-41)
 
 `a And Not b` is no longer accepted, and neither is `Not Not a`. In the

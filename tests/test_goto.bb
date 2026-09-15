@@ -7,9 +7,8 @@
 ; Fehlannahme gedeckt.
 ;
 ; Nach Goto und Gosub steht der Name **ohne** Punkt; "Goto .done" lehnt das
-; Original mit "Expecting identifier" ab. Wir nehmen beide Formen an - das ist
-; eine bewusste Grosszuegigkeit, aber diese Datei bleibt bei der Schreibweise
-; des Originals, damit sie gueltiges Blitz3D ist.
+; Original mit "Expecting identifier" ab, und seit BUG-42 auch wir
+; (neg_bug42_goto_dot.bb).
 
 ; --- Test 1: Goto vorwaerts ---
 Goto skip

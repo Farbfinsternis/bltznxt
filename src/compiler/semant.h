@@ -152,17 +152,28 @@ private:
   // umgekehrt meldet das Original in beiden Richtungen `Undefined label`.
   // Deshalb wird diese Menge je Bereich neu gefuellt und nicht einmal fuer
   // das ganze Programm.
-  std::unordered_set<std::string> labels_;
+  // Name -> Zeile und Spalte der Definition.
+  std::unordered_map<std::string, std::pair<int, int>> labels_;
 
   // Labels eines Bereichs einsammeln - rekursiv durch alle Bloecke, aber
   // **nicht** in eine Funktionsdeklaration hinein, denn deren Labels gehoeren
   // ihr allein. Ein Vorlauf ist noetig, weil ein Label hinter seiner
   // Verwendung stehen darf (auch das gemessen; `Goto spaet` vor `.spaet` nimmt
   // das Original an).
+  //
+  // Eine zweite Definition desselben Namens meldet die Referenz an der
+  // zweiten (`duplicate label`, LabelNode::semant in compiler/stmtnode.cpp).
+  // Ohne diese Pruefung scheiterte erst g++ an `lbl_x` (BUG-42).
   void sammleLabels(const std::vector<std::unique_ptr<ASTNode>> &nodes) {
     for (auto &n : nodes) {
       if (auto *lb = dynamic_cast<LabelStmt *>(n.get())) {
-        labels_.insert(toLower(lb->name));
+        auto ins = labels_.emplace(toLower(lb->name),
+                                   std::make_pair(lb->line, lb->col));
+        if (!ins.second)
+          error(lb->line, lb->col,
+                "Duplicate label '" + lb->name + "' (first defined at " +
+                    map_->format(ins.first->second.first,
+                                 ins.first->second.second) + ")");
       } else if (dynamic_cast<FunctionDecl *>(n.get())) {
         continue; // eigener Bereich
       } else if (auto *pr = dynamic_cast<Program *>(n.get())) {

@@ -1,0 +1,1 @@
+tests/neg_bug42_label_doppelt.bb:4:1: error: Duplicate label 'oben' (first defined at tests/neg_bug42_label_doppelt.bb:2:1)

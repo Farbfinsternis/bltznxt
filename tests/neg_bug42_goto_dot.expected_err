@@ -1,0 +1,1 @@
+tests/neg_bug42_goto_dot.bb:2:6: error: the label after 'Goto' is written without '.': Goto name
