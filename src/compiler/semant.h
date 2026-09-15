@@ -864,6 +864,22 @@ private:
       return mk(Ty::INT);
     }
 
+    // And, Or, Xor, Shl, Shr, Sar sind in der Referenz BinExprNode, nicht
+    // ArithExprNode: beide Seiten gehen durch castTo(int_type). Ein String
+    // wandelt dabei mit atoi ("no" ist 0), ein Float rundet; nur ein Objekt
+    // oder ein festes Array ist "Illegal type conversion" (BUG-54). Bis
+    // dahin lief die String-Sperre der Arithmetik auch hier.
+    if (op == "AND" || op == "OR" || op == "XOR" || op == "SHL" ||
+        op == "SHR" || op == "SAR") {
+      if ((l.known() && (l.object() || l.vec)) ||
+          (r.known() && (r.object() || r.vec)))
+        error(b->line, b->col, "Illegal type conversion: '" + op.substr(0, 1) +
+                                   toLower(op.substr(1)) +
+                                   "' works on numbers and strings, not on "
+                                   "objects or Blitz arrays");
+      return mk(Ty::INT);
+    }
+
     if (l.object() || r.object()) {
       error(b->line, b->col,
             "Arithmetic operator cannot be applied to custom type objects");
@@ -876,9 +892,7 @@ private:
       }
       return mk(Ty::STR);
     }
-    bool intOnly = (op == "MOD" || op == "SHL" || op == "SHR" || op == "SAR" ||
-                    op == "AND" || op == "OR" || op == "XOR");
-    if (intOnly) return mk(Ty::INT);
+    if (op == "MOD") return mk(Ty::INT);
     if (op == "^" || l.k == Ty::FLOAT || r.k == Ty::FLOAT) return mk(Ty::FLOAT);
     if (l.known() && r.known()) return mk(Ty::INT);
     return Ty();

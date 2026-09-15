@@ -1,0 +1,1 @@
+tests/neg_bug54_objekt.bb:6:1: error: Illegal type conversion: 'And' works on numbers and strings, not on objects or Blitz arrays

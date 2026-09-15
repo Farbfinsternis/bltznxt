@@ -141,7 +141,9 @@ inline int bb_ToInt(double f)          { return static_cast<int>(f); }
 // StringConstNode and __bbStrToInt use atoi instead. Keep this separate from
 // the existing assignment/call conversions, whose float rounding is still open.
 inline int bb_IntegerContext(const bbString &s) { return bb_ToInt(s); }
-inline int bb_IntegerContext(int n) { return n; }
+// constexpr: seit BUG-54 steht der Helfer auch in "Const A = 1 Or 2" und in
+// der Groesse eines festen Arrays, beides konstante Ausdruecke in C++.
+inline constexpr int bb_IntegerContext(int n) { return n; }
 inline int bb_IntegerContext(double value) {
     // Blitz3D's numeric float type is 32 bit, including folded literals.
     double f = static_cast<float>(value);

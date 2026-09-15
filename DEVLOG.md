@@ -1,5 +1,37 @@
 # BlitzNext Developer Log
 
+## 2026-09-15 — And, Or and the shifts convert to int (BUG-54)
+
+`If q$ <> "yes" Or "no" Then` was rejected with
+`Operator cannot be applied to strings`. The original accepts it, and the
+question was what it computes. There is no boolean context: in
+`compiler/exprnode.cpp`, `And`, `Or`, `Xor`, `Shl`, `Shr` and `Sar` are
+`BinExprNode`, whose `semant` casts both sides to int. A string goes through
+`__bbStrToInt` (`atoi` when constant), a float is rounded. The line above is
+`(q$ <> "yes") Or 0`.
+
+Our `binary()` applied the string rule of `ArithExprNode` before it reached
+these six operators. The emitter never converted their operands either, so
+`x# And 3` passed the frontend and failed in g++ with
+`invalid operands of types 'float' and 'int'`.
+
+`binary()` now handles the six before arithmetic: an object or Blitz array is
+an illegal conversion, anything else gives int. The emitter wraps both
+operands in `bb_IntegerContext()`, the same conversion conditions and indices
+use since BUG-61. `bb_IntegerContext(int)` is now `constexpr`, because the
+helper also appears in `Const A = 1 Or 2` and in array sizes.
+
+New tests: `test_bug54_bitops_wandeln` (rejected three times by the previous
+compiler), `neg_bug54_objekt`.
+
+Validation: emitted C++ compared over 207 programs against `9d57710`: 97
+byte-identical, 84 rejected by both with the same diagnostic, 26 changed. All
+26 differ only by the wrapping: with `bb_IntegerContext`, parentheses and
+whitespace removed, old and new are identical. `examples/asteroids` built in
+full. Full suite: 201 passed, 0 failed.
+
+---
+
 ## 2026-09-15 — Dim arrays of objects (BUG-52)
 
 `Dim feld.Punkt(3)` failed at `Expected '('`. In `compiler/parser.cpp`,

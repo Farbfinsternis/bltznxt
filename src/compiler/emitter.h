@@ -229,10 +229,21 @@ public:
     } else if (node->op == "SHR") {
       // SHR is a logical (unsigned) right shift — cast left operand to unsigned
       output << "((int)((unsigned int)(";
-      emitOperand(node->left.get());
+      emitIntegerContext(node->left.get());
       output << ") >> (";
-      emitOperand(node->right.get());
+      emitIntegerContext(node->right.get());
       output << ")))";
+    } else if (node->op == "AND" || node->op == "OR" || node->op == "XOR" ||
+               node->op == "SHL" || node->op == "SAR") {
+      // BinExprNode::semant wandelt beide Seiten nach int, mit derselben
+      // CastNode wie eine Bedingung: ein String per atoi, ein Float gerundet
+      // (BUG-54). Ohne die Wandlung lehnte g++ "x# And 3" ab
+      // ("invalid operands of types 'float' and 'int'").
+      output << "(";
+      emitIntegerContext(node->left.get());
+      output << " " << mapOp(node->op) << " ";
+      emitIntegerContext(node->right.get());
+      output << ")";
     } else {
       output << "(";
       emitOperand(node->left.get());
