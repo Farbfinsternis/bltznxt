@@ -1,5 +1,37 @@
 # BlitzNext Developer Log
 
+## 2026-09-15 — The For Each counter is an ordinary variable (BUG-90)
+
+`For q.P = Each P … Next` followed by `q = First P` passed the frontend and
+failed in g++. The emitter declared the counter inside the C++ loop
+(`auto *var_q`), and `hoistLocals()` left it out on purpose. The later untagged
+assignment then hoisted an int of the same name.
+
+The same shape hid a worse problem. A counter that already existed —
+`Local q.P`, a `Global`, a parameter — was shadowed by the inner declaration
+and never written. After `Exit` it kept its old value; the test program, minus
+its first case, crashes with the previous compiler.
+
+In the reference, `ForEachNode::translate` passes the variable itself to
+`__bbObjEachFirst`/`__bbObjEachNext`, which store into it: `Null` after the
+last pass, the current object after `Exit`.
+
+`collectLocals()` now reports the counter like any other variable of the body,
+with the loop's object type, and `visit(ForEachStmt*)` writes to it:
+`for (var_q = head; var_q; var_q = next)`, with the successor taken before the
+body so `Delete q` stays safe. `foreachVars_`, `writtenNames_` and
+`addWritten()` existed only for the old exception and are gone.
+
+New test: `test_bug90_each_zaehler`.
+
+Validation: emitted C++ compared over 218 programs against `9aaf7e5`: 115
+byte-identical, 93 rejected by both with the same diagnostic, 10 changed. All
+ten use `For Each`, and in all ten only the loop head and the counter's
+declaration change. `examples/asteroids` built in full. Full suite: 211
+passed, 0 failed.
+
+---
+
 ## 2026-09-15 — Stray and missing block closers (BUG-58)
 
 The entry listed four accepted programs: `EndIf` without `If`, `Wend` without

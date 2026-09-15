@@ -946,6 +946,31 @@ public:
   void visit(ForEachStmt *node) override {
     const std::string v = toLower(node->varName);
     const std::string t = toLower(node->typeName);
+    // Register the iteration variable in varObjectTypes for nested field access
+    varObjectTypes[v] = t;
+
+    if (declaredVars.count(v)) {
+      // Der Zaehler ist schon eine Variable des Rumpfs - vorab deklariert
+      // (hoistLocals), ein Global oder ein Parameter - und die Schleife
+      // schreibt in genau diese (BUG-90). Wie _bbObjEachNext in
+      // bbruntime/basic.cpp: nach dem letzten Durchlauf haelt er Null, nach
+      // Exit das Objekt, bei dem abgebrochen wurde. Der Nachfolger wird vor
+      // dem Rumpf gemerkt, damit "Delete q" darin sicher bleibt.
+      output << ind() << "{\n";
+      indentLevel++;
+      output << ind() << "struct bb_" << t << " *bb_fe_" << v << "_ = nullptr;\n";
+      output << ind() << "for (var_" << v << " = bb_" << t << "_head_; var_" << v
+             << "; var_" << v << " = bb_fe_" << v << "_) {\n";
+      indentLevel++;
+      output << ind() << "bb_fe_" << v << "_ = var_" << v << "->__next__;\n";
+      for (auto &n : node->block) emitStmt(n.get());
+      indentLevel--;
+      output << ind() << "}\n";
+      indentLevel--;
+      output << ind() << "}\n";
+      return;
+    }
+
     output << ind() << "{\n";
     indentLevel++;
     output << ind() << "auto *bb_fe_" << v << "_ = bb_"
@@ -956,11 +981,6 @@ public:
            << v << "_;\n";
     output << ind() << "bb_fe_" << v << "_ = bb_fe_"
            << v << "_->__next__;\n";
-    // Register the iteration variable in varObjectTypes for nested field access
-    std::string lo = v;
-    std::transform(lo.begin(), lo.end(), lo.begin(),
-               [](unsigned char c){ return (char)std::tolower(c); });
-    varObjectTypes[lo] = toLower(t);
     for (auto &n : node->block) emitStmt(n.get());
     indentLevel--;
     output << ind() << "}\n";
@@ -1058,8 +1078,6 @@ private:
   std::unordered_set<std::string> typeNames;          // registered Type names
   std::unordered_set<std::string> declaredVars;       // lowercase declared var names
   std::unordered_set<std::string> hoistedLocals_;     // declared up front (Goto-safe)
-  std::unordered_set<std::string> foreachVars_;       // For-Each counters of the body being hoisted
-  std::unordered_set<std::string> writtenNames_;      // names that body declares or writes to
   std::unordered_set<std::string> vecVars_;           // feste Arrays des laufenden Rumpfes
   std::string returnDefault_ = "0";                  // default value of the current function
   std::string returnHint_;                           // Blitz-Rueckgabetag der laufenden Funktion
@@ -1610,8 +1628,6 @@ private:
   // so a bare "Local x" inside a loop does not re-zero x on every pass.
   void hoistLocals(const std::vector<std::unique_ptr<ASTNode>> &nodes) {
     std::vector<LocalDecl> found;
-    foreachVars_.clear();
-    writtenNames_.clear();
     collectLocals(nodes, found);
     for (auto &[lo, hint, vecSize] : found) {
       if (declaredVars.count(lo)) continue; // global, parameter or seen already
@@ -1621,14 +1637,6 @@ private:
       // constant in a function would hoist a local of the same name in front
       // of it and silently shadow the value (BUG-72).
       if (hoistedConsts_.count(lo) || hoistedDims_.count(lo)) continue;
-      // A For Each counter that this body never declares or writes to is left
-      // to visit(ForEachStmt*), which declares it inside the loop with the
-      // object's own pointer type; hoisting an int of that name in front of
-      // it would only put a dead, wrongly typed variable there. A counter the
-      // body does declare ("Local q.Punkt" before "For q = Each Punkt") is
-      // hoisted as before - it is a local like any other, and BUG-23 needs it
-      // in front of any label.
-      if (foreachVars_.count(lo) && !writtenNames_.count(lo)) continue;
       auto [type, defVal] = declType(hint, vecSize);
       output << ind() << type << " var_" << lo << " = " << defVal << ";\n";
       declaredVars.insert(lo);
@@ -1671,13 +1679,13 @@ private:
         // taking the name first keeps the hoisted type the tagged one instead
         // of an int that visit(VarDecl*) would then redeclare as a string.
         if (vd->scope == VarDecl::LOCAL)
-          addWritten(out, vd->name, vd->typeHint, vd->vecSize.get());
+          addLocal(out, vd->name, vd->typeHint, vd->vecSize.get());
         collectExprLocals(vd->initValue.get(), out);
       } else if (auto *as = dynamic_cast<AssignStmt *>(n.get())) {
-        addWritten(out, as->name, as->typeHint);
+        addLocal(out, as->name, as->typeHint);
         collectExprLocals(as->value.get(), out);
       } else if (auto *rd = dynamic_cast<ReadStmt *>(n.get())) {
-        addWritten(out, rd->name, rd->typeHint);
+        addLocal(out, rd->name, rd->typeHint);
       } else if (auto *prog = dynamic_cast<Program *>(n.get())) {
         collectLocals(prog->nodes, out);
       } else if (auto *if_ = dynamic_cast<IfStmt *>(n.get())) {
@@ -1696,7 +1704,7 @@ private:
         // whole loop would otherwise cross its initialisation, which is what
         // BUG-23 was about. An array element or a field counter is not a local
         // and declares nothing (BUG-30) — but what stands inside it does.
-        if (!fr->target) addWritten(out, fr->varName, fr->typeHint);
+        if (!fr->target) addLocal(out, fr->varName, fr->typeHint);
         else             collectExprLocals(fr->target.get(), out);
         collectExprLocals(fr->start.get(), out);
         collectExprLocals(fr->end.get(), out);
@@ -1710,11 +1718,13 @@ private:
         }
         collectLocals(sel->defaultBlock, out);
       } else if (auto *fe = dynamic_cast<ForEachStmt *>(n.get())) {
-        // The iteration variable is not hoisted: visit(ForEachStmt*) declares
-        // it inside the loop with the object's own pointer type, so an int of
-        // the same name in front of it would only shadow it. hoistLocals()
-        // skips the name for that reason.
-        foreachVars_.insert(toLower(fe->varName));
+        // Der Zaehler ist eine gewoehnliche Variable des Rumpfs, mit dem
+        // Objekttyp der Schleife (ForEachNode::semant verlangt genau den).
+        // Bis BUG-90 wurde er nicht vorab deklariert, sondern in der
+        // C++-Schleife - eine spaetere Zuweisung ohne Tag legte dann ein int
+        // desselben Namens an, und g++ scheiterte; ein Global oder Parameter
+        // wurde von der inneren Deklaration verdeckt.
+        addLocal(out, fe->varName, "." + fe->typeName);
         collectLocals(fe->block, out);
       } else if (auto *ds = dynamic_cast<DimStmt *>(n.get())) {
         for (auto &d : ds->dims) collectExprLocals(d.get(), out);
@@ -1755,16 +1765,6 @@ private:
     for (auto &e : out)
       if (e.name == lo) return;
     out.push_back(LocalDecl{lo, hint, vecSize});
-  }
-
-  // Same, for a name this body declares or writes to rather than merely
-  // reads. Only these keep their hoisted declaration when the name is also a
-  // For Each counter - see hoistLocals().
-  void addWritten(std::vector<LocalDecl> &out,
-                  const std::string &name, const std::string &hint,
-                  ExprNode *vecSize = nullptr) {
-    addLocal(out, name, hint, vecSize);
-    writtenNames_.insert(toLower(name));
   }
 
   // Every name an expression mentions, in source order. A literal, New, First
