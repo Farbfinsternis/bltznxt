@@ -1,0 +1,1 @@
+tests/neg_bug45_not_objekt.bb:6:4: error: 'Not' cannot be applied to .T - compare with Null instead: (x = Null)

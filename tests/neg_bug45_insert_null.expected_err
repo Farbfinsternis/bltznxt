@@ -1,0 +1,1 @@
+tests/neg_bug45_insert_null.bb:6:1: error: 'Insert' needs two objects of the same type, but these are Null and .T

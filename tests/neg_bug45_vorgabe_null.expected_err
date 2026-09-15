@@ -1,0 +1,1 @@
+tests/neg_bug45_vorgabe_null.bb:5:18: error: the default value of 'p' must be a constant expression

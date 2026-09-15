@@ -1,0 +1,1 @@
+tests/neg_bug45_objekt_gleich_null_int.bb:5:1: error: assignment: cannot assign int to .T

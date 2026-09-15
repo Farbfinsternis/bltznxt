@@ -1,5 +1,49 @@
 # BlitzNext Developer Log
 
+## 2026-09-15 — Null has its own type (BUG-45)
+
+`parsePrimary()` turned `Null` into the integer literal 0, so the semantic pass
+never saw an object: `Select Null` went through, and so did everything else
+where an integer stands in for an object. In the reference,
+`Type::null_type` is a `StructType("Null")` (`compiler/type.cpp`): it converts
+to every object type and every object type converts to it, but it never meets
+int, float or string. `NullNode` is not a `ConstNode`.
+
+`LiteralExpr` now carries `isNull`. The emitter still writes 0; the semantic
+pass gives it the type `NUL`. `castable()` models `canCastTo` and replaces the
+rule in `checkAssign()` that let any integer onto an object. That rule existed
+only because Null arrived as 0. The consumers follow `exprnode.cpp` and
+`stmtnode.cpp`:
+
+- assignment, parameters and `Return`: Null onto an object only; `p.T = 0`
+  and `x% = Null` are rejected, and a new untagged variable assigned Null is an
+  int, as in the reference;
+- comparison: with an object on either side only `=` and `<>`, and both sides
+  must convert to the non-Null side's type (`If p = 0`, `p.A = q.B`);
+- `Not x` is `x = 0` in the reference, so `If Not p` is an error; arithmetic and
+  unary operators reject objects and Null; `If Null` is an illegal conversion;
+- `Select Null`, `After Null` and `Before Null` get the reference's messages;
+  `Function F(p.T = Null)` is not a constant default (measured earlier).
+
+Two findings on the way: `Delete 5` was not reported (`Can't delete
+non-Newtype`), and `Delete Null`, which is valid, emitted `0 = nullptr;` and
+failed in g++. It now emits nothing. `Insert` checks for two objects of the
+same type. The `Not` node carries its column.
+
+Left open: `Print Null` passes, because `Print` has an untyped parameter in
+`commands.h`. A new untagged variable assigned an object still becomes an
+object, where the reference makes it an int.
+
+New tests: `test_bug45_null` (the previous compiler fails it in g++) and nine
+`neg_bug45_*`.
+
+Validation: emitted C++ compared over 204 programs against `9295df0`: 121
+byte-identical, 73 rejected by both with the same diagnostic, the ten
+differences being the new tests. No existing program is affected by the
+stricter rules. Full suite: 196 passed, 0 failed.
+
+---
+
 ## 2026-09-15 — The Type body reads like the reference (BUG-43)
 
 `Type Vec2 : Field dx#, dy# : End Type` is rejected at the first `:`, matching

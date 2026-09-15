@@ -1,0 +1,13 @@
+feld leer: 1
+feld belegt: 1
+feld wieder leer: 1
+c = Null: 1
+Null = c: 1
+a <> Null: 1
+Null = Null: 1
+nichts
+punkt 2
+nichts
+nicht gefunden
+punkte: 2
+delete null ok

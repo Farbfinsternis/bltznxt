@@ -117,6 +117,9 @@ class StmtNode : public ASTNode {};
 class LiteralExpr : public ExprNode {
 public:
   Token token;
+  // "Null": fuer den Emitter eine 0 wie bisher, fuer den semantischen Pass
+  // ein eigener Typ, der nur zu Objekten passt (BUG-45).
+  bool isNull = false;
   explicit LiteralExpr(Token t) : token(std::move(t)) {}
   void accept(ASTVisitor *v) override { v->visit(this); }
 };

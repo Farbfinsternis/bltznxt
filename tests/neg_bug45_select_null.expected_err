@@ -1,0 +1,1 @@
+tests/neg_bug45_select_null.bb:2:8: error: 'Select' cannot be used with objects, and 'Null' counts as one

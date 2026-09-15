@@ -75,7 +75,10 @@ public:
 private:
   // ------------------------------------------------------------------ types
   struct Ty {
-    enum K { UNKNOWN, INT, FLOAT, STR, OBJ } k = UNKNOWN;
+    // NUL ist der Typ von "Null". In der Referenz ein StructType("Null")
+    // (compiler/type.cpp): er passt auf jedes Objekt und jedes Objekt auf
+    // ihn, aber nichts sonst - keine Zahl, kein String (BUG-45).
+    enum K { UNKNOWN, INT, FLOAT, STR, OBJ, NUL } k = UNKNOWN;
     std::string obj; // type name when k == OBJ
     // Festes Array mit eckigen Klammern ("Local a[3]"). k traegt dann
     // den ELEMENTtyp; das Array selbst ist im Original ein eigener Typ
@@ -85,6 +88,8 @@ private:
 
     bool numeric() const { return k == INT || k == FLOAT; }
     bool known() const { return k != UNKNOWN; }
+    // structType() der Referenz: ein Objekt oder Null.
+    bool object() const { return !vec && (k == OBJ || k == NUL); }
     std::string name() const {
       if (vec) return "array of " + elemName();
       return elemName();
@@ -95,6 +100,7 @@ private:
         case FLOAT: return "float";
         case STR:   return "string";
         case OBJ:   return "." + obj;
+        case NUL:   return "Null";
         default:    return "unknown";
       }
     }
@@ -267,7 +273,10 @@ private:
   // Form, und der Emitter reicht den Ausdruck als C++-Vorgabeargument weiter.
   bool isConstExpr(ExprNode *e) {
     if (!e) return false;
-    if (dynamic_cast<LiteralExpr *>(e)) return true;
+    // Null ist kein ConstNode der Referenz, sondern ein NullNode:
+    // "Function F(p.T=Null)" ergibt dort "Expression must be constant"
+    // (gemessen, test_bug56_object_param.bb; BUG-45).
+    if (auto *le = dynamic_cast<LiteralExpr *>(e)) return !le->isNull;
     if (auto *ue = dynamic_cast<UnaryExpr *>(e)) return isConstExpr(ue->expr.get());
     if (auto *be = dynamic_cast<BinaryExpr *>(e))
       return isConstExpr(be->left.get()) && isConstExpr(be->right.get());
@@ -439,37 +448,53 @@ private:
                              " is expected");
       return;
     }
-    if (!target.known() || !value.known()) return;
-    if (target.k != Ty::OBJ && value.k != Ty::OBJ) return; // Zahl/String: frei
-    if (target.sameAs(value)) return;
-    // Ein unbekannter Typname ist bereits als "Type 'X' not found" gemeldet.
-    // Hier noch eine Unvertraeglichkeit anzuhaengen waere ein Folgefehler auf
-    // dieselbe Ursache - "Local p.Punkt = First Punkte" soll eine Meldung
-    // ergeben, nicht zwei.
-    if (target.k == Ty::OBJ && !types_.count(toLower(target.obj))) return;
-    if (value.k  == Ty::OBJ && !types_.count(toLower(value.obj)))  return;
-    // Null ist im AST bis auf Weiteres ein Integer-Literal 0 und muss an jedem
-    // Objektziel zulaessig bleiben (BUG-45): "p.T = Null" nimmt das Original an.
-    if (target.k == Ty::OBJ && value.k == Ty::INT) return;
+    if (castable(value, target)) return;
     error(line, col, std::string(what) + ": cannot assign " + value.name() +
                          " to " + target.name());
+  }
+
+  // canCastTo() der Referenz fuer Skalare (compiler/type.cpp): Zahlen und
+  // Strings wandeln frei ineinander (BUG-53); ein Objekt nur in denselben
+  // Typ oder Null, Null in jedes Objekt. Eine Ganzzahl ist kein Objekt -
+  // "p.T = 0" lehnt das Original ab. Bis BUG-45 war genau das erlaubt, weil
+  // Null hier als 0 ankam.
+  //
+  // Unbekanntes bleibt still, auch ein unbekannter Typname: der ist bereits
+  // als "Type 'X' not found" gemeldet, und "Local p.Punkt = First Punkte"
+  // soll eine Meldung ergeben, nicht zwei.
+  bool castable(const Ty &from, const Ty &to) const {
+    if (!from.known() || !to.known()) return true;
+    if (from.k == Ty::OBJ && !types_.count(toLower(from.obj))) return true;
+    if (to.k   == Ty::OBJ && !types_.count(toLower(to.obj)))   return true;
+    // Feste Arrays (checkAssign hat gemischte Faelle schon gemeldet): wie
+    // bisher nur der Objekt-Elementtyp, die Groesse fuehrt Ty nicht mit.
+    if (from.vec || to.vec)
+      return (from.k != Ty::OBJ && to.k != Ty::OBJ) || from.sameAs(to);
+    if (!from.object() && !to.object()) return true;
+    if (!from.object() || !to.object()) return false;
+    return from.k == Ty::NUL || to.k == Ty::NUL || from.sameAs(to);
   }
 
   // Original CastNode rejects objects/vectors at an integer boundary.
   // Unknown types already have their own diagnostics; do not cascade.
   void integerContext(ExprNode *e) {
     Ty t = expr(e);
-    if (t.known() && (t.vec || t.k == Ty::OBJ))
+    if (t.known() && (t.vec || t.object()))
       error(e->line, e->col, "Illegal type conversion");
   }
 
   // Before/After: AfterNode::semant und BeforeNode::semant
   // (compiler/exprnode.cpp) verlangen einen Objekttyp und liefern ihn
-  // unveraendert zurueck. Die eigene Null-Meldung des Originals ("'After'
-  // cannot be used on 'Null'") ist hier nicht erreichbar, solange Null ein
-  // Integer-Literal ist (BUG-45) - Null faellt deshalb unter die allgemeine.
+  // unveraendert zurueck. Null prueft die Referenz vorher eigens, mit
+  // leicht verschiedenem Wortlaut ("on" bei After, "with" bei Before).
   Ty neighbour(const char *what, ExprNode *object, int line, int col) {
     Ty t = expr(object);
+    if (t.k == Ty::NUL) {
+      error(line, col, std::string("'") + what + "' cannot be used " +
+                           (std::string(what) == "After" ? "on" : "with") +
+                           " 'Null'");
+      return Ty();
+    }
     if (t.known() && (t.vec || t.k != Ty::OBJ)) {
       error(line, col, std::string("'") + what +
                            "' must be used with a custom type object");
@@ -526,6 +551,12 @@ private:
           checkNotVec(val, as->line, as->col);
           checkAssign(fromHint(as->typeHint), val, "assignment", as->line,
                       as->col);
+        }
+        // Eine Variable vom Typ Null gibt es nicht. Ohne Tag entsteht in der
+        // Referenz ein int, und Null wandelt nicht in int (BUG-45).
+        if (as->typeHint.empty() && val.k == Ty::NUL) {
+          checkAssign(mk(Ty::INT), val, "assignment", as->line, as->col);
+          val = mk(Ty::INT);
         }
         declare(as->name, as->typeHint.empty() ? val : fromHint(as->typeHint));
       }
@@ -636,12 +667,15 @@ private:
       // SelectNode::semant refuses this before it looks at anything else:
       //   if( ty->structType() ) ex( "Select cannot be used with objects" );
       // Numbers and strings are fine; only a Type is not (BUG-39).
-      if (sel.k == Ty::OBJ) {
+      if (sel.object()) {
         int ln = ss->expr->line ? ss->expr->line : ss->line;
         int co = ss->expr->col  ? ss->expr->col  : ss->col;
         error(ln, co,
-              "'Select' cannot be used with objects; this expression holds a '"
-              + sel.name() + "'");
+              sel.k == Ty::NUL
+                  ? std::string("'Select' cannot be used with objects, and "
+                                "'Null' counts as one")
+                  : "'Select' cannot be used with objects; this expression "
+                    "holds a '" + sel.name() + "'");
       }
       for (auto &c : ss->cases) {
         for (auto &e : c.expressions) expr(e.get());
@@ -656,13 +690,34 @@ private:
     } else if (auto *ds = dynamic_cast<DimStmt *>(n)) {
       for (auto &d : ds->dims) integerContext(d.get());
     } else if (auto *del = dynamic_cast<DeleteStmt *>(n)) {
-      if (!del->eachTypeName.empty())
+      if (!del->eachTypeName.empty()) {
         knownType(del->eachTypeName, del->line, del->col);
-      else
-        expr(del->object.get());
+      } else {
+        // DeleteNode::semant: "Can't delete non-Newtype" fuer alles, was
+        // kein structType ist. Null ist einer - "Delete Null" ist gueltig
+        // und tut nichts (BUG-45).
+        Ty t = expr(del->object.get());
+        if (t.known() && !t.object())
+          error(del->line, del->col,
+                "'Delete' needs an object, but this is " + t.name());
+      }
     } else if (auto *ins = dynamic_cast<InsertStmt *>(n)) {
-      expr(ins->object.get());
-      expr(ins->target.get());
+      // InsertNode::semant: beide Seiten Objekte ("Illegal expression type")
+      // und derselbe Typ ("Objects types are differnt"). Null ist dort ein
+      // eigener Typ, also auch von jedem .T verschieden (BUG-45).
+      Ty o = expr(ins->object.get());
+      Ty t = expr(ins->target.get());
+      // Ein unbekannter Typname ist schon gemeldet und bleibt hier still.
+      auto resolved = [this](const Ty &x) {
+        return x.k == Ty::NUL ||
+               (x.k == Ty::OBJ && types_.count(toLower(x.obj)) > 0);
+      };
+      if ((o.known() && !o.object()) || (t.known() && !t.object()))
+        error(ins->line, ins->col, "'Insert' needs two objects");
+      else if (resolved(o) && resolved(t) && !o.sameAs(t))
+        error(ins->line, ins->col,
+              "'Insert' needs two objects of the same type, but these are " +
+                  o.name() + " and " + t.name());
     } else if (auto *ce = dynamic_cast<CallExpr *>(n)) {
       expr(ce);
     } else if (auto *td = dynamic_cast<TypeDecl *>(n)) {
@@ -682,6 +737,7 @@ private:
     if (!e) return Ty();
 
     if (auto *le = dynamic_cast<LiteralExpr *>(e)) {
+      if (le->isNull) return mk(Ty::NUL);
       switch (le->token.type) {
         case TokenType::STRING_LIT: return mk(Ty::STR);
         case TokenType::FLOAT_LIT:  return mk(Ty::FLOAT);
@@ -750,7 +806,23 @@ private:
     if (auto *ce = dynamic_cast<CallExpr *>(e))   return call(ce);
     if (auto *ue = dynamic_cast<UnaryExpr *>(e)) {
       Ty t = expr(ue->expr.get());
-      if (ue->op == "NOT") return mk(Ty::INT);
+      // "Not x" baut die Referenz als RelExprNode('=', x, 0): bei einem
+      // Objekt oder Null muss die 0 in den Objekttyp wandeln, und das ist
+      // "Illegal type conversion" (BUG-45).
+      if (ue->op == "NOT") {
+        if (t.object())
+          error(ue->line, ue->col,
+                "'Not' cannot be applied to " + t.name() +
+                    " - compare with Null instead: (x = Null)");
+        return mk(Ty::INT);
+      }
+      // UniExprNode::semant nimmt nur int und float ("Illegal operator for
+      // type").
+      if (t.object()) {
+        error(ue->line, ue->col,
+              "Operator cannot be applied to custom type objects");
+        return Ty();
+      }
       if (t.k == Ty::STR)
         error(ue->line, ue->col, "Operator cannot be applied to strings");
       if (ue->op == "~") return mk(Ty::INT);
@@ -769,9 +841,27 @@ private:
 
     bool comparison = (op == "=" || op == "<>" || op == "<" || op == ">" ||
                        op == "<=" || op == ">=");
-    if (comparison) return mk(Ty::INT);
+    if (comparison) {
+      // RelExprNode::semant: ist eine Seite ein Objekt (Null eingeschlossen),
+      // gibt es nur = und <>, und beide Seiten wandeln in den Typ der Seite,
+      // die nicht Null ist. "p = 0" und "p.A = q.B" scheitern daran
+      // (BUG-45).
+      if (l.object() || r.object()) {
+        if (op != "=" && op != "<>") {
+          error(b->line, b->col,
+                "Illegal operator for custom type objects: only = and <> "
+                "compare objects");
+        } else {
+          const Ty &opType = l.k != Ty::NUL ? l : r;
+          if (!castable(l, opType) || !castable(r, opType))
+            error(b->line, b->col,
+                  "cannot compare " + l.name() + " with " + r.name());
+        }
+      }
+      return mk(Ty::INT);
+    }
 
-    if (l.k == Ty::OBJ || r.k == Ty::OBJ) {
+    if (l.object() || r.object()) {
       error(b->line, b->col,
             "Arithmetic operator cannot be applied to custom type objects");
       return Ty();

@@ -1,0 +1,1 @@
+tests/neg_bug45_delete_zahl.bb:2:1: error: 'Delete' needs an object, but this is int

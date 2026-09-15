@@ -1,0 +1,1 @@
+tests/neg_bug45_after_null.bb:5:7: error: 'After' cannot be used on 'Null'

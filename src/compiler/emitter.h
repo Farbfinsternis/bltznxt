@@ -860,6 +860,14 @@ public:
       return;
     }
 
+    // "Delete Null" ist gueltig und tut nichts (DeleteNode::semant laesst
+    // Null zu, BUG-45). Bis dahin wurde daraus "0 = nullptr;" und g++ brach ab.
+    if (auto *le = dynamic_cast<LiteralExpr *>(node->object.get());
+        le && le->isNull) {
+      output << ind() << "// Delete Null\n";
+      return;
+    }
+
     std::string typeName = getExprTypeName(node->object.get());
     if (!typeName.empty()) {
       output << ind() << "bb_" << toLower(typeName) << "_Delete(";

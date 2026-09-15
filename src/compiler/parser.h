@@ -1438,10 +1438,11 @@ private:
   // valid form (BUG-41).
   std::unique_ptr<ExprNode> parseExpr() {
     if (peek().type == TokenType::KEYWORD && peek().value == "NOT") {
-      int ln = peek().line;
+      int ln = peek().line, cl = peek().col;
       advance();
       auto ue  = std::make_unique<UnaryExpr>("NOT", parseLogical());
       ue->line = ln;
+      ue->col  = cl;
       return ue;
     }
     return parseLogical();
@@ -1662,9 +1663,11 @@ private:
       }
       if (t.value == "FALSE" || t.value == "NULL") {
         advance();
-        auto le  = std::make_unique<LiteralExpr>(
+        auto le    = std::make_unique<LiteralExpr>(
             Token{TokenType::INT_LIT, "0", t.line, t.col});
-        le->line = t.line;
+        le->line   = t.line;
+        le->isNull = t.value == "NULL";
+        if (le->isNull) le->col = t.col;
         return le;
       }
       if (t.value == "PI") {
