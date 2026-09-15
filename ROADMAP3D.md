@@ -81,8 +81,10 @@ Drei eingebettete GLSL-330-Shader als String-Literale in `bb_shader.h`:
 
 #### Aktuell: Forward Rendering
 
-Der initiale Renderer ist **Forward Rendering** — ein Draw-Call pro Mesh,
-Lighting vollständig im Fragment-Shader berechnet.
+Der initiale Renderer ist **Forward Rendering** — ein Draw-Call pro Mesh.
+Das Richtungslicht rechnet der Fragment-Shader; Glanzlicht und Punkt-/Spotlicht
+rechnet seit BUG-66/BUG-91 der Vertex-Shader, wie die feste Pipeline des
+Originals (kompatibler Modus, siehe Richtlinie unten).
 
 **Vorteile für den Einstieg:**
 - Direkt korrekt für Blitz3D-Parität (Blitz3D selbst war Fixed-Function Forward)
@@ -146,6 +148,66 @@ Backend-Wechsel.
 **SSAO und SSR** erfordern das Deferred-Backend. Wenn diese gewünscht werden,
 wird ein neues `bb_deferred_renderer_.cpp` eingehängt — alle anderen Systeme
 (Entity, Camera, Light, Collision, Animation) bleiben unverändert.
+
+### Richtlinie: Was exakt stimmen muss und was besser werden darf
+
+*Festgelegt am 2026-09-15.*
+
+Die Grafikausgabe von BLTZNXT muss **korrekt** sein, aber nicht pixelgleich
+mit Blitz3D. Die Grenze verläuft nicht zwischen Geometrie und Licht, sondern
+zwischen dem, was ein Programm **beobachten** kann, und dem, was nur das Auge
+sieht.
+
+**Muss exakt wie im Original sein** — alles, was über Befehle zurückkommt oder
+den Programmablauf bestimmt:
+
+- Geometrie: Vertices, Dreiecke und ihre Anzahl (`CountVertices`,
+  `CountTriangles`, `TrisRendered`), Normalen, Texturkoordinaten,
+  Umlaufrichtung, Flächenaufteilung
+- Transformationen, Positionen, Hierarchie
+- Picks, Kollisionen und alle Rückgabewerte von Befehlen
+- Welche Flächen sichtbar sind (Culling, `EntityFX`, Alpha, Blendmodi)
+
+**Darf besser werden** — die Schattierung selbst: Beleuchtungsmodell,
+Glanzlicht, Abschwächung, Interpolation. Ein Blitz3D-Programm, dessen Szene
+geometrisch stimmt und dessen Materialien und Lichter physikalisch plausibler
+(z. B. PBR) gerechnet werden, liefert kein anderes, sondern ein besseres
+Ergebnis. Die Eigenheiten der festen Direct3D-7-Pipeline (Gouraud, Glanzlicht
+je Vertex, unbegrenzte `range/Abstand`-Abschwächung) waren technische Grenzen
+von 1999, keine Absicht der Programmautoren.
+
+**Drei Bedingungen dafür:**
+
+1. **Die künstlerische Absicht bleibt erhalten.** Alte Programme haben ihre
+   Lichtwerte auf das alte Verhalten abgestimmt. Die Helligkeitsverhältnisse
+   einer Szene müssen erhalten bleiben — ein Level darf nicht unspielbar dunkel
+   oder ausgebrannt werden, nur schöner gerechnet.
+2. **Die Blitz3D-Parameter werden fest übersetzt.** Farbe, Shininess, Alpha,
+   Blendmodi, `EntityFX` (Full-bright, Vertexfarben, Flat), Vertexfarben,
+   Lightmaps und **negative Lichter** behalten ihre Bedeutung. Die Abbildung auf
+   ein neues Modell (z. B. Shininess → Roughness) ist dokumentiert, nicht
+   geraten.
+3. **Programme, die das Bild zurücklesen, bleiben bedienbar.** `ReadPixel` nach
+   `RenderWorld` (Farb-Picking) und `CopyRect` in Texturen erwarten unter
+   Umständen exakte Farben — dafür gibt es den kompatiblen Modus.
+
+**Zwei Beleuchtungsmodi:**
+
+| Modus | Zweck |
+|-------|-------|
+| **kompatibel** | Die am Original gemessene Nachbildung der festen Pipeline (BUG-66, BUG-91: Glanzlicht und Punkt-/Spotlicht je Vertex). Referenz für die Helligkeit, Grundlage der Testsuite — Regressionen fallen dort weiter zeichengleich auf. |
+| **modern** | PBR mit fester Übersetzung der Blitz3D-Parameter, an der kompatiblen Referenz ausgerichtet. Kandidat für die Vorgabe. |
+
+**Folgen für die Arbeit:**
+
+- Abweichungen in beobachtbaren Größen (z. B. BUG-69 Kugelzerlegung, BUG-92
+  Umlaufrichtung, BUG-93 Kegelnormalen) bleiben Pflicht und werden am Original
+  gemessen.
+- Reine Schattierungsabweichungen werden nicht mehr bis aufs letzte Pixel
+  nachgebaut, sondern dem modernen Modus überlassen — es sei denn, sie ändern
+  die Helligkeitsverhältnisse grob (dann gehören sie in den kompatiblen Modus).
+- Der kompatible Modus existiert heute schon (das aktuelle LIT-Shading); der
+  moderne Modus ist noch nicht gebaut.
 
 ---
 

@@ -359,6 +359,20 @@ tests written that same day — both derived from the original compiler's source
 both wrong. What it cannot do is compare program *output*: a Blitz3D program draws into its own
 window rather than writing to stdout.
 
+### Where the reference ends: rendering
+
+The original is the reference for everything a program can **observe** — geometry, vertex and
+triangle counts, normals, winding, transforms, picks, collisions and every value a command returns.
+Those must match exactly and are measured against a running Blitz3D.
+
+The *shading* itself is not bound to Direct3D 7. Gouraud shading, per-vertex specular and unbounded
+`range/distance` attenuation were the limits of a 1999 fixed pipeline, not choices the authors of
+Blitz3D programs made. BlitzNext therefore plans two lighting modes: a **compatible** mode that
+reproduces the original (it exists today and is what the test suite runs against), and a **modern**
+mode, e.g. PBR, that maps Blitz3D's parameters explicitly and keeps a scene's brightness
+relationships. The full guideline is in [ROADMAP3D.md](ROADMAP3D.md) under
+"Richtlinie: Was exakt stimmen muss und was besser werden darf".
+
 The zlib license permits far more than this. The acknowledgement is here because the work deserves it:
 a language design that is still worth reading twenty-five years later, and a compiler whose structure
 makes whole classes of mistake impossible — which is a lesson this project keeps relearning.
