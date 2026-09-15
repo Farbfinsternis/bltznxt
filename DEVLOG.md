@@ -1,5 +1,43 @@
 # BlitzNext Developer Log
 
+## 2026-09-15 — EntityShininess: specular per vertex (BUG-66)
+
+The entry had the original's numbers for a grey cube under a front light:
+64 / 93 / 91 / 75 with rising shininess, where we gave 128 at the centre. It
+also asked for a decision first: move all lighting to per-vertex, or keep the
+difference.
+
+The reference sets the material in `gxruntime/gxscene.cpp`: specular strength
+`min(s,1)`, power `s*128`. `gxLight` keeps its specular colour at white;
+`LightColor` only writes the diffuse colour. The fixed D3D7 pipeline lights per
+vertex and adds specular after the texture stages.
+
+Measured against the original at `F:\dev\Blitz3D`, the face is equally bright
+at its centre and halfway to the edge — Gouraud. At a cube corner `N·H` is
+0.9758, and `64 + 255·min(s,1)·0.9758^min(s·128,128)` gives exactly
+64 / 93 / 91 / 75 / 75 for s = 0 / 0.25 / 0.5 / 1 / 2. That s=2 looks like s=1
+shows the exponent is capped at 128.
+
+My first recommendation, fixing the formula but staying per-pixel, was wrong:
+per pixel the face centre hits the exact mirror direction, which would have
+given 128 / 191 / 255. The decision taken is specular per vertex, diffuse per
+pixel as before.
+
+The LIT vertex shader now computes specular with the original's material and
+passes it on interpolated and flat (for EntityFX 4). The fragment shader adds
+it after colour and texture.
+
+New test: `test_bug66_shininess` — five shininess levels, a red light on a grey
+cube (155,27,27: green and blue are the white specular), and flat shading. Its
+expected output is the original's, character for character. Full suite: 217
+passed, 0 failed.
+
+Found on the way and filed: point lights attenuate with `1 - d/r` where the
+original uses `r/d` (BUG-91), and a sphere under a point light stays black
+(BUG-92).
+
+---
+
 ## 2026-09-15 — 2D and 3D share one back buffer (BUG-63)
 
 `LockBuffer BackBuffer()` after `RenderWorld` read 0 everywhere. Measured

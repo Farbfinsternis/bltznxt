@@ -1,0 +1,7 @@
+grau s=0% mitte 64 halb 64
+grau s=25% mitte 93 halb 93
+grau s=50% mitte 91 halb 91
+grau s=100% mitte 75 halb 75
+grau s=200% mitte 75 halb 75
+rotlicht mitte 155,27,27
+flat mitte 93
