@@ -1,5 +1,33 @@
 # BlitzNext Developer Log
 
+## 2026-09-15 — The sphere faces the right way (BUG-92)
+
+A sphere under a point light stayed black. Measured against the original, it
+also stayed black under a directional light, while a cube in the same place
+was lit correctly in both. So the cause was the sphere, not the light.
+
+Its normals point outwards, but its triangles used the original's winding.
+Because our renderer mirrors z in the view matrix, that winding is the back
+face here, which `bb_gen_cube_` already documents and compensates for. The
+sphere never got that treatment: its front faces were culled, and what showed
+was the inside of the far half, with normals facing away from the light.
+
+`bb_gen_sphere_` now winds each quad as (0,2,1)/(0,3,2), like the cube. The
+sphere is lit and within a few steps of the original. It cannot match exactly
+yet: its tessellation differs (BUG-69), and directional light is computed per
+pixel. The largest remaining difference, 10, is on the silhouette edge.
+
+New test: `test_bug92_kugel_licht`. It checks three setups point by point
+against the original's values with a tolerance of ±12, and states why. Against
+the previous runtime all three fail, reading 0 everywhere. Full suite: 219
+passed, 0 failed.
+
+Checking the other primitives on the way: the cylinder is within a few steps
+of the original. The cone differs clearly in brightness and on one side;
+filed as BUG-93.
+
+---
+
 ## 2026-09-15 — Point and spot lights: range/distance, per vertex (BUG-91)
 
 Point lights attenuated with `1 - distance/range`, per pixel. `gxLight` sets

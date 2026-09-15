@@ -199,8 +199,14 @@ static inline bb_MeshData_ bb_gen_sphere_(int segs) {
 
       base = static_cast<unsigned int>(m.vertices.size() / BB_VF);
       push_v(i00); push_v(i10); push_v(i11); push_v(i01);
-      m.indices.push_back(base);   m.indices.push_back(base+1); m.indices.push_back(base+2);
-      m.indices.push_back(base);   m.indices.push_back(base+2); m.indices.push_back(base+3);
+      // Umlaufsinn wie bei bb_gen_cube_: unser Renderer spiegelt z in der
+      // Sichtmatrix, die Vorderseite laeuft deshalb andersherum (BUG-92). Bis
+      // 2026-09-15 stand hier (0,1,2)/(0,2,3) - weggeschnitten wurde die
+      // Vorderseite, zu sehen war die Innenseite der hinteren Haelfte mit vom
+      // Licht abgewandten Normalen, und die Kugel blieb unter jedem Licht
+      // schwarz.
+      m.indices.push_back(base);   m.indices.push_back(base+2); m.indices.push_back(base+1);
+      m.indices.push_back(base);   m.indices.push_back(base+3); m.indices.push_back(base+2);
     }
   }
 
