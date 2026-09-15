@@ -444,6 +444,14 @@ private:
                          " to " + target.name());
   }
 
+  // Original CastNode rejects objects/vectors at an integer boundary.
+  // Unknown types already have their own diagnostics; do not cascade.
+  void integerContext(ExprNode *e) {
+    Ty t = expr(e);
+    if (t.known() && (t.vec || t.k == Ty::OBJ))
+      error(e->line, e->col, "Illegal type conversion");
+  }
+
   // ------------------------------------------------------------ statements
   void stmt(ASTNode *n) {
     if (!n) return;
@@ -508,7 +516,7 @@ private:
       pruefeLabel(rst->label, rst->line, rst->col);
     } else if (auto *aas = dynamic_cast<ArrayAssignStmt *>(n)) {
       Ty val = expr(aas->value.get());
-      for (auto &i : aas->indices) expr(i.get());
+      for (auto &i : aas->indices) integerContext(i.get());
       auto it = arrays_.find(toLower(aas->name));
       if (it != arrays_.end()) {
         if (aas->indices.size() != it->second.dims)
@@ -530,18 +538,18 @@ private:
       // beim Durchlaufen der Teilausdruecke - sonst entginge diesem
       // Zweig jede Pruefung, die sonst ueberall greift.
       expr(vas->base.get());
-      expr(vas->index.get());
+      integerContext(vas->index.get());
       expr(vas->value.get());
     } else if (auto *is = dynamic_cast<IfStmt *>(n)) {
-      expr(is->condition.get());
+      integerContext(is->condition.get());
       block(is->thenBlock);
       block(is->elseBlock);
     } else if (auto *ws = dynamic_cast<WhileStmt *>(n)) {
-      expr(ws->condition.get());
+      integerContext(ws->condition.get());
       block(ws->block);
     } else if (auto *rs = dynamic_cast<RepeatStmt *>(n)) {
       block(rs->block);
-      if (rs->condition) expr(rs->condition.get());
+      if (rs->condition) integerContext(rs->condition.get());
     } else if (auto *fs = dynamic_cast<ForStmt *>(n)) {
       expr(fs->start.get());
       expr(fs->end.get());
@@ -620,7 +628,7 @@ private:
         if (inFunction_) checkAssign(returnType_, v, "Return", ret->line, ret->col);
       }
     } else if (auto *ds = dynamic_cast<DimStmt *>(n)) {
-      for (auto &d : ds->dims) expr(d.get());
+      for (auto &d : ds->dims) integerContext(d.get());
     } else if (auto *del = dynamic_cast<DeleteStmt *>(n)) {
       if (!del->eachTypeName.empty())
         knownType(del->eachTypeName, del->line, del->col);
@@ -659,7 +667,7 @@ private:
       return mk(Ty::INT); // auto-declared on use, as in Blitz3D
     }
     if (auto *aa = dynamic_cast<ArrayAccess *>(e)) {
-      for (auto &i : aa->indices) expr(i.get());
+      for (auto &i : aa->indices) integerContext(i.get());
       auto it = arrays_.find(toLower(aa->name));
       if (it == arrays_.end()) return Ty();
       if (aa->indices.size() != it->second.dims)
@@ -675,7 +683,7 @@ private:
     }
     if (auto *va = dynamic_cast<VectorAccess *>(e)) {
       Ty b = expr(va->base.get());
-      expr(va->index.get());
+      integerContext(va->index.get());
       // "Variable must be a Blitz array" meldet VectorVarNode::semant,
       // sobald die Basis keinen VectorType hat. Ein unbekannter Typ
       // bleibt still: eine fehlende Pruefung ist besser als eine

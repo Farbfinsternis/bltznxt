@@ -1,0 +1,1 @@
+tests/neg_bug61_object_condition.bb:4:4: error: Illegal type conversion

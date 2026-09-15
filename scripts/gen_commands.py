@@ -30,7 +30,7 @@ PARAM_MAP = {"int": "%", "bool": "%", "float": "#", "double": "#",
 
 # Interne Helfer, die keine Blitz3D-Befehle sind. Alles mit abschliessendem
 # Unterstrich gilt ohnehin als intern.
-SKIP = {"Main"}
+SKIP = {"Main", "IntegerContext"}
 
 SIG_RE = re.compile(r"^inline\s+(void|int|float|double|bool|bbString)\s+"
                     r"bb_([A-Z][A-Za-z0-9_]*)\s*\(", re.MULTILINE)

@@ -7,6 +7,8 @@
 #include <cctype>   // toupper, tolower
 #include <cstdio>   // snprintf
 #include <cstdlib>  // atoi, atof (String -> Zahl wie in der Referenz)
+#include <cmath>
+#include <limits>
 
 // ============================================================
 //  BlitzNext String Runtime  —  bb_string.h
@@ -133,6 +135,27 @@ inline int bb_ToInt(int n)             { return n; }
 // verwischen und mehr aendern, als dieser Fix verantwortet.
 inline int bb_ToInt(float f)           { return static_cast<int>(f); }
 inline int bb_ToInt(double f)          { return static_cast<int>(f); }
+
+// BUG-61: integer contexts in conditions, subscripts and Dim bounds.
+// Original: CastNode/FloatConstNode (compiler/exprnode.cpp), x87 nearest-even;
+// StringConstNode and __bbStrToInt use atoi instead. Keep this separate from
+// the existing assignment/call conversions, whose float rounding is still open.
+inline int bb_IntegerContext(const bbString &s) { return bb_ToInt(s); }
+inline int bb_IntegerContext(int n) { return n; }
+inline int bb_IntegerContext(double value) {
+    // Blitz3D's numeric float type is 32 bit, including folded literals.
+    double f = static_cast<float>(value);
+    double lower = std::floor(f);
+    double fraction = f - lower;
+    double rounded = lower;
+    if (fraction > 0.5 || (fraction == 0.5 && std::fmod(lower, 2.0) != 0.0))
+        rounded += 1.0;
+    // x87's integer indefinite for NaN, infinity and out-of-range results.
+    if (!std::isfinite(rounded) || rounded < std::numeric_limits<int>::min() ||
+        rounded > std::numeric_limits<int>::max())
+        return std::numeric_limits<int>::min();
+    return static_cast<int>(rounded);
+}
 
 inline float bb_ToFloat(const bbString &s) { return (float)std::atof(s.c_str()); }
 inline float bb_ToFloat(int n)             { return (float)n; }

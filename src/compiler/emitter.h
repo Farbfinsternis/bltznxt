@@ -357,7 +357,7 @@ public:
   void visit(IfStmt *node) override {
     output << ind() << "if (";
     bool prev = inExprCtx; inExprCtx = true;
-    node->condition->accept(this);
+    emitIntegerContext(node->condition.get());
     inExprCtx = prev;
     output << ") {\n";
 
@@ -385,7 +385,7 @@ public:
   void visit(WhileStmt *node) override {
     output << ind() << "while (";
     bool prev = inExprCtx; inExprCtx = true;
-    node->condition->accept(this);
+    emitIntegerContext(node->condition.get());
     inExprCtx = prev;
     output << ") {\n";
     indentLevel++;
@@ -403,7 +403,7 @@ public:
       indentLevel--;
       output << ind() << "} while (!(";
       bool prev = inExprCtx; inExprCtx = true;
-      node->condition->accept(this);
+      emitIntegerContext(node->condition.get());
       inExprCtx = prev;
       output << "));\n";
     } else {
@@ -772,7 +772,7 @@ public:
     output << "var_" << toLower(node->name);
     for (auto &idx : node->indices) {
       output << ".at(";
-      emitExpr(idx.get());
+      emitIntegerContext(idx.get());
       output << ")";
     }
   }
@@ -781,7 +781,7 @@ public:
     output << ind() << "var_" << toLower(node->name);
     for (auto &idx : node->indices) {
       output << ".at(";
-      emitExpr(idx.get());
+      emitIntegerContext(idx.get());
       output << ")";
     }
     output << " = ";
@@ -974,7 +974,7 @@ public:
     bool prev = inExprCtx; inExprCtx = true;
     node->base->accept(this);
     output << "[";
-    emitExpr(node->index.get());
+    emitIntegerContext(node->index.get());
     output << "]";
     inExprCtx = prev;
   }
@@ -987,7 +987,7 @@ public:
     bool prev = inExprCtx; inExprCtx = true;
     node->base->accept(this);
     output << "[";
-    emitExpr(node->index.get());
+    emitIntegerContext(node->index.get());
     output << "] = ";
     inExprCtx = prev;
     emitExpr(node->value.get());
@@ -1428,7 +1428,7 @@ private:
   void emitElseIf(IfStmt *node) {
     output << "if (";
     bool prev = inExprCtx; inExprCtx = true;
-    node->condition->accept(this);
+    emitIntegerContext(node->condition.get());
     inExprCtx = prev;
     output << ") {\n";
 
@@ -1465,7 +1465,7 @@ private:
   void emitVectorCtor(const std::vector<std::unique_ptr<ExprNode>> &dims,
                       const std::string &elemType, size_t idx) {
     output << "(";
-    emitExpr(dims[idx].get());
+    emitIntegerContext(dims[idx].get());
     output << " + 1";
     if (idx + 1 < dims.size()) {
       output << ", ";
@@ -1898,6 +1898,15 @@ private:
       case TokenType::FLOAT_LIT:  return hint == "#";
       default:                    return hint != "$" && hint != "#";
     }
+  }
+
+  // BUG-61: stmtnode.cpp casts conditions/Dim bounds to int;
+  // varnode.cpp does the same for both array forms. Preserve emitExpr's
+  // pinned operands and loop re-evaluation; evaluate the operand once.
+  void emitIntegerContext(ExprNode *e) {
+    output << "bb_IntegerContext(";
+    emitExpr(e);
+    output << ")";
   }
 
   void emitConverted(ExprNode *e, const std::string &hint) {

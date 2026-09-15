@@ -1,5 +1,33 @@
 # BlitzNext Developer Log
 
+## 2026-09-14 — Integer conversions in conditions and array indices (BUG-61)
+
+Conditions (`If`/`ElseIf`, `While`, `Until`), array indices (dynamic arrays and
+fixed arrays, including fields), and `Dim` bounds now explicitly convert to
+integer. Numeric strings use their integer prefix; floats round to the nearest
+integer with ties to even. For example, `If "0.6"` is false while `If 0.6` is
+true; array index `"1.9"` selects element 1 and `1.9` selects element 2.
+Objects and whole fixed arrays in these contexts produce a semantic diagnostic.
+
+The rules were checked in the original Blitz3D compiler's `stmtnode.cpp`,
+`varnode.cpp` and `exprnode.cpp`, then measured against the installed V11.8.
+The new regression covers 37 output values, including loop re-evaluation,
+index side effects, and `Read`/`For` targets. Its outputs match the original
+using file output; three rejection cases were also checked against V11.8.
+
+Validation: compiler rebuilt successfully. The full suite reported 165 passed
+and one output mismatch caused by LF line endings in the new expected file
+(the existing Windows fixtures use CRLF). After correcting that file format,
+all four new tests passed a focused recheck, including exact diagnostics and
+exit code 1 for negative tests. All 162 pre-existing tests passed unchanged.
+The command-generator check has pre-existing differences from `commands.h`;
+the new helper is excluded, and the scanned public signatures match HEAD.
+
+The conversion helper is limited to these contexts. Existing float conversion
+differences elsewhere and string `And`/`Or` (BUG-54) remain separate work.
+
+---
+
 ## v0.4.3 - "3D Shader, Geometry Buffers & Primitive Meshes" (2026-03-10)
 
 **Files touched:** `src/compiler/bb_shader.h` (new), `src/compiler/bb_mesh_core.h` (new),
