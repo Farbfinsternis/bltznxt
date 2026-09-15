@@ -1,5 +1,36 @@
 # BlitzNext Developer Log
 
+## 2026-09-15 — Point and spot lights: range/distance, per vertex (BUG-91)
+
+Point lights attenuated with `1 - distance/range`, per pixel. `gxLight` sets
+`dvAttenuation1 = 1/range` and leaves the other factors at 0, so Direct3D
+divides by `distance/range`. That gives `range/distance`, unbounded, per
+vertex.
+
+Three setups, measured against the original at `F:\dev\Blitz3D`:
+
+- a cube under a point light at LightRange 20 / 5 / 3.5 / 2:
+  original 255 / 136 / 95 / 55, we gave 85 / 40 / 14 / 0;
+- a large flat wall with a point light close in front: the original is 16
+  across the whole face, since only the four distant corners are lit and
+  interpolated;
+- the same wall under a spot light: 0 everywhere, since all corners lie
+  outside the cone.
+
+Fixing only the formula per pixel gave 167 / 117 / 67 on the cube and bright
+hotspots (255) on the wall where the original has none. Computing point and
+spot diffuse per vertex matched all 18 values exactly. The decision taken is
+point and spot per vertex, directional per pixel as before.
+
+The LIT vertex shader now computes point/spot diffuse (with the spot cone) and
+all specular in one loop. The fragment shader handles directional lights only
+and adds the interpolated point/spot term.
+
+New test: `test_bug91_punktlicht`, expected output taken from the original.
+`test_bug66_shininess` is unchanged. Full suite: 218 passed, 0 failed.
+
+---
+
 ## 2026-09-15 — EntityShininess: specular per vertex (BUG-66)
 
 The entry had the original's numbers for a grey cube under a front light:

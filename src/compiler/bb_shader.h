@@ -238,7 +238,12 @@ void main() {
 // ---- LIT (Blinn-Phong, up to 8 lights) ----
 //
 // Light types: 0 = directional (u_light_pos is direction, pointing away from surface),
-//              1 = point       (u_light_pos is world position, u_light_range = falloff radius)
+//              1 = point       (u_light_pos is world position, u_light_range = LightRange;
+//                               attenuation range/distance like Direct3D, BUG-91)
+//              2 = spot        (like point, plus the cone)
+//
+// Directional diffuse is computed per fragment; point/spot diffuse and all
+// specular per vertex, as the original's fixed pipeline does (BUG-66, BUG-91).
 //
 // All colour uniforms (u_ambient, u_light_color) are pre-normalised to [0, 1] by the caller.
 // Normal transform uses mat3(u_model): correct for rotation and uniform-scale transforms.
@@ -258,18 +263,23 @@ out vec3 v_normal;
 flat out vec3 v_normal_flat;
 out vec4 v_color;
 
-// Glanzlicht je Vertex (BUG-66), dieselben Lichter wie im Fragment.
+// Je Vertex (BUG-66, BUG-91): das Glanzlicht aller Lichter und das diffuse
+// Licht von Punkt- und Spotlichtern.
 uniform float u_shininess;
 uniform vec3  u_view_pos;
 uniform int   u_light_count;
 uniform vec3  u_light_pos[8];
+uniform vec3  u_light_color[8];
 uniform float u_light_range[8];
 uniform int   u_light_type[8];
+// Spot (Typ 2): Kegelachse und die beiden Winkel als Kosinus des HALBwinkels.
 uniform vec3  u_light_dir[8];
 uniform float u_light_cos_inner[8];
 uniform float u_light_cos_outer[8];
 out vec3 v_spec;
 flat out vec3 v_spec_flat;
+out vec3 v_diff;
+flat out vec3 v_diff_flat;
 )glsl";
 
 static constexpr const char* BB_GLSL_LIT_VERT_MAIN = R"glsl(
@@ -282,44 +292,63 @@ void main() {
     bb_tex_vert(a_uv);
     gl_Position = u_mvp * vec4(a_pos, 1.0);
 
-    // Das Glanzlicht rechnet das Original in der festen Direct3D-7-Pipeline je
-    // Vertex und interpoliert es (BUG-66). Das Material setzt gxScene aus
-    // EntityShininess s: Staerke min(s,1), Exponent s*128; das Licht hat immer
-    // weisses Glanzlicht (gxLight: dcvSpecular = 1, LightColor schreibt nur
-    // dcvDiffuse). Der Exponent ist bei 128 gedeckelt - gemessen: s=2 sieht
-    // aus wie s=1. Das Ergebnis wird nach Textur und Farbe ADDIERT, nicht mit
-    // der Entityfarbe multipliziert.
-    vec3 spec = vec3(0.0);
-    if (u_shininess > 0.001) {
-        vec3  N     = normalize(v_normal);
-        vec3  V     = normalize(u_view_pos - wp.xyz);
-        float power = min(u_shininess * 128.0, 128.0);
-        float t     = min(u_shininess, 1.0);
-        for (int i = 0; i < u_light_count; ++i) {
-            vec3  L;
-            float atten = 1.0;
-            if (u_light_type[i] == 0) {
-                L = normalize(u_light_pos[i]);
-            } else {
-                vec3  delta = u_light_pos[i] - wp.xyz;
-                float dist  = length(delta);
-                L = (dist > 0.0001) ? delta / dist : vec3(0.0, 1.0, 0.0);
-                float r = u_light_range[i];
-                atten = (r > 0.0) ? max(0.0, 1.0 - dist / r) : 1.0;
-                if (u_light_type[i] == 2) {
-                    float cd = dot(normalize(u_light_dir[i]), -L);
-                    float ci = u_light_cos_inner[i];
-                    float co = u_light_cos_outer[i];
-                    atten *= (ci > co) ? clamp((cd - co) / (ci - co), 0.0, 1.0)
-                                       : step(co, cd);
-                }
+    // Das Original rechnet das Licht in der festen Direct3D-7-Pipeline je
+    // Vertex und interpoliert es. Je Vertex stehen hier:
+    //
+    // - das Glanzlicht aller Lichter (BUG-66). Das Material setzt gxScene aus
+    //   EntityShininess s: Staerke min(s,1), Exponent s*128; das Licht hat
+    //   immer weisses Glanzlicht (gxLight: dcvSpecular = 1, LightColor schreibt
+    //   nur dcvDiffuse). Der Exponent ist bei 128 gedeckelt - gemessen: s=2
+    //   sieht aus wie s=1. Das Ergebnis wird nach Textur und Farbe ADDIERT.
+    //
+    // - das diffuse Licht von Punkt- und Spotlichtern (BUG-91). gxLight setzt
+    //   dvAttenuation1 = 1/range und laesst die beiden anderen Faktoren auf 0,
+    //   Direct3D teilt also durch d/range: Abschwaechung range/Abstand, nach
+    //   oben offen. Bis dahin stand hier 1 - Abstand/range, je Bildpunkt -
+    //   gemessen dunkler bis schwarz (Wuerfel bei range 2: 0 statt 55), und auf
+    //   grossen Flaechen ein Lichtfleck, wo das Original die weit entfernten
+    //   Ecken interpoliert und gleichmaessig dunkel bleibt (16 statt 255).
+    //
+    // Das diffuse Licht eines Richtungslichts bleibt im Fragment; auf ebenen
+    // Flaechen ist das dasselbe.
+    vec3 spec  = vec3(0.0);
+    vec3 diffv = vec3(0.0);
+    vec3  N     = normalize(v_normal);
+    vec3  V     = normalize(u_view_pos - wp.xyz);
+    float power = min(u_shininess * 128.0, 128.0);
+    float t     = min(u_shininess, 1.0);
+    for (int i = 0; i < u_light_count; ++i) {
+        vec3  L;
+        float atten = 1.0;
+        if (u_light_type[i] == 0) {
+            L = normalize(u_light_pos[i]);
+        } else {
+            vec3  delta = u_light_pos[i] - wp.xyz;
+            float dist  = length(delta);
+            L = (dist > 0.0001) ? delta / dist : vec3(0.0, 1.0, 0.0);
+            float r = u_light_range[i];
+            atten = (r > 0.0) ? r / max(dist, 0.0001) : 1.0;
+            if (u_light_type[i] == 2) {
+                // Spot: Winkel zwischen Kegelachse und der Richtung zur
+                // Oberflaeche. Innerhalb des inneren Winkels volle Helligkeit,
+                // dazwischen weicher Uebergang, ausserhalb nichts.
+                float cd = dot(normalize(u_light_dir[i]), -L);
+                float ci = u_light_cos_inner[i];
+                float co = u_light_cos_outer[i];
+                atten *= (ci > co) ? clamp((cd - co) / (ci - co), 0.0, 1.0)
+                                   : step(co, cd);
             }
+            diffv += max(dot(N, L), 0.0) * u_light_color[i] * atten;
+        }
+        if (u_shininess > 0.001) {
             vec3 H = normalize(L + V);
             spec += vec3(t * pow(max(dot(N, H), 0.0), power) * atten);
         }
     }
     v_spec      = spec;
     v_spec_flat = spec;
+    v_diff      = diffv;
+    v_diff_flat = diffv;
 }
 )glsl";
 
@@ -330,25 +359,21 @@ in vec3 v_normal;
 
 uniform vec4  u_color;
 uniform vec3  u_ambient;
-uniform float u_shininess;
-uniform vec3  u_view_pos;
 
+// Hier nur noch fuer Richtungslichter gebraucht; Punkt und Spot rechnet der
+// Vertex-Shader (BUG-91).
 uniform int   u_light_count;
 uniform vec3  u_light_pos[8];
 uniform vec3  u_light_color[8];
-uniform float u_light_range[8];
 uniform int   u_light_type[8];
-// Spot (Typ 2): Kegelachse und die beiden Winkel als Kosinus des HALBwinkels,
-// damit der Vergleich im Fragment ohne Trigonometrie auskommt.
-uniform vec3  u_light_dir[8];
-uniform float u_light_cos_inner[8];
-uniform float u_light_cos_outer[8];
 
 uniform int   u_fx;          // EntityFX (3D-10)
 flat in vec3  v_normal_flat;
 in vec4       v_color;
 in vec3       v_spec;        // Glanzlicht je Vertex (BUG-66)
 flat in vec3  v_spec_flat;
+in vec3       v_diff;        // Punkt- und Spotlicht je Vertex (BUG-91)
+flat in vec3  v_diff_flat;
 )glsl";
 
 static constexpr const char* BB_GLSL_LIT_FRAG_MAIN = R"glsl(
@@ -374,35 +399,13 @@ void main() {
 
     // EntityFX 4 (flatshaded): dieselbe Normale fuer das ganze Dreieck.
     vec3 N      = normalize(((u_fx & 4) != 0) ? v_normal_flat : v_normal);
-    vec3 result = u_ambient;
+    vec3 result = u_ambient + (((u_fx & 4) != 0) ? v_diff_flat : v_diff);
 
+    // Richtungslichter: u_light_pos ist die Richtung zum Licht.
     for (int i = 0; i < u_light_count; ++i) {
-        vec3  L;
-        float atten = 1.0;
-        if (u_light_type[i] == 0) {
-            // Directional: u_light_pos is the direction vector (towards light source)
-            L = normalize(u_light_pos[i]);
-        } else {
-            // Point und Spot teilen sich Abstand und Reichweite
-            vec3  delta = u_light_pos[i] - v_pos;
-            float dist  = length(delta);
-            L = (dist > 0.0001) ? delta / dist : vec3(0.0, 1.0, 0.0);
-            float r = u_light_range[i];
-            atten = (r > 0.0) ? max(0.0, 1.0 - dist / r) : 1.0;
-            if (u_light_type[i] == 2) {
-                // Spot: Winkel zwischen Kegelachse und der Richtung zur
-                // Oberflaeche. Innerhalb des inneren Winkels volle Helligkeit,
-                // dazwischen weicher Uebergang, ausserhalb nichts.
-                float cd = dot(normalize(u_light_dir[i]), -L);
-                float ci = u_light_cos_inner[i];
-                float co = u_light_cos_outer[i];
-                float cone = (ci > co) ? clamp((cd - co) / (ci - co), 0.0, 1.0)
-                                       : step(co, cd);
-                atten *= cone;
-            }
-        }
-        float diff = max(dot(N, L), 0.0);
-        result += diff * u_light_color[i] * atten;
+        if (u_light_type[i] != 0) continue; // Punkt/Spot: v_diff (BUG-91)
+        vec3 L = normalize(u_light_pos[i]);
+        result += max(dot(N, L), 0.0) * u_light_color[i];
     }
 
     // Geklemmt wird **nach** der Multiplikation mit der Entityfarbe, nicht
