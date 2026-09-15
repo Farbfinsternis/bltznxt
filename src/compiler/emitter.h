@@ -32,6 +32,7 @@ public:
     userFunctions.clear();
     typeNames.clear();
     varObjectTypes.clear();
+    dimObjectTypes_.clear();
     declaredVars.clear();
     globalVarNames.clear();
     hoistedConsts_.clear();
@@ -753,6 +754,7 @@ public:
     size_t ndim = node->dims.size();
     std::string lo = node->name;
     std::transform(lo.begin(), lo.end(), lo.begin(), ::tolower);
+    noteDimObjectType(lo, node->typeHint); // auch ein Dim in einem Block
     if (hoistedDims_.count(lo)) {
       // Already forward-declared at top of main() — emit re-initialisation
       // (handles both the original Dim and any subsequent re-Dim calls).
@@ -1057,6 +1059,12 @@ private:
   std::unordered_set<std::string>      writesBusy_;   // recursion guard
   int  pinCount_      = 0;                           // numbers the __seqN__ temporaries
   std::unordered_set<std::string> hoistedDims_;       // lowercase names of forward-declared Dim arrays
+  // Dim-Array -> Objekttyp seiner Elemente (klein), nur fuer "Dim a.T(n)".
+  std::unordered_map<std::string, std::string> dimObjectTypes_;
+  void noteDimObjectType(const std::string &lo, const std::string &hint) {
+    if (!hint.empty() && hint[0] == '.')
+      dimObjectTypes_[lo] = toLower(hint.substr(1));
+  }
   std::unordered_map<std::string, std::string> varObjectTypes; // lowercase var → TypeName
   int  indentLevel    = 1;
   bool inExprCtx      = false;
@@ -1554,6 +1562,7 @@ private:
                [](unsigned char c){ return (char)std::tolower(c); });
         if (hoistedDims_.count(lo)) continue; // already forward-declared
         hoistedDims_.insert(lo);
+        noteDimObjectType(lo, ds->typeHint);
         auto [elemType, defVal] = hintToType(ds->typeHint);
         output << ind() << buildVecType(elemType, ds->dims.size())
                << " var_" << lo << ";\n";
@@ -1832,6 +1841,13 @@ private:
                [](unsigned char c){ return (char)std::tolower(c); });
       auto it = varObjectTypes.find(lo);
       if (it != varObjectTypes.end()) return it->second;
+    }
+    // Ein Element eines "Dim feld.Punkt(n)" (BUG-52). Ohne diesen Zweig wurde
+    // "Delete feld(0)" zu "feld.at(0) = nullptr" - das Objekt blieb in der
+    // Liste, ein stilles Falschergebnis.
+    if (auto *aa = dynamic_cast<ArrayAccess *>(expr)) {
+      auto it = dimObjectTypes_.find(toLower(aa->name));
+      if (it != dimObjectTypes_.end()) return it->second;
     }
     if (auto *fe = dynamic_cast<FirstExpr *>(expr))  return fe->typeName;
     if (auto *le = dynamic_cast<LastExpr *>(expr))   return le->typeName;

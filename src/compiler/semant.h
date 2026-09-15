@@ -689,6 +689,9 @@ private:
       }
     } else if (auto *ds = dynamic_cast<DimStmt *>(n)) {
       for (auto &d : ds->dims) integerContext(d.get());
+      // "Dim feld.Punkt(3)" (BUG-52): der Elementtyp muss existieren.
+      if (!ds->typeHint.empty() && ds->typeHint[0] == '.')
+        knownType(ds->typeHint.substr(1), ds->line, ds->col);
     } else if (auto *del = dynamic_cast<DeleteStmt *>(n)) {
       if (!del->eachTypeName.empty()) {
         knownType(del->eachTypeName, del->line, del->col);

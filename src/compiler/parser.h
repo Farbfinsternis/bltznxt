@@ -159,6 +159,77 @@ private:
     return t;
   }
 
+  // Zuweisung an ein Ziel mit Postfix-Kette: "p\feld = x", "a[i] = x",
+  // "k\kind[0]\wert = x", "feld(i)\x = x". `target` ist der Anfang - eine
+  // Variable oder ein Dim-Arrayelement -, der Parser steht auf dem ersten
+  // '\' oder '['. Bis BUG-59/BUG-60 kannte der Statement-Parser GENAU EINE
+  // Feldebene und gar keinen Index; die Referenz kennt diesen Unterschied
+  // nicht: parseVar() liest links vom "=" dieselbe Kette wie in einem
+  // Ausdruck.
+  //
+  // Ohne `value` folgt "= Ausdruck"; "Read p\x" uebergibt seinen
+  // DataReadExpr und die Zeile des Read.
+  std::unique_ptr<ASTNode> parseChainAssign(std::unique_ptr<ExprNode> target,
+                                            const Token &nameTok,
+                                            std::unique_ptr<ExprNode> value = nullptr,
+                                            int line = 0) {
+    // Das jeweils LETZTE Glied bleibt liegen: es wird zum
+    // Zuweisungsknoten, alles davor ist der Ausdruck links davon.
+    enum { NONE, FIELD, INDEX } last = NONE;
+    std::string lastField;
+    std::unique_ptr<ExprNode> lastIndex;
+    auto flush = [&]() {
+      if (last == FIELD)
+        target = std::make_unique<FieldAccess>(std::move(target), lastField);
+      else if (last == INDEX)
+        target = std::make_unique<VectorAccess>(std::move(target),
+                                                std::move(lastIndex));
+      last = NONE;
+    };
+
+    for (;;) {
+      if (peek().type == TokenType::OPERATOR && peek().value == "\\") {
+        flush();
+        advance();
+        lastField = expect(TokenType::ID, "Expected field name after \\").value;
+        parseOptionalTypeTag(); // "p\f#" - read and dropped (BUG-31)
+        last = FIELD;
+      } else if (peek().type == TokenType::OPERATOR && peek().value == "[") {
+        flush();
+        advance();
+        lastIndex = parseExpr();
+        if (peek().type == TokenType::OPERATOR && peek().value == ",")
+          error(peek().line, peek().col,
+                "Blitz arrays are one-dimensional; expected ']'");
+        expect(TokenType::OPERATOR, "Expected ']'", "]");
+        last = INDEX;
+      } else {
+        break;
+      }
+    }
+
+    std::unique_ptr<ExprNode> val = std::move(value);
+    if (!val) {
+      expect(TokenType::OPERATOR, "Expected '='", "=");
+      val = parseExpr();
+    }
+    if (line <= 0) line = nameTok.line;
+    if (last == INDEX) {
+      auto s = std::make_unique<VectorAssignStmt>(
+          std::move(target), std::move(lastIndex), std::move(val));
+      s->line = line;
+      s->col  = nameTok.col;
+      return s;
+    }
+    auto s = std::make_unique<FieldAssignStmt>(std::move(target), lastField,
+                                               std::move(val));
+    s->line = line;
+    s->col  = nameTok.col; // fehlte, anders als bei jedem Nachbarn - jede
+                           // Meldung an dieser Anweisung landete in
+                           // Spalte 1 (aufgefallen bei BUG-74)
+    return s;
+  }
+
   // Das Ziel von Goto und Gosub, klein geschrieben. Die Referenz liest es mit
   // parseIdent() (compiler/parser.cpp): der Name steht ohne Punkt, der Punkt
   // gehoert nur zur Definition der Marke. "Goto .done" meldet sie am Punkt
@@ -339,59 +410,7 @@ private:
         std::unique_ptr<ExprNode> target = std::make_unique<VarExpr>(nameTok.value);
         target->line = nameTok.line;
         target->col  = nameTok.col;
-
-        // Das jeweils LETZTE Glied bleibt liegen: es wird zum
-        // Zuweisungsknoten, alles davor ist der Ausdruck links davon.
-        enum { NONE, FIELD, INDEX } last = NONE;
-        std::string lastField;
-        std::unique_ptr<ExprNode> lastIndex;
-        auto flush = [&]() {
-          if (last == FIELD)
-            target = std::make_unique<FieldAccess>(std::move(target), lastField);
-          else if (last == INDEX)
-            target = std::make_unique<VectorAccess>(std::move(target),
-                                                    std::move(lastIndex));
-          last = NONE;
-        };
-
-        for (;;) {
-          if (peek().type == TokenType::OPERATOR && peek().value == "\\") {
-            flush();
-            advance();
-            lastField =
-                expect(TokenType::ID, "Expected field name after \\").value;
-            parseOptionalTypeTag(); // "p\f#" - read and dropped (BUG-31)
-            last = FIELD;
-          } else if (peek().type == TokenType::OPERATOR && peek().value == "[") {
-            flush();
-            advance();
-            lastIndex = parseExpr();
-            if (peek().type == TokenType::OPERATOR && peek().value == ",")
-              error(peek().line, peek().col,
-                    "Blitz arrays are one-dimensional; expected ']'");
-            expect(TokenType::OPERATOR, "Expected ']'", "]");
-            last = INDEX;
-          } else {
-            break;
-          }
-        }
-
-        expect(TokenType::OPERATOR, "Expected '='", "=");
-        auto val = parseExpr();
-        if (last == INDEX) {
-          auto s = std::make_unique<VectorAssignStmt>(
-              std::move(target), std::move(lastIndex), std::move(val));
-          s->line = nameTok.line;
-          s->col  = nameTok.col;
-          return s;
-        }
-        auto s = std::make_unique<FieldAssignStmt>(std::move(target), lastField,
-                                                   std::move(val));
-        s->line = nameTok.line;
-        s->col  = nameTok.col; // fehlte, anders als bei jedem Nachbarn - jede
-                               // Meldung an dieser Anweisung landete in
-                               // Spalte 1 (aufgefallen bei BUG-74)
-        return s;
+        return parseChainAssign(std::move(target), nameTok);
       }
 
       // Array assignment: arr(i) = expr  or  grid(x,y) = expr
@@ -413,6 +432,17 @@ private:
               break;
           }
           expect(TokenType::OPERATOR, "Expected ')'", ")");
+          // "feld(i)\x = 1": parseVar() der Referenz liest die Kette auch
+          // hinter einem Arrayelement (BUG-52; vgl. BUG-40).
+          if (peek().type == TokenType::OPERATOR &&
+              (peek().value == "\\" || peek().value == "[")) {
+            auto acc      = std::make_unique<ArrayAccess>(nameTok.value);
+            acc->typeHint = stmt->typeHint;
+            acc->indices  = std::move(stmt->indices);
+            acc->line     = nameTok.line;
+            acc->col      = nameTok.col;
+            return parseChainAssign(std::move(acc), nameTok);
+          }
           expect(TokenType::OPERATOR, "Expected '='", "=");
           stmt->value = parseExpr();
           return stmt;
@@ -949,15 +979,15 @@ private:
 
     while (true) {
       Token nameTok = expect(TokenType::ID, "Expected array name");
-      std::string typeHint;
-      if (peek().type == TokenType::OPERATOR &&
-          (peek().value == "#" || peek().value == "%" ||
-           peek().value == "$"))
-        typeHint = advance().value;
+      // parseArrayDecl() der Referenz liest den vollen Tag mit
+      // parseTypeTag(), Objekttypen eingeschlossen: "Dim feld.Punkt(3)"
+      // (BUG-52).
+      std::string typeHint = parseTypeTag();
 
       expect(TokenType::OPERATOR, "Expected '('", "(");
       auto ds   = std::make_unique<DimStmt>(nameTok.value, typeHint);
       ds->line  = nameTok.line;
+      ds->col   = nameTok.col;
       while (true) {
         ds->dims.push_back(parseExpr());
         if (peek().type == TokenType::OPERATOR && peek().value == ",")
@@ -1315,49 +1345,8 @@ private:
       std::unique_ptr<ExprNode> target = std::make_unique<VarExpr>(nameTok.value);
       target->line = nameTok.line;
       target->col  = nameTok.col;
-
-      enum { NONE, FIELD, INDEX } last = NONE;
-      std::string lastField;
-      std::unique_ptr<ExprNode> lastIndex;
-      auto flush = [&]() {
-        if (last == FIELD)
-          target = std::make_unique<FieldAccess>(std::move(target), lastField);
-        else if (last == INDEX)
-          target = std::make_unique<VectorAccess>(std::move(target),
-                                                  std::move(lastIndex));
-        last = NONE;
-      };
-      for (;;) {
-        if (peek().type == TokenType::OPERATOR && peek().value == "\\") {
-          flush();
-          advance();
-          lastField = expect(TokenType::ID, "Expected field name after \\").value;
-          parseOptionalTypeTag();
-          last = FIELD;
-        } else if (peek().type == TokenType::OPERATOR && peek().value == "[") {
-          flush();
-          advance();
-          lastIndex = parseExpr();
-          if (peek().type == TokenType::OPERATOR && peek().value == ",")
-            error(peek().line, peek().col,
-                  "Blitz arrays are one-dimensional; expected ']'");
-          expect(TokenType::OPERATOR, "Expected ']'", "]");
-          last = INDEX;
-        } else {
-          break;
-        }
-      }
-      auto wert = std::make_unique<DataReadExpr>(typeHint);
-      if (last == INDEX) {
-        auto s = std::make_unique<VectorAssignStmt>(
-            std::move(target), std::move(lastIndex), std::move(wert));
-        s->line = ln; s->col = nameTok.col;
-        return s;
-      }
-      auto s = std::make_unique<FieldAssignStmt>(std::move(target), lastField,
-                                                 std::move(wert));
-      s->line = ln; s->col = nameTok.col;
-      return s;
+      return parseChainAssign(std::move(target), nameTok,
+                              std::make_unique<DataReadExpr>(typeHint), ln);
     }
 
     // Element eines mit Dim angelegten Arrays: "Read arr(1)".
@@ -1380,6 +1369,17 @@ private:
             break;
         }
         expect(TokenType::OPERATOR, "Expected ')'", ")");
+        // "Read feld(1)\x" (BUG-52).
+        if (peek().type == TokenType::OPERATOR &&
+            (peek().value == "\\" || peek().value == "[")) {
+          auto acc      = std::make_unique<ArrayAccess>(nameTok.value);
+          acc->typeHint = typeHint;
+          acc->indices  = std::move(stmt->indices);
+          acc->line     = nameTok.line;
+          acc->col      = nameTok.col;
+          return parseChainAssign(std::move(acc), nameTok,
+                                  std::make_unique<DataReadExpr>(typeHint), ln);
+        }
         return stmt;
       }
     }

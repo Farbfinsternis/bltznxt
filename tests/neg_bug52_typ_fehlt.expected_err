@@ -1,0 +1,1 @@
+tests/neg_bug52_typ_fehlt.bb:2:5: error: Type 'Nirgends' not found

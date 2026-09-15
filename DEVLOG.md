@@ -1,5 +1,40 @@
 # BlitzNext Developer Log
 
+## 2026-09-15 — Dim arrays of objects (BUG-52)
+
+`Dim feld.Punkt(3)` failed at `Expected '('`. In `compiler/parser.cpp`,
+`parseArrayDecl()` reads the tag with `parseTypeTag()`, which includes
+`.Ident`, and `parseVar()` reads the `\`/`[` chain after an array element just
+as after a variable.
+
+Reading the tag was one line. Three more things were missing behind it:
+
+- `feld(i)\x = 1` and `Read feld(i)\x` failed to parse. The statement parser
+  only knew the chain after a plain name, and had it copied twice. It is now
+  `parseChainAssign()`, shared by assignment and `Read`, and both Dim-element
+  branches call it when `\` or `[` follows the `)`.
+- `Delete feld(0)` compiled to `feld.at(0) = nullptr`: the emitter could not
+  tell the element's type, so the object stayed in its list and `For Each`
+  still counted it — a silent wrong result. The emitter now tracks
+  `dimObjectTypes_`, and `getExprTypeName()` answers for `ArrayAccess`, which
+  fixes `Delete`, `Insert`, `After` and `Before` on elements.
+- `Dim feld.Nirgends(3)` reported no unknown type. `semant.h` now checks it.
+
+Assignment, comparison and field checks on elements already went through
+`arrays_` and needed no change.
+
+Found on the way: a `For Each` variable reassigned after its loop is emitted
+as an int, and g++ fails. Filed as BUG-90.
+
+New tests: `test_bug52_dim_objekte` (rejected by the previous compiler at line
+13), `neg_bug52_falscher_typ`, `neg_bug52_typ_fehlt`.
+
+Validation: emitted C++ compared over 207 programs against `aa314ec`: 122
+byte-identical, 82 rejected by both with the same diagnostic, the three
+differences being the new tests. Full suite: 199 passed, 0 failed.
+
+---
+
 ## 2026-09-15 — Null has its own type (BUG-45)
 
 `parsePrimary()` turned `Null` into the integer literal 0, so the semantic pass

@@ -1,0 +1,8 @@
+leer: 1
+feld(2)\x = 20
+ueber Variable: 10
+nach Delete: 3
+after feld(1): 20
+erster nach Insert: 30
+gelesen: 99
+gitter(1,1)\x = 20

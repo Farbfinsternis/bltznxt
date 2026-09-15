@@ -1,0 +1,1 @@
+tests/neg_bug52_falscher_typ.bb:6:1: error: array assignment: cannot assign int to .Punkt
