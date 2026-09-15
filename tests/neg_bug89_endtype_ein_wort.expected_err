@@ -1,0 +1,1 @@
+tests/neg_bug89_endtype_ein_wort.bb:5:1: error: Expected 'Field' or 'End Type' - 'EndType' is not a keyword in Blitz3D - write 'End Type'

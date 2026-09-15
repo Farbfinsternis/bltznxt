@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <iostream>
 #include <memory>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -24,6 +25,8 @@ public:
     tooManyErrors_ = false;
     dimmedArrays.clear();
     nachschlag_.clear();
+    einWortEnde_.clear();
+    currentFunction_.clear();
     preScanDims(toks); // forward-reference fix: collect all Dim names first
     auto prog = std::make_unique<Program>();
 
@@ -372,6 +375,18 @@ private:
     // ---- identifier-led: assignment or command call ----
     if (t.type == TokenType::ID) {
       Token nameTok = advance();
+
+      // "EndType", "EndFunction", "EndSelect" allein auf der Zeile: in
+      // Blitz3D Bezeichner, kein Abschluss (BUG-89). Gelesen wird es wie
+      // dort als Aufruf; die Stelle wird gemerkt, damit die Meldung ueber den
+      // offenen Block sie nennen kann.
+      {
+        std::string lo = toLower(nameTok.value);
+        if ((lo == "endtype" || lo == "endfunction" || lo == "endselect") &&
+            (atEnd() || peek().type == TokenType::NEWLINE ||
+             (peek().type == TokenType::OPERATOR && peek().value == ":")))
+          einWortEnde_[lo] = nameTok;
+      }
 
       // Ein Bezeichner vor einem Doppelpunkt ist KEINE Sprungmarke (BUG-64).
       // Bis 2026-09-09 stand hier ein Zweig, der genau das annahm - damit
@@ -1054,7 +1069,8 @@ private:
     if (atEnd() && !tooManyErrors_) {
       Token t = peek();
       error(t.line, t.col,
-            "Expected 'Case', 'Default' or 'End Select' - 'Select' is not closed");
+            "Expected 'Case', 'Default' or 'End Select' - 'Select' is not closed" +
+                einWortHinweis("endselect", "End Select"));
     }
     return stmt;
   }
@@ -1257,7 +1273,8 @@ private:
       Token t = peek();
       error(t.line, t.col,
             "Expected 'End Function' - 'Function " + func->name +
-                "' is not closed");
+                "' is not closed" +
+                einWortHinweis("endfunction", "End Function"));
     }
     return func;
   }
@@ -1390,6 +1407,10 @@ private:
           bad.type == TokenType::EOF_TOKEN
               ? "Expected 'Field' or 'End Type' - 'Type " + td->name +
                     "' is not closed"
+          : bad.type == TokenType::ID && toLower(bad.value) == "endtype"
+              // BUG-89: in Blitz3D ein Bezeichner, kein Abschluss
+              ? "Expected 'Field' or 'End Type' - '" + bad.value +
+                    "' is not a keyword in Blitz3D - write 'End Type'"
               : "Expected 'Field' or 'End Type'");
     // Eine Meldung genuegt: bis zum End Type dieses Typs weiterlesen.
     while (!atEnd() && peekKw() != "ENDTYPE") advance();
@@ -1969,6 +1990,20 @@ private:
   // Name der Funktion, deren Rumpf gerade gelesen wird, sonst leer - fuer
   // die Meldung ueber ein fehlendes End Function (BUG-58).
   std::string currentFunction_;
+  // Zuletzt gesehenes "EndType"/"EndFunction"/"EndSelect" als Anweisung,
+  // nach kleingeschriebenem Wort (BUG-89).
+  std::unordered_map<std::string, Token> einWortEnde_;
+
+  // Hinweis fuer eine Meldung ueber einen offenen Block, wenn vorher die
+  // Ein-Wort-Form seines Abschlusses stand. `word` klein, `richtig` wie
+  // es heissen muss.
+  std::string einWortHinweis(const std::string &word, const char *richtig) {
+    auto it = einWortEnde_.find(word);
+    if (it == einWortEnde_.end()) return "";
+    const Token &t = it->second;
+    return " ('" + t.value + "' at " + map_->format(t.line, t.col) +
+           " is not a keyword in Blitz3D - write '" + richtig + "')";
+  }
 
   // Anweisungen, die beim Lesen der zuletzt geparsten zusaetzlich entstanden
   // sind. Bisher braucht das nur `Read a,b,c`: das ist im Original **drei**

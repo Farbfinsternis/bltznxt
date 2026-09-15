@@ -1,5 +1,31 @@
 # BlitzNext Developer Log
 
+## 2026-09-15 — EndType, EndFunction and EndSelect are not keywords (BUG-89)
+
+The keyword table in `compiler/toker.cpp` has `EndIf` and `ElseIf` as one
+word, but `End Type`, `End Function` and `End Select` only as two. In one word
+those three are identifiers there. Our `isKeyword()` listed them as aliases, so
+`Type V … EndType` was accepted.
+
+The aliases are removed. The two-word forms are still merged into `ENDTYPE`
+and friends by the step from BUG-57. The one-word forms now behave as in the
+reference: inside a Type body they are `Expected 'Field' or 'End Type'`, and
+elsewhere they parse as a call, so the open block is reported at end of file.
+To keep that from being a riddle, the message names the one-word form and
+where it stood: `('EndFunction' at file:4:1 is not a keyword in Blitz3D -
+write 'End Function')`. The names are now usable as variables, as in the
+original.
+
+New tests: `test_bug89_end_zweiwort` (rejected by the previous compiler),
+`neg_bug89_endtype_ein_wort`, `neg_bug89_endfunction_ein_wort`,
+`neg_bug89_endselect_ein_wort`.
+
+Validation: emitted C++ compared over 223 programs against `5323f62`: 126
+byte-identical, 93 rejected by both with the same diagnostic, the four
+differences being the new tests. Full suite: 215 passed, 0 failed.
+
+---
+
 ## 2026-09-15 — The For Each counter is an ordinary variable (BUG-90)
 
 `For q.P = Each P … Next` followed by `q = First P` passed the frontend and

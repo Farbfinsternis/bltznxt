@@ -1,0 +1,1 @@
+tests/neg_bug89_endselect_ein_wort.bb:5:1: error: Expected 'Case', 'Default' or 'End Select' - 'Select' is not closed ('EndSelect' at tests/neg_bug89_endselect_ein_wort.bb:4:1 is not a keyword in Blitz3D - write 'End Select')

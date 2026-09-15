@@ -1,0 +1,1 @@
+tests/neg_bug89_endfunction_ein_wort.bb:5:1: error: Expected 'End Function' - 'Function F' is not closed ('EndFunction' at tests/neg_bug89_endfunction_ein_wort.bb:4:1 is not a keyword in Blitz3D - write 'End Function')

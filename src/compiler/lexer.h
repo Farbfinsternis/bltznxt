@@ -301,20 +301,25 @@ private:
   }
 
   bool isKeyword(const std::string &val) {
+    // EndIf und ElseIf gibt es in einem Wort, EndType, EndFunction und
+    // EndSelect nicht: die Tabelle in compiler/toker.cpp fuehrt nur "End Type",
+    // "End Function" und "End Select". In einem Wort sind sie dort Bezeichner.
+    // Bis 2026-09-15 standen sie hier als Aliase (BUG-89). Die Zweiwortformen
+    // setzt der Zusammenfuehrungsschritt oben direkt als ENDTYPE usw.
     static const std::unordered_set<std::string> keywords = {
         // Control flow
         "IF",       "THEN",     "ELSE",     "ELSEIF",   "ENDIF",
-        "SELECT",      "ENDSELECT",                         // EndSelect alias
+        "SELECT",
         "CASE",        "DEFAULT",  "END",
         "REPEAT",   "UNTIL",    "FOREVER",
         "WHILE",    "WEND",
         "FOR",      "TO",       "STEP",     "NEXT",
         "EXIT",     "GOTO",     "GOSUB",    "RETURN",
         // Functions & scope
-        "FUNCTION", "ENDFUNCTION",                        // EndFunction alias
+        "FUNCTION",
         "CONST",    "GLOBAL",   "LOCAL",    "DIM",
         // Types
-        "TYPE",     "ENDTYPE",                            // EndType alias
+        "TYPE",
         "FIELD",    "NEW",      "DELETE",
         "EACH",     "FIRST",    "LAST",     "BEFORE",   "AFTER",
         "INSERT",
