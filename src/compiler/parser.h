@@ -1166,52 +1166,67 @@ private:
 
   // ------------------------------------------------------------------ TYPE
 
+  // Der Aufbau folgt parseStructDecl() in compiler/parser.cpp (BUG-43):
+  //
+  //   Type Name  {Zeilenende}  { Field decl {, decl} {Zeilenende} }  End Type
+  //
+  // Zwischen den Teilen ueberspringt die Referenz **nur Zeilenenden**, keinen
+  // Doppelpunkt, und alles andere als Field oder End Type ergibt
+  // "Expecting 'Field' or 'End Type'". Bis 2026-09-15 uebersprang dieser
+  // Parser auch ':' und jedes unbekannte Token: "Local y" oder "Print" im
+  // Rumpf verschwanden spurlos, ein fehlendes End Type fiel nicht auf, und
+  // ein blosses "End" schloss den Typ.
   std::unique_ptr<TypeDecl> parseTypeDecl() {
-    int ln = peek().line;
+    int ln = peek().line, cl = peek().col;
     advance(); // TYPE
     Token nameTok = expect(TokenType::ID, "Expected type name after Type");
-    auto td = std::make_unique<TypeDecl>(nameTok.value);
+    auto td  = std::make_unique<TypeDecl>(nameTok.value);
     td->line = ln;
+    td->col  = cl;
 
-    skipNewlines();
+    auto skipLineEnds = [this] {
+      while (peek().type == TokenType::NEWLINE) advance();
+    };
 
-    while (!atEnd()) {
-      std::string kw = peekKw();
-
-      if (kw == "END") {
-        advance(); // END
-        if (peekKw() == "TYPE") advance(); // TYPE
-        break;
-      }
-      if (kw == "ENDTYPE") {
-        advance();
-        break;
-      }
-      if (kw == "FIELD") {
-        advance(); // FIELD
-        // Parse comma-separated field declarations: name[hint], name[hint], ...
-        while (true) {
-          Token fieldTok = expect(TokenType::ID, "Expected field name after Field");
-          // Der volle Tag, Objekttypen eingeschlossen: bis hierher las
-          // die Schleife nur die drei skalaren und liess ein ".T" samt
-          // allem, was ihm folgte, stillschweigend liegen (BUG-60).
-          std::string hint = parseTypeTag();
-          TypeDecl::Field f;
-          f.name     = fieldTok.value;
-          f.typeHint = hint;
-          f.vecSize  = parseOptionalVecSize(); // "Field a[3]" (BUG-59)
-          td->fields.push_back(std::move(f));
-          if (peek().type == TokenType::OPERATOR && peek().value == ",")
-            advance();
-          else
-            break;
+    skipLineEnds();
+    while (peekKw() == "FIELD") {
+      do {
+        advance(); // FIELD bzw. ','
+        Token fieldTok = expect(TokenType::ID, "Expected field name after Field");
+        // Der volle Tag, Objekttypen eingeschlossen: bis hierher las
+        // die Schleife nur die drei skalaren und liess ein ".T" samt
+        // allem, was ihm folgte, stillschweigend liegen (BUG-60).
+        std::string hint = parseTypeTag();
+        TypeDecl::Field f;
+        f.name     = fieldTok.value;
+        f.typeHint = hint;
+        f.vecSize  = parseOptionalVecSize(); // "Field a[3]" (BUG-59)
+        // "Field x = 5" liest die Referenz mit parseVarDecl() wie jede
+        // Variable; ihr Code schreibt den Wert aber nicht in das Objekt.
+        // Gelesen wird der Ausdruck deshalb, verwendet nicht.
+        if (!f.vecSize && peek().type == TokenType::OPERATOR &&
+            peek().value == "=") {
+          advance();
+          parseExpr();
         }
-      } else {
-        // Unknown token in type body — skip to avoid infinite loop
-        advance();
-      }
-      skipNewlines();
+        td->fields.push_back(std::move(f));
+      } while (peek().type == TokenType::OPERATOR && peek().value == ",");
+      skipLineEnds();
     }
+
+    if (peekKw() == "ENDTYPE") {
+      advance();
+      return td;
+    }
+    Token bad = peek();
+    error(bad.line, bad.col,
+          bad.type == TokenType::EOF_TOKEN
+              ? "Expected 'Field' or 'End Type' - 'Type " + td->name +
+                    "' is not closed"
+              : "Expected 'Field' or 'End Type'");
+    // Eine Meldung genuegt: bis zum End Type dieses Typs weiterlesen.
+    while (!atEnd() && peekKw() != "ENDTYPE") advance();
+    if (!atEnd()) advance();
     return td;
   }
 

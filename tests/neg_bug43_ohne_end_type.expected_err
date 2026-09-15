@@ -1,0 +1,1 @@
+tests/neg_bug43_ohne_end_type.bb:4:1: error: Expected 'Field' or 'End Type' - 'Type Punkt' is not closed

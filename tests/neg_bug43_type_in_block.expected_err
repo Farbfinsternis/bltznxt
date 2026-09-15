@@ -1,0 +1,1 @@
+tests/neg_bug43_type_in_block.bb:3:3: error: 'Type' is only allowed at the top level of the main program, not inside a block and not inside a function - move the declaration of 'Punkt' there

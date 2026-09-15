@@ -32,7 +32,9 @@ b\n = 7
 Print a\n + b\n      ; -> 12
 
 ; --- Roadmap test: Delete ---
-Type Vec2 : Field x# : End Type
+Type Vec2           ; nicht als Einzeiler mit ':' (BUG-43)
+  Field x#
+End Type
 Local v2.Vec2 = New Vec2
 v2\x = 3.0
 Print v2\x           ; -> 3

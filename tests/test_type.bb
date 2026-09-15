@@ -10,8 +10,12 @@ Type Player
   Field speed#
 End Type
 
-; --- Single-line (colon-separated) form from the roadmap ---
-Type Vec2 : Field dx#, dy# : End Type
+; --- Kurzer Typ ---
+; Bis 2026-09-15 stand hier die Einzeilerform "Type Vec2 : Field dx#, dy# :
+; End Type" aus der Roadmap. Blitz3D lehnt sie am ersten ':' ab (BUG-43).
+Type Vec2
+  Field dx#, dy#
+End Type
 
 ; --- Multiple fields on one Field line ---
 Type Rect

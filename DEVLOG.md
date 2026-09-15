@@ -1,5 +1,38 @@
 # BlitzNext Developer Log
 
+## 2026-09-15 — The Type body reads like the reference (BUG-43)
+
+`Type Vec2 : Field dx#, dy# : End Type` is rejected at the first `:`, matching
+the original's `14:11`. In `compiler/parser.cpp`, `parseStructDecl()` skips
+only line ends between the name, the `Field` lines and `End Type`; anything
+else is `Expecting 'Field' or 'End Type'`.
+
+The colon was the smallest part. `parseTypeDecl()` skipped `:` along with line
+ends and **skipped any unknown token in the body**. Accepted before the fix:
+`Local y` or `Print` inside a Type (silently dropped), a Type with no
+`End Type` at end of file, a bare `End` closing the Type, `End  Type` with two
+spaces, and `Type` inside a function or an `If`.
+
+The parser now follows the reference's structure and reports one error, then
+reads on to that Type's `End Type`. At end of file the message adds
+`- 'Type X' is not closed`. `semant.h` reports `Type` outside the top level of
+the main program in the style of `Global` and `Const` (BUG-17); `TypeDecl` now
+carries its column. `Field x = 5` is still accepted, as in the reference, and
+the initializer is read and discarded.
+
+Found on the way: the reference has `EndIf` as one word, but not `EndType`,
+`EndFunction` or `EndSelect`. Our lexer accepts all three. Filed as BUG-89.
+
+`test_type` and `test_type_instances` now write the Type over several lines;
+emitted C++ unchanged. New tests: `test_bug43_type_body` and six
+`neg_bug43_*`.
+
+Validation: emitted C++ compared over 194 programs against `84caf47`: 121
+byte-identical, 67 rejected by both with the same diagnostic, the six
+differences being the new negative tests. Full suite: 186 passed, 0 failed.
+
+---
+
 ## 2026-09-15 — Jump targets without a dot, and duplicate labels (BUG-42)
 
 `Goto .done` and `Gosub .done` are no longer accepted. In the original

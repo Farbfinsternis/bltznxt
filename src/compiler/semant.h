@@ -665,8 +665,16 @@ private:
       expr(ins->target.get());
     } else if (auto *ce = dynamic_cast<CallExpr *>(n)) {
       expr(ce);
+    } else if (auto *td = dynamic_cast<TypeDecl *>(n)) {
+      // Dieselbe Regel wie Global und Const: "case TYPE: if( scope!=STMTS_PROG )
+      // ex( \"'Type' can only appear in main program\" )" (BUG-43).
+      if (blockDepth_ > 0 || inFunction_)
+        error(td->line, td->col,
+              "'Type' is only allowed at the top level of the main program, "
+              "not inside a block and not inside a function - move the "
+              "declaration of '" + td->name + "' there");
     }
-    // Label/Goto/Gosub/Data/Restore/Exit/End/TypeDecl — nothing to check here
+    // Label/Goto/Gosub/Data/Restore/Exit/End — nothing to check here
   }
 
   // ----------------------------------------------------------- expressions
