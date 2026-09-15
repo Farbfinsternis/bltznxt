@@ -17,9 +17,9 @@
 // Forward declarations of global camera fallback state (defined in bb_graphics3d.h).
 extern bool bb_cam_cls_color_;
 extern bool bb_cam_cls_zbuf_;
-extern int  bb_cam_cls_r_;
-extern int  bb_cam_cls_g_;
-extern int  bb_cam_cls_b_;
+extern float bb_cam_cls_r_;
+extern float bb_cam_cls_g_;
+extern float bb_cam_cls_b_;
 
 // ============================================================
 // Camera entity struct
@@ -37,7 +37,7 @@ struct bb_CameraEntity_ : bb_Entity_ {
   // Per-camera clear settings
   bool clsColor = true;
   bool clsZbuf  = true;
-  int  clsR = 0, clsG = 0, clsB = 0;
+  float clsR = 0, clsG = 0, clsB = 0; // 0..255 wie im Aufruf, Float wie im Original (BUG-62)
 
   // Matrices computed each frame in RenderWorld
   float view[16];
@@ -98,7 +98,10 @@ inline void bb_CameraClsMode(int h, int cls_color, int cls_zbuf) {
   }
 }
 
-inline void bb_CameraClsColor(int h, int r, int g, int b) {
+// Die Farbe ist im Original Float: "CameraClsColor%camera#red#green#blue",
+// bbCameraClsColor rechnet r*ctof (1/255). Bis BUG-62 stand hier int, und
+// ein "127.5" verlor still seinen Nachkommateil.
+inline void bb_CameraClsColor(int h, float r, float g, float b) {
   if (auto* c = bb_cam_(h)) {
     c->clsR = r; c->clsG = g; c->clsB = b;
   } else {

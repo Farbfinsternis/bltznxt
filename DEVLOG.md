@@ -1,5 +1,41 @@
 # BlitzNext Developer Log
 
+## 2026-09-15 — compare_commands.py compares parameter types (BUG-62)
+
+The tool compared arity, return type and the order of parameter names, but
+stripped the type suffixes before comparing. Since BUG-53 an argument converts
+silently to the type our table lists, so a `%` where the original has `#` drops
+the fraction without any message.
+
+First, the original is back: the Blitz3D installation moved to
+`F:\dev\Blitz3D`. `blitzcc +k` runs there and lists 536 commands.
+
+The tool now reads the types on both sides (the name suffix in the original,
+int when there is none; the type character in `commands.h`, "any" when there is
+none) and compares them position by position. Two new categories: type
+mismatch, and parameters we leave untyped. The first run found exactly the
+three cases the manual check had found, plus `Print` and `Write` as untyped.
+
+Those three are fixed in the runtime: `CameraClsColor` takes floats, as
+`bbCameraClsColor` does (`r*ctof`), and `ChannelPitch` and `SoundPitch` take an
+int pitch. After regenerating `commands.h` the tool reports no type
+mismatches.
+
+Regenerating turned up drift: `commands.h` was not the generated state.
+`CaseEq` and `ToNum` from BUG-79 would have become Blitz commands, and `ToInt`
+and `ToFloat` already were. All four are emitter helpers and are now in
+`gen_commands.py`'s skip list. `gen_commands.py --check` is clean.
+
+No runtime test: the 3D image cannot be read back by pixel (BUG-63), and pitch
+is not observable without an audio device.
+
+Validation: emitted C++ compared over 223 programs against `1de424e`: 123
+byte-identical, 96 rejected by both with the same diagnostic, 4 changed. Those
+four call the three commands, and only the argument conversion at the call
+differs. Full suite: 215 passed, 0 failed.
+
+---
+
 ## 2026-09-15 — EndType, EndFunction and EndSelect are not keywords (BUG-89)
 
 The keyword table in `compiler/toker.cpp` has `EndIf` and `ElseIf` as one

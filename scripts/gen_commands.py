@@ -30,7 +30,11 @@ PARAM_MAP = {"int": "%", "bool": "%", "float": "#", "double": "#",
 
 # Interne Helfer, die keine Blitz3D-Befehle sind. Alles mit abschliessendem
 # Unterstrich gilt ohnehin als intern.
-SKIP = {"Main", "IntegerContext"}
+# ToInt/ToFloat/ToNum/CaseEq sind die Umwandlungs- und Vergleichshelfer des
+# Emitters (BUG-53, BUG-79); ToInt und ToFloat standen bis BUG-62 faelschlich
+# als Befehle in der Tabelle, CaseEq und ToNum waeren beim naechsten Lauf
+# dazugekommen.
+SKIP = {"Main", "IntegerContext", "ToInt", "ToFloat", "ToNum", "CaseEq"}
 
 SIG_RE = re.compile(r"^inline\s+(void|int|float|double|bool|bbString)\s+"
                     r"bb_([A-Z][A-Za-z0-9_]*)\s*\(", re.MULTILINE)

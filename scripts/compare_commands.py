@@ -4,8 +4,8 @@
     blitzcc +k > keywords.txt          # aus der Blitz3D-Installation
     python scripts/compare_commands.py keywords.txt src/compiler/commands.h
 
-Verglichen werden Stelligkeit (min..max), Rueckgabetyp und die Reihenfolge der
-Parameter. Der letzte Punkt ist der wichtigste: Blitz3D kennt keine benannten
+Verglichen werden Stelligkeit (min..max), Rueckgabetyp, die Reihenfolge der
+Parameter und seit BUG-62 ihre Typen. Der letzte Punkt ist der wichtigste: Blitz3D kennt keine benannten
 Argumente, also ist eine vertauschte Reihenfolge ein stilles Falschergebnis und
 faellt sonst nirgends auf. So sind am 2026-09-07 JoyDown, JoyHit, ReadBytes und
 WriteBytes aufgefallen (BUG-44).
@@ -18,7 +18,10 @@ jedem Fall dieselbe Menge wie beim Original (README, "The Blitz3D Source as a
 Reference"). Der Bericht ist deshalb eine Fundliste, keine Fehlerliste:
 - "wir strenger" lehnt gueltige Blitz3D-Programme ab und ist immer ein Fehler;
 - "wir laxer" nimmt mehr an als die Sprache und ist eine Entscheidung;
-- "Reihenfolge" ist immer ein Fehler.
+- "Reihenfolge" ist immer ein Fehler;
+- "Parametertyp weicht ab" ist ein Fehler: das Argument wird still in den
+  falschen Typ gewandelt (`AmbientLight 30.5,0,0` war bei `%` 30);
+- "ohne Typ" nimmt jeden Wert ungewandelt an und ist eine Fundliste.
 """
 import io, re, sys
 
@@ -84,12 +87,30 @@ def names_ours(params):
     return [re.sub(r"[#$%?]+$", "", x.strip()).lower() for x in params.split(",") if x.strip()]
 
 
+def types_orig(src):
+    """Parametertypen des Originals: das Suffix am Namen, ohne Suffix int."""
+    p = src.partition("(")[2].rsplit(")", 1)[0] if "(" in src else src.partition(" ")[2]
+    p = p.replace("[", "").replace("]", "")
+    return [x.strip()[-1] if x.strip()[-1] in "#$%" else "%" for x in p.split(",") if x.strip()]
+
+
+def types_ours(params):
+    """Unsere Parametertypen; "" heisst beliebig (weder geprueft noch gewandelt)."""
+    out = []
+    for x in params.split(","):
+        x = x.strip().rstrip("?")
+        if x:
+            out.append(x[-1] if x[-1] in "#$%" else "")
+    return out
+
+
 def main():
     if len(sys.argv) < 3:
         print(__doc__)
         return 2
     orig, ours = parse_original(sys.argv[1]), parse_ours(sys.argv[2])
     strict, lax, mixed, rett, order, renamed = [], [], [], [], [], 0
+    ptype, untyped = [], []
 
     for k in sorted(ours):
         n, r, mn, mx, params = ours[k]
@@ -112,6 +133,19 @@ def main():
                 order.append("%-18s wir (%s)  orig (%s)" % (n, ",".join(a), ",".join(b)))
             else:
                 renamed += 1
+        # Typen je Position (BUG-62). Seit BUG-53 wandelt ein Argument still
+        # an der Parametergrenze in den Typ, den WIR fuehren - ein "%" gegen
+        # ein "#" des Originals schneidet also den Nachkommateil ab, ohne dass
+        # etwas meldet. Verglichen wird ueber die gemeinsamen Positionen, damit
+        # auch ein Befehl mit abweichender Stelligkeit nicht durchrutscht.
+        ta, tb = types_ours(params), types_orig(osrc)
+        bad = [i for i, (x, y) in enumerate(zip(ta, tb)) if x and x != y]
+        if bad:
+            ptype.append("%-18s wir (%s)  orig (%s)  | Position %s"
+                         % (n, params, ",".join(tb), ",".join(str(i + 1) for i in bad)))
+        free = [i for i, (x, y) in enumerate(zip(ta, tb)) if not x]
+        if free:
+            untyped.append("%-18s wir (%s)  orig (%s)" % (n, params, osrc))
 
     print("Original: %d Befehle, wir: %d" % (len(orig), len(ours)))
     _show("Parameter womoeglich vertauscht - jede Zeile von Hand pruefen", order)
@@ -119,6 +153,8 @@ def main():
     _show("Grenzen gemischt (Maximum zu klein oder Minimum zu gross)", mixed)
     _show("WIR LAXER - Erweiterung, lehnt nichts ab", lax)
     _show("Rueckgabetyp weicht ab", rett)
+    _show("PARAMETERTYP WEICHT AB - das Argument wird anders gewandelt", ptype)
+    _show("Parameter bei uns ohne Typ - weder geprueft noch gewandelt (Fundliste)", untyped)
     print("Nur andere Parameternamen (belanglos): %d" % renamed)
     return 0
 

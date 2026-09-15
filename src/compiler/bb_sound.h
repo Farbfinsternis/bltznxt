@@ -341,13 +341,15 @@ inline void bb_ChannelPan(int ch, float pan) {
 
 // Pitch: frequency in Hz.  Ratio = hz / original_src_freq.
 // SDL3 SDL_SetAudioStreamFrequencyRatio handles resampling transparently.
-inline void bb_ChannelPitch(int ch, float hz) {
+// Die Frequenz ist im Original int ("ChannelPitch channel,pitch"); ein Float
+// wandelt an der Aufrufgrenze wie bei jedem int-Parameter (BUG-62).
+inline void bb_ChannelPitch(int ch, int hz) {
   if (ch < 1 || ch >= BB_MAX_CHANNELS || !bb_snd_channels_[ch].stream) return;
   int snd = bb_snd_channels_[ch].snd_id;
   if (snd < 1 || snd >= BB_MAX_SOUNDS) return;
   float orig = (float)bb_snd_sounds_[snd].spec.freq;
   if (orig > 0.0f)
-    SDL_SetAudioStreamFrequencyRatio(bb_snd_channels_[ch].stream, hz / orig);
+    SDL_SetAudioStreamFrequencyRatio(bb_snd_channels_[ch].stream, (float)hz / orig);
 }
 
 // ---- Music (M36) ----
@@ -419,9 +421,10 @@ inline void bb_SoundPan(int snd, float pan) {
 }
 
 // Pitch in Hz; stored as default for future PlaySound/LoopSound calls.
-inline void bb_SoundPitch(int snd, float hz) {
+// int wie im Original ("SoundPitch sound,pitch", BUG-62).
+inline void bb_SoundPitch(int snd, int hz) {
   if (snd < 1 || snd >= BB_MAX_SOUNDS || !bb_snd_sounds_[snd].data) return;
-  bb_snd_sounds_[snd].pitch = hz;
+  bb_snd_sounds_[snd].pitch = (float)hz;
 }
 
 #endif // BLITZNEXT_BB_SOUND_H

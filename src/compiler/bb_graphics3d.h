@@ -15,9 +15,9 @@
 
 inline bool bb_cam_cls_color_ = true;
 inline bool bb_cam_cls_zbuf_  = true;
-inline int  bb_cam_cls_r_     = 0;
-inline int  bb_cam_cls_g_     = 0;
-inline int  bb_cam_cls_b_     = 0;
+inline float bb_cam_cls_r_    = 0;
+inline float bb_cam_cls_g_    = 0;
+inline float bb_cam_cls_b_    = 0;
 
 // Globales Umgebungslicht. **Vorgabe 127,127,127** laut Blitz3D-Doku
 // (help/commands/3d_commands/AmbientLight.htm) - eine Szene ohne AmbientLight
