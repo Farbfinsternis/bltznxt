@@ -1,5 +1,33 @@
 # BlitzNext Developer Log
 
+## 2026-09-15 — Not only at the start of an expression (BUG-41)
+
+`a And Not b` is no longer accepted, and neither is `Not Not a`. In the
+original `compiler/parser.cpp`, `parseExpr()` is the only place that checks for
+`NOT`, and it reads the operand with `parseExpr1( false )` — the And/Or level,
+not another `parseExpr()`. Anywhere else `Not` reaches `parsePrimary()` and
+fails with `Expecting expression`. It stays valid at the start of every
+expression, including parentheses and argument lists: `a And (Not b)`,
+`F(Not x)`.
+
+Our `parseNot()` between `parseLogical()` and `parseComparison()` accepted `Not`
+before every And/Or operand; a comment called that deliberately harmless. It is
+removed. A misplaced `Not` now reports
+`'Not' is only allowed at the start of an expression; put it in parentheses: (Not x)`
+and consumes its operand, so no second message follows. The position matches
+the original: the previous `test_bug2526_precedence.bb` is rejected at `11:13`,
+as measured against V11.8 on 2026-09-07.
+
+`test_bug2526_precedence` and `test_fixes` now put that `Not` in parentheses,
+with unchanged output. New negative tests: `neg_bug41_not_after_and`,
+`neg_bug41_not_not`.
+
+Validation: emitted C++ compared over 181 programs: 119 byte-identical, 60
+rejected by both with the same diagnostic, the two differences being the new
+negative tests. Full suite: 173 passed, 0 failed.
+
+---
+
 ## 2026-09-15 — Before and After bind like a sign (BUG-88)
 
 `Before` and `After` read a full expression as their operand, so

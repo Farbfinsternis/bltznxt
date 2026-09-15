@@ -1,0 +1,1 @@
+tests/neg_bug41_not_after_and.bb:3:10: error: 'Not' is only allowed at the start of an expression; put it in parentheses: (Not x)

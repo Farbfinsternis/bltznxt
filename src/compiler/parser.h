@@ -1404,9 +1404,10 @@ private:
 
   // Not binds loosest of all, as in Blitz3D: "Not a And b" is "Not (a And b)",
   // not "(Not a) And b". Blitz3D parses NOT only here, at the top of an
-  // expression; parseNot() below additionally accepts it in operand position
-  // ("a And Not b"), where Blitz3D would want parentheses — accepting more
-  // than the reference is harmless, misreading it is not.
+  // expression (parseExpr in compiler/parser.cpp), and its operand is
+  // parseExpr1 - the And/Or level, not another parseExpr. "a And Not b" and
+  // "Not Not a" are therefore errors there and here; "a And (Not b)" is the
+  // valid form (BUG-41).
   std::unique_ptr<ExprNode> parseExpr() {
     if (peek().type == TokenType::KEYWORD && peek().value == "NOT") {
       int ln = peek().line;
@@ -1419,13 +1420,13 @@ private:
   }
 
   std::unique_ptr<ExprNode> parseLogical() {
-    auto left = parseNot();
+    auto left = parseComparison();
     while (peek().type == TokenType::KEYWORD) {
       const std::string &op = peek().value;
       if (op == "AND" || op == "OR" || op == "XOR") {
         int ln = peek().line;
         advance();
-        auto right = parseNot();
+        auto right = parseComparison();
         auto be    = std::make_unique<BinaryExpr>(op, std::move(left),
                                                    std::move(right));
         be->line = ln;
@@ -1433,17 +1434,6 @@ private:
       } else break;
     }
     return left;
-  }
-
-  std::unique_ptr<ExprNode> parseNot() {
-    if (peek().type == TokenType::KEYWORD && peek().value == "NOT") {
-      int ln = peek().line;
-      advance();
-      auto ue  = std::make_unique<UnaryExpr>("NOT", parseComparison());
-      ue->line = ln;
-      return ue;
-    }
-    return parseComparison();
   }
 
   std::unique_ptr<ExprNode> parseComparison() {
@@ -1684,6 +1674,19 @@ private:
         le2->line = t.line;
         le2->col  = t.col;
         return le2;
+      }
+      // Not steht nur am Anfang eines Ausdrucks (parseExpr). Hierher kommt es
+      // nur mitten in einem - die Referenz meldet "Expecting expression" an
+      // dieser Stelle. Der Operand wird mitgelesen, damit keine zweite
+      // Meldung fuer ihn folgt (BUG-41).
+      if (t.value == "NOT") {
+        advance();
+        error(t.line, t.col,
+              "'Not' is only allowed at the start of an expression; "
+              "put it in parentheses: (Not x)");
+        auto ue  = std::make_unique<UnaryExpr>("NOT", parseComparison());
+        ue->line = t.line;
+        return ue;
       }
       // Before/After binden wie ein Vorzeichen: parseUniExpr() der Referenz
       // liest den Operanden mit parseUniExpr( false ), nicht als ganzen

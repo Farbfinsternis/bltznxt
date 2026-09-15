@@ -8,7 +8,7 @@ Print Not 0 And 0
 Print Not 1 Or 1
 Print Not (0 And 0)
 Print (Not 0) And 0
-Print 1 And Not 0
+Print 1 And (Not 0)  ; ohne Klammer lehnt Blitz3D es ab (BUG-41)
 
 ; BUG-26: Shl/Shr/Sar zwischen + - und * / Mod
 Print 1 Shl 2 * 3

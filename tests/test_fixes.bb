@@ -8,7 +8,7 @@ Print "x should be 15: " + Str(x%)
 ; --- Bug 2: AND / OR / NOT (logical operators) ---
 Local a% = 1
 Local b% = 0
-If a% And Not b% Then
+If a% And (Not b%) Then
     Print "AND/NOT: OK"
 EndIf
 
