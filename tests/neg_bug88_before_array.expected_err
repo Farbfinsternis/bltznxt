@@ -1,0 +1,1 @@
+tests/neg_bug88_before_array.bb:6:4: error: 'Before' must be used with a custom type object

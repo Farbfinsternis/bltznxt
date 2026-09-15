@@ -1,0 +1,1 @@
+tests/neg_bug88_after_number.bb:3:7: error: 'After' must be used with a custom type object

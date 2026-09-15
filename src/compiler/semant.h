@@ -452,6 +452,21 @@ private:
       error(e->line, e->col, "Illegal type conversion");
   }
 
+  // Before/After: AfterNode::semant und BeforeNode::semant
+  // (compiler/exprnode.cpp) verlangen einen Objekttyp und liefern ihn
+  // unveraendert zurueck. Die eigene Null-Meldung des Originals ("'After'
+  // cannot be used on 'Null'") ist hier nicht erreichbar, solange Null ein
+  // Integer-Literal ist (BUG-45) - Null faellt deshalb unter die allgemeine.
+  Ty neighbour(const char *what, ExprNode *object, int line, int col) {
+    Ty t = expr(object);
+    if (t.known() && (t.vec || t.k != Ty::OBJ)) {
+      error(line, col, std::string("'") + what +
+                           "' must be used with a custom type object");
+      return Ty();
+    }
+    return t;
+  }
+
   // ------------------------------------------------------------ statements
   void stmt(ASTNode *n) {
     if (!n) return;
@@ -709,8 +724,10 @@ private:
       knownType(le2->typeName, le2->line, le2->col);
       return mk(Ty::OBJ, le2->typeName);
     }
-    if (auto *be = dynamic_cast<BeforeExpr *>(e)) return expr(be->object.get());
-    if (auto *ae = dynamic_cast<AfterExpr *>(e))  return expr(ae->object.get());
+    if (auto *be = dynamic_cast<BeforeExpr *>(e))
+      return neighbour("Before", be->object.get(), be->line, be->col);
+    if (auto *ae = dynamic_cast<AfterExpr *>(e))
+      return neighbour("After", ae->object.get(), ae->line, ae->col);
     if (auto *ce = dynamic_cast<CallExpr *>(e))   return call(ce);
     if (auto *ue = dynamic_cast<UnaryExpr *>(e)) {
       Ty t = expr(ue->expr.get());

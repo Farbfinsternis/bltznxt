@@ -1,5 +1,33 @@
 # BlitzNext Developer Log
 
+## 2026-09-15 — Before and After bind like a sign (BUG-88)
+
+`Before` and `After` read a full expression as their operand, so
+`If After p = Null` became `After (p = Null)`: the front end accepted it and g++
+failed on `(p == 0)->__next__`. In the original `compiler/parser.cpp` both are
+cases of `parseUniExpr()` and read their operand with `parseUniExpr( false )`.
+The parser now uses `parseUnary()` there, and both nodes carry their column.
+
+The semantic pass also lacked the operand check. Following
+`AfterNode::semant`/`BeforeNode::semant` in `compiler/exprnode.cpp`, a known
+non-object type or a whole fixed array now reports
+`'After' must be used with a custom type object` at the keyword. The original's
+separate message for `Null` is not reachable while `Null` is an integer literal
+(BUG-45); `After Null` is rejected with the general message.
+
+New tests: `test_bug88_before_after` (15 output lines: comparisons, `And`,
+nesting, forward and backward list loops; the previous compiler fails on it in
+g++), `neg_bug88_after_number`, `neg_bug88_before_array`.
+
+Validation: emitted C++ of the old and new compiler compared over 179
+programs: 118 byte-identical (including `test_m16_iteration`, which uses
+`Before`/`After` throughout), 58 rejected by both with the same diagnostic, the
+three differences being the new tests. Full suite: 171 passed, 0 failed.
+Messages and positions come from the reference source; no run against the
+original was possible.
+
+---
+
 ## 2026-09-15 — Field access only after a variable (BUG-40)
 
 `(First Node)\val` and `F()\val` are no longer accepted. In the original

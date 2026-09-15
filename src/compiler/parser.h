@@ -1685,18 +1685,23 @@ private:
         le2->col  = t.col;
         return le2;
       }
+      // Before/After binden wie ein Vorzeichen: parseUniExpr() der Referenz
+      // liest den Operanden mit parseUniExpr( false ), nicht als ganzen
+      // Ausdruck. "After p = Null" ist (After p) = Null (BUG-88).
       if (t.value == "BEFORE") {
         advance();
-        auto obj = parseExpr();
+        auto obj = parseUnary();
         auto be2 = std::make_unique<BeforeExpr>(std::move(obj));
         be2->line = t.line;
+        be2->col  = t.col;
         return be2;
       }
       if (t.value == "AFTER") {
         advance();
-        auto obj = parseExpr();
+        auto obj = parseUnary();
         auto ae  = std::make_unique<AfterExpr>(std::move(obj));
         ae->line = t.line;
+        ae->col  = t.col;
         return ae;
       }
     }
