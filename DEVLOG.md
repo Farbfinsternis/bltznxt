@@ -1,5 +1,35 @@
 # BlitzNext Developer Log
 
+## 2026-09-15 — Field access only after a variable (BUG-40)
+
+`(First Node)\val` and `F()\val` are no longer accepted. In the original
+`compiler/parser.cpp`, the `\` and `[` postfix loop lives only in `parseVar()`,
+which `parsePrimary()` reaches solely from an identifier that is not a function
+call. After a parenthesised expression, a call, `First`/`Last`/`New` or a
+literal, the `\` is left over and the statement ends there. `parsePostfix()`
+now enters its loop only for a `VarExpr` or `ArrayAccess`.
+
+The diagnostic keeps our parser wording (`unexpected token '\'`); its position
+matches the original: the previous `test_bug09_paren_expr.bb` is now rejected
+at `28:19`, the exact spot measured against V11.8 on 2026-09-07.
+
+Three tests used the form as expected behaviour (`test_bug09_paren_expr`,
+`test_bug12_case_insensitive`, `test_m16_iteration`). They were rewritten to
+valid Blitz3D with unchanged output. Two negative tests were added.
+
+Validation: emitted C++ of the old and new compiler compared over all 176
+programs in `tests/` and `examples/`: 118 byte-identical, 56 rejected by both
+with the same diagnostic, the only two differences being the new negative
+tests. Full suite: 168 passed, 0 failed; `test_m16_iteration` (compile-only)
+was run by hand and still prints 30 and 10. A run against the original was not
+possible, as `G:\dev\Blitz3D` no longer exists after the move to `F:`.
+
+Side finding, not fixed: `Before`/`After` parse a full expression instead of a
+unary operand, so `If After p = Null` becomes `After (p = Null)` and fails only
+in g++ (BUG-88).
+
+---
+
 ## 2026-09-14 — Integer conversions in conditions and array indices (BUG-61)
 
 Conditions (`If`/`ElseIf`, `While`, `Until`), array indices (dynamic arrays and

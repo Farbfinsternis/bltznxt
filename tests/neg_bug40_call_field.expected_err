@@ -1,0 +1,1 @@
+tests/neg_bug40_call_field.bb:8:12: error: unexpected token '\'

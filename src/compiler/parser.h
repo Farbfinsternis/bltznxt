@@ -1591,8 +1591,15 @@ private:
   // beliebig gemischt - genau die Schleife aus parseVar() der Referenz,
   // die dort "case '\'" und "case '['" nebeneinander behandelt. Damit
   // liest sich "k\kind[0]\wert" in einem Zug (BUG-59).
+  // parseVar() erreicht die Referenz aber nur ueber einen Bezeichner oder
+  // ein Arrayelement (parser.cpp, Zweig IDENT in parsePrimary). Nach einer
+  // Klammer, einem Aufruf, First/Last/New oder einem Literal bleibt das
+  // "\" liegen und die Anweisung endet dort (BUG-40).
   std::unique_ptr<ExprNode> parsePostfix() {
     auto left = parsePrimary();
+    if (!dynamic_cast<VarExpr *>(left.get()) &&
+        !dynamic_cast<ArrayAccess *>(left.get()))
+      return left;
     for (;;) {
       if (peek().type == TokenType::OPERATOR && peek().value == "\\") {
         int ln = peek().line;

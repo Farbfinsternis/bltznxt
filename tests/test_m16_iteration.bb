@@ -65,7 +65,8 @@ Next
 
 ; ----- Test: First/Last after delete -----
 Print "=== First/Last after delete ==="
-Print (First Node)\val  ; 30
-Print (Last Node)\val   ; 10
+; Blitz3D kennt kein (First Node)\val - der Feldzugriff braucht eine Variable (BUG-40)
+f = First Node : Print f\val  ; 30
+l = Last Node : Print l\val   ; 10
 
 Print "DONE"

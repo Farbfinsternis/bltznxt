@@ -44,7 +44,7 @@ For P.ENEMY = Each ENEMY
   Print p\health
 Next
 Delete A
-Print (First ENEMY)\Health
+B = First ENEMY : Print b\Health
 
 ; Arrays und Schleifenvariablen
 Dim Board%(3)

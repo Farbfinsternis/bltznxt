@@ -24,10 +24,10 @@ Print (x + 1) Mod 3
 Print (x > 1) And (x < 10)
 Print (s + "c") + "d"
 
-; Feldzugriff auf geklammerten Ausdruck
-Print (First Node)\val
-Print (Last Node)\val
-Print (First Node)\val + (Last Node)\val
+; Feldzugriff in der Klammer - hinter der Klammer nimmt Blitz3D ihn nicht an (BUG-40)
+Print (a\val)
+Print (b\val)
+Print (a\val) + (b\val)
 
 ; Echte Argumentlisten bleiben unberuehrt
 Print Add(2, 3)

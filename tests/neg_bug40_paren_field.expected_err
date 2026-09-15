@@ -1,0 +1,1 @@
+tests/neg_bug40_paren_field.bb:6:19: error: unexpected token '\'
