@@ -1,0 +1,1 @@
+tests/neg_bug58_fremder_abschluss.bb:4:3: error: 'Next' without 'For'

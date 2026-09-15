@@ -33,6 +33,8 @@ public:
       // Function declarations are lifted to top-level
       if (peekKw() == "FUNCTION") {
         prog->nodes.push_back(parseFunctionDecl());
+      } else if (isCloser(peekKw())) {
+        strayCloser(); // "Wend" ohne "While" usw. (BUG-58)
       } else {
         parseStatementInto(prog->nodes);
       }
@@ -320,20 +322,30 @@ private:
       if (kw == "END") {
         int ln = t.line;
         advance();
-        // "End Function" / "End If" / "End Select" are block terminators,
-        // handled by parseBlock callers. A bare "End" terminates the program.
-        std::string nk = peekKw();
-        if (nk == "FUNCTION" || nk == "IF" || nk == "SELECT" || nk == "TYPE") {
-          advance(); // consume the secondary keyword
-          return nullptr;
-        }
+        // "End Function", "End If", ... kommen als ein Token (ENDFUNCTION
+        // usw.), der Lexer fasst sie bei genau einem Leerzeichen zusammen
+        // (BUG-57). Ein END hier ist immer das Programmende. Bis 2026-09-15
+        // schluckte dieser Zweig ein folgendes Function/If/Select/Type still
+        // mit - "End  If" mit zwei Leerzeichen verschwand (BUG-58).
         auto s = std::make_unique<EndStmt>();
         s->line = ln;
         return s;
       }
 
-      // Unknown keyword as statement — skip to avoid infinite loop
-      advance();
+      if (isCloser(kw)) {
+        strayCloser();
+        return nullptr;
+      }
+      // Ein Schluesselwort, das keine Anweisung beginnt (Then, To, Field,
+      // New, True, ...). Die Referenz endet dort die Anweisungsfolge und
+      // meldet "Expecting end-of-file" bzw. den Abschluss des Blocks; hier
+      // wurde es bis 2026-09-15 still uebersprungen (BUG-58).
+      // Eine Meldung genuegt: der Rest der Anweisung wird uebergangen.
+      error(t.line, t.col, "'" + t.value.substr(0, 1) + toLower(t.value.substr(1)) +
+                               "' cannot start a statement");
+      while (!atEnd() && peek().type != TokenType::NEWLINE &&
+             !(peek().type == TokenType::OPERATOR && peek().value == ":"))
+        advance();
       return nullptr;
     }
 
@@ -529,7 +541,78 @@ private:
     return nullptr;
   }
 
-  // Parses statements until one of the terminator keywords is seen (not consumed).
+  // Ein Schluesselwort, das einen Block schliesst oder teilt und deshalb
+  // keine Anweisung beginnen kann.
+  static bool isCloser(const std::string &kw) {
+    return kw == "ENDIF" || kw == "ELSE" || kw == "ELSEIF" || kw == "WEND" ||
+           kw == "NEXT" || kw == "UNTIL" || kw == "FOREVER" || kw == "CASE" ||
+           kw == "DEFAULT" || kw == "ENDSELECT" || kw == "ENDFUNCTION" ||
+           kw == "ENDTYPE";
+  }
+
+  // Ein Abschluss, zu dem kein Block offen ist (BUG-58). In der Referenz
+  // endet parseStmtSeq() an jedem Token, das keine Anweisung beginnt, und der
+  // umgebende Block bzw. parse() ruft exp() - das prueft ZUERST das
+  // vorgefundene Token: "'Wend' without 'While'", "'Endif' without 'If'" usw.
+  // Deshalb lautet die Meldung gleich, ob der Abschluss ganz oben steht oder in
+  // einem fremden Block. Bis 2026-09-15 wurden diese Tokens still verworfen.
+  //
+  // Gemeldet und verbraucht; Until und Case nehmen ihren Ausdruck mit, damit
+  // keine Folgemeldung dafuer entsteht.
+  void strayCloser() {
+    Token t = peek();
+    static const std::pair<const char *, const char *> kNames[] = {
+        {"ENDIF", "'EndIf' without 'If'"},
+        {"ELSE", "'Else' without 'If'"},
+        {"ELSEIF", "'ElseIf' without 'If'"},
+        {"WEND", "'Wend' without 'While'"},
+        {"NEXT", "'Next' without 'For'"},
+        {"UNTIL", "'Until' without 'Repeat'"},
+        {"FOREVER", "'Forever' without 'Repeat'"},
+        {"CASE", "'Case' without 'Select'"},
+        {"DEFAULT", "'Default' without 'Select'"},
+        {"ENDSELECT", "'End Select' without 'Select'"},
+        {"ENDFUNCTION", "'End Function' without 'Function'"},
+        {"ENDTYPE", "'End Type' without 'Type'"},
+    };
+    for (auto &n : kNames)
+      if (t.value == n.first) error(t.line, t.col, n.second);
+    advance();
+    if (t.value == "UNTIL" || t.value == "ELSEIF") parseExpr();
+    if (t.value == "CASE") {
+      parseExpr();
+      while (peek().type == TokenType::OPERATOR && peek().value == ",") {
+        advance();
+        parseExpr();
+      }
+    }
+  }
+
+  // "Function" mitten in einem Block: "'Function' can only appear in main
+  // program" (parseStmtSeq, case FUNCTION). Meist fehlt das End Function der
+  // Funktion davor - dann sagt die Meldung das. Das Token bleibt liegen; die
+  // oberste Ebene liest die Funktion danach ganz normal.
+  void functionInBlock() {
+    Token t = peek();
+    if (!currentFunction_.empty())
+      error(t.line, t.col,
+            "'Function' can only appear in main program - 'End Function' "
+            "is missing for '" + currentFunction_ + "'");
+    else
+      error(t.line, t.col, "'Function' can only appear in main program");
+  }
+
+  // Den Abschluss eines Blocks verlangen. Steht dort "Function", ist das
+  // schon gemeldet (functionInBlock) - keine zweite Meldung, und das Token
+  // bleibt fuer die oberste Ebene liegen.
+  void closeBlock(const char *kw, const char *msg) {
+    if (peekKw() == "FUNCTION") return;
+    expect(TokenType::KEYWORD, msg, kw);
+  }
+
+  // Parses statements until one of the terminator keywords is seen (not
+  // consumed). Every other block closer is reported as stray and skipped
+  // (BUG-58); a Function ends the block after its own message.
   std::vector<std::unique_ptr<ASTNode>>
   parseBlock(std::initializer_list<const char *> terminators) {
     std::vector<std::unique_ptr<ASTNode>> block;
@@ -538,14 +621,18 @@ private:
       if (atEnd()) break;
 
       if (peek().type == TokenType::KEYWORD) {
-        const std::string &kw = peek().value;
+        const std::string kw = peek().value;
         for (const char *term : terminators)
           if (kw == term) return block; // leave terminator for caller
+        if (isCloser(kw)) {
+          strayCloser();
+          continue;
+        }
+        if (kw == "FUNCTION") {
+          functionInBlock();
+          break;
+        }
       }
-
-      // Never descend into a nested FUNCTION declaration from a block
-      if (peek().type == TokenType::KEYWORD && peek().value == "FUNCTION")
-        break;
 
       parseStatementInto(block);
     }
@@ -633,10 +720,14 @@ private:
       // "If a=1 EndIf" and "If a=1 Print "x" EndIf" are rejected (measured).
       // Without this the leftover token would be skipped and the program would
       // be accepted.
-      if (!atEnd() && peek().type != TokenType::NEWLINE)
+      if (!atEnd() && peek().type != TokenType::NEWLINE) {
         error(peek().line, peek().col,
               "Expected end of line after a single-line If (got '" +
                   peek().value + "')");
+        // Den Rest der Zeile uebergehen - sonst meldete die Anweisungsschleife
+        // ein "EndIf" dort ein zweites Mal als verwaist (BUG-58).
+        while (!atEnd() && peek().type != TokenType::NEWLINE) advance();
+      }
       return stmt;
     }
 
@@ -652,9 +743,9 @@ private:
     } else if (kw == "ELSE") {
       advance(); // consume ELSE
       stmt->elseBlock = parseBlock({"ENDIF"});
-      expect(TokenType::KEYWORD, "Expected ENDIF", "ENDIF");
+      closeBlock("ENDIF", "Expected ENDIF");
     } else {
-      expect(TokenType::KEYWORD, "Expected ENDIF", "ENDIF");
+      closeBlock("ENDIF", "Expected ENDIF");
     }
 
     return stmt;
@@ -669,7 +760,7 @@ private:
     auto stmt = std::make_unique<WhileStmt>(std::move(cond));
     stmt->line  = ln;
     stmt->block = parseBlock({"WEND"});
-    expect(TokenType::KEYWORD, "Expected WEND", "WEND");
+    closeBlock("WEND", "Expected WEND");
     return stmt;
   }
 
@@ -689,7 +780,7 @@ private:
     } else if (kw == "FOREVER") {
       advance();
       stmt->condition = nullptr;
-    } else {
+    } else if (kw != "FUNCTION") { // das meldet functionInBlock()
       Token t = peek();
       error(t.line, t.col, "expected UNTIL or FOREVER");
     }
@@ -857,7 +948,7 @@ private:
       each->line = ln;
       each->col  = nameTok.col;
       each->block = parseBlock({"NEXT"});
-      expect(TokenType::KEYWORD, "Expected NEXT", "NEXT");
+      closeBlock("NEXT", "Expected NEXT");
       return each;
     }
 
@@ -882,7 +973,7 @@ private:
     stmt->target   = std::move(target);
     stmt->line  = ln;
     stmt->block = parseBlock({"NEXT"});
-    expect(TokenType::KEYWORD, "Expected NEXT", "NEXT");
+    closeBlock("NEXT", "Expected NEXT");
     return stmt;
   }
 
@@ -896,8 +987,15 @@ private:
     stmt->line = ln;
     stmt->col  = co;
 
+    // Aufbau wie in parseStmtSeq(), case SELECT: Case-Bloecke, hoechstens ein
+    // Default als letzter Teil, dann End Select. Alles andere ist
+    // "Expecting 'Case', 'Default' or 'End Select'". Bis 2026-09-15 wurde ein
+    // fremdes Token hier still uebersprungen ("Print" vor dem ersten Case),
+    // ein Case nach Default angenommen, und ein blosses "End" in einem Case
+    // beendete das Select statt des Programms (BUG-58).
     while (!atEnd()) {
       skipNewlines();
+      if (atEnd()) break;
       std::string kw = peekKw();
 
       if (kw == "CASE") {
@@ -910,23 +1008,53 @@ private:
           else
             break;
         }
-        c.block = parseBlock({"CASE", "DEFAULT", "END", "ENDSELECT"});
+        c.block = parseBlock({"CASE", "DEFAULT", "ENDSELECT"});
         stmt->cases.push_back(std::move(c));
 
       } else if (kw == "DEFAULT") {
         advance();
-        stmt->defaultBlock = parseBlock({"CASE", "END", "ENDSELECT"});
-
-      } else if (kw == "END") {
-        advance();
-        if (peekKw() == "SELECT") advance();
-        break;
+        stmt->defaultBlock = parseBlock({"ENDSELECT", "CASE", "DEFAULT"});
+        // Nach Default verlangt die Referenz End Select; ihr exp() nennt ein
+        // Case dort "'Case' without 'Select'", was bei offenem Select in die
+        // falsche Richtung zeigt. Gemeldet wird deshalb die Reihenfolge; der
+        // Teil wird zur Wiederaufnahme gelesen und verworfen.
+        while (peekKw() == "CASE" || peekKw() == "DEFAULT") {
+          Token t = peek();
+          error(t.line, t.col, "'" + std::string(t.value == "CASE" ? "Case" : "Default") +
+                                   "' cannot follow 'Default' - 'Default' must "
+                                   "be the last part of a Select");
+          advance();
+          if (t.value == "CASE") {
+            parseExpr();
+            while (peek().type == TokenType::OPERATOR && peek().value == ",") {
+              advance();
+              parseExpr();
+            }
+          }
+          parseBlock({"ENDSELECT", "CASE", "DEFAULT"});
+        }
+        closeBlock("ENDSELECT", "Expected 'End Select' after the Default block");
+        return stmt;
       } else if (kw == "ENDSELECT") {
         advance();
-        break;
+        return stmt;
+      } else if (kw == "FUNCTION") {
+        functionInBlock();
+        return stmt;
       } else {
-        advance(); // skip unexpected
+        Token t = peek();
+        error(t.line, t.col, "Expected 'Case', 'Default' or 'End Select'");
+        // Eine Meldung genuegt: die Anweisung lesen und verwerfen.
+        std::vector<std::unique_ptr<ASTNode>> verworfen;
+        size_t before = pos;
+        parseStatementInto(verworfen);
+        if (pos == before) advance();
       }
+    }
+    if (atEnd() && !tooManyErrors_) {
+      Token t = peek();
+      error(t.line, t.col,
+            "Expected 'Case', 'Default' or 'End Select' - 'Select' is not closed");
     }
     return stmt;
   }
@@ -1113,14 +1241,23 @@ private:
       expect(TokenType::OPERATOR, "Expected ')'", ")");
     }
 
-    func->body = parseBlock({"END", "ENDFUNCTION"});
+    // Nur End Function schliesst den Rumpf. Bis 2026-09-15 stand hier auch
+    // END - ein blosses "End" (Programmende) beendete damit die FUNKTION, und
+    // der Rest ihres Rumpfs lief als Hauptprogramm weiter: ein stilles
+    // Falschergebnis. Und ohne End Function wurde der Rest der Datei still
+    // Teil der Funktion (BUG-58).
+    std::string outer = currentFunction_;
+    currentFunction_  = func->name;
+    func->body        = parseBlock({"ENDFUNCTION"});
+    currentFunction_  = outer;
 
-    std::string kw = peekKw();
-    if (kw == "END") {
+    if (peekKw() == "ENDFUNCTION") {
       advance();
-      if (peekKw() == "FUNCTION") advance();
-    } else if (kw == "ENDFUNCTION") {
-      advance();
+    } else if (peekKw() != "FUNCTION") { // das meldet functionInBlock()
+      Token t = peek();
+      error(t.line, t.col,
+            "Expected 'End Function' - 'Function " + func->name +
+                "' is not closed");
     }
     return func;
   }
@@ -1190,7 +1327,7 @@ private:
     s->line  = ln;
     s->col   = nameTok.col;
     s->block = parseBlock({"NEXT"});
-    expect(TokenType::KEYWORD, "Expected NEXT", "NEXT");
+    closeBlock("NEXT", "Expected NEXT");
     return s;
   }
 
@@ -1829,6 +1966,9 @@ private:
   int                             errorCount;
   bool                            tooManyErrors_;
   std::unordered_set<std::string> dimmedArrays; // lowercase names of Dim'd arrays
+  // Name der Funktion, deren Rumpf gerade gelesen wird, sonst leer - fuer
+  // die Meldung ueber ein fehlendes End Function (BUG-58).
+  std::string currentFunction_;
 
   // Anweisungen, die beim Lesen der zuletzt geparsten zusaetzlich entstanden
   // sind. Bisher braucht das nur `Read a,b,c`: das ist im Original **drei**

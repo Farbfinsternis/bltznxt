@@ -1,0 +1,1 @@
+tests/neg_bug58_select_fremd.bb:3:3: error: Expected 'Case', 'Default' or 'End Select'

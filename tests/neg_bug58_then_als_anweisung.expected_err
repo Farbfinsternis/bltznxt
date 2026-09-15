@@ -1,0 +1,1 @@
+tests/neg_bug58_then_als_anweisung.bb:2:1: error: 'Then' cannot start a statement

@@ -1,0 +1,1 @@
+tests/neg_bug58_function_in_function.bb:6:1: error: 'Function' can only appear in main program - 'End Function' is missing for 'A'

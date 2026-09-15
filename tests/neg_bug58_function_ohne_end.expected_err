@@ -1,0 +1,1 @@
+tests/neg_bug58_function_ohne_end.bb:6:1: error: Expected 'End Function' - 'Function F' is not closed

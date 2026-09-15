@@ -1,5 +1,48 @@
 # BlitzNext Developer Log
 
+## 2026-09-15 — Stray and missing block closers (BUG-58)
+
+The entry listed four accepted programs: `EndIf` without `If`, `Wend` without
+`While`, an extra `EndIf`, and a function without `End Function`. Measuring
+around them found much more:
+
+- every stray closer was dropped silently: `EndIf`, `Wend`, `Next`, `Else`,
+  `Forever`, `Default`, `End Select`, `End Function`, `End Type`, including
+  inside a different block;
+- without `End Function` the rest of the file became part of the function;
+- inside `Select`, a statement before the first `Case` vanished, and a `Case`
+  after `Default` was accepted;
+- any other keyword at the start of a statement (`Then`, `Field`, `Pi`) was
+  skipped;
+- **silent wrong result:** the function body and the Case block counted a bare
+  `End` as their closer. `End` inside a function ended the *function*, and the
+  rest of its body ran as main program. Behind that, the emitter wrote `End` as
+  `bbEnd(); return 0;`, which inside a function only returns.
+
+In `compiler/parser.cpp`, `parseStmtSeq()` stops at any token that cannot
+start a statement, and the caller demands its closer through `exp()`. `exp()`
+checks the token it finds first, so a stray `Next` is `'Next' without 'For'`
+wherever it stands.
+
+The parser now does the same. `strayCloser()` reports the twelve closers in
+the reference's wording and consumes them, from `parseBlock()`, the top level
+and `parseStatement()`. `Function` inside a block is reported once, with a hint
+when `End Function` is missing. The function body ends only at
+`End Function`. `parseSelect()` follows the reference's structure, and `End`
+is always the program end. The emitter writes `End` inside a function as
+`bbEnd(); std::exit(0);`.
+
+New tests: `test_bug58_bloecke` (built with the previous compiler it prints
+both `FEHLER` lines) and eight `neg_bug58_*`. `neg_bug35_assign_pi` now reports
+one error at `Pi` instead of two follow-ups.
+
+Validation: emitted C++ compared over 218 programs against `7eea23b`: 124
+byte-identical, 84 rejected by both with the same diagnostic, the ten
+differences being the nine new tests and the changed `neg_bug35_assign_pi`
+message. No existing valid program changes. Full suite: 210 passed, 0 failed.
+
+---
+
 ## 2026-09-15 — And, Or and the shifts convert to int (BUG-54)
 
 `If q$ <> "yes" Or "no" Then` was rejected with

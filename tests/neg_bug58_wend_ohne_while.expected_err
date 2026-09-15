@@ -1,0 +1,1 @@
+tests/neg_bug58_wend_ohne_while.bb:3:1: error: 'Wend' without 'While'

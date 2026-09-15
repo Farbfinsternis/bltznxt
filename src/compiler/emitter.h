@@ -1039,7 +1039,13 @@ public:
   }
 
   void visit(EndStmt *node) override {
-    output << ind() << "bbEnd(); return 0;\n";
+    // In einer Funktion kehrte "return 0" nur aus der Funktion zurueck, und
+    // das Programm lief weiter - ein stilles Falschergebnis, das der Parser
+    // bis BUG-58 verdeckte (dort beendete ein "End" den Funktionsrumpf).
+    if (inFunctionBody)
+      output << ind() << "bbEnd(); std::exit(0);\n";
+    else
+      output << ind() << "bbEnd(); return 0;\n";
   }
 
   void visit(Program *node) override {

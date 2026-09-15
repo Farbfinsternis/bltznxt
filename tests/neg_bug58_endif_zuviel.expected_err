@@ -1,0 +1,1 @@
+tests/neg_bug58_endif_zuviel.bb:5:1: error: 'EndIf' without 'If'
