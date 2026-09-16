@@ -1,5 +1,27 @@
 # BlitzNext Developer Log
 
+## 2026-09-16 — Rendering follows meaning, not Direct3D 7
+
+The rendering guideline from 2026-09-15 planned two lighting modes: a compatible one that
+reproduces Direct3D 7 and a modern one. That plan is dropped. BlitzNext implements what the
+3D commands mean and computes lighting in a modern way; there will be no compatible mode.
+
+What a program can observe or rely on still has to match Blitz3D exactly: geometry, winding,
+transforms, picks, collisions, return values, which entities and cameras are drawn, and what a
+texture contains. Shading does not: lighting model, attenuation, specular and per-vertex versus
+per-pixel are free. Old scenes may look darker or brighter than they did; that is accepted and
+can be corrected in the program. Colours read back with `ReadPixel` after `RenderWorld` are not
+guaranteed.
+
+So that "meaning" is not a matter of taste, the guideline in `ROADMAP3D.md` now has a table of
+parameter roles taken from the Blitz3D command help (`EntityColor` is the diffuse colour,
+`LightRange` a cutoff that the help itself calls "very approximate", negative light colours
+darken, the `EntityFX`, `EntityBlend`, `TextureBlend` and texture flag values). The per-vertex
+lighting built for BUG-66 and BUG-91 is a transitional state. README and `KNOWN_ISSUES.md`
+("Intentional differences") say this openly.
+
+---
+
 ## 2026-09-16 — Seven more known issues from the Blitz3D demos
 
 Running 17 of the 3D demos that ship with Blitz3D side by side in both systems showed that

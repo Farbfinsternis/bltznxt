@@ -18,6 +18,7 @@ open an issue with a minimal `.bb` file and the output of both.
 
 **Contents**
 
+- [Intentional differences](#intentional-differences)
 - [Missing commands](#missing-commands)
 - [Silently different results](#silently-different-results) — read this first
 - [Language and compiler](#language-and-compiler)
@@ -27,6 +28,25 @@ open an issue with a minimal `.bb` file and the output of both.
 - [2D graphics](#2d-graphics)
 - [3D graphics](#3d-graphics)
 - [Platform and tooling](#platform-and-tooling)
+
+---
+
+## Intentional differences
+
+These are not bugs but decisions, and they will stay:
+
+- **3D lighting is not a copy of Direct3D 7.** BlitzNext keeps what every lighting and
+  material command means — `EntityColor` is the diffuse colour, `LightRange` how far a light
+  reaches, `EntityFX 1` ignores lighting, negative light colours darken — but the lighting
+  itself is being rebuilt to be computed per pixel with modern formulas. Old scenes can look
+  darker, brighter or smoother than they did. If a scene is too dark or too bright, adjust
+  `AmbientLight`, the light colours or `LightRange` in the program.
+- **Colours read back from the rendered 3D image are not guaranteed.** `ReadPixel` or
+  `CopyRect` after `RenderWorld` return BlitzNext's shading, not Direct3D 7's. What is in the
+  image — geometry, visibility, texture contents — does match.
+
+The full reasoning is in [ROADMAP3D.md](ROADMAP3D.md), section
+"Richtlinie: Was exakt stimmen muss und was besser werden darf".
 
 ---
 

@@ -84,7 +84,8 @@ Drei eingebettete GLSL-330-Shader als String-Literale in `bb_shader.h`:
 Der initiale Renderer ist **Forward Rendering** — ein Draw-Call pro Mesh.
 Das Richtungslicht rechnet der Fragment-Shader; Glanzlicht und Punkt-/Spotlicht
 rechnet seit BUG-66/BUG-91 der Vertex-Shader, wie die feste Pipeline des
-Originals (kompatibler Modus, siehe Richtlinie unten).
+Originals. Das ist ein Übergangsstand: nach der Richtlinie unten wird die
+Beleuchtung modern und pro Pixel gerechnet, ein kompatibler Modus entfällt.
 
 **Vorteile für den Einstieg:**
 - Direkt korrekt für Blitz3D-Parität (Blitz3D selbst war Fixed-Function Forward)
@@ -151,63 +152,93 @@ wird ein neues `bb_deferred_renderer_.cpp` eingehängt — alle anderen Systeme
 
 ### Richtlinie: Was exakt stimmen muss und was besser werden darf
 
-*Festgelegt am 2026-09-15.*
+*Festgelegt am 2026-09-15, am 2026-09-16 verschärft: kein kompatibler
+Beleuchtungsmodus mehr.*
 
-Die Grafikausgabe von BLTZNXT muss **korrekt** sein, aber nicht pixelgleich
-mit Blitz3D. Die Grenze verläuft nicht zwischen Geometrie und Licht, sondern
-zwischen dem, was ein Programm **beobachten** kann, und dem, was nur das Auge
-sieht.
+BLTZNXT baut nicht das Bild von Blitz3D nach, sondern setzt um, **was die
+3D-Befehle bedeuten**. Die Grenze verläuft zwischen dem, was ein Programm
+**beobachten oder voraussetzen** kann, und dem, was nur das Auge sieht.
 
-**Muss exakt wie im Original sein** — alles, was über Befehle zurückkommt oder
-den Programmablauf bestimmt:
+**Muss exakt wie im Original sein** — alles, was über Befehle zurückkommt, den
+Programmablauf bestimmt oder darüber entscheidet, *ob* etwas im Bild ist:
 
 - Geometrie: Vertices, Dreiecke und ihre Anzahl (`CountVertices`,
-  `CountTriangles`, `TrisRendered`), Normalen, Texturkoordinaten,
+  `CountTriangles`, `TrisRendered`), Normalen, Texturkoordinaten, Vertexfarben,
   Umlaufrichtung, Flächenaufteilung
 - Transformationen, Positionen, Hierarchie
 - Picks, Kollisionen und alle Rückgabewerte von Befehlen
-- Welche Flächen sichtbar sind (Culling, `EntityFX`, Alpha, Blendmodi)
+- Sichtbarkeit: welche Entities und Flächen gezeichnet werden (`HideEntity`,
+  `CopyEntity`, Culling, Alpha, `EntityOrder`)
+- Kameras: welche Kamera wohin rendert (`CameraViewport`, `CameraClsMode`,
+  `CameraRange`, Projektion)
+- Texturinhalte: was in einer Textur steht (`TextureBuffer`, `CopyRect`,
+  `LoadTexture`) und wie sie auf die Fläche kommt (Koordinaten, Lagen,
+  Clamp, Maske)
+- 2D-Zustand nach Moduswechseln (Farbe, Schrift, Puffer)
 
-**Darf besser werden** — die Schattierung selbst: Beleuchtungsmodell,
-Glanzlicht, Abschwächung, Interpolation. Ein Blitz3D-Programm, dessen Szene
-geometrisch stimmt und dessen Materialien und Lichter physikalisch plausibler
-(z. B. PBR) gerechnet werden, liefert kein anderes, sondern ein besseres
-Ergebnis. Die Eigenheiten der festen Direct3D-7-Pipeline (Gouraud, Glanzlicht
-je Vertex, unbegrenzte `range/Abstand`-Abschwächung) waren technische Grenzen
-von 1999, keine Absicht der Programmautoren.
+**Darf anders und besser werden** — die Schattierung: Beleuchtungsmodell,
+Glanzlicht, Abschwächung mit der Entfernung, Interpolation pro Vertex oder pro
+Pixel, Texturfilterung, das genaue Aussehen von Umgebungsabbildungen. Die
+Eigenheiten der festen Direct3D-7-Pipeline (Gouraud, Glanzlicht je Vertex,
+unbegrenzte `range/Abstand`-Abschwächung) waren technische Grenzen von 1999,
+keine Absicht der Programmautoren. BLTZNXT rechnet modern und pro Pixel.
 
-**Drei Bedingungen dafür:**
+**Was daraus folgt — ausdrücklich so entschieden:**
 
-1. **Die künstlerische Absicht bleibt erhalten.** Alte Programme haben ihre
-   Lichtwerte auf das alte Verhalten abgestimmt. Die Helligkeitsverhältnisse
-   einer Szene müssen erhalten bleiben — ein Level darf nicht unspielbar dunkel
-   oder ausgebrannt werden, nur schöner gerechnet.
-2. **Die Blitz3D-Parameter werden fest übersetzt.** Farbe, Shininess, Alpha,
-   Blendmodi, `EntityFX` (Full-bright, Vertexfarben, Flat), Vertexfarben,
-   Lightmaps und **negative Lichter** behalten ihre Bedeutung. Die Abbildung auf
-   ein neues Modell (z. B. Shininess → Roughness) ist dokumentiert, nicht
-   geraten.
-3. **Programme, die das Bild zurücklesen, bleiben bedienbar.** `ReadPixel` nach
-   `RenderWorld` (Farb-Picking) und `CopyRect` in Texturen erwarten unter
-   Umständen exakte Farben — dafür gibt es den kompatiblen Modus.
+1. **Es gibt einen Beleuchtungsweg, keinen kompatiblen Modus.** Die heute
+   eingebaute, am Original gemessene Nachbildung (BUG-66, BUG-91: Glanzlicht und
+   Punkt-/Spotlicht je Vertex) ist ein Übergangsstand und wird ersetzt, nicht
+   weiter gepflegt.
+2. **Helligkeit wird nicht an alte Szenen angepasst.** Wirkt ein altes Programm
+   unter BLTZNXT zu dunkel oder überstrahlt, ist das so; es lässt sich im
+   Programm selbst über Lichtfarben, Reichweiten oder `AmbientLight`
+   korrigieren. Das wird in [KNOWN_ISSUES.md](KNOWN_ISSUES.md) offen gesagt.
+3. **Farbwerte aus dem gerenderten Bild sind nicht garantiert.** `ReadPixel`
+   oder `CopyRect` nach `RenderWorld` liefern die Farben der modernen
+   Schattierung, nicht die von Direct3D 7. Was im Bild *ist* (Geometrie,
+   Sichtbarkeit, Texturinhalt), stimmt trotzdem.
 
-**Zwei Beleuchtungsmodi:**
+**Die Bedeutung der Parameter ist festgeschrieben, nicht geraten.** „Die
+Absicht verstehen“ heißt: jeder Blitz3D-Parameter behält seine dokumentierte
+Rolle, nur die Formel dahinter ist neu. Diese Rollen gelten unverändert
+(Quelle: Befehlshilfe der Blitz3D-Installation, `help/commands/3d_commands`):
 
-| Modus | Zweck |
-|-------|-------|
-| **kompatibel** | Die am Original gemessene Nachbildung der festen Pipeline (BUG-66, BUG-91: Glanzlicht und Punkt-/Spotlicht je Vertex). Referenz für die Helligkeit, Grundlage der Testsuite — Regressionen fallen dort weiter zeichengleich auf. |
-| **modern** | PBR mit fester Übersetzung der Blitz3D-Parameter, an der kompatiblen Referenz ausgerichtet. Kandidat für die Vorgabe. |
+| Befehl / Parameter | Bedeutung, die erhalten bleibt |
+|--------------------|--------------------------------|
+| `EntityColor`, `BrushColor` | Diffusfarbe der Oberfläche |
+| `EntityAlpha`, `BrushAlpha` | Deckkraft; unter 1 wird transparent gezeichnet |
+| `EntityShininess`, `BrushShininess` | Stärke des Glanzlichts, 0 = matt |
+| `EntityBlend`, `BrushBlend` | 1 Alpha, 2 Multiplizieren, 3 Addieren |
+| `EntityFX`, `BrushFX` | 1 voll hell (unbeleuchtet), 2 Vertexfarben statt Diffusfarbe, 4 flach schattiert, 8 kein Nebel, 16 beidseitig (kein Culling), 32 Alpha-Blending erzwingen |
+| `AmbientLight` | Grundhelligkeit, die jede beleuchtete Fläche gleichmäßig erhält; Vorgabe 127,127,127, 0,0,0 = keine |
+| `CreateLight` Typ | 1 Richtungslicht, 2 Punktlicht, 3 Spotlicht |
+| `LightColor` | Farbe und Stärke; 0,0,0 wirkt nicht, negative Werte dunkeln ab („negative lighting“) |
+| `LightRange` | Reichweite von Punkt- und Spotlicht; außerhalb wird nichts beleuchtet; Vorgabe 1000. Die Hilfe nennt den Wert selbst „very approximate“ |
+| `LightConeAngles` | Innen- und Außenwinkel des Spotlichts |
+| `TextureBlend` | 0 keine Mischung, 1 keine Mischung bzw. Alpha bei Alpha-Textur, 2 Multiplizieren (Vorgabe), 3 Addieren, 4 Dot3, 5 Multiplizieren ×2; jede Lage mischt mit der darunter |
+| Texturflags | 1 Farbe, 2 Alpha, 4 Maske, 8 Mipmaps, 16/32 Clamp U/V, 64 sphärische Umgebungsabbildung, 128 Würfel-Umgebungsabbildung; 256/512 sind Speicherhinweise ohne sichtbare Rolle |
+| `LightMesh` | schreibt Vertexfarben — beobachtbar über `VertexRed` usw., also exakt |
+
+Die konkreten Formeln der modernen Schattierung (Abschwächung, Glanzmodell,
+Verhältnis von Umgebungs- und Direktlicht) werden beim Bau festgelegt und hier
+nachgetragen. Bis dahin gilt: eine Formel ist richtig, wenn jede Rolle aus der
+Tabelle sichtbar erfüllt ist — mehr Reichweite beleuchtet weiter, mehr
+Shininess glänzt stärker, `EntityFX 1` ignoriert das Licht.
 
 **Folgen für die Arbeit:**
 
-- Abweichungen in beobachtbaren Größen (z. B. BUG-69 Kugelzerlegung, BUG-92
-  Umlaufrichtung, BUG-93 Kegelnormalen) bleiben Pflicht und werden am Original
-  gemessen.
-- Reine Schattierungsabweichungen werden nicht mehr bis aufs letzte Pixel
-  nachgebaut, sondern dem modernen Modus überlassen — es sei denn, sie ändern
-  die Helligkeitsverhältnisse grob (dann gehören sie in den kompatiblen Modus).
-- Der kompatible Modus existiert heute schon (das aktuelle LIT-Shading); der
-  moderne Modus ist noch nicht gebaut.
+- Abweichungen in beobachtbaren Größen bleiben Pflicht und werden am Original
+  gemessen, z. B. BUG-69 (Kugelzerlegung), BUG-126 (Umlaufrichtung), BUG-127
+  (`TextureBuffer`), BUG-128 (`CopyEntity`), BUG-129 (Viewports).
+- Reine Schattierungsabweichungen sind keine Bugs mehr, sondern Teil der
+  modernen Schattierung. Einträge wie BUG-93 (Kegel) und BUG-132 (`fakelight`)
+  werden danach getrennt: was an Normalen, Geometrie oder Vertexfarben falsch
+  ist, bleibt Bug; der Rest geht in den Bau der Schattierung.
+- Tests prüfen Bedeutung statt D3D7-Werten: eine Fläche mit `EntityFX 1` hat
+  genau ihre Farbe, eine beleuchtete Fläche wird mit der Entfernung dunkler,
+  eine Fläche ohne Licht und ohne `AmbientLight` bleibt schwarz. Exakte
+  Pixelwerte nur dort, wo das Licht keine Rolle spielt (voll helle Flächen,
+  Texturinhalte).
 
 ---
 
