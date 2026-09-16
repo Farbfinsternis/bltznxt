@@ -1,5 +1,22 @@
 # BlitzNext Developer Log
 
+## 2026-09-16 — Hex and Bin keep their leading zeros (BUG-111)
+
+`Hex(1)` returned `1`, the original returns `00000001`. `bbHex` and `bbBin`
+fill a fixed buffer digit by digit, so the result is always 8 hex or 32
+binary digits, uppercase, no prefix. Measured against the original for 0, 1,
+255, -1, -255, $80000000 and 2147483647.
+
+`bb_Hex` now formats with `%08X` and `bb_Bin` fills 32 digits from the right.
+
+New test: `test_bug111_hex_bin`, identical in the original and here.
+`test_m20_strings2` had pinned the old output (`FF`, `101`, `0xFF`); its
+expectation is updated and now checked against the original, except for the
+RSet line, which is BUG-113. Runtime only, the emitted C++ is unchanged.
+Full suite: 220 passed, 0 failed.
+
+---
+
 ## 2026-09-15 — The sphere faces the right way (BUG-92)
 
 A sphere under a point light stayed black. Measured against the original, it

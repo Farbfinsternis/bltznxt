@@ -41,24 +41,24 @@ Print Asc("Hello")
 ; ----- Hex -----
 Print "=== Hex ==="
 Print Hex(255)
-; Expected: FF
+; Expected: 000000FF (always 8 digits, BUG-111)
 Print Hex(16)
-; Expected: 10
+; Expected: 00000010
 Print Hex(0)
-; Expected: 0
+; Expected: 00000000
 Print Hex(65535)
-; Expected: FFFF
+; Expected: 0000FFFF
 
 ; ----- Bin -----
 Print "=== Bin ==="
 Print Bin(0)
-; Expected: 0
+; Expected: 32 zeros (always 32 digits, BUG-111)
 Print Bin(1)
-; Expected: 1
+; Expected: 31 zeros, then 1
 Print Bin(5)
-; Expected: 101
+; Expected: 29 zeros, then 101
 Print Bin(255)
-; Expected: 11111111
+; Expected: 24 zeros, then 11111111
 
 ; ----- String (repeat) -----
 Print "=== String ==="
@@ -73,8 +73,7 @@ Print String("x", 0)
 Print "=== Combos ==="
 Local h$ = "0x" + Hex(255)
 Print h
-; Expected: 0xFF -> wait, Hex is uppercase: 0xFF -> "0x" + "FF" = "0xFF"
-; Actually: 0xFF
+; Expected: 0x000000FF
 Local padded$ = RSet(Str(42), 6)
 Print padded
 ; Expected: "    42"

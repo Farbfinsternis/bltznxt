@@ -349,22 +349,21 @@ inline int bb_Asc(const bbString &s) {
 
 // ---- Numeric encoding ----
 
-// Hex(n) — uppercase hex string, no prefix; negative treated as unsigned 32-bit
+// Hex(n) / Bin(n) — always the full 32 bits: 8 uppercase hex digits and
+// 32 binary digits with leading zeros, no prefix. bbHex/bbBin in
+// bbruntime/bbstring.cpp fill a fixed buffer digit by digit; measured against
+// the original: Hex(1) = "00000001", Hex(-255) = "FFFFFF01" (BUG-111).
 inline bbString bb_Hex(int n) {
     char buf[16];
-    std::snprintf(buf, sizeof(buf), "%X", static_cast<unsigned int>(n));
+    std::snprintf(buf, sizeof(buf), "%08X", static_cast<unsigned int>(n));
     return buf;
 }
 
-// Bin(n) — binary string, no prefix, no leading zeros (minimum "0")
 inline bbString bb_Bin(int n) {
     unsigned int u = static_cast<unsigned int>(n);
-    if (u == 0) return "0";
-    bbString result;
-    while (u > 0) {
-        result = (char)('0' + (u & 1)) + result;
-        u >>= 1;
-    }
+    bbString result(32, '0');
+    for (int k = 31; k >= 0; --k, u >>= 1)
+        if (u & 1) result[k] = '1';
     return result;
 }
 
