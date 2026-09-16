@@ -319,12 +319,22 @@ inline bbString bb_Lower(bbString s) {
     return s;
 }
 
-// Trim(s) — strip leading and trailing whitespace
+// Trim(s) — strip every invisible character from both ends. bbTrim in
+// bbruntime/bbstring.cpp tests with isgraph(), so in the ASCII range 0..32
+// and 127 go - including NUL, vertical tab and form feed, not only the four
+// usual whitespace characters (BUG-115). For bytes >= 128 the original passes
+// a negative char to isgraph() and reads outside the table; two runs gave
+// different results. Decided 2026-09-16: those bytes count as visible and stay.
+inline bool bb_trim_visible_(char c) {
+    unsigned char u = static_cast<unsigned char>(c);
+    return u > 32 && u != 127;
+}
+
 inline bbString bb_Trim(const bbString &s) {
-    size_t start = s.find_first_not_of(" \t\r\n");
-    if (start == bbString::npos) return "";
-    size_t end = s.find_last_not_of(" \t\r\n");
-    return s.substr(start, end - start + 1);
+    size_t start = 0, end = s.size();
+    while (start < end && !bb_trim_visible_(s[start])) ++start;
+    while (end > start && !bb_trim_visible_(s[end - 1])) --end;
+    return s.substr(start, end - start);
 }
 
 // LSet(s, n) — left-aligned: pad with spaces on right, or truncate to n chars

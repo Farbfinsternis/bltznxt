@@ -1,5 +1,25 @@
 # BlitzNext Developer Log
 
+## 2026-09-16 — Trim removes every invisible character at the ends (BUG-115)
+
+`Trim` only removed space, tab, CR and LF. `bbTrim` tests both ends with
+`isgraph()`, so in the ASCII range everything from 0 to 32 and 127 goes,
+including NUL, vertical tab and form feed. `Len(Trim(Chr(11)+"x"+Chr(12)))`
+was 3 here and is 1 in the original. All 128 ASCII values were measured
+against the original.
+
+Bytes from 128 up cannot be matched: the original passes a signed `char` to
+`isgraph()` and reads outside its table. Three runs of the same program kept
+34, 36 and 37 of those 128 bytes, and most umlauts were cut off. Decided
+together: they count as visible and stay, so `Trim("Ärger")` keeps its `Ä`.
+
+`bb_Trim` now walks both ends with that rule. New test: `test_bug115_trim`.
+The ASCII part is identical in the original and here; the line for bytes from
+128 up records the decision and is not compared with the original.
+Runtime only, the emitted C++ is unchanged. Full suite: 224 passed, 0 failed.
+
+---
+
 ## 2026-09-16 — Mid with a negative length returns the rest (BUG-114)
 
 `Mid("abcd",2,-1)` returned an empty string, the original returns `bcd`.
