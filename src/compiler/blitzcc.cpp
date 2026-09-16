@@ -26,7 +26,7 @@ namespace fs = std::filesystem;
 // ---- Version ---------------------------------------------------------------
 // Single source of truth for -h and -v output (Buglist BUG-02 / REFACTOR R12).
 
-static constexpr const char *kVersion = "0.4.3";
+static constexpr const char *kVersion = "0.5.0";
 
 // ---- Config ----------------------------------------------------------------
 

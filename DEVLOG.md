@@ -1,5 +1,45 @@
 # BlitzNext Developer Log
 
+## v0.5.0 - "Measured against the original" (2026-09-16)
+
+The first version since v0.4.3 (2026-09-03). The theme of these two weeks: behaviour is
+no longer guessed but taken from the Blitz3D source and measured against a running
+Blitz3D 11.8. The entries below this one describe each step; this is the overview.
+
+**Compiler**
+- A semantic pass between parser and emitter: types, arity, fields, labels, with
+  "did you mean …?" for commands, types and fields (WEAK-14).
+- Diagnostics point to the right file and line after `Include` (WEAK-13, BUG-14).
+- The built-in command table is generated from the runtime headers (WEAK-17).
+- Grammar and precedence follow the reference: case-insensitive identifiers, `Not`,
+  `Shl`/`Shr`/`Sar`, `^` with a sign, reserved words (`Pi`, `Abs`, `Int`, …), `For Each`,
+  `Before`/`After`, the `Type` body, block closers, jump targets and duplicate labels.
+- New language features: parameter defaults (BUG-49), fixed arrays and object fields in
+  types (BUG-59, BUG-60), `Dim` arrays of objects (BUG-52), `Read` with a list of targets
+  (BUG-85), `Null` as a type of its own (BUG-45).
+- Conversions at assignments, in conditions and array indexes, and in `And`/`Or`/shifts
+  follow Blitz3D (BUG-53, BUG-54, BUG-61, BUG-79).
+
+**Runtime**
+- 3D: graphics mode enumeration (3D-00), entity appearance (3D-10), textures (3D-11),
+  lights (3D-12), `.3ds` and `.x` loading (3D-13), brushes and the surface API (3D-15),
+  `CopyEntity`, `TFormPoint`/`TFormVector`/`TFormNormal`.
+- Measured against the original: primitive vertex tables and winding, rotations and
+  angle getters, `AlignToVector`, `PointEntity`, per-vertex point/spot lighting and
+  specular, one shared back buffer for 2D and 3D.
+- Runtime library: `Int()`/`Float()` of strings, `WriteLine` with CRLF, RLE-compressed
+  BMP, and the string functions `Hex`, `Bin`, `Asc`, `RSet`, `Mid`, `Trim`.
+
+**Documentation**
+- `KNOWN_ISSUES.md` lists the 40 known deviations from Blitz3D, each reproduced against
+  the original, with workarounds.
+- README and roadmap report measured numbers: 380 of Blitz3D's 540 commands plus 27
+  BlitzNext additions.
+
+Test suite: 224 tests.
+
+---
+
 ## 2026-09-16 — Known issues are public, README and roadmap brought up to date
 
 The bug list is an internal working document and stays out of the repository, which
