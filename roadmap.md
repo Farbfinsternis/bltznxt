@@ -792,8 +792,12 @@ Each milestone is scoped to fit within a single AI-session context window:
 ## Command Parity Progress
 Based on [kippykip.com Docs](https://kippykip.com/b3ddocs/commands/index.htm)
 
+*Checked against `blitzcc -k` on 2026-09-16. A ticked line means every command in it exists;
+behaviour can still differ from Blitz3D — see [KNOWN_ISSUES.md](KNOWN_ISSUES.md). Names that
+Blitz3D itself does not have (e.g. `FreeSurface`, `VectorDistance`) are not counted.*
+
 ### 2D / Core Modules
-- [x] **Basic (Language)**
+- [ ] **Basic (Language)**
     - [x] If, Then, Else, ElseIf, EndIf, Select, Case, Default, End Select
     - [x] And, Or, Not, Xor, Repeat, Until, Forever, While, Wend, For, To, Step, Next, Exit
     - [x] Global, Local, Dim (declaration only)
@@ -805,73 +809,74 @@ Based on [kippykip.com Docs](https://kippykip.com/b3ddocs/commands/index.htm)
     - [x] Dim indexing *(M10)*
     - [x] Type, Field, End Type, New, Delete, Each, First, Last, Before, After, Insert *(M13–M16)*
     - [x] Data, Read, Restore *(M12)*
-- [ ] **Maths** *(M17–M18)*
+    - [ ] Handle, Object *(BUG-101)*
+- [x] **Maths** *(M17–M18)*
     - [x] Pi, Sgn, ASin, ACos, ATan, ATan2, Log10, Int(float) *(M17)*
-    - [ ] Rnd, Rand, SeedRnd, RndSeed *(M18)*
+    - [x] Rnd, Rand, SeedRnd, RndSeed *(M18)*
     - [x] Abs, Sqr, Sin, Cos, Tan, Exp, Log, Floor, Ceil, Int, Float
     - [x] Mod, Shl, Shr, Sar, Xor (operators)
-- [ ] **String** *(M19–M20)*
+- [x] **String** *(M19–M20)*
     - [x] Str, Len
-    - [ ] Left, Right, Mid, Replace, Instr, Upper, Lower, Trim, LSet, RSet, Chr, Asc, Hex, Bin, String
-- [ ] **Text / Output**
+    - [x] Left, Right, Mid, Replace, Instr, Upper, Lower, Trim, LSet, RSet, Chr, Asc, Hex, Bin, String
+- [x] **Text / Output**
     - [x] Print (console)
-    - [ ] Write, Locate *(M42)* ; Text (positioned) *(M42)*
-    - [ ] LoadFont, SetFont, FreeFont, FontWidth, FontHeight, StringWidth, StringHeight *(M43)*
-- [ ] **Input** *(M31–M33)*
+    - [x] Write, Locate *(M42)* ; Text (positioned) *(M42)*
+    - [x] LoadFont, SetFont, FreeFont, FontWidth, FontHeight, StringWidth, StringHeight *(M43)*
+- [x] **Input** *(M31–M33)*
     - [x] Input (console readline), WaitKey (console)
-    - [ ] KeyDown, KeyHit, GetKey, FlushKeys, MoveMouse, MouseDown, MouseHit, GetMouse, WaitMouse
-    - [ ] MouseX, MouseY, MouseZ, MouseXSpeed, MouseYSpeed, MouseZSpeed, FlushMouse
-    - [ ] JoyType, JoyDown, JoyHit, GetJoy, WaitJoy, JoyX, JoyY, JoyZ, JoyU, JoyV, JoyHat, FlushJoy
-- [ ] **Bank** *(M28–M29)*
-    - [ ] CreateBank, FreeBank, BankSize, ResizeBank, CopyBank, PeekByte, PeekShort, PeekInt, PeekFloat, PokeByte, PokeShort, PokeInt, PokeFloat
-- [ ] **File / Stream** *(M24–M27)*
+    - [x] KeyDown, KeyHit, GetKey, FlushKeys, MoveMouse, MouseDown, MouseHit, GetMouse, WaitMouse
+    - [x] MouseX, MouseY, MouseZ, MouseXSpeed, MouseYSpeed, MouseZSpeed, FlushMouse
+    - [x] JoyType, JoyDown, JoyHit, GetJoy, WaitJoy, JoyX, JoyY, JoyZ, JoyU, JoyV, JoyHat, FlushJoy
+- [x] **Bank** *(M28–M29)*
+    - [x] CreateBank, FreeBank, BankSize, ResizeBank, CopyBank, PeekByte, PeekShort, PeekInt, PeekFloat, PokeByte, PokeShort, PokeInt, PokeFloat
+- [x] **File / Stream** *(M24–M27)*
     - [x] OpenFile, ReadFile, WriteFile, CloseFile, FilePos, SeekFile, Eof, ReadAvail *(M24)*
     - [x] ReadDir, CloseDir, NextFile, CurrentDir, ChangeDir, CreateDir, DeleteDir, FileType, FileSize, CopyFile, DeleteFile *(M27)*
     - [x] ReadByte, ReadShort, ReadInt, ReadFloat, ReadString, ReadLine, ReadBytes(stub) *(M25)*
     - [x] WriteByte, WriteShort, WriteInt, WriteFloat, WriteString, WriteLine, WriteBytes(stub) *(M26)*
-- [ ] **Time / System** *(M21–M23)*
+- [x] **Time / System** *(M21–M23)*
     - [x] Delay, MilliSecs, CurrentDate, CurrentTime *(M21)*
     - [x] CreateTimer, FreeTimer, WaitTimer *(M22)*
     - [x] ShowPointer, HidePointer, AppTitle, CommandLine, SystemProperty, SetEnv, GetEnv, CallDLL, ExecFile, RuntimeError *(M23)*
-    - [ ] End *(already emitted as bbEnd())*
+    - [x] End *(already emitted as bbEnd())*
 
 ### 3D Module
 - [ ] **Global / Scene** *(M47–M48)*
-    - [ ] Graphics3D, Dither, WBuffer, AntiAlias, Wireframe, HWMultiTex, AmbientLight, ClearCollisions, Collisions
-    - [ ] UpdateWorld, CaptureWorld, RenderWorld, ClearWorld, LoaderMatrix, TrisRendered
-- [ ] **Texture** *(M49–M50)*
-    - [ ] CreateTexture, LoadTexture, LoadAnimTexture, FreeTexture, TextureBlend, TextureCoords, ScaleTexture, PositionTexture, RotateTexture, TextureWidth, TextureHeight, TextureBuffer, TextureName, SetCubeFace, SetCubeMode
-- [ ] **Brush** *(M51)*
-    - [ ] CreateBrush, LoadBrush, FreeBrush, BrushColor, BrushAlpha, BrushShininess, BrushTexture, BrushBlend, BrushFX, GetEntityBrush, GetSurfaceBrush
+    - [ ] Graphics3D, Dither, WBuffer, AntiAlias, Wireframe, HWMultiTex, AmbientLight, ClearCollisions, Collisions — *missing: ClearCollisions, Collisions*
+    - [x] UpdateWorld, CaptureWorld, RenderWorld, ClearWorld, LoaderMatrix, TrisRendered
+- [x] **Texture** *(M49–M50)*
+    - [x] CreateTexture, LoadTexture, LoadAnimTexture, FreeTexture, TextureBlend, TextureCoords, ScaleTexture, PositionTexture, RotateTexture, TextureWidth, TextureHeight, TextureBuffer, TextureName, SetCubeFace, SetCubeMode
+- [x] **Brush** *(M51)*
+    - [x] CreateBrush, LoadBrush, FreeBrush, BrushColor, BrushAlpha, BrushShininess, BrushTexture, BrushBlend, BrushFX, GetEntityBrush, GetSurfaceBrush
 - [ ] **Geometry (Mesh/Surface/Terrain/MD2/BSP)** *(M52–M57)*
-    - [ ] CreateMesh, LoadMesh, LoadAnimMesh, CreateCube, CreateSphere, CreateCylinder, CreateCone, CopyMesh, AddMesh, FlipMesh, PaintMesh, LightMesh, FitMesh, ScaleMesh, RotateMesh, PositionMesh, UpdateNormals, MeshesIntersect, MeshWidth, MeshHeight, MeshDepth, CountSurfaces, GetSurface
-    - [ ] CreateSurface, FindSurface, FreeSurface, PaintSurface, ClearSurface, SurfaceBrush, SurfaceWidth, SurfaceDepth, CountVertices, CountTriangles, AddVertex, AddTriangle, TriangleVertex
-    - [ ] VertexX/Y/Z/NX/NY/NZ/U/V/W, VertexCoords, VertexNormal, VertexTexCoords, VertexColor, VertexAlpha
+    - [x] CreateMesh, LoadMesh, LoadAnimMesh, CreateCube, CreateSphere, CreateCylinder, CreateCone, CopyMesh, AddMesh, FlipMesh, PaintMesh, LightMesh, FitMesh, ScaleMesh, RotateMesh, PositionMesh, UpdateNormals, MeshesIntersect, MeshWidth, MeshHeight, MeshDepth, CountSurfaces, GetSurface
+    - [x] CreateSurface, FindSurface, FreeSurface, PaintSurface, ClearSurface, SurfaceBrush, SurfaceWidth, SurfaceDepth, CountVertices, CountTriangles, AddVertex, AddTriangle, TriangleVertex
+    - [x] VertexX/Y/Z/NX/NY/NZ/U/V/W, VertexCoords, VertexNormal, VertexTexCoords, VertexColor, VertexAlpha
     - [ ] CreateTerrain, LoadTerrain, TerrainSize, TerrainDetail, TerrainShading, TerrainHeight, ModifyTerrain, TerrainX, TerrainY, TerrainZ
     - [ ] LoadMD2, AnimateMD2, MD2AnimTime, MD2AnimLength, MD2Animating, LoadBSP, BSPAmbientLight, BSPLighting
 - [ ] **Entities (Camera/Light/Pivot/Sprite/Plane/Mirror)** *(M58–M65)*
-    - [ ] CreateCamera, CameraProjMode, CameraFogMode, CameraFogRange, CameraFogColor, CameraViewport, CameraClsMode, CameraClsColor, CameraRange, CameraZoom, CameraPick, PickedX/Y/Z, PickedNX/NY/NZ, PickedTime, PickedEntity, PickedSurface, PickedTriangle, CameraProject, ProjectedX/Y/Z, EntityInView
-    - [ ] CreateLight, LightColor, LightRange
-    - [ ] CreatePivot, CreateSprite, LoadSprite, RotateSprite, ScaleSprite, HandleSprite, SpriteViewMode
+    - [ ] CreateCamera, CameraProjMode, CameraFogMode, CameraFogRange, CameraFogColor, CameraViewport, CameraClsMode, CameraClsColor, CameraRange, CameraZoom, CameraPick, PickedX/Y/Z, PickedNX/NY/NZ, PickedTime, PickedEntity, PickedSurface, PickedTriangle, CameraProject, ProjectedX/Y/Z, EntityInView — *missing: CameraFogMode, CameraFogRange, CameraFogColor, CameraPick, PickedX, PickedY, PickedZ, PickedNX, PickedNY, PickedNZ, PickedTime, PickedEntity, PickedSurface, PickedTriangle, CameraProject, ProjectedX, ProjectedY, ProjectedZ, EntityInView*
+    - [x] CreateLight, LightColor, LightRange
+    - [ ] CreatePivot, CreateSprite, LoadSprite, RotateSprite, ScaleSprite, HandleSprite, SpriteViewMode — *missing: CreateSprite, LoadSprite, RotateSprite, ScaleSprite, HandleSprite, SpriteViewMode*
     - [ ] CreatePlane, CreateMirror
 - [ ] **Logic (Movement/Collision/Animation/State/3D Maths)** *(M58–M70)*
-    - [ ] ScaleEntity, PositionEntity, MoveEntity, TranslateEntity, RotateEntity, TurnEntity, PointEntity, AlignToVector
-    - [ ] ResetEntity, EntityRadius, EntityBox, EntityType, EntityPickMode, EntityCollided, CountCollisions, CollisionX/Y/Z, CollisionNX/NY/NZ, CollisionTime, CollisionEntity, CollisionSurface, CollisionTriangle, GetEntityType
+    - [x] ScaleEntity, PositionEntity, MoveEntity, TranslateEntity, RotateEntity, TurnEntity, PointEntity, AlignToVector
+    - [ ] ResetEntity, EntityRadius, EntityBox, EntityType, EntityPickMode, EntityCollided, CountCollisions, CollisionX/Y/Z, CollisionNX/NY/NZ, CollisionTime, CollisionEntity, CollisionSurface, CollisionTriangle, GetEntityType — *missing: EntityRadius, EntityBox, EntityType, EntityPickMode, EntityCollided, CountCollisions, CollisionX, CollisionY, CollisionZ, CollisionNX, CollisionNY, CollisionNZ, CollisionTime, CollisionEntity, CollisionSurface, CollisionTriangle, GetEntityType*
     - [ ] LoadAnimSeq, SetAnimKey, AddAnimSeq, ExtractAnimSeq, Animate, SetAnimTime, AnimSeq, AnimLength, AnimTime, Animating
-    - [ ] EntityX/Y/Z, EntityRoll/Yaw/Pitch, EntityName, EntityClass, EntityDistance, EntityVisible, GetParent, FindChild
-    - [ ] HideEntity, ShowEntity, EntityParent, EntityOrder, EntityAlpha, EntityColor, EntityShininess, EntityTexture, EntityBlend, EntityFX, EntityAutoFade, PaintEntity, FreeEntity
-    - [ ] VectorDistance, VectorYaw, VectorPitch, TFormPoint, TFormVector, TFormNormal, TFormedX/Y/Z, GetMatElement
-- [ ] **2D Graphics** *(M38–M46)*
-    - [ ] Graphics, GraphicsWidth, GraphicsHeight, GraphicsDepth, GraphicsRate, AvailVidMem, TotalVidMem
-    - [ ] SetBuffer, BackBuffer, FrontBuffer, Cls, Flip, CopyRect, GrabImage
-    - [ ] Color, ClsColor, GetColor, ColorRed, ColorGreen, ColorBlue, Plot, Line, Rect, Oval, Poly
-    - [ ] LoadImage, CreateImage, FreeImage, SaveImage, ImageWidth, ImageHeight, ImageBuffer
-    - [ ] DrawImage, DrawImageRect, DrawBlock, DrawBlockRect, DrawImageEllipse, TileImage, TileBlock
-    - [ ] MaskImage, HandleImage, MidHandle, AutoMidHandle, ScaleImage, RotateImage, ImagesOverlap, ImageRectOverlap, ImagesColl, ImageXColl, ImageYColl
-    - [ ] LockBuffer, UnlockBuffer, ReadPixel, WritePixel, ReadPixelFast, WritePixelFast, CopyPixel, CopyPixelFast, LoadBuffer, SaveBuffer, BufferWidth, BufferHeight
-- [ ] **Sound / Interaction** *(M34–M37)*
-    - [ ] LoadSound, FreeSound, LoopSound, SoundPitch, SoundVolume, SoundPan, PlaySound, PlayMusic, PlayCDTrack, StopChannel, PauseChannel, ResumeChannel, ChannelPitch, ChannelVolume, ChannelPan, ChannelPlaying
-    - [ ] Load3DSound, 3DWaitSound, 3DSoundVolume, 3DSoundPan, 3DChannelVolume, 3DChannelPan
+    - [ ] EntityX/Y/Z, EntityRoll/Yaw/Pitch, EntityName, EntityClass, EntityDistance, EntityVisible, GetParent, FindChild — *missing: EntityVisible*
+    - [x] HideEntity, ShowEntity, EntityParent, EntityOrder, EntityAlpha, EntityColor, EntityShininess, EntityTexture, EntityBlend, EntityFX, EntityAutoFade, PaintEntity, FreeEntity
+    - [ ] VectorDistance, VectorYaw, VectorPitch, TFormPoint, TFormVector, TFormNormal, TFormedX/Y/Z, GetMatElement — *missing: VectorYaw, VectorPitch, GetMatElement*
+- [x] **2D Graphics** *(M38–M46)*
+    - [x] Graphics, GraphicsWidth, GraphicsHeight, GraphicsDepth, GraphicsRate, AvailVidMem, TotalVidMem
+    - [x] SetBuffer, BackBuffer, FrontBuffer, Cls, Flip, CopyRect, GrabImage
+    - [x] Color, ClsColor, GetColor, ColorRed, ColorGreen, ColorBlue, Plot, Line, Rect, Oval, Poly
+    - [x] LoadImage, CreateImage, FreeImage, SaveImage, ImageWidth, ImageHeight, ImageBuffer
+    - [x] DrawImage, DrawImageRect, DrawBlock, DrawBlockRect, DrawImageEllipse, TileImage, TileBlock
+    - [x] MaskImage, HandleImage, MidHandle, AutoMidHandle, ScaleImage, RotateImage, ImagesOverlap, ImageRectOverlap, ImagesColl, ImageXColl, ImageYColl
+    - [x] LockBuffer, UnlockBuffer, ReadPixel, WritePixel, ReadPixelFast, WritePixelFast, CopyPixel, CopyPixelFast, LoadBuffer, SaveBuffer, BufferWidth, BufferHeight
+- [x] **Sound / Interaction** *(M34–M37)*
+    - [x] LoadSound, FreeSound, LoopSound, SoundPitch, SoundVolume, SoundPan, PlaySound, PlayMusic, PlayCDTrack, StopChannel, PauseChannel, ResumeChannel, ChannelPitch, ChannelVolume, ChannelPan, ChannelPlaying
+    - [x] Load3DSound, 3DWaitSound, 3DSoundVolume, 3DSoundPan, 3DChannelVolume, 3DChannelPan
 
 ---
 

@@ -1,5 +1,32 @@
 # BlitzNext Developer Log
 
+## 2026-09-16 — Known issues are public, README and roadmap brought up to date
+
+The bug list is an internal working document and stays out of the repository, which
+left users with no way to see what does not work yet. `KNOWN_ISSUES.md` fills that gap:
+all 40 open bugs plus the user-visible weaknesses, grouped by area, each reproduced
+against Blitz3D 11.8, with a workaround where one exists. A section of its own lists the
+deviations that compile and run silently, since those are the hardest to find.
+
+Two workarounds were measured before they went in. On the way it turned out that BUG-95
+is wider than its title: every float-to-integer conversion truncates, including a plain
+`x% = 1.9`; only conditions and array indexes round.
+
+The README described an older state. It now links the known issues from the status line,
+reports 380 of Blitz3D's 540 commands (compared with `blitzcc -k` of both compilers,
+keywords excluded) plus 27 BlitzNext additions, lists the 3D commands that exist
+(textures, brushes, meshes, surfaces, lights, graphics modes), marks `Include`,
+`Goto/Gosub`, `Data/Read` and `Const` as working with deviations, states that the Linux
+build does not work (WEAK-24), and fixes the clone URL. The reference to `Buglist.md`,
+which is not in the repository, is gone.
+
+The "Command Parity Progress" checklist in `roadmap.md` was generated against
+`blitzcc -k` instead of being edited by hand: 27 lines were complete but still unticked,
+51 of 62 are ticked now. Partially available lines name what is missing, and `Handle` /
+`Object` have a line of their own.
+
+---
+
 ## 2026-09-16 — Trim removes every invisible character at the ends (BUG-115)
 
 `Trim` only removed space, tab, CR and LF. `bbTrim` tests both ends with

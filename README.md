@@ -6,8 +6,9 @@
 
 **BlitzNext** is a modern compiler that converts Blitz3D (`.bb`) source files directly into native Windows executables via a C++17 transpilation pipeline. It targets 100% command parity with the original Blitz3D engine, using a bundled MinGW toolchain and SDL3 for audio and graphics.
 
-> **Status: active development — v0.4.3 — 46 of 70 milestones complete.**
-> See [roadmap.md](roadmap.md) and [ROADMAP3D.md](ROADMAP3D.md) for the full milestone list and [DEVLOG.md](DEVLOG.md) for the changelog.
+> **Status: active development — v0.4.3.** The language, the core runtime and 2D graphics are in place; the 3D layer is being built (13 of 24 3D milestones complete).
+> **[KNOWN_ISSUES.md](KNOWN_ISSUES.md) lists everything that does not yet behave like Blitz3D** — please check it before reporting a bug.
+> See [roadmap.md](roadmap.md) and [ROADMAP3D.md](ROADMAP3D.md) for the milestones and [DEVLOG.md](DEVLOG.md) for the changelog.
 
 ---
 
@@ -31,18 +32,33 @@ Mark passed away in 2024. BlitzNext exists to carry his idea forward — the bel
 
 ## Compatibility Progress
 
-| Area | Done | Goal | Coverage |
-|------|------|------|----------|
-| **Language features** | Grammar, types, control flow, functions, arrays, includes, operators | 100% Blitz3D language spec | ~90% |
-| **Runtime (built-in commands)** | ~395 functions across 13 modules | ~480 total projected | ~82% |
-| **Roadmap milestones** | 46 of 70 | 70 | 66% |
-| **Blitz2D compatibility** | Core language, full 2D graphics, audio, input, file I/O | 100% Blitz2D | ~80% |
+| Area | State (2026-09-16) |
+|------|--------------------|
+| **Language** | All constructs except `Handle` and `Object` |
+| **Built-in commands** | 380 of Blitz3D's 540 commands (70 %), plus 27 BlitzNext additions |
+| **2D milestones** | Milestones 6–46 complete ([roadmap.md](roadmap.md)) |
+| **3D milestones** | 13 of 24 complete, mesh loading and the surface API in progress ([ROADMAP3D.md](ROADMAP3D.md)) |
+| **Known deviations** | 40 open bugs, all reproduced against Blitz3D 11.8 ([KNOWN_ISSUES.md](KNOWN_ISSUES.md)) |
 
-**Language** is nearly complete — all core constructs (variables, types, functions, control flow, operators, `#Include`, `Data/Read`, `Dim`, `Goto/Gosub`) are implemented. Remaining gaps are edge cases in the parser, not missing constructs.
+Compatibility is measured, not estimated: questions about the language are answered from the
+[original source](https://github.com/blitz-research/blitz3d), and results are compared with a
+running Blitz3D 11.8. Of the 156 example sources that ship with Blitz3D, 67 are accepted and
+all 67 build; of the 70 that only Blitz3D accepts, 58 fail solely on commands that do not exist
+yet.
 
-**Runtime** coverage grows phase by phase. The non-graphical half (math, strings, files, banks, input, audio) is done. The entire 2D graphics layer is now complete — window, buffer, color, shapes, text, fonts, images (single-frame and animated), pixel buffer access, and all image manipulation functions. The 3D graphics layer (Phases L–T, Milestones 47–70) makes up the bulk of what remains.
+**Language.** Every construct except `Handle` and `Object` is implemented, but several still
+differ from Blitz3D in detail — most importantly float-to-integer conversion (truncates instead
+of rounding), `Include` on a line with other statements, and nested `Gosub`. See
+[KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 
-**Blitz2D compatibility** is a practical secondary target. Most Blitz2D games and demos compile today. Known remaining gaps: `Handle`/`Object` type reflection, `WaitKey$`/`GetKey$` string variants, `CountGFXModes` mode enumeration, and `Len` on arrays. See `Buglist.md` for the full gap list.
+**Runtime.** Math, strings, files, banks, input, audio and 2D graphics are available. A few
+commands exist but do not work yet, among them `CopyRect`, pixel-accurate `ImagesCollide`,
+`SystemProperty` and `CallDLL`. In 3D, entities, cameras, lights, textures, brushes, primitive
+meshes, `.x`/`.3ds` loading and the surface API are available; collision, picking, animation,
+terrain, sprites and fog are not.
+
+**Blitz2D compatibility** is a practical secondary target. Most Blitz2D games and demos compile
+today; the remaining gaps are listed in [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 
 ---
 
@@ -54,7 +70,7 @@ Mark passed away in 2024. BlitzNext exists to carry his idea forward — the bel
 
 ### Setup
 ```bat
-git clone https://github.com/your-org/bltznxt
+git clone https://github.com/Farbfinsternis/bltznxt
 cd bltznxt
 build_windows.bat
 ```
@@ -91,18 +107,24 @@ bin\blitzcc.exe hello.bb
 | `Select / Case / Default` | ✓ |
 | `Function / Return / Exit / End` | ✓ |
 | `Global / Local` with type hints (`%`, `#`, `!`, `$`) | ✓ |
-| `Const` — `constexpr int/float` and `const bbString` | ✓ |
+| `Const` | ✓ ¹ |
 | `Dim` — 1D and multi-dimensional arrays | ✓ |
-| `Goto / Gosub / Return` (label-based flow) | ✓ |
-| `Data / Read / Restore` | ✓ |
+| `Goto / Gosub / Return` (label-based flow) | ✓ ¹ |
+| `Data / Read / Restore` | ✓ ¹ |
 | `Type` declarations with fields, `New`, `Delete` | ✓ |
 | Type field access (`\` operator) | ✓ |
 | Type iteration — `First`, `Last`, `Before`, `After`, `Each` | ✓ |
 | `True`, `False`, `Null` | ✓ |
-| `#Include` with circular dependency protection | ✓ |
+| `Include` / `#Include` with circular dependency protection | ✓ ¹ |
 | Operators: `And`, `Or`, `Xor`, `Not`, `Mod`, `Shl`, `Shr`, `Sar`, `^` | ✓ |
+| `Handle`, `Object` | — |
 
-### Built-in Commands (~340 total)
+¹ Works, with known deviations from Blitz3D — see [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+
+### Built-in Commands (407 total)
+
+`blitzcc -k` prints the complete list, `blitzcc +k` the signatures. Commands that exist but do not
+yet work like Blitz3D are listed in [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 
 **Math** — `Sin`, `Cos`, `Tan`, `ASin`, `ACos`, `ATan`, `ATan2`, `Sqr`, `Log`, `Log10`, `Exp`, `Floor`, `Ceil`, `Min`, `Max` (`Abs` and `Sgn` are reserved words, not commands: unary operators over the following expression, so `Abs -3` needs no parentheses. `Pi` likewise is a reserved word for the constant.) (`Pi` is not a command but a reserved word for the constant, as in Blitz3D — it takes no parentheses and cannot be declared)
 
@@ -110,13 +132,13 @@ bin\blitzcc.exe hello.bb
 
 **Strings** — `Len`, `Left`, `Right`, `Mid`, `Instr`, `Replace`, `Upper`, `Lower`, `Trim`, `LSet`, `RSet`, `Chr`, `Asc`, `Hex`, `Bin`, `String` (`Str`, `Int` and `Float` are reserved words, not commands: casts over the following expression, written `Str n` or `Str$ n` as in Blitz3D.)
 
-**Time & System** — `MilliSecs`, `CreateTimer`, `WaitTimer`, `FreeTimer`, `AppTitle`, `SystemProperty`, `RuntimeError`, `ExecFile`, `Delay`, `Notify`, `Confirm`, `Proceed`
+**Time & System** — `MilliSecs`, `CurrentDate`, `CurrentTime`, `CreateTimer`, `WaitTimer`, `FreeTimer`, `AppTitle`, `CommandLine`, `GetEnv`, `SetEnv`, `SystemProperty`, `RuntimeError`, `ExecFile`, `CallDLL`, `Delay`, `ShowPointer`, `HidePointer`, `Notify`, `Confirm`, `Proceed`
 
-**File I/O** — `OpenFile`, `ReadFile`, `WriteFile`, `CloseFile`, `SeekFile`, `FilePos`, `FileSize`, `ReadLine`, `ReadByte`, `ReadShort`, `ReadInt`, `ReadFloat`, `ReadString`, `WriteLine`, `WriteByte`, `WriteShort`, `WriteInt`, `WriteFloat`, `WriteString`, `FileType`, `CurrentDir`, `ChangeDir`, `CreateDir`, `DeleteDir`, `DeleteFile`, `NextFile`, `FirstFile`, `CopyFile`
+**File I/O** — `OpenFile`, `ReadFile`, `WriteFile`, `CloseFile`, `SeekFile`, `FilePos`, `Eof`, `ReadAvail`, `FileSize`, `ReadBytes`, `WriteBytes`, `ReadDir`, `CloseDir`, `ReadLine`, `ReadByte`, `ReadShort`, `ReadInt`, `ReadFloat`, `ReadString`, `WriteLine`, `WriteByte`, `WriteShort`, `WriteInt`, `WriteFloat`, `WriteString`, `FileType`, `CurrentDir`, `ChangeDir`, `CreateDir`, `DeleteDir`, `DeleteFile`, `NextFile`, `FirstFile`, `CopyFile`
 
 **Banks** — `CreateBank`, `FreeBank`, `BankSize`, `ResizeBank`, `CopyBank`, `PeekByte`, `PeekShort`, `PeekInt`, `PeekFloat`, `PokeByte`, `PokeShort`, `PokeInt`, `PokeFloat`
 
-**Input** — `KeyDown`, `KeyHit`, `WaitKey`, `FlushKeys`, `Input`, `MouseX`, `MouseY`, `MouseZ`, `MouseXSpeed`, `MouseYSpeed`, `MouseDown`, `MouseHit`, `WaitMouse`, `FlushMouse`, `MoveMouse`, `JoyType`, `JoyX`, `JoyY`, `JoyZ`, `JoyU`, `JoyV`, `JoyHat`, `JoyDown`, `JoyHit`, `WaitJoy`, `GetJoy`, `FlushJoy`
+**Input** — `KeyDown`, `KeyHit`, `GetKey`, `WaitKey`, `FlushKeys`, `Input`, `MouseX`, `MouseY`, `MouseZ`, `MouseXSpeed`, `MouseYSpeed`, `MouseZSpeed`, `MouseDown`, `GetMouse`, `MouseHit`, `WaitMouse`, `FlushMouse`, `MoveMouse`, `JoyType`, `JoyX`, `JoyY`, `JoyZ`, `JoyU`, `JoyV`, `JoyHat`, `JoyDown`, `JoyHit`, `WaitJoy`, `GetJoy`, `FlushJoy`
 
 **Audio** — `LoadSound`, `FreeSound`, `PlaySound`, `LoopSound`, `StopChannel`, `ChannelPlaying`, `ChannelVolume`, `ChannelPan`, `ChannelPitch`, `PauseChannel`, `ResumeChannel`, `SoundVolume`, `SoundPan`, `SoundPitch`, `PlayMusic`, `StopMusic`, `MusicPlaying`, `PlayCDTrack`, `Load3DSound`, `SoundRange`, `Channel3DPosition`, `Channel3DVelocity`, `ListenerPosition`, `ListenerOrientation`, `ListenerVelocity`, `WaitSound`
 
@@ -132,13 +154,29 @@ bin\blitzcc.exe hello.bb
 
 **2D Graphics — Pixel Buffer** — `ImageBuffer`, `LockBuffer`, `UnlockBuffer`, `ReadPixel`, `WritePixel`, `ReadPixelFast`, `WritePixelFast`, `CopyPixel`, `CopyPixelFast`, `LoadBuffer`, `SaveBuffer`, `BufferWidth`, `BufferHeight`
 
+**3D Graphics — Graphics Modes** — `CountGfxDrivers`, `GfxDriverName`, `SetGfxDriver`, `CountGfxModes`, `CountGfxModes3D`, `GfxModeExists`, `GfxModeWidth`, `GfxModeHeight`, `GfxModeDepth`, `Windowed3D`
+
 **3D Graphics — Context & Scene** — `Graphics3D`, `UpdateWorld`, `RenderWorld`, `ClearWorld`, `CaptureWorld`, `TrisRendered`, `AmbientLight`, `Wireframe`, `Dither`, `WBuffer`, `AntiAlias`, `HWMultiTex`, `CameraClsMode`, `CameraClsColor`
 
-**3D Graphics — Entities** — `CreatePivot`, `FreeEntity`, `HideEntity`, `ShowEntity`, `NameEntity`, `EntityName`, `EntityClass`, `EntityParent`, `GetParent`, `CountChildren`, `GetChild`, `FindChild`, `EntityOrder`
+**3D Graphics — Entities** — `CreatePivot`, `CopyEntity`, `FreeEntity`, `HideEntity`, `ShowEntity`, `NameEntity`, `EntityName`, `EntityClass`, `EntityParent`, `GetParent`, `CountChildren`, `GetChild`, `FindChild`, `EntityOrder`
+
+**3D Graphics — Entity Appearance** — `EntityColor`, `EntityAlpha`, `EntityShininess`, `EntityBlend`, `EntityFX`, `EntityAutoFade`, `EntityTexture`, `PaintEntity`, `GetEntityBrush`
 
 **3D Graphics — Transforms** — `PositionEntity`, `MoveEntity`, `TranslateEntity`, `RotateEntity`, `TurnEntity`, `ScaleEntity`, `PointEntity`, `AlignToVector`, `ResetEntity`, `EntityX`, `EntityY`, `EntityZ`, `EntityPitch`, `EntityYaw`, `EntityRoll`, `EntityDistance`
 
 **3D Graphics — Camera** — `CreateCamera`, `CameraRange`, `CameraZoom`, `CameraProjMode`, `CameraViewport`, `CameraClsMode`, `CameraClsColor`
+
+**3D Graphics — Lights** — `CreateLight`, `LightColor`, `LightRange`, `LightConeAngles`
+
+**3D Graphics — Textures** — `CreateTexture`, `LoadTexture`, `LoadAnimTexture`, `FreeTexture`, `TextureBlend`, `TextureCoords`, `ScaleTexture`, `PositionTexture`, `RotateTexture`, `TextureWidth`, `TextureHeight`, `TextureBuffer`, `TextureName`, `TextureFilter`, `ClearTextureFilters`, `SetCubeFace`, `SetCubeMode`, `ActiveTextures`, `HWTexUnits`
+
+**3D Graphics — Brushes** — `CreateBrush`, `LoadBrush`, `FreeBrush`, `BrushColor`, `BrushAlpha`, `BrushShininess`, `BrushTexture`, `BrushBlend`, `BrushFX`, `GetBrushTexture`
+
+**3D Graphics — Meshes** — `CreateMesh`, `LoadMesh`, `LoadAnimMesh`, `LoaderMatrix`, `CreateCube`, `CreateSphere`, `CreateCylinder`, `CreateCone`, `CopyMesh`, `AddMesh`, `FlipMesh`, `PaintMesh`, `LightMesh`, `FitMesh`, `ScaleMesh`, `RotateMesh`, `PositionMesh`, `UpdateNormals`, `MeshWidth`, `MeshHeight`, `MeshDepth`, `MeshesIntersect`, `CountSurfaces`
+
+**3D Graphics — Surfaces & Vertices** — `CreateSurface`, `GetSurface`, `FindSurface`, `ClearSurface`, `PaintSurface`, `GetSurfaceBrush`, `AddVertex`, `AddTriangle`, `CountVertices`, `CountTriangles`, `TriangleVertex`, `VertexCoords`, `VertexNormal`, `VertexColor`, `VertexTexCoords`, `VertexX`, `VertexY`, `VertexZ`, `VertexNX`, `VertexNY`, `VertexNZ`, `VertexRed`, `VertexGreen`, `VertexBlue`, `VertexAlpha`, `VertexU`, `VertexV`, `VertexW`
+
+**3D Graphics — Maths** — `TFormPoint`, `TFormVector`, `TFormNormal`, `TFormedX`, `TFormedY`, `TFormedZ`
 
 ### Compiler & Tooling
 - **One-step build**: `blitzcc myfile.bb` → transpile to C++ → compile → `myfile.exe`
@@ -251,6 +289,14 @@ src/compiler/
   bb_mesh_core.h    ← VAO/VBO/EBO upload + draw, interleaved vertex format (3D-08)
   bb_mesh.h         ← mesh entity, primitive generators, RenderWorld pass (3D-09)
   bb_graphics3d.h   ← Graphics3D, UpdateWorld, RenderWorld, scene globals (3D-01–09)
+  bb_gfxmode.h      ← graphics driver and mode enumeration (3D-00)
+  bb_texture.h      ← textures (3D-11)
+  bb_light.h        ← lights (3D-12)
+  bb_loader.h       ← LoadMesh / LoadAnimMesh, .3ds loader (3D-13)
+  bb_loader_x.h     ← DirectX .x loader, text and binary (3D-13)
+  bb_brush.h        ← brushes (3D-15)
+  bb_surface.h      ← surfaces, vertices, triangles (3D-15)
+  suggest.h         ← "did you mean …?" for unknown names
 ```
 
 The runtime is **header-only** — the generated `.cpp` file `#include`s only what it needs, then gets compiled by the bundled MinGW g++.
@@ -259,7 +305,7 @@ The runtime is **header-only** — the generated `.cpp` file `#include`s only wh
 
 ## Roadmap Overview
 
-46 of 70 milestones complete. See [roadmap.md](roadmap.md) and [ROADMAP3D.md](ROADMAP3D.md) for full detail.
+Milestones 6–46 (language, runtime, 2D) are complete; the 3D work is tracked in [ROADMAP3D.md](ROADMAP3D.md), where 13 of 24 milestones are complete. See [roadmap.md](roadmap.md) for the 2D detail.
 
 | Phase | Scope | Status |
 |-------|-------|--------|
@@ -275,7 +321,9 @@ The runtime is **header-only** — the generated `.cpp` file `#include`s only wh
 | J — Audio | Sound, Music, 3D audio | ✓ Done |
 | K — 2D Graphics | Window, buffer, color, shapes, text, fonts, images, pixel buffer | ✓ Done |
 | L — 3D Foundation | GL context, UpdateWorld/RenderWorld, entity system, camera (3D-01–06) | ✓ Done |
-| M–T — 3D Graphics | Shaders, meshes, textures, lighting, collision, animation, terrain | In Progress |
+| 3D-07 – 3D-12 | Shaders, geometry buffers, primitives, appearance, textures, lighting | ✓ Done |
+| 3D-13, 3D-15 | Mesh loading (`.x`, `.3ds`), brushes, surfaces | In Progress |
+| 3D-14, 3D-16 – 3D-23 | OBJ loader, sprites, fog, picking, collision, animation, 3D maths, terrain, MD2/BSP | Planned |
 
 ---
 
@@ -287,10 +335,9 @@ build_windows.bat
 
 This script downloads MinGW and SDL3 on first run, then builds the compiler via CMake. Subsequent runs skip the download if the toolchain is already present.
 
-Linux build:
-```bash
-bash build_linux.sh
-```
+BlitzNext currently runs on **Windows only**. `build_linux.sh` exists, but the compiler still
+depends on the Windows API and the bundled MinGW toolchain, so a Linux build does not work yet
+(see [KNOWN_ISSUES.md](KNOWN_ISSUES.md)).
 
 ---
 
@@ -300,7 +347,7 @@ bash build_linux.sh
 bash tests/run_tests.sh
 ```
 
-Compiles all `tests/test_*.bb` files and compares output against `tests/*.expected`. Negative tests (`tests/neg_*.bb`) verify that malformed programs are rejected with exit code 1.
+Compiles all `tests/test_*.bb` files and compares output against `tests/*.expected`. Negative tests (`tests/neg_*.bb`) verify that malformed programs are rejected with exit code 1 and, where a `.expected_err` exists, that the message matches word for word. The suite currently has 224 tests. Where a test says its expected values were measured against the original, they come from a running Blitz3D 11.8.
 
 ---
 
