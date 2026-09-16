@@ -307,6 +307,8 @@ The runtime is **header-only** — the generated `.cpp` file `#include`s only wh
 
 Milestones 6–46 (language, runtime, 2D) are complete; the 3D work is tracked in [ROADMAP3D.md](ROADMAP3D.md), where 13 of 24 milestones are complete. See [roadmap.md](roadmap.md) for the 2D detail.
 
+Where the 3D engine is heading — one modern material model, per-pixel lighting, shadows, render passes, `Vec2`/`Vec3`/`Vec4` vectors in the language and shaders written in Blitz syntax — is laid out in the design document [ENGINE_DESIGN.md](ENGINE_DESIGN.md) (German, draft, nothing of it implemented yet).
+
 | Phase | Scope | Status |
 |-------|-------|--------|
 | A — IDE & CLI | Error format, CLI flags | ✓ Done |

@@ -1,5 +1,28 @@
 # BlitzNext Developer Log
 
+## 2026-09-16 — Engine design draft
+
+`ENGINE_DESIGN.md` collects where the 3D engine is heading, as a draft with every point marked
+as decided, proposed or open. Nothing in it is implemented.
+
+Decided so far: vectors become part of the language as `Vec2`, `Vec3` and `Vec4`, always float
+(`Vec3#` is allowed, `Vec3%` and `Vec3$` are errors), values rather than objects, and reserved
+names — a program that defines them itself has to rename. All surfaces go through one modern
+material model to which the old parameters are mapped; there is no separate legacy shader path.
+Shadows are on by default. Shaders will eventually be written in a Blitz dialect in their own
+files and translated to GLSL.
+
+Proposed: render passes as explicit commands in the program's own main loop
+(`CreateRenderTarget`, `CameraRenderTarget`, `LoadShader`, `RenderPass`), shadows switchable
+globally, per light and per entity, vector commands prefixed `Vec` because `Dot`, `Cross` and
+`Length` appear in Blitz3D samples, and Forward+ before a deferred renderer. Eleven questions are
+listed as open.
+
+A local, unpublished plan from 2026-09-15 with three render modes (Legacy, Enhanced, Modern) is
+superseded and deleted; the draft lists what was taken over from it.
+
+---
+
 ## 2026-09-16 — The 3D bugs sorted by the new rendering guideline
 
 Every 3D entry in the bug list was checked against the rule "observable values exact, shading
