@@ -1,5 +1,22 @@
 # BlitzNext Developer Log
 
+## 2026-09-16 — Mid with a negative length returns the rest (BUG-114)
+
+`Mid("abcd",2,-1)` returned an empty string, the original returns `bcd`.
+`bbMid` takes `substr(o)` for every negative length, and -1 is the default
+for the omitted argument, so an explicit -1 has to behave like the
+two-argument form. Only a length of 0 gives an empty string. Measured against
+the original: lengths -1, -5, 0, 10 and 1, and start positions beyond the end.
+
+`bb_Mid` with three arguments now hands a negative length to the
+two-argument form.
+
+New test: `test_bug114_mid_negativ`, identical in the original and here.
+`test_m19_strings` also matches the original. Runtime only, the emitted C++ is
+unchanged. Full suite: 223 passed, 0 failed.
+
+---
+
 ## 2026-09-16 — RSet keeps the end of a string that is too long (BUG-113)
 
 `RSet("abcdef",3)` returned `abc`, the original returns `def`. `bbRSet` cuts

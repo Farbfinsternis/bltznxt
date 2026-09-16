@@ -263,10 +263,14 @@ inline bbString bb_Mid(const bbString &s, int pos) {
     return s.substr(idx);
 }
 
-// Mid(s, pos, n) — n characters starting at 1-based pos
+// Mid(s, pos, n) — n characters starting at 1-based pos. A negative n means
+// "to the end", like the two-argument form: bbMid in bbruntime/bbstring.cpp
+// takes substr(o) for every n < 0, and -1 is the default for the omitted
+// length. Only n == 0 gives an empty string (BUG-114).
 inline bbString bb_Mid(const bbString &s, int pos, int n) {
+    if (n < 0) return bb_Mid(s, pos);
     if (pos < 1) pos = 1;
-    if (n <= 0) return "";
+    if (n == 0) return "";
     int idx = pos - 1;
     if (idx >= (int)s.size()) return "";
     return s.substr(idx, n);
