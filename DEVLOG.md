@@ -1,5 +1,18 @@
 # BlitzNext Developer Log
 
+## 2026-09-16 — Asc of an empty string is -1 (BUG-112)
+
+`Asc("")` returned 0, the original returns -1 (`bbAsc`:
+`s->size() ? (*s)[0] & 255 : -1`). With 0, an empty string could not be told
+apart from `Chr(0)`. Measured against the original: `""` -1, `Chr(0)` 0,
+`Chr(200)` 200, `Chr(256)` 0, `Chr(-1)` 255.
+
+New test: `test_bug112_asc_leer`, identical in the original and here, including
+a loop that reads a string character by character until `Asc` returns -1.
+Runtime only, the emitted C++ is unchanged. Full suite: 221 passed, 0 failed.
+
+---
+
 ## 2026-09-16 — Hex and Bin keep their leading zeros (BUG-111)
 
 `Hex(1)` returned `1`, the original returns `00000001`. `bbHex` and `bbBin`

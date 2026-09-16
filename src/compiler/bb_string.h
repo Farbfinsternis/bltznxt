@@ -342,9 +342,11 @@ inline bbString bb_RSet(const bbString &s, int n) {
 // Chr(n) — single-character string from ASCII code
 inline bbString bb_Chr(int n) { return bbString(1, static_cast<char>(n & 0xFF)); }
 
-// Asc(s) — ASCII code of first character, or 0 for empty string
+// Asc(s) — byte value (0..255) of the first character, or -1 for an empty
+// string. bbAsc in bbruntime/bbstring.cpp returns -1 there, so "" stays
+// distinguishable from Chr(0), which gives 0 (BUG-112).
 inline int bb_Asc(const bbString &s) {
-    return s.empty() ? 0 : static_cast<unsigned char>(s[0]);
+    return s.empty() ? -1 : static_cast<unsigned char>(s[0]);
 }
 
 // ---- Numeric encoding ----
