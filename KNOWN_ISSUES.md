@@ -247,13 +247,15 @@ visibly wrong results because of the points below.
 - **`Graphics3D` does not reset the drawing colour to white.** Text drawn afterwards keeps
   the colour set before the mode change. *Workaround:* call `Color 255,255,255` after
   `Graphics3D`. (BUG-131)
-- **Several coloured point lights on a textured mesh can look very different** from
-  Blitz3D (seen in the `fakelight` demo). The cause has not been found yet. (BUG-132)
 - **`ClearWorld`** always removes all entities and ignores its three flags. (BUG-120)
 - **`CreateSphere`** builds a different mesh (576 vertices and 288 triangles instead of 151
   and 224 at the default segment count). The shape is the same, but vertex and triangle
   indices, `TrisRendered` and `UpdateNormals` differ. (BUG-69)
-- **`CreateCone`** is lit differently, most visibly when rotated. (BUG-93)
+- **`CreateCone`** builds a different mesh: one surface with 41 vertices instead of two
+  (side and base) with 17 and 8, and tilted instead of horizontal side normals. The cone also
+  looks differently lit because of this. (BUG-93)
+- **`CreateCylinder`** builds a different mesh: one surface with 66 vertices and 32
+  triangles instead of two (side and caps) with 18/16 and 16/12. (BUG-133)
 - **Texture paths inside `.x` models** are resolved relative to the model file. For paths
   with a directory part (`Textures\Rock.bmp`) Blitz3D apparently does not load the
   texture, so a model can end up with a different number of surfaces here. (BUG-76)

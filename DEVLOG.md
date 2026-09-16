@@ -1,5 +1,34 @@
 # BlitzNext Developer Log
 
+## 2026-09-16 — The 3D bugs sorted by the new rendering guideline
+
+Every 3D entry in the bug list was checked against the rule "observable values exact, shading
+free". Where it was unclear which side an entry falls on, it was measured.
+
+- **Cone and cylinder are geometry bugs.** BUG-93 described the cone as "lit differently".
+  Reading the vertex table in both systems shows why: Blitz3D builds `CreateCone(8)` as two
+  surfaces (side 17 vertices / 8 triangles with horizontal side normals, base 8 / 6), BlitzNext
+  as one surface with 41 vertices, 16 triangles and normals tilted by 45 degrees. The cylinder,
+  whose lighting had looked close, differs the same way: two surfaces (18/16 and 16/12) against
+  one with 66 vertices and 32 triangles. BUG-93 is rewritten as a geometry bug, the cylinder is
+  BUG-133.
+- **BUG-66 and BUG-91** stay fixed, but their per-vertex Direct3D 7 lighting is now a
+  transitional state rather than a target.
+- **BUG-92** stays valid: which side of the sphere is visible is geometry.
+- **BUG-130** (sphere mapping) stays a bug because flag 64 does nothing at all, but the look no
+  longer has to match Direct3D 7.
+- **BUG-132** (`fakelight`) is closed without a bug: every observable part measured equal, the
+  rest is shading.
+- **WEAK-25** is new: `test_bug66_shininess`, `test_bug91_punktlicht` and
+  `test_bug92_kugel_licht` pin Direct3D 7 brightness values and have to be rewritten together
+  with the modern lighting. `test_bug63_backbuffer` is a borderline case that depends only on
+  the ambient light.
+
+`KNOWN_ISSUES.md` now describes the cone and cylinder as mesh differences and no longer lists
+the `fakelight` lighting as a bug.
+
+---
+
 ## 2026-09-16 — Rendering follows meaning, not Direct3D 7
 
 The rendering guideline from 2026-09-15 planned two lighting modes: a compatible one that
