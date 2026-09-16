@@ -330,10 +330,12 @@ inline bbString bb_LSet(const bbString &s, int n) {
     return s + bbString(n - (int)s.size(), ' ');
 }
 
-// RSet(s, n) — right-aligned: pad with spaces on left, or truncate to n chars
+// RSet(s, n) — right-aligned: pad with spaces on the left, or keep the last
+// n chars. bbRSet in bbruntime/bbstring.cpp cuts with substr(size-n), so a
+// right-aligned column keeps its end: RSet("abcdef",3) = "def" (BUG-113).
 inline bbString bb_RSet(const bbString &s, int n) {
     if (n <= 0) return "";
-    if ((int)s.size() >= n) return s.substr(0, n);
+    if ((int)s.size() >= n) return s.substr(s.size() - n);
     return bbString(n - (int)s.size(), ' ') + s;
 }
 

@@ -25,7 +25,7 @@ Print RSet("Hi", 8)
 Print LSet("Truncated", 5)
 ; Expected: Trunc
 Print RSet("Truncated", 5)
-; Expected: Trunc
+; Expected: cated (RSet keeps the end, BUG-113)
 
 ; ----- Chr / Asc -----
 Print "=== Chr/Asc ==="

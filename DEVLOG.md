@@ -1,5 +1,20 @@
 # BlitzNext Developer Log
 
+## 2026-09-16 — RSet keeps the end of a string that is too long (BUG-113)
+
+`RSet("abcdef",3)` returned `abc`, the original returns `def`. `bbRSet` cuts
+with `substr(size-n)`, so a right-aligned column keeps its last characters;
+only `LSet` keeps the start. Padding was already right. Measured against the
+original: `RSet` of `"abcdef",3` / `"abc",3` / `"ab",5` / `"abc",0` / `"",2`
+and the same forms for `LSet`.
+
+New test: `test_bug113_rset`, identical in the original and here.
+`test_m20_strings2` had pinned `RSet("Truncated",5)` as `Trunc`; it is now
+`cated`, and the whole test matches the original. Runtime only, the emitted
+C++ is unchanged. Full suite: 222 passed, 0 failed.
+
+---
+
 ## 2026-09-16 — Asc of an empty string is -1 (BUG-112)
 
 `Asc("")` returned 0, the original returns -1 (`bbAsc`:
