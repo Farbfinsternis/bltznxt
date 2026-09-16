@@ -11,7 +11,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-09-16 — 40 open bugs.*
+*Last updated: 2026-09-16 — 47 open bugs.*
 
 If your program behaves differently from Blitz3D and the cause is not listed here, please
 open an issue with a minimal `.bb` file and the output of both.
@@ -196,7 +196,8 @@ are the most likely reason for an old program to behave strangely.
 
 ## 2D graphics
 
-- **`CopyRect`** does nothing. (BUG-118)
+- **`CopyRect`** does nothing. Together with BUG-127 this also rules out copying a
+  rendered image into a texture. (BUG-118)
 - **`ImagesCollide` and `ImageRectCollide`** compare bounding rectangles instead of visible
   pixels, and ignore the frame argument. Masked or transparent areas count as a hit.
   *Workaround:* none yet for pixel-accurate tests. (BUG-119)
@@ -206,8 +207,28 @@ are the most likely reason for an old program to behave strangely.
 ## 3D graphics
 
 The 3D layer is under active development — see [ROADMAP3D.md](ROADMAP3D.md). Besides the
-[missing commands](#missing-commands):
+[missing commands](#missing-commands), several of the demos that ship with Blitz3D show
+visibly wrong results because of the points below.
 
+- **Meshes built with `AddTriangle` are drawn from the wrong side.** A triangle listed
+  clockwise — the front face in Blitz3D — is removed as a back face, so self-built meshes
+  such as flags, mirrors or terrain grids are invisible or show holes. Loaded `.x`/`.3ds`
+  models and the built-in primitives are not affected. (BUG-126)
+- **Drawing into a texture has no effect.** `SetBuffer TextureBuffer(tex)` followed by
+  `Rect`, `Text`, `WritePixel` or `CopyRect` leaves the texture black, so objects that use
+  a generated texture appear black. (BUG-127)
+- **A copy of a hidden entity stays hidden.** The common pattern of loading a template,
+  hiding it with `HideEntity` and showing `CopyEntity` copies of it displays nothing.
+  *Workaround:* call `ShowEntity` on each copy. (BUG-128)
+- **A second camera with its own `CameraViewport` does not render.** Split screens and
+  render-to-texture setups show empty viewports. (BUG-129)
+- **Spherical environment mapping (texture flag 64) is ignored.** Chrome and reflection
+  effects show the texture as if it were mapped normally. (BUG-130)
+- **`Graphics3D` does not reset the drawing colour to white.** Text drawn afterwards keeps
+  the colour set before the mode change. *Workaround:* call `Color 255,255,255` after
+  `Graphics3D`. (BUG-131)
+- **Several coloured point lights on a textured mesh can look very different** from
+  Blitz3D (seen in the `fakelight` demo). The cause has not been found yet. (BUG-132)
 - **`ClearWorld`** always removes all entities and ignores its three flags. (BUG-120)
 - **`CreateSphere`** builds a different mesh (576 vertices and 288 triangles instead of 151
   and 224 at the default segment count). The shape is the same, but vertex and triangle

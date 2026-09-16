@@ -1,5 +1,21 @@
 # BlitzNext Developer Log
 
+## 2026-09-16 — Seven more known issues from the Blitz3D demos
+
+Running 17 of the 3D demos that ship with Blitz3D side by side in both systems showed that
+only five look the same. The differences were narrowed down with small probe programs that
+read pixels after `RenderWorld` in both systems, and filed as BUG-126 to BUG-132: meshes
+built with `AddTriangle` have their winding reversed, drawing into `TextureBuffer` has no
+effect, a copy of a hidden entity stays hidden, a second camera with a viewport does not
+render, sphere mapping (texture flag 64) is ignored, `Graphics3D` keeps the previous drawing
+colour, and the lighting in the `fakelight` demo differs for a reason not yet found.
+
+`KNOWN_ISSUES.md` lists them in the 3D section, with the two workarounds that were checked
+in both systems (`ShowEntity` on copies, `Color 255,255,255` after `Graphics3D`). The README
+now reports 47 open bugs.
+
+---
+
 ## v0.5.0 - "Measured against the original" (2026-09-16)
 
 The first version since v0.4.3 (2026-09-03). The theme of these two weeks: behaviour is
