@@ -1,5 +1,20 @@
 # BlitzNext Developer Log
 
+## 2026-09-17 — TurnEntity turns around the entity's own axes (BUG-148)
+
+`TurnEntity` added its angles to the entity's pitch, yaw and roll. That is right for a single call
+from rest and wrong for anything after it: a plane that rolls and then pitches never changed its
+heading. Blitz3D multiplies rotations: locally the turn is applied after the current rotation,
+globally before the world rotation and then brought back into the parent's space, without the
+parents' scale. Ten cases measured in Blitz3D, from two turns to 600 steps of turning and moving,
+match to three decimals. Jet Tails now flies the same path: after 60 frames the jet is at
+(13,-15,9) here and (13,-16,9) in Blitz3D, the rest being `Int` truncating (BUG-95). Two findings
+remain open: global angles under an unevenly scaled parent (BUG-149), and angles stored as Euler
+angles instead of quaternions, which shows as -180 instead of 180 and in last digits (BUG-150).
+Suite 242/242. 46 open bugs.
+
+---
+
 ## 2026-09-17 — The same random numbers as Blitz3D (BUG-116)
 
 `Rnd`, `Rand`, `SeedRnd` and `RndSeed` used the C library's `rand()`. They now follow Blitz3D's

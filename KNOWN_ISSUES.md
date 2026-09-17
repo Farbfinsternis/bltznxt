@@ -11,7 +11,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-09-17 — 45 open bugs.*
+*Last updated: 2026-09-17 — 46 open bugs.*
 
 If your program behaves differently from Blitz3D and the cause is not listed here, please
 open an issue with a minimal `.bb` file and the output of both.
@@ -235,10 +235,12 @@ visibly wrong results because of the points below.
 - **`CreateTexture` does not round sizes up to powers of two.** Blitz3D reports
   `TextureWidth` 32 for `CreateTexture(30,20)`; BlitzNext reports 30. Drawing into the texture
   buffer covers a different part of the surface. (BUG-143)
-- **`TurnEntity` adds the angles instead of turning around the entity's own axes.** One call
-  behaves like Blitz3D, several in a row do not: rolling 45 degrees and then pitching 30 ends
-  at pitch/yaw/roll 30/0/45 here and 20.7/-22.2/49.1 in Blitz3D, so a plane steered by pitch
-  and roll never changes heading. (BUG-148)
+- **Global angles of a child depend on the parent's scale.**
+  `EntityPitch/Yaw/Roll(child, True)` change when a parent is scaled unevenly; in Blitz3D the
+  parent's scale plays no role. (BUG-149)
+- **Angles at the edge can come out with the other sign.** Rotations are stored as angles
+  here and as quaternions in Blitz3D, so after several turns `EntityRoll` may report -180
+  where Blitz3D reports 180 (the same orientation), and the last digits can differ. (BUG-150)
 - **Surfaces of some `.x` models come in a different order.** `GetSurface(mesh,1)` of the jet in
   the Jet Tails demo has 187 triangles here and 4 in Blitz3D. (BUG-146)
 - **Without `AppTitle` the window is titled "BLTZNXT".** Blitz3D leaves the title empty. (BUG-147)

@@ -708,21 +708,41 @@ inline void bb_RotateEntity(int h, float rx, float ry, float rz, int glob = 0) {
 }
 
 // Apply relative rotation delta.  glob=0 → entity-local; glob=1 → world space.
+// Wie bbTurnEntity (bbblitz3d.cpp, BUG-148, am Original gemessen 2026-09-17):
+// lokal wird die Drehung an die bestehende angehaengt (Lage * Delta), also um
+// die eigenen Achsen gedreht - Winkel addieren stimmt nur fuer einen einzelnen
+// Aufruf ab Nulllage. Global kommt sie vor die Weltdrehung (Delta * Welt) und
+// wird in den Raum des Elternteils zurueckgerechnet (setWorldRotation). Die
+// Weltdrehung ist wie Entity::getWorldRotation reine Drehung, Skalierungen der
+// Eltern wirken nicht.
 inline void bb_TurnEntity(int h, float drx, float dry, float drz, int glob = 0) {
   bb_Entity_* e = bb_entity_get_(h);
   if (!e) return;
+  float L[16], D[16], N[16];
+  mat4_make_euler_YXZ_(L, e->rx, e->ry, e->rz);
+  mat4_make_euler_YXZ_(D, drx, dry, drz);
   if (glob == 0) {
-    // Local: just add Euler deltas (approximate for large angles)
-    e->rx += drx; e->ry += dry; e->rz += drz;
+    mat4_mul_(N, L, D);
   } else {
-    // World-space turn: apply world delta rotation to current world orientation
-    // Build current world rot + delta rot and extract new local Euler
-    float Rw[16], Rd[16], Rnew[16];
-    mat4_make_euler_YXZ_(Rw, e->rx, e->ry, e->rz);  // approx (no parent)
-    mat4_make_euler_YXZ_(Rd, drx, dry, drz);
-    mat4_mul_(Rnew, Rd, Rw);
-    mat4_extract_euler_YXZ_(Rnew, e->rx, e->ry, e->rz);
+    // Drehung aller Eltern: P = R(Wurzel) * ... * R(Elternteil)
+    float P[16];
+    mat4_identity_(P);
+    for (bb_Entity_* q = e->parent ? bb_entity_get_(e->parent) : nullptr; q;
+         q = q->parent ? bb_entity_get_(q->parent) : nullptr) {
+      float R[16];
+      mat4_make_euler_YXZ_(R, q->rx, q->ry, q->rz);
+      mat4_mul_(P, R, P);
+    }
+    // neu lokal = P^T * D * P * L  (P ist orthonormal, also P^-1 = P^T)
+    float Pt[16], T[16];
+    mat4_identity_(Pt);
+    for (int c = 0; c < 3; ++c)
+      for (int r = 0; r < 3; ++r) Pt[c*4+r] = P[r*4+c];
+    mat4_mul_(T, P, L);
+    mat4_mul_(T, D, T);
+    mat4_mul_(N, Pt, T);
   }
+  mat4_extract_euler_YXZ_(N, e->rx, e->ry, e->rz);
 }
 
 // ============================================================
