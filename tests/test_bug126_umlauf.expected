@@ -1,0 +1,20 @@
+addtriangle cw 16777215
+addtriangle ccw 0
+addtriangle ccw fx16 16777215
+updatenormals cw 0 0 -1
+x cw 16777215 nz -1
+x ccw 0 nz 1
+3ds cw 16777215 nz<0 1
+3ds ccw 0 nz<0 0
+cube aussen 16777215
+cube dreieck 0: 0,1,2
+cube innen 0
+sphere aussen 16777215
+sphere innen 0
+cylinder aussen 16777215
+cylinder innen 0
+cone aussen 16777215
+cone innen 0
+licht von vorn 1
+licht von hinten 0
+fertig

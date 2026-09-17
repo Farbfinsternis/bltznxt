@@ -1,5 +1,23 @@
 # BlitzNext Developer Log
 
+## 2026-09-17 — Triangles face the right way (BUG-126)
+
+The renderer declared counter-clockwise triangles as front faces. Blitz3D shows the side the
+cross product `(b-a)x(c-a)` points to in its left-handed coordinates, which on screen is
+clockwise — and the view matrix only mirrors z, so clockwise stays clockwise. `RenderWorld` now
+sets `glFrontFace(GL_CW)`. The compensations that had grown around the wrong setting are gone:
+cube and sphere use Blitz3D's triangle order again (`TriangleVertex` on a cube returns 0,1,2
+and 0,2,3, all twelve triangles as in Blitz3D), cylinder and cone are reversed, and
+`UpdateNormals` computes `(b-a)x(c-a)`. The `.3ds` loader keeps its index swap.
+
+Visible effects: meshes built with `AddTriangle` (flags, mirrors, terrain grids) appear, loaded
+models no longer show their inside walls, and loaded models without normals are lit from the
+correct side. `tests/test_bug126_umlauf.bb` checks both orders for `AddTriangle`, `.x` and
+`.3ds`, all four primitives from outside and inside, and light from front and back; every value
+was measured in Blitz3D, and 10 of its 20 lines fail on the old runtime. Suite 225/225.
+
+---
+
 ## 2026-09-17 — Bug list checked against the engine draft, winding measured
 
 The open bug list was compared with `ENGINE_DESIGN.md`, and the draft now follows from it: the

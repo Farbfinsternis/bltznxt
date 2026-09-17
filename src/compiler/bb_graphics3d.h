@@ -188,9 +188,19 @@ inline void bb_RenderWorld(float tween = 1.0f) {
   // Rueckseiten werden entfernt - am Original gemessen: eine Kamera im Inneren
   // eines Wuerfels sieht dort den Hintergrund, nicht die Innenseiten.
   // EntityFX 16 schaltet es je Entity wieder ab (3D-10).
+  //
+  // Vorn ist im Original die Seite, auf die (b-a)x(c-a) zeigt - im
+  // linkshaendigen Blitz-Koordinatensystem gerechnet, also ein Dreieck, das
+  // von vorn gesehen im Uhrzeigersinn laeuft. Das gilt fuer jedes Netz gleich,
+  // ob aus AddTriangle, aus einer Datei oder aus einem Create-Befehl
+  // (BUG-126, gemessen 2026-09-17). bb_cam_view_ spiegelt z, laesst x und y
+  // auf dem Bildschirm aber stehen: der Uhrzeigersinn bleibt Uhrzeigersinn,
+  // und GL muss ihn als Vorderseite nehmen. Bis 2026-09-17 stand hier GL_CCW;
+  // die Primitive und UpdateNormals waren zum Ausgleich umgedreht, geladene
+  // Modelle zeigten ihre Innenseiten.
   glEnable(GL_CULL_FACE);
   glCullFace(GL_BACK);
-  glFrontFace(GL_CCW);
+  glFrontFace(GL_CW);
 
   for (auto* cam : cams) {
     // Viewport — Blitz3D y=0 is top-left; GL y=0 is bottom-left, so flip.

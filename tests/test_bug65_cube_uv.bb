@@ -11,12 +11,9 @@
 ; Jede Flaeche laeuft von der oberen linken Ecke im Uhrzeigersinn:
 ; (0,0), (1,0), (1,1), (0,1).
 ;
-; NICHT hier zugesichert ist die Umlaufrichtung der Dreiecke: unsere laufen
-; andersherum als die des Originals, weil unser Renderer die z-Achse in der
-; Sichtmatrix spiegelt. Mit der Reihenfolge des Originals wird jede Flaeche
-; weggeschnitten - gemessen ueber die Breite der Silhouette mit und ohne
-; EntityFX 16, in einem eigenen C++-Programm, weil ReadPixel wegen BUG-63
-; nicht geht. TriangleVertex meldet deshalb (0,2,1) statt (0,1,2).
+; Die Dreiecke laufen wie im Original: (0,1,2) und (0,2,3). Bis 2026-09-17
+; liefen sie hier andersherum, um eine falsch gesetzte Vorderseite im
+; Renderer auszugleichen (BUG-126, dort auch die Sichtbarkeit).
 
 Graphics3D 320, 240, 32, 2
 cam = CreateCamera()
@@ -53,9 +50,9 @@ pruefe 21, 1, -1, -1, 0, -1, 0, 1, 0
 pruefe 22, 1, -1, 1, 0, -1, 0, 1, 1
 pruefe 23, -1, -1, 1, 0, -1, 0, 0, 1
 
-; Die Dreiecke laufen bei uns gegen den Umlaufsinn des Originals.
-If TriangleVertex(s,0,0) = 0 And TriangleVertex(s,0,1) = 2 And TriangleVertex(s,0,2) = 1 Then Print "dreieck 0" Else Print "FEHLER dreieck 0"
-If TriangleVertex(s,1,0) = 0 And TriangleVertex(s,1,1) = 3 And TriangleVertex(s,1,2) = 2 Then Print "dreieck 1" Else Print "FEHLER dreieck 1"
+; Die Dreiecke laufen wie im Original (BUG-126).
+If TriangleVertex(s,0,0) = 0 And TriangleVertex(s,0,1) = 1 And TriangleVertex(s,0,2) = 2 Then Print "dreieck 0" Else Print "FEHLER dreieck 0"
+If TriangleVertex(s,1,0) = 0 And TriangleVertex(s,1,1) = 2 And TriangleVertex(s,1,2) = 3 Then Print "dreieck 1" Else Print "FEHLER dreieck 1"
 
 Print "fertig"
 End

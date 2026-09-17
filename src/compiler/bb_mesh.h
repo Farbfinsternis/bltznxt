@@ -107,18 +107,10 @@ static inline void bb_mesh_push_quad_(bb_MeshData_& m,
 // Vertex-Getter, siehe Buglist). Jede Flaeche laeuft von der oberen linken
 // Ecke im Uhrzeigersinn: (0,0), (1,0), (1,1), (0,1).
 //
-// **Die Dreiecke laufen dabei andersherum als im Original.** Unser
-// Renderer spiegelt die z-Achse in der Sichtmatrix (Entities blicken nach
-// +Z, GL nach -Z), und dadurch ist bei uns die im Modellraum
-// LINKSHAENDIG nach aussen zeigende Umlaufrichtung die vordere. Das ist
-// keine Vermutung: mit der Reihenfolge des Originals wird jede Flaeche
-// weggeschnitten, und die Netze aus den Loadern - die dieselbe Konvention
-// tragen wie das Original - werden bei uns nur deshalb richtig gezeichnet,
-// weil die Loadermatrix die Haendigkeit umkehrt. Gemessen wird das ueber
-// die Breite der Silhouette mit und ohne EntityFX 16.
-//
-// TriangleVertex meldet dadurch (0,2,1) statt (0,1,2). Das ist die einzige
-// bewusste Abweichung; die Vertextabelle selbst stimmt Zahl fuer Zahl.
+// Die Dreiecke laufen wie im Original: TriangleVertex meldet (0,1,2) und
+// (0,2,3). Bis 2026-09-17 liefen sie hier andersherum, um eine falsch
+// gesetzte Vorderseite im Renderer auszugleichen (BUG-126, siehe
+// bb_RenderWorld). Die Vertextabelle selbst stimmt Zahl fuer Zahl.
 static inline bb_MeshData_ bb_gen_cube_() {
   bb_MeshData_ m;
 
@@ -137,11 +129,10 @@ static inline bb_MeshData_ bb_gen_cube_() {
     const unsigned base = static_cast<unsigned>(m.vertices.size() / BB_VF);
     for (const Ecke& e : f.e)
       bb_vert_push_(m, e.x, e.y, e.z, f.nx, f.ny, f.nz, e.u, e.v);
-    // Gegen den Umlaufsinn des Originals - siehe oben.
-    m.indices.push_back(base);     m.indices.push_back(base + 2);
-    m.indices.push_back(base + 1);
-    m.indices.push_back(base);     m.indices.push_back(base + 3);
+    m.indices.push_back(base);     m.indices.push_back(base + 1);
     m.indices.push_back(base + 2);
+    m.indices.push_back(base);     m.indices.push_back(base + 2);
+    m.indices.push_back(base + 3);
   }
 
   m.dirty = true;
@@ -199,14 +190,12 @@ static inline bb_MeshData_ bb_gen_sphere_(int segs) {
 
       base = static_cast<unsigned int>(m.vertices.size() / BB_VF);
       push_v(i00); push_v(i10); push_v(i11); push_v(i01);
-      // Umlaufsinn wie bei bb_gen_cube_: unser Renderer spiegelt z in der
-      // Sichtmatrix, die Vorderseite laeuft deshalb andersherum (BUG-92). Bis
-      // 2026-09-15 stand hier (0,1,2)/(0,2,3) - weggeschnitten wurde die
-      // Vorderseite, zu sehen war die Innenseite der hinteren Haelfte mit vom
-      // Licht abgewandten Normalen, und die Kugel blieb unter jedem Licht
-      // schwarz.
-      m.indices.push_back(base);   m.indices.push_back(base+2); m.indices.push_back(base+1);
-      m.indices.push_back(base);   m.indices.push_back(base+3); m.indices.push_back(base+2);
+      // Umlaufsinn wie im Original, nach aussen im Uhrzeigersinn (BUG-126).
+      // Zusammen mit der Vorderseite im Renderer entscheidet er, welche
+      // Haelfte zu sehen ist; mit falscher Paarung bleibt die Kugel unter
+      // jedem Licht schwarz (BUG-92).
+      m.indices.push_back(base);   m.indices.push_back(base+1); m.indices.push_back(base+2);
+      m.indices.push_back(base);   m.indices.push_back(base+2); m.indices.push_back(base+3);
     }
   }
 
@@ -239,8 +228,9 @@ static inline bb_MeshData_ bb_gen_cylinder_(int segs, bool open) {
     bb_vert_push_(m, x1,-1,z1, x1,0,z1, u1,1);
     bb_vert_push_(m, x1, 1,z1, x1,0,z1, u1,0);
     bb_vert_push_(m, x0, 1,z0, x0,0,z0, u0,0);
-    m.indices.push_back(base); m.indices.push_back(base+1); m.indices.push_back(base+2);
-    m.indices.push_back(base); m.indices.push_back(base+2); m.indices.push_back(base+3);
+    // nach aussen im Uhrzeigersinn wie im Original (BUG-126)
+    m.indices.push_back(base); m.indices.push_back(base+2); m.indices.push_back(base+1);
+    m.indices.push_back(base); m.indices.push_back(base+3); m.indices.push_back(base+2);
   }
 
   if (!open) {
@@ -257,7 +247,7 @@ static inline bb_MeshData_ bb_gen_cylinder_(int segs, bool open) {
       unsigned int b = static_cast<unsigned int>(m.vertices.size() / BB_VF);
       bb_vert_push_(m, x0,1,z0, 0,1,0, 0.5f+0.5f*x0, 0.5f-0.5f*z0);
       bb_vert_push_(m, x1,1,z1, 0,1,0, 0.5f+0.5f*x1, 0.5f-0.5f*z1);
-      m.indices.push_back(center); m.indices.push_back(b); m.indices.push_back(b+1);
+      m.indices.push_back(center); m.indices.push_back(b+1); m.indices.push_back(b);
     }
 
     // Bottom cap (-Y)
@@ -270,7 +260,7 @@ static inline bb_MeshData_ bb_gen_cylinder_(int segs, bool open) {
       unsigned int b = static_cast<unsigned int>(m.vertices.size() / BB_VF);
       bb_vert_push_(m, x0,-1,z0, 0,-1,0, 0.5f+0.5f*x0, 0.5f+0.5f*z0);
       bb_vert_push_(m, x1,-1,z1, 0,-1,0, 0.5f+0.5f*x1, 0.5f+0.5f*z1);
-      m.indices.push_back(center); m.indices.push_back(b+1); m.indices.push_back(b);
+      m.indices.push_back(center); m.indices.push_back(b); m.indices.push_back(b+1);
     }
   }
 
@@ -310,7 +300,8 @@ static inline bb_MeshData_ bb_gen_cone_(int segs, bool open) {
     bb_vert_push_(m, x0,-1,z0, nx0,ny0,nz0, u0,1);
     bb_vert_push_(m, x1,-1,z1, nx1,ny1,nz1, u1,1);
     bb_vert_push_(m, 0,  1, 0, nxa,nya,nza, um,0);
-    m.indices.push_back(base); m.indices.push_back(base+1); m.indices.push_back(base+2);
+    // nach aussen im Uhrzeigersinn wie im Original (BUG-126)
+    m.indices.push_back(base); m.indices.push_back(base+2); m.indices.push_back(base+1);
   }
 
   if (!open) {
@@ -324,7 +315,7 @@ static inline bb_MeshData_ bb_gen_cone_(int segs, bool open) {
       unsigned int b = static_cast<unsigned int>(m.vertices.size() / BB_VF);
       bb_vert_push_(m, x0,-1,z0, 0,-1,0, 0.5f+0.5f*x0, 0.5f+0.5f*z0);
       bb_vert_push_(m, x1,-1,z1, 0,-1,0, 0.5f+0.5f*x1, 0.5f+0.5f*z1);
-      m.indices.push_back(center); m.indices.push_back(b+1); m.indices.push_back(b);
+      m.indices.push_back(center); m.indices.push_back(b); m.indices.push_back(b+1);
     }
   }
 
@@ -618,11 +609,11 @@ inline void bb_UpdateNormals(int h) {
       const float* pc = &s.vertices[c * BB_VF];
       float ux = pb[0] - pa[0], uy = pb[1] - pa[1], uz = pb[2] - pa[2];
       float vx = pc[0] - pa[0], vy = pc[1] - pa[1], vz = pc[2] - pa[2];
-      // Kreuzprodukt in der Reihenfolge, die zur Umlaufrichtung unserer
-      // Primitiven passt (siehe bb_gen_cube_).
-      float nx = uz * vy - uy * vz;
-      float ny = ux * vz - uz * vx;
-      float nz = uy * vx - ux * vy;
+      // (b-a)x(c-a): zeigt zur Vorderseite, wie im Original (BUG-126,
+      // gemessen an einem Dreieck aus einer .x-Datei ohne MeshNormals).
+      float nx = uy * vz - uz * vy;
+      float ny = uz * vx - ux * vz;
+      float nz = ux * vy - uy * vx;
       for (unsigned idx : { a, b, c }) {
         acc[idx * 3]     += nx;
         acc[idx * 3 + 1] += ny;

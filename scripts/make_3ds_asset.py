@@ -18,6 +18,9 @@ ablesen. Diese hier ist eigens gebaut, damit die Erwartung feststeht:
                      Parser muss in seinen Grenzpruefungen haengenbleiben
                      und 0 liefern, statt hinter den Puffer zu lesen.
 
+    test_tri_cw.3ds  ein Dreieck, von vorn im Uhrzeigersinn (nach dem
+    test_tri_ccw.3ds y/z-Tausch des Loaders) bzw. andersherum - BUG-126.
+
 Aufruf aus dem Projektwurzelverzeichnis:
 
     python scripts/make_3ds_asset.py
@@ -108,6 +111,24 @@ def main():
         f.write(broken)
     print("%s: %d Bytes (Laengenangabe zeigt hinter das Dateiende)"
           % (path, len(broken)))
+
+    # BUG-126: ein Dreieck in beiden Reihenfolgen. In Blitz-Koordinaten liegen
+    # die Ecken bei (-1,1,0), (1,1,0), (1,-1,0); in der Datei stehen y und z
+    # getauscht. Der Tausch kehrt den Umlaufsinn um, deshalb ist hier die
+    # Datei mit (0,2,1) die im Original von vorn sichtbare.
+    ecken = [(-1.0, 0.0, 1.0), (1.0, 0.0, 1.0), (1.0, 0.0, -1.0)]
+    for name, face in (("test_tri_cw.3ds", (0, 2, 1)),
+                       ("test_tri_ccw.3ds", (0, 1, 2))):
+        data = chunk(0x4D4D, b"",
+                     chunk(0x0002, struct.pack(LE + "I", 3)) +
+                     chunk(0x3D3D, b"",
+                           material("weiss", (255, 255, 255)) +
+                           trimesh("dreieck", ecken, [face], "weiss",
+                                   [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)])))
+        path = os.path.join(out, name)
+        with open(path, "wb") as f:
+            f.write(data)
+        print("%s: %d Bytes" % (path, len(data)))
 
 
 if __name__ == "__main__":

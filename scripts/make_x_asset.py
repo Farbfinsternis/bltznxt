@@ -25,6 +25,10 @@ danebengreifen kann:
 
     Erwartet: w=11, h=2, d=0, zwei Flaechen, vier Dreiecke.
 
+    test_tri_cw.x / test_tri_ccw.x
+      ein Dreieck ohne MeshNormals, von vorn im Uhrzeigersinn bzw.
+      andersherum - BUG-126.
+
     test_frames_bin.x
       dieselbe Szene in der Binaerkodierung. Sie muss Zahl fuer Zahl
       dasselbe ergeben - siehe den Abschnitt weiter unten.
@@ -277,6 +281,19 @@ Frame wurzel {
         f.write(blob)
     print("%s: %d Bytes" % (path, len(blob)))
     print("  erwartet: dieselben Zahlen wie test_frames.x")
+
+    # BUG-126: ein Dreieck in beiden Reihenfolgen, ohne MeshNormals, damit
+    # der Loader UpdateNormals rufen muss. Von vorn (Kamera bei -z) laeuft
+    # test_tri_cw.x im Uhrzeigersinn und ist im Original sichtbar.
+    ecken = [(-1.0, 1.0, 0.0), (1.0, 1.0, 0.0), (1.0, -1.0, 0.0)]
+    for name, face in (("test_tri_cw.x", (0, 1, 2)),
+                       ("test_tri_ccw.x", (0, 2, 1))):
+        body = "xof 0302txt 0032\nMesh dreieck {\n 3;\n %s;\n 1;\n 3;%d,%d,%d;;\n}\n" % (
+            ",\n ".join("%f;%f;%f;" % p for p in ecken), face[0], face[1], face[2])
+        path = os.path.join(out, name)
+        with open(path, "w", newline="\n") as f:
+            f.write(body)
+        print("%s: %d Bytes" % (path, len(body)))
 
 
 if __name__ == "__main__":

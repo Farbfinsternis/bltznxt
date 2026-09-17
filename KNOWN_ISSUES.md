@@ -11,7 +11,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-09-17 — 49 open bugs.*
+*Last updated: 2026-09-17 — 48 open bugs.*
 
 If your program behaves differently from Blitz3D and the cause is not listed here, please
 open an issue with a minimal `.bb` file and the output of both.
@@ -230,13 +230,6 @@ The 3D layer is under active development — see [ROADMAP3D.md](ROADMAP3D.md). B
 [missing commands](#missing-commands), several of the demos that ship with Blitz3D show
 visibly wrong results because of the points below.
 
-- **All meshes are drawn from the wrong side.** A triangle listed clockwise — the front face
-  in Blitz3D — is removed as a back face. Self-built meshes such as flags, mirrors or terrain
-  grids are invisible or show holes. Closed models loaded from `.x`/`.3ds` look right from
-  outside only because the inside of their far wall is shown; normals computed by
-  `UpdateNormals` (also for loaded models without normals) point inwards. The built-in
-  primitives compensate with a reversed triangle order, visible through `TriangleVertex`.
-  (BUG-126)
 - **Drawing into a texture has no effect.** `SetBuffer TextureBuffer(tex)` followed by
   `Rect`, `Text`, `WritePixel` or `CopyRect` leaves the texture black, so objects that use
   a generated texture appear black. (BUG-127)
