@@ -11,7 +11,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-09-16 — 47 open bugs.*
+*Last updated: 2026-09-17 — 49 open bugs.*
 
 If your program behaves differently from Blitz3D and the cause is not listed here, please
 open an issue with a minimal `.bb` file and the output of both.
@@ -230,10 +230,13 @@ The 3D layer is under active development — see [ROADMAP3D.md](ROADMAP3D.md). B
 [missing commands](#missing-commands), several of the demos that ship with Blitz3D show
 visibly wrong results because of the points below.
 
-- **Meshes built with `AddTriangle` are drawn from the wrong side.** A triangle listed
-  clockwise — the front face in Blitz3D — is removed as a back face, so self-built meshes
-  such as flags, mirrors or terrain grids are invisible or show holes. Loaded `.x`/`.3ds`
-  models and the built-in primitives are not affected. (BUG-126)
+- **All meshes are drawn from the wrong side.** A triangle listed clockwise — the front face
+  in Blitz3D — is removed as a back face. Self-built meshes such as flags, mirrors or terrain
+  grids are invisible or show holes. Closed models loaded from `.x`/`.3ds` look right from
+  outside only because the inside of their far wall is shown; normals computed by
+  `UpdateNormals` (also for loaded models without normals) point inwards. The built-in
+  primitives compensate with a reversed triangle order, visible through `TriangleVertex`.
+  (BUG-126)
 - **Drawing into a texture has no effect.** `SetBuffer TextureBuffer(tex)` followed by
   `Rect`, `Text`, `WritePixel` or `CopyRect` leaves the texture black, so objects that use
   a generated texture appear black. (BUG-127)
@@ -256,6 +259,11 @@ visibly wrong results because of the points below.
   looks differently lit because of this. (BUG-93)
 - **`CreateCylinder`** builds a different mesh: one surface with 66 vertices and 32
   triangles instead of two (side and caps) with 18/16 and 16/12. (BUG-133)
+- **`UpdateNormals`** averages per vertex index. Blitz3D also merges vertices at the same
+  position, so a cube gets rounded corner normals there and stays faceted here. (BUG-134)
+- **`.3ds` models** number their vertices differently (`TriangleVertex` returns 0,2,1 where
+  Blitz3D returns 0,1,2), and their normals are normalised where Blitz3D leaves them
+  unnormalised. (BUG-135)
 - **Texture paths inside `.x` models** are resolved relative to the model file. For paths
   with a directory part (`Textures\Rock.bmp`) Blitz3D apparently does not load the
   texture, so a model can end up with a different number of surfaces here. (BUG-76)

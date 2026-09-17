@@ -1,5 +1,28 @@
 # BlitzNext Developer Log
 
+## 2026-09-17 — Bug list checked against the engine draft, winding measured
+
+The open bug list was compared with `ENGINE_DESIGN.md`, and the draft now follows from it: the
+order in section 9 has ten steps. Winding (BUG-126) comes before the primitive meshes, 3D
+behaviour tests before restructuring the renderer, and a handful of language bugs (float to int
+conversion, float literals, local shadowing, implicit variable types, `Str(float)`) plus a typed
+constant evaluator before vectors, because vectors build on exactly those paths. Sphere mapping
+(BUG-130) moves into the material model step. `TextureBuffer`/`CopyRect` are split: behaviour
+now, storage (CPU copy or GPU target) together with render targets. A twelfth open question
+covers vectors and Blitz's implicit rules (`Const`, `Data`, default parameters, `Handle`).
+
+Measuring the winding in both systems showed BUG-126 is wider than recorded. A single triangle
+as `.x`, `.3ds` and `AddTriangle`, each in both orders: Blitz3D shows the side the cross product
+`(b-a)x(c-a)` points to, BlitzNext the other — for every mesh, loaded ones included. Geometry
+and the `.3ds` index swap agree; only the renderer culls the wrong side. Closed loaded models
+look right from outside because the inside of the far wall is drawn; with the camera inside a
+crate, Blitz3D shows nothing and BlitzNext the inner walls. The primitives and the cross
+product in `UpdateNormals` are reversed to compensate, so loaded models without normals get
+inward normals. Two side findings became BUG-134 (`UpdateNormals` in Blitz3D merges vertices at
+the same position) and BUG-135 (`.3ds` vertex numbering and unnormalised normals). 49 open bugs.
+
+---
+
 ## 2026-09-16 — Engine design draft
 
 `ENGINE_DESIGN.md` collects where the 3D engine is heading, as a draft with every point marked

@@ -2,7 +2,8 @@
 
 **Vektoren, Materialien, Licht und Schatten, Render-Passes, Shader, Renderer**
 
-*Stand: 2026-09-16. Entwurf, nichts davon ist implementiert.*
+*Stand: 2026-09-17 (Abgleich mit der Bugliste eingearbeitet). Entwurf, nichts
+davon ist implementiert.*
 
 Zeichen in diesem Dokument: **✔ entschieden** · **◇ Vorschlag** · **? offen**
 
@@ -62,7 +63,7 @@ tragen die Vektorbefehle das Präfix `Vec`.
 | Zahlentyp | immer Kommazahl (32 Bit, wie `#`) | ✔ |
 | Tags | `Vec3#` ist erlaubt und bedeutet dasselbe; `Vec3%` und `Vec3$` sind Fehler: `'Vec3' always holds floats - remove the '%'` | ✔ |
 | Verhalten | Wert, kein Objekt (E4) | ◇ |
-| Reservierte Namen | `Vec2`, `Vec3`, `Vec4` sind reserviert, auch für Variablen, Funktionen und Types; das Programm verliert (E2) | ✔ |
+| Reservierte Namen | `Vec2`, `Vec3`, `Vec4` sind reserviert, auch für Variablen, Funktionen und Types; das Programm verliert (E2). Wie jedes reservierte Wort ohne Beachtung der Großschreibung (`vec3` ist ebenfalls reserviert) | ✔ |
 | Komponenten | `v\x`, `v\y`, `v\z`, `v\w` | ◇ |
 | Ganzzahlvektoren | nicht vorgesehen. Falls später nötig, kommt `Vec3%` als neue Schreibweise dazu, ohne bestehende Programme zu brechen | ✔ |
 
@@ -102,7 +103,21 @@ End Function
 | `a < b` usw. | nicht erlaubt | ◇ |
 | `Vec3` mit `Vec2` mischen | Fehler, keine stille Anpassung | ◇ |
 | Komponente in Ganzzahl (`n% = v\x`) | wird gerundet, wie überall in Blitz | ✔ |
-| Vektor in String (`Print v`, `"" + v`) | ? Format, z. B. `"1.0,2.0,3.0"` | ? |
+| Vektor in String (`Print v`, `"" + v`) | ◇ jede Komponente wie `Str(float)` des Originals, durch Komma getrennt: `"1.0,2.0,3.0"`. Setzt BUG-68 voraus | ? |
+
+### 2.3a Vektoren und die Implizit-Regeln von Blitz
+
+? Offen (O12). Blitz legt eine Variable ohne Tag als Ganzzahl an und wandelt
+Konstanten, `Data` und Vorgabewerte nach eigenen Regeln um. Für Vektoren ist
+noch nichts davon festgelegt:
+
+| Fall | Frage | Bezug |
+|------|-------|-------|
+| `v = Vec3(1,2,3)` ohne Tag | ◇ `Illegal type conversion` wie bei Objekten, denn eine implizite Variable ist int | BUG-80 |
+| `Const up.Vec3 = Vec3(0,1,0)` | erlaubt? | BUG-99 |
+| `Data` mit Vektoren | erlaubt? | BUG-107 |
+| `Function F(v.Vec3 = Vec3(0,0,0))` | Vorgabewerte erlaubt? | BUG-49 |
+| `Handle v`, `Object.Vec3(h)` | ◇ Meldung, Vektoren sind Werte (E4) | BUG-101 |
 
 ### 2.4 Befehle
 
@@ -141,6 +156,12 @@ funktionieren weiter.
 
 - **Compiler:** neuer Werttyp im Analyzer (heute: int, float, string, Objekt),
   Operatoren, `\x` auf Werten statt Zeigern, reservierte Namen mit Meldung.
+- **Vorher zu beheben**, weil der neue Werttyp genau auf diesen Pfaden
+  aufsetzt: BUG-95 (Float→Int schneidet ab, die Regel „gerundet wie überall“
+  aus 2.3 gilt heute nicht überall), BUG-97 (Float-Literale als double, Vektoren
+  sind 32 Bit), BUG-100 (Local/Global in der Symboltabelle), BUG-80 (ungetaggte
+  Zuweisung übernimmt den Typ der rechten Seite), BUG-68 (`Str(float)`, für
+  das Format aus 2.3).
 - **C++:** kleine Struktur mit Rechenoperatoren.
 - **GLSL:** entspricht 1:1 `vec2`/`vec3`/`vec4` bzw. `mat3`/`mat4`.
 
@@ -171,7 +192,7 @@ Richtlinie, die Formeln werden beim Bau festgelegt):
 | `EntityFX 32` | Alpha-Blending erzwingen |
 | `EntityBlend` 1/2/3 | Alpha / Multiplizieren / Addieren |
 | `TextureBlend` 0–5, mehrere Texturlagen | emuliert: die Lagen werden vor der Beleuchtung zur Grundfarbe verrechnet |
-| Texturflag 64, 128 | Umgebungsabbildung (Kugel, Würfel) als Reflexion |
+| Texturflag 64, 128 | Umgebungsabbildung (Kugel, Würfel) als Reflexion; Flag 64 fehlt heute ganz (BUG-130, wird in Schritt 5 behoben) |
 | Lightmap in zweiter UV-Lage | **?** als vorberechnete Beleuchtung behandeln oder nur multiplizieren |
 
 ### 3.2 Neue Materialbefehle
@@ -324,13 +345,22 @@ wollen, z. B. `CameraBloom cam, threshold#, strength#`. Sie laufen innerhalb von
 
 ### 5.4 Anschluss an Blitz3D
 
-- ? `TextureBuffer`, `CopyRect` und `ReadPixel` (BUG-127, BUG-118) sollten auf
-  dieselben GPU-Targets aufsetzen, damit der alte Weg „Kamera → Textur“ weiter
-  funktioniert und nicht langsamer ist als der neue.
+- ◇ `TextureBuffer`, `CopyRect` und `ReadPixel` (BUG-127, BUG-118) — die Frage
+  wird geteilt:
+  - **Bedeutung jetzt** (Schritt 1): was `ReadPixel`, `WritePixel`,
+    `LockBuffer` und `CopyRect` auf einer Textur liefern und wann eine Änderung
+    im Bild sichtbar wird, wird am Original gemessen, umgesetzt und mit Tests
+    festgehalten.
+  - **Speicherung später** (Schritt 7): ob der Puffer als CPU-Kopie mit
+    Hochladen oder als GPU-Target lebt. Ziel bleibt, dass der alte Weg
+    „Kamera → Textur“ nicht langsamer ist als der neue. Die Tests aus Schritt 1
+    gelten weiter.
 - ? Rechnet `RenderWorld` immer in HDR mit Tone-Mapping, auch ohne eigene
   Passes? Das ändert das Aussehen alter Szenen (zulässig nach der Richtlinie).
 - ? Mehrere Kameras mit Viewports: jede mit eigenem Target, oder Passes je
-  Viewport?
+  Viewport? Das Beobachtbare (BUG-129: Bild und `CameraClsColor` in jedem
+  Viewport) hängt nicht daran und wird vorher behoben; die Kameraschleife soll
+  dabei ein eigenes Target je Kamera zulassen.
 
 ---
 
@@ -359,6 +389,12 @@ fester Obergrenze, `While`, Funktionen ohne Rekursion, `Const`, die Mathematik
 **Nicht erlaubt**, weil es auf der GPU nicht existiert: `$`, Types als Objekte,
 `New`/`Delete`, `Goto`/`Gosub`, `Data`/`Read`, Dateibefehle, 2D-Befehle,
 Rekursion, `Dim` mit veränderlicher Größe.
+
+Feste Obergrenzen und feste Größen brauchen eine **typisierte
+Konstantenauswertung** im Analyzer. Dieselbe Auswertung fehlt heute schon für
+BUG-75 (`Division by zero`), BUG-78 (Index außerhalb fester Arrays), BUG-99
+(`Const`) und BUG-107 (`Data`); sie wird deshalb in Schritt 3 gebaut, nicht erst
+für den Dialekt.
 
 ◇ Skizze:
 
@@ -451,21 +487,49 @@ das; der Plan wurde danach gelöscht. Was davon weiter gilt:
 
 ## 9. Reihenfolge
 
-◇ Vorschlag:
+◇ Vorschlag, am 2026-09-17 mit der Bugliste abgeglichen:
 
-1. **Beobachtbare Fehler beheben**, die jede Engine braucht: BUG-126
-   (Umlaufrichtung), BUG-127 (`TextureBuffer`), BUG-128 (`CopyEntity`), BUG-129
-   (Viewports), BUG-131 (Farbe nach `Graphics3D`), BUG-69/93/133 (Primitive).
-2. **Renderer gliedern** (7.2) ohne sichtbare Änderung.
-3. **Vektoren** in der Sprache (Abschnitt 2) — unabhängig vom Renderer, sofort
+1. **Beobachtbare 3D-Fehler beheben**, die jede Engine braucht:
+   1. BUG-126 (Umlaufrichtung) **zuerst**. Gemessen am 2026-09-17: Der
+      Renderer schneidet bei **allen** Netzen die falsche Seite weg, auch bei
+      geladenen Modellen. Die sehen von außen nur richtig aus, weil man bei
+      einem geschlossenen Netz die Innenseite der Rückwand sieht. Die Primitive
+      und `UpdateNormals` sind andersherum gebaut, um das auszugleichen. Die
+      Umkehr kommt an eine Stelle; damit stimmen `TriangleVertex` beim Würfel
+      (BUG-65) und die Normalen geladener Modelle wieder. Danach BUG-134
+      (`UpdateNormals` mittelt über gleiche Positionen) und BUG-135
+      (`.3ds`-Loader).
+   2. BUG-69/93/133 (Kugel, Kegel, Zylinder) in der gemessenen
+      Indexreihenfolge des Originals.
+   3. BUG-128 (`CopyEntity`), BUG-129 (Viewports), BUG-131 (Farbe nach
+      `Graphics3D`), BUG-120 (`ClearWorld`-Schalter).
+   4. BUG-127 (`TextureBuffer`) und BUG-118 (`CopyRect`) mit der Bedeutung
+      nach 5.4; die Speicherung folgt in Schritt 7.
+   5. BUG-76 (Texturpfade aus Modellen), sobald entschieden ist, ob wir dem
+      Original folgen.
+2. **3D-Verhaltenstests** (WEAK-16: Generatoren, Matrizen, Kameraschleife,
+   Pixelproben mit `EntityFX 1`), danach **Renderer gliedern** (7.2) ohne
+   sichtbare Änderung. Ohne die Tests ist „ohne sichtbare Änderung“ nicht
+   prüfbar.
+3. **Sprachgrundlage für Vektoren:** BUG-95, BUG-97, BUG-100, BUG-80, BUG-68
+   (siehe 2.7) und die typisierte Konstantenauswertung (BUG-75/78/99/107, siehe
+   6.2); O2 und O12 entscheiden.
+4. **Vektoren** in der Sprache (Abschnitt 2) — unabhängig vom Renderer, sofort
    nützlich.
-4. **Materialmodell und Licht pro Pixel** (Abschnitte 3, 4.1), HDR und
-   Tone-Mapping; dabei WEAK-25 (Beleuchtungstests) umstellen.
-5. **Schatten** (4.2).
-6. **Render-Targets und Passes mit GLSL** (Abschnitt 5).
-7. **Fertige Effekte** (Bloom, SSAO, Farbkorrektur).
-8. **Blitz-Shader-Dialekt** (Abschnitt 6).
-9. **Renderer-Entscheidung** Forward+ / Deferred (7.3), spätestens vor 8.
+5. **Materialmodell und Licht pro Pixel** (Abschnitte 3, 4.1), HDR und
+   Tone-Mapping; dabei BUG-130 (Texturflag 64) beheben und WEAK-25
+   (Beleuchtungstests) umstellen. Die Übergangsstände aus BUG-66/BUG-91 enden
+   hier.
+6. **Schatten** (4.2).
+7. **Render-Targets und Passes mit GLSL** (Abschnitt 5), dazu die Speicherung
+   von `TextureBuffer`/`CopyRect` (O8).
+8. **Fertige Effekte** (Bloom, SSAO, Farbkorrektur).
+9. **Blitz-Shader-Dialekt** (Abschnitt 6).
+10. **Renderer-Entscheidung** Forward+ / Deferred (7.3), spätestens vor 9.
+
+Vom Entwurf unabhängig und jederzeit möglich sind die übrigen offenen Einträge
+der Bugliste (Include, Objektlebensdauer, Gosub, Dateiformat, Zufallszahlen,
+2D-Kollision, Stringprüfungen u. a.).
 
 ---
 
@@ -474,13 +538,14 @@ das; der Plan wurde danach gelöscht. Was davon weiter gilt:
 | Nr. | Frage | Abschnitt |
 |-----|-------|-----------|
 | O1 | Gilt „das Programm verliert“ (E2) für alle neuen Befehle oder nur für `Vec`? | 1 |
-| O2 | Vergleich `a = b` bei Vektoren, Format bei `Print v` | 2.3 |
+| O2 | Vergleich `a = b` bei Vektoren, Format bei `Print v` (◇ wie `Str(float)`, BUG-68) | 2.3 |
 | O3 | Matrizen: Schreibweise, Elementzugriff, Befehle | 2.5 |
 | O4 | Kurve Shininess → Roughness | 3.1 |
 | O5 | Lightmaps: vorberechnete Beleuchtung oder nur Multiplikation | 3.1 |
 | O6 | Befehlsnamen für Schatten, Verhalten bei Alpha und Maske | 4.2 |
 | O7 | Belichtung als Befehl; HDR/Tone-Mapping immer oder nur mit Passes | 4.1, 5.4 |
-| O8 | `TextureBuffer`/`CopyRect` auf GPU-Targets | 5.4 |
-| O9 | Passes und mehrere Kameras/Viewports | 5.4 |
+| O8 | `TextureBuffer`/`CopyRect` auf GPU-Targets (◇ geteilt: Bedeutung in Schritt 1, Speicherung in Schritt 7) | 5.4 |
+| O9 | Passes und mehrere Kameras/Viewports (BUG-129 unabhängig davon vorher) | 5.4 |
 | O10 | Ein- und Ausgaben des Shader-Dialekts, Material-Shader | 6.2 |
 | O11 | Forward+ oder Deferred | 7.3 |
+| O12 | Vektoren und die Implizit-Regeln: ungetaggte Zuweisung, `Const`, `Data`, Vorgabewerte, `Handle` (BUG-80/99/107/49/101) | 2.3a |
