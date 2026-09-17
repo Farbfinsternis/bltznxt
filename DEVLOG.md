@@ -1,5 +1,18 @@
 # BlitzNext Developer Log
 
+## 2026-09-17 — The demos again
+
+The demos compared on 2026-09-16 were recorded again in both systems, in windowed copies with the
+start menu of the `mak` demos advancing on its own. The mirror, the flag, the primitives, the three
+camera views, the lights demo's white text, the LOD sphere and the closed matrix terrain now show
+the same picture as Blitz3D, apart from shading, font metrics (BUG-139) and the window title. The
+jet in Jet Tails is still missing: its camera follows with `TranslateEntity`, which moves along the
+entity's own rotation here instead of the parent's axes, so the camera drifts away (BUG-145). The
+same demo shows a different surface order in a `.x` model (BUG-146), and windows without
+`AppTitle` are titled "BLTZNXT" instead of staying empty (BUG-147). 46 open bugs.
+
+---
+
 ## 2026-09-17 — Translucency in the default blend mode (BUG-142)
 
 `EntityAlpha 0.5` drew a solid cube. The renderer switched blending on but only set the blend

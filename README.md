@@ -38,7 +38,7 @@ Mark passed away in 2024. BlitzNext exists to carry his idea forward — the bel
 | **Built-in commands** | 380 of Blitz3D's 540 commands (70 %), plus 27 BlitzNext additions |
 | **2D milestones** | Milestones 6–46 complete ([roadmap.md](roadmap.md)) |
 | **3D milestones** | 13 of 24 complete, mesh loading and the surface API in progress ([ROADMAP3D.md](ROADMAP3D.md)) |
-| **Known deviations** | 43 open bugs, all reproduced against Blitz3D 11.8 ([KNOWN_ISSUES.md](KNOWN_ISSUES.md)) |
+| **Known deviations** | 46 open bugs, all reproduced against Blitz3D 11.8 ([KNOWN_ISSUES.md](KNOWN_ISSUES.md)) |
 
 Compatibility is measured, not estimated: questions about the language are answered from the
 [original source](https://github.com/blitz-research/blitz3d), and results are compared with a

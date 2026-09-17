@@ -11,7 +11,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-09-17 — 43 open bugs.*
+*Last updated: 2026-09-17 — 46 open bugs.*
 
 If your program behaves differently from Blitz3D and the cause is not listed here, please
 open an issue with a minimal `.bb` file and the output of both.
@@ -238,6 +238,13 @@ visibly wrong results because of the points below.
 - **`CreateTexture` does not round sizes up to powers of two.** Blitz3D reports
   `TextureWidth` 32 for `CreateTexture(30,20)`; BlitzNext reports 30. Drawing into the texture
   buffer covers a different part of the surface. (BUG-143)
+- **`TranslateEntity` moves along the entity's own rotation.** Blitz3D adds the offset in the
+  parent's axes, ignoring the entity's own rotation; BlitzNext rotates it like `MoveEntity`. A
+  camera that is pointed at something and then translated drifts away.
+  *Workaround:* use `PositionEntity` with `EntityX/Y/Z` plus the offset. (BUG-145)
+- **Surfaces of some `.x` models come in a different order.** `GetSurface(mesh,1)` of the jet in
+  the Jet Tails demo has 187 triangles here and 4 in Blitz3D. (BUG-146)
+- **Without `AppTitle` the window is titled "BLTZNXT".** Blitz3D leaves the title empty. (BUG-147)
 - **Spherical environment mapping (texture flag 64) is ignored.** Chrome and reflection
   effects show the texture as if it were mapped normally. (BUG-130)
 - **Changing the graphics mode keeps images and custom loader matrices.** Blitz3D frees all
