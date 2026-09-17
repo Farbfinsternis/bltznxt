@@ -215,6 +215,26 @@ inline void bb_RenderWorld(float tween = 1.0f) {
     else
       bb_cam_proj_persp_(cam, aspect);
 
+    // Pixelmitte wie Direct3D 7: dort liegt sie auf ganzen Koordinaten, in
+    // OpenGL auf .5. Am Original gemessen (BUG-152, 2026-09-17): jede Kante,
+    // die nicht auf einer Pixelgrenze liegt, faellt dort einen halben Pixel
+    // weiter rechts und weiter unten. Deshalb das ganze Bild um einen halben
+    // Pixel nach rechts und unten schieben - im Bildraum, damit Tiefe und
+    // Clipping unberuehrt bleiben. Senkrecht knapp weniger: eine Kante auf
+    // ganzer Zeile laege sonst genau auf der Pixelmitte, und dort entscheidet
+    // die Fuellregel - in GL mit dem Ursprung unten andersherum als in D3D
+    // (die obere Zeile gehoert im Original dazu, die untere nicht).
+    // Der Abstand ist gemessen: 1/64 Pixel verfehlt eine fast genau auf der
+    // Mitte liegende Kante, 1/1024 geht in der Subpixel-Rasterung des
+    // Treibers unter (NVIDIA: 8 Bit). Bei groeberer Rasterung koennen solche
+    // Grenzfaelle wieder kippen.
+    {
+      const float dx = 1.0f / (float)vw;
+      const float dy = -(1.0f - 1.0f / 128.0f) / (float)vh;   // 1/2 - 1/256 Pixel
+      if (cam->projMode == 2) { cam->proj[12] += dx; cam->proj[13] += dy; }
+      else                    { cam->proj[8]  -= dx; cam->proj[9]  -= dy; }
+    }
+
     // Netze zeichnet immer der LIT-Shader, auch ohne ein einziges Licht -
     // sonst faellt das Umgebungslicht unter den Tisch. Am Original gemessen
     // (3D-10): ein weisser Wuerfel ohne jedes Licht und ohne AmbientLight

@@ -1,5 +1,18 @@
 # BlitzNext Developer Log
 
+## 2026-09-17 — Half a pixel (BUG-153 and BUG-152)
+
+Two older faults that the sprite measurements uncovered. The alpha a texture gets when its image
+has no alpha channel was the weighted luminance; Blitz3D takes the plain average `(R+G+B)/3`, and
+the mask flag sets alpha 0 on black instead of leaving the channel alone (BUG-153, measured over
+`TextureBuffer` for 16 colours and flags 1 to 7). And every edge that does not fall on a pixel
+boundary sat half a pixel too far left and up, because Direct3D 7 puts the pixel centre on whole
+coordinates and OpenGL on .5 (BUG-152); each camera's projection now carries that half pixel -
+vertically a little less, since a tie on the pixel centre is decided by the fill rule, which runs
+the other way round in GL. All 20 tests that read pixels stay green. Suite 249/249.
+
+---
+
 ## 2026-09-17 — DebugLog
 
 The first of the commands blox-n-balls still needs. In Blitz3D, `DebugLog` writes to the IDE

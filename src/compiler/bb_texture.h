@@ -151,14 +151,25 @@ inline int bb_tex_apply_filters_(const bbString &file, int flags) {
 // Alphakanal nach den Flags herrichten. Ohne Flag 2 gilt "what you see is
 // what you get", also volle Deckkraft; mit Flag 2 und einer Vorlage ohne
 // eigenen Alphakanal dient laut Doku die Helligkeit als Alphamaske.
+//
+// Am Original ueber TextureBuffer gemessen (BUG-153, 2026-09-17): die
+// "Helligkeit" ist der einfache Durchschnitt (R+G+B)/3, abgeschnitten -
+// 200,0,0 ergibt 66, 255,128,0 ergibt 127. Bis dahin stand hier die
+// gewichtete Luminanz 30/59/11. Flag 4 setzt genau Schwarz (0,0,0) auf
+// Alpha 0 und alles andere auf 255, auch zusammen mit Flag 2; die Farben
+// bleiben unberuehrt.
 inline void bb_tex_fix_alpha_(std::vector<uint8_t> &px, int flags, int src_channels) {
   if (!(flags & BB_TEX_ALPHA)) {
     for (size_t i = 3; i < px.size(); i += 4) px[i] = 255;
   } else if (src_channels < 4) {
     for (size_t i = 0; i + 3 < px.size(); i += 4) {
-      int lum = (px[i] * 30 + px[i + 1] * 59 + px[i + 2] * 11) / 100;
+      int lum = (px[i] + px[i + 1] + px[i + 2]) / 3;
       px[i + 3] = static_cast<uint8_t>(lum);
     }
+  }
+  if (flags & BB_TEX_MASKED) {
+    for (size_t i = 0; i + 3 < px.size(); i += 4)
+      px[i + 3] = (px[i] | px[i + 1] | px[i + 2]) ? 255 : 0;
   }
 }
 
