@@ -99,9 +99,6 @@ are the most likely reason for an old program to behave strangely.
 - **Printing a float that has no fraction drops the `.0`.** `Print 2.0` prints `2`,
   Blitz3D prints `2.0`; large and small values also use a different exponent format.
   (BUG-68)
-- **Random numbers differ.** The same `SeedRnd` produces a different sequence, `RndSeed()`
-  returns the last seed instead of the generator state, and `Rand(-10)` returns 1 instead
-  of a value between -10 and 1. Procedurally generated levels will not match. (BUG-116)
 - **`WriteString` and `ReadString` use a different file format.** Blitz3D writes a 4-byte
   length followed by the characters; BlitzNext writes the characters followed by a zero
   byte. Files written by Blitz3D programs — save games, level data — are read incorrectly.
@@ -213,7 +210,7 @@ are the most likely reason for an old program to behave strangely.
 - **`CallDLL`** does nothing and returns 0. BlitzNext produces 64-bit programs, so 32-bit
   DLLs written for Blitz3D could not be loaded anyway. (BUG-123)
 - **`ShowPointer` and `HidePointer`** have no effect. (BUG-124)
-- Float printing, random numbers, `WriteString`/`ReadString` and string parameter checks:
+- Float printing, `WriteString`/`ReadString` and string parameter checks:
   see [Silently different results](#silently-different-results).
 
 ---
@@ -238,6 +235,10 @@ visibly wrong results because of the points below.
 - **`CreateTexture` does not round sizes up to powers of two.** Blitz3D reports
   `TextureWidth` 32 for `CreateTexture(30,20)`; BlitzNext reports 30. Drawing into the texture
   buffer covers a different part of the surface. (BUG-143)
+- **`TurnEntity` adds the angles instead of turning around the entity's own axes.** One call
+  behaves like Blitz3D, several in a row do not: rolling 45 degrees and then pitching 30 ends
+  at pitch/yaw/roll 30/0/45 here and 20.7/-22.2/49.1 in Blitz3D, so a plane steered by pitch
+  and roll never changes heading. (BUG-148)
 - **Surfaces of some `.x` models come in a different order.** `GetSurface(mesh,1)` of the jet in
   the Jet Tails demo has 187 triangles here and 4 in Blitz3D. (BUG-146)
 - **Without `AppTitle` the window is titled "BLTZNXT".** Blitz3D leaves the title empty. (BUG-147)

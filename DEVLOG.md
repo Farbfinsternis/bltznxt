@@ -1,5 +1,20 @@
 # BlitzNext Developer Log
 
+## 2026-09-17 — The same random numbers as Blitz3D (BUG-116)
+
+`Rnd`, `Rand`, `SeedRnd` and `RndSeed` used the C library's `rand()`. They now follow Blitz3D's
+own generator: Park-Miller with multiplier 48271, starting state `$1234`, 16 bits per draw. The
+signatures are the original ones, `Rnd(from, to=0)` and `Rand(from, to=1)`, so `Rnd(4)` is
+`4-4r` and `Rand(-10)` lies between -10 and 1. `SeedRnd 0` becomes 1, `RndSeed()` returns the
+current state. The arithmetic has to be single precision: with double, `Rand(1,100000000)` was
+off by up to 4. 18 cases measured in Blitz3D match exactly, including the 32-bit overflow of
+`Rand(0,2147483647)` and the state after 100000 draws; the old milestone test now prints the same
+lines as Blitz3D too. Jet Tails gets the same random numbers now but still flies differently:
+`TurnEntity` adds Euler angles instead of turning around the entity's own axes (BUG-148).
+Suite 241/241. 45 open bugs.
+
+---
+
 ## 2026-09-17 — TranslateEntity ignores the entity's own rotation (BUG-145)
 
 `TranslateEntity` without the global flag rotated the offset by the entity's own rotation, which is

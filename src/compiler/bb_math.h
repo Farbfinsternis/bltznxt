@@ -2,7 +2,7 @@
 #define BLITZNEXT_BB_MATH_H
 
 #include <cmath>
-#include <cstdlib>   // rand, srand, RAND_MAX
+#include <cstdlib>
 #include <type_traits> // is_integral_v — _bb_mod picks % or fmod
 
 // ============================================================
@@ -83,27 +83,46 @@ inline auto _bb_mod(A x, B y) {
 }
 
 // ---- Random Numbers ----
-// Blitz3D: Rnd = float result, Rand = integer result
-// SeedRnd seeds the generator; RndSeed returns the last seed used.
-
-inline unsigned int bb_rnd_seed_ = 0;
-
-inline void  bb_SeedRnd(int seed)            { bb_rnd_seed_ = static_cast<unsigned int>(seed); std::srand(bb_rnd_seed_); }
-inline int   bb_RndSeed()                    { return static_cast<int>(bb_rnd_seed_); }
-
-// Rnd(max) → [0, max)   Rnd(min, max) → [min, max)
+// Wie bbruntime/bbmath.cpp (BUG-116, am Original gemessen 2026-09-17):
+// Park-Miller-Generator mit Faktor 48271 (Schrage-Zerlegung), Startzustand
+// $1234, SeedRnd maskiert auf 31 Bit und macht aus 0 eine 1, RndSeed liefert
+// den aktuellen Zustand. Jeder Zug nimmt nur die unteren 16 Bit.
 //
+// Rnd(from, to=0) = r*(to-from)+from, also Rnd(max) = max*(1-r), nicht r*max.
+// Rand(from, to=1) tauscht die Grenzen, also Rand(max) = Rand(1, max).
+// Gerechnet wird in float wie im Original - Rand(1,100000000) liegt sonst um
+// einige Einheiten daneben (gemessen). Die Breite to-from+1 laeuft wie in 32-Bit-int ueber (Rand(0,2147483647)
+// liefert negative Werte).
+
+inline int bb_rnd_state_ = 0x1234;
+
+inline void  bb_SeedRnd(int seed) {
+  seed &= 0x7fffffff;
+  bb_rnd_state_ = seed ? seed : 1;
+}
+inline int   bb_RndSeed()                    { return bb_rnd_state_; }
+
 // Ein Rnd OHNE Argument gibt es nicht: das Original meldet `Rnd# ( from#[,to#] )`
 // und lehnt `Rnd()` mit "Not enough parameters" ab (BUG-44). Der Einheitswert
 // bleibt als interner Helfer erhalten, damit die beiden Formen ihn teilen; der
 // fuehrende Kleinbuchstabe haelt ihn aus der erzeugten Befehlstabelle heraus.
-inline float bb_rnd_unit_()                  { return std::rand() / (float)(RAND_MAX + 1u); }
-inline float bb_Rnd(float max)               { return bb_rnd_unit_() * max; }
-inline float bb_Rnd(float min, float max)    { return min + bb_rnd_unit_() * (max - min); }
+inline float bb_rnd_unit_() {
+  const int A = 48271, M = 2147483647, Q = 44488, R = 3399;
+  bb_rnd_state_ = A * (bb_rnd_state_ % Q) - R * (bb_rnd_state_ / Q);
+  if (bb_rnd_state_ < 0) bb_rnd_state_ += M;
+  return (bb_rnd_state_ & 65535) / 65536.0f + (0.5f / 65536.0f);
+}
+inline float bb_Rnd(float from, float to)    { return bb_rnd_unit_() * (to - from) + from; }
+inline float bb_Rnd(float from)              { return bb_Rnd(from, 0.0f); }
 
-// Rand(max) → [1, max]   Rand(min, max) → [min, max]
-inline int   bb_Rand(int max)                { if (max < 1) max = 1; return 1 + (std::rand() % max); }
-inline int   bb_Rand(int min, int max)       { if (min > max) std::swap(min, max); return min + (std::rand() % (max - min + 1)); }
+inline int   bb_Rand(int from, int to) {
+  if (to < from) std::swap(from, to);
+  int width = (int)((unsigned)to - (unsigned)from + 1u);
+  float f = bb_rnd_unit_() * (float)width;
+  int v = (int)f;
+  return (int)((unsigned)v + (unsigned)from);
+}
+inline int   bb_Rand(int from)               { return bb_Rand(from, 1); }
 
 // ---- Min / Max ----
 
