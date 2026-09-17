@@ -1,5 +1,19 @@
 # BlitzNext Developer Log
 
+## 2026-09-17 — World rotation without the parents' scale (BUG-149)
+
+Blitz3D keeps a world rotation apart from the world matrix: the product of the rotations from the
+root down, with no scale in it. Five commands use it: the global `EntityPitch/Yaw/Roll`,
+`RotateEntity` and `TurnEntity` with the global flag, `PointEntity` and `AlignToVector`. We read
+angles and axes from the world matrix, whose columns are no longer perpendicular once a parent is
+scaled unevenly, so four of them went wrong under such a parent. `PointEntity` was wrong under any
+parent: it wrote the world angles as local angles. All five now go through one helper that builds
+the world rotation from the chain of rotations, and one that sets it back into the parent's space.
+Nine cases measured in Blitz3D under a rotated, unevenly scaled parent and grandparent match
+exactly; seven of them failed before. Suite 243/243. 45 open bugs.
+
+---
+
 ## 2026-09-17 — TurnEntity turns around the entity's own axes (BUG-148)
 
 `TurnEntity` added its angles to the entity's pitch, yaw and roll. That is right for a single call

@@ -504,6 +504,34 @@ static inline const float* bb_tform_world_(int h) {
   return bb_entity_world_(e);
 }
 
+// Weltdrehung wie Entity::getWorldRotation im Original: das Produkt der
+// Drehungen von der Wurzel bis `e`, **ohne Skalierung** (BUG-149). Die
+// Weltmatrix taugt dafuer nicht - unter ungleichmaessiger Skalierung eines
+// Vorfahren stehen ihre Spalten nicht mehr senkrecht. `self` = false laesst
+// die eigene Drehung weg und liefert die des Elternteils.
+static inline void bb_entity_world_rot_(const bb_Entity_* e, float M[16], bool self = true) {
+  mat4_identity_(M);
+  if (self) mat4_make_euler_YXZ_(M, e->rx, e->ry, e->rz);
+  for (bb_Entity_* q = e->parent ? bb_entity_get_(e->parent) : nullptr; q;
+       q = q->parent ? bb_entity_get_(q->parent) : nullptr) {
+    float R[16];
+    mat4_make_euler_YXZ_(R, q->rx, q->ry, q->rz);
+    mat4_mul_(M, R, M);
+  }
+}
+
+// Gegenstueck zu Entity::setWorldRotation: lokale Drehung = P^T * W mit P
+// der Weltdrehung des Elternteils (orthonormal, also P^-1 = P^T).
+static inline void bb_entity_set_world_rot_(bb_Entity_* e, const float W[16]) {
+  float P[16], Pt[16], N[16];
+  bb_entity_world_rot_(e, P, false);
+  mat4_identity_(Pt);
+  for (int c = 0; c < 3; ++c)
+    for (int r = 0; r < 3; ++r) Pt[c*4+r] = P[r*4+c];
+  mat4_mul_(N, Pt, W);
+  mat4_extract_euler_YXZ_(N, e->rx, e->ry, e->rz);
+}
+
 // src == 0 bedeutet Weltraum, dest == 0 ebenso. Die Reihenfolge ist die des
 // Originals: erst mit der Quelle in den Weltraum, dann mit der Inversen des
 // Ziels hinein (`bbblitz3d.cpp:1608`).
@@ -692,18 +720,11 @@ inline void bb_RotateEntity(int h, float rx, float ry, float rz, int glob = 0) {
   if (!glob || e->parent == 0) {
     e->rx = rx; e->ry = ry; e->rz = rz;
   } else {
-    // Set world rotation: compute the local rotation needed so that
-    // parent.world * local_rot = desired_world_rot
-    bb_Entity_* p = bb_entity_get_(e->parent);
-    if (!p) { e->rx = rx; e->ry = ry; e->rz = rz; return; }
-    // Build desired world rotation matrix
-    float Rw[16]; mat4_make_euler_YXZ_(Rw, rx, ry, rz);
-    // Invert parent world matrix
-    float inv_pw[16];
-    if (!mat4_inverse_(inv_pw, bb_entity_world_(p))) { e->rx = rx; e->ry = ry; e->rz = rz; return; }
-    // local_rot = inv_pw * Rw
-    float Rl[16]; mat4_mul_(Rl, inv_pw, Rw);
-    mat4_extract_euler_YXZ_(Rl, e->rx, e->ry, e->rz);
+    // Weltdrehung setzen wie setWorldRotation, ohne Skalierung der Eltern
+    // (BUG-149).
+    float W[16];
+    mat4_make_euler_YXZ_(W, rx, ry, rz);
+    bb_entity_set_world_rot_(e, W);
   }
 }
 
@@ -724,23 +745,12 @@ inline void bb_TurnEntity(int h, float drx, float dry, float drz, int glob = 0) 
   if (glob == 0) {
     mat4_mul_(N, L, D);
   } else {
-    // Drehung aller Eltern: P = R(Wurzel) * ... * R(Elternteil)
-    float P[16];
-    mat4_identity_(P);
-    for (bb_Entity_* q = e->parent ? bb_entity_get_(e->parent) : nullptr; q;
-         q = q->parent ? bb_entity_get_(q->parent) : nullptr) {
-      float R[16];
-      mat4_make_euler_YXZ_(R, q->rx, q->ry, q->rz);
-      mat4_mul_(P, R, P);
-    }
-    // neu lokal = P^T * D * P * L  (P ist orthonormal, also P^-1 = P^T)
-    float Pt[16], T[16];
-    mat4_identity_(Pt);
-    for (int c = 0; c < 3; ++c)
-      for (int r = 0; r < 3; ++r) Pt[c*4+r] = P[r*4+c];
-    mat4_mul_(T, P, L);
-    mat4_mul_(T, D, T);
-    mat4_mul_(N, Pt, T);
+    // neu Welt = D * Welt, zurueck in den Raum des Elternteils
+    float W[16], T[16];
+    bb_entity_world_rot_(e, W);
+    mat4_mul_(T, D, W);
+    bb_entity_set_world_rot_(e, T);
+    return;
   }
   mat4_extract_euler_YXZ_(N, e->rx, e->ry, e->rz);
 }
@@ -772,9 +782,11 @@ inline void bb_PointEntity(int h, int target, float roll = 0.0f) {
   // (blitz3d/geom.h:108): beide mit fuehrendem Minus. Das Minus beim Gier
   // fehlte hier und fiel nicht auf, solange die Gierdrehung selbst herumlief
   // (BUG-84) - zwei Vorzeichenfehler, die sich gegenseitig verdeckten.
-  e->ry = -atan2f(dx, dz) * BB_R2D_;
-  e->rx = -atan2f(dy, xz) * BB_R2D_;
-  e->rz = roll;
+  float yaw = -atan2f(dx, dz) * BB_R2D_;
+  float pitch = -atan2f(dy, xz) * BB_R2D_;
+  // Das Original setzt die **Welt**drehung (setWorldRotation); unter einem
+  // Elternteil ist die lokale Drehung eine andere (BUG-149).
+  bb_RotateEntity(h, pitch, yaw, roll, 1);
 }
 
 // ============================================================
@@ -812,15 +824,13 @@ inline void bb_AlignToVector(int h, float nx, float ny, float nz,
   if (len <= EPS) return;
   nx /= len; ny /= len; nz /= len;
 
-  // Die drei Achsen der Weltrotation: die Spalten der Weltmatrix, von der
-  // Skalierung befreit.
-  const float* w = bb_entity_world_(e);
+  // Die drei Achsen der Weltrotation (getWorldRotation, ohne Skalierung der
+  // Eltern - die Spalten der Weltmatrix stehen darunter schief, BUG-149).
+  float w[16];
+  bb_entity_world_rot_(e, w);
   float spalte[3][3];
   for (int c = 0; c < 3; ++c) {
-    float x = w[c*4 + 0], y = w[c*4 + 1], z = w[c*4 + 2];
-    float l = sqrtf(x*x + y*y + z*z);
-    if (l < 1e-8f) l = 1;
-    spalte[c][0] = x/l; spalte[c][1] = y/l; spalte[c][2] = z/l;
+    spalte[c][0] = w[c*4 + 0]; spalte[c][1] = w[c*4 + 1]; spalte[c][2] = w[c*4 + 2];
   }
 
   const int a = (axis == 1) ? 0 : (axis == 2 ? 1 : 2);
@@ -938,11 +948,19 @@ static inline void bb_entity_local_euler_(const bb_Entity_* e,
 }
 
 
+// Weltwinkel aus der Weltdrehung ohne Skalierung (BUG-149).
+static inline void bb_entity_world_euler_(const bb_Entity_* e,
+                                          float& rx, float& ry, float& rz) {
+  float W[16];
+  bb_entity_world_rot_(e, W);
+  mat4_extract_euler_YXZ_(W, rx, ry, rz);
+}
+
 inline float bb_EntityPitch(int h, int glob = 0) {
   bb_Entity_* e = bb_entity_get_(h);
   if (!e) return 0;
   float rx, ry, rz;
-  if (glob) mat4_extract_euler_YXZ_(bb_entity_world_(e), rx, ry, rz);
+  if (glob) bb_entity_world_euler_(e, rx, ry, rz);
   else      bb_entity_local_euler_(e, rx, ry, rz);
   return rx;
 }
@@ -950,7 +968,7 @@ inline float bb_EntityYaw(int h, int glob = 0) {
   bb_Entity_* e = bb_entity_get_(h);
   if (!e) return 0;
   float rx, ry, rz;
-  if (glob) mat4_extract_euler_YXZ_(bb_entity_world_(e), rx, ry, rz);
+  if (glob) bb_entity_world_euler_(e, rx, ry, rz);
   else      bb_entity_local_euler_(e, rx, ry, rz);
   return ry;
 }
@@ -958,7 +976,7 @@ inline float bb_EntityRoll(int h, int glob = 0) {
   bb_Entity_* e = bb_entity_get_(h);
   if (!e) return 0;
   float rx, ry, rz;
-  if (glob) mat4_extract_euler_YXZ_(bb_entity_world_(e), rx, ry, rz);
+  if (glob) bb_entity_world_euler_(e, rx, ry, rz);
   else      bb_entity_local_euler_(e, rx, ry, rz);
   return rz;
 }
