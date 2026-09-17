@@ -1,5 +1,20 @@
 # BlitzNext Developer Log
 
+## 2026-09-17 — Copies are always visible (BUG-128)
+
+`CopyEntity` of a hidden entity returned a hidden copy, so the common pattern of loading a
+template, hiding it and showing copies displayed nothing (the Jet Tails and lodBalls demos). In
+Blitz3D 11.8 every copy is visible, and so is every child copied along with it, even one that was
+hidden in the template — although the published source copies the visibility flag. The copy is
+now always visible. `tests/test_bug128_copyentity_sichtbar.bb` covers eight cases measured in
+Blitz3D; six of them fail on the old runtime. Suite 227/227.
+
+Two more differences turned up while measuring: hiding a parent does not hide its children here
+(BUG-136), and `RenderWorld` without a visible camera clears the back buffer, where Blitz3D leaves
+it untouched (BUG-137). 46 open bugs.
+
+---
+
 ## 2026-09-17 — Sphere, cylinder and cone as in Blitz3D (BUG-69, BUG-93, BUG-133)
 
 `CreateSphere`, `CreateCylinder` and `CreateCone` now follow `MeshUtil::createSphere`,

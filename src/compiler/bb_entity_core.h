@@ -560,6 +560,11 @@ inline int bb_copy_entity_tree_(int h, int parent) {
 
   std::unique_ptr<bb_Entity_> c = e->clone();
   if (!c) return 0;
+  // Die Kopie ist immer sichtbar, auch jedes mitkopierte Kind - gemessen am
+  // 2026-09-17 mit versteckter Vorlage, verstecktem Kind in sichtbarer
+  // Vorlage und beidem (BUG-128). Der Quelltext (Entity::Entity(const
+  // Entity&)) uebernimmt _visible zwar, das laufende 11.8 tut es nicht.
+  c->visible = true;
 
   // Kopie der Kinderliste: die Rekursion haengt an die **Kopie** an, aber
   // ein Kind koennte im Prinzip dieselbe Liste beruehren.
@@ -574,7 +579,8 @@ inline int bb_copy_entity_tree_(int h, int parent) {
 // mit, die Kinder werden rekursiv mitkopiert (samt Enkeln), ohne Parent ist
 // die Kopie eine Wurzel, und mit Parent bleibt die **lokale** Lage stehen -
 // die Doku ("created at the parent entity's position") beschreibt nur den
-// Fall, dass das Original lokal auf 0,0,0 sitzt.
+// Fall, dass das Original lokal auf 0,0,0 sitzt. Die Sichtbarkeit wandert
+// nicht mit: jede Kopie ist sichtbar (BUG-128, siehe bb_copy_entity_tree_).
 inline int bb_CopyEntity(int h, int parent = 0) {
   int nh = bb_copy_entity_tree_(h, parent);
   if (!nh) return 0;

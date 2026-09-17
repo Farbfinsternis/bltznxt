@@ -11,7 +11,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-09-17 — 45 open bugs.*
+*Last updated: 2026-09-17 — 46 open bugs.*
 
 If your program behaves differently from Blitz3D and the cause is not listed here, please
 open an issue with a minimal `.bb` file and the output of both.
@@ -233,9 +233,11 @@ visibly wrong results because of the points below.
 - **Drawing into a texture has no effect.** `SetBuffer TextureBuffer(tex)` followed by
   `Rect`, `Text`, `WritePixel` or `CopyRect` leaves the texture black, so objects that use
   a generated texture appear black. (BUG-127)
-- **A copy of a hidden entity stays hidden.** The common pattern of loading a template,
-  hiding it with `HideEntity` and showing `CopyEntity` copies of it displays nothing.
-  *Workaround:* call `ShowEntity` on each copy. (BUG-128)
+- **Hiding an entity does not hide its children.** `HideEntity` on a parent leaves child
+  meshes visible; Blitz3D hides the whole branch.
+  *Workaround:* hide each child as well. (BUG-136)
+- **`RenderWorld` without a visible camera clears the screen.** Blitz3D draws nothing at all
+  in that case and keeps what is in the back buffer. (BUG-137)
 - **A second camera with its own `CameraViewport` does not render.** Split screens and
   render-to-texture setups show empty viewports. (BUG-129)
 - **Spherical environment mapping (texture flag 64) is ignored.** Chrome and reflection
