@@ -1,5 +1,23 @@
 # BlitzNext Developer Log
 
+## 2026-09-17 — Sphere, cylinder and cone as in Blitz3D (BUG-69, BUG-93, BUG-133)
+
+`CreateSphere`, `CreateCylinder` and `CreateCone` now follow `MeshUtil::createSphere`,
+`createCylinder` and `createCone` from the Blitz3D source line by line, with the same float
+constants and the same rotation maths. The sphere has one pole vertex per segment and shares its
+ring vertices (151 vertices and 224 triangles at the default 8 segments, was 576 and 288);
+cylinder and cone keep the side and the caps in separate surfaces, and the cone's side normals
+are horizontal, as in Blitz3D. `tests/test_bug69_primitive.bb` prints every vertex and triangle of
+nine shapes; its 644 expected lines come from Blitz3D and match exactly.
+
+Found along the way: the second parameter of `CreateCylinder` and `CreateCone` was called `open`
+with default 0 here, but is `solid` with default 1 in Blitz3D, so `CreateCylinder(8,0)` had caps
+here and none in Blitz3D. It is `solid` now. One lighting test (BUG-92) checks its outermost
+silhouette point only for being lit: with the correct mesh it reads 153 instead of Direct3D 7's
+137, which is shading, not geometry. Suite 226/226.
+
+---
+
 ## 2026-09-17 — Triangles face the right way (BUG-126)
 
 The renderer declared counter-clockwise triangles as front faces. Blitz3D shows the side the

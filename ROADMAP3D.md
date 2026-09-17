@@ -479,8 +479,8 @@ Shininess glänzt stärker, `EntityFX 1` ignoriert das Licht.
       - `bb_gen_cone_(int segs, bool open)` — geneigte Normals auf Mantel, Flat-Cap
 - [x] `bb_CreateCube(int parent=0)` → handle
 - [x] `bb_CreateSphere(int segs=8, int parent=0)` → handle
-- [x] `bb_CreateCylinder(int segs=8, int open=0, int parent=0)` → handle
-- [x] `bb_CreateCone(int segs=8, int open=0, int parent=0)` → handle
+- [x] `bb_CreateCylinder(int segs=8, int solid=1, int parent=0)` → handle
+- [x] `bb_CreateCone(int segs=8, int solid=1, int parent=0)` → handle
 - [x] `bb_MeshWidth/Height/Depth(h)` → float (AABB der CPU-Geometrie)
 - [x] `RenderWorld` zeichnet alle sichtbaren `MeshEntity_` mit `UNLIT`-Shader
       via `bb_render_meshes_(shader, view, proj)` im Kamera-Pass

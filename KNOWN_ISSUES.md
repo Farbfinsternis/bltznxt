@@ -11,7 +11,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-09-17 — 48 open bugs.*
+*Last updated: 2026-09-17 — 45 open bugs.*
 
 If your program behaves differently from Blitz3D and the cause is not listed here, please
 open an issue with a minimal `.bb` file and the output of both.
@@ -244,14 +244,6 @@ visibly wrong results because of the points below.
   the colour set before the mode change. *Workaround:* call `Color 255,255,255` after
   `Graphics3D`. (BUG-131)
 - **`ClearWorld`** always removes all entities and ignores its three flags. (BUG-120)
-- **`CreateSphere`** builds a different mesh (576 vertices and 288 triangles instead of 151
-  and 224 at the default segment count). The shape is the same, but vertex and triangle
-  indices, `TrisRendered` and `UpdateNormals` differ. (BUG-69)
-- **`CreateCone`** builds a different mesh: one surface with 41 vertices instead of two
-  (side and base) with 17 and 8, and tilted instead of horizontal side normals. The cone also
-  looks differently lit because of this. (BUG-93)
-- **`CreateCylinder`** builds a different mesh: one surface with 66 vertices and 32
-  triangles instead of two (side and caps) with 18/16 and 16/12. (BUG-133)
 - **`UpdateNormals`** averages per vertex index. Blitz3D also merges vertices at the same
   position, so a cube gets rounded corner normals there and stays faceted here. (BUG-134)
 - **`.3ds` models** number their vertices differently (`TriangleVertex` returns 0,2,1 where

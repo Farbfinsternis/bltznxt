@@ -140,197 +140,176 @@ static inline bb_MeshData_ bb_gen_cube_() {
 }
 
 // ============================================================
-// bb_gen_sphere_ — UV sphere, radius=1
+// Kugel, Zylinder, Kegel - nach MeshUtil::createSphere/createCylinder/
+// createCone (blitz3d/meshutil.cpp) und am Original Vertex fuer Vertex
+// gemessen (BUG-69, BUG-93, BUG-133, 2026-09-17).
+//
+// Die Winkel rechnen mit denselben float-Konstanten wie geom.h, und die
+// Richtungen entstehen wie dort aus rotationMatrix(pitch,yaw,0).k bzw.
+// yawMatrix(yaw).k. Beide zeigen bei yaw=0 nach +z und laufen mit wachsendem
+// yaw nach -x.
+//
+// Die Segmentzahl pruefte das Original nur im Debug-Modus (Kugel 2..100,
+// Zylinder und Kegel 3..100, sonst "Illegal number of segments"). Hier wird
+// nach unten auf dieselbe Grenze angehoben, damit kein ungueltiger Index
+// entsteht; nach oben gibt es keine Grenze.
 // ============================================================
 
+static const float bb_geom_pi_     = 3.14159265359f;
+static const float bb_geom_twopi_  = bb_geom_pi_ * 2.0f;
+static const float bb_geom_halfpi_ = bb_geom_pi_ * .5f;
+
+// rotationMatrix(p,y,0).k = yawMatrix(y) * pitchMatrix(p).k, ausmultipliziert
+// in der Reihenfolge von Matrix::operator*(Vector) - damit auch die
+// Vorzeichen der Nullen dieselben sind.
+static inline void bb_geom_rot_k_(float pitch, float yaw, float* o) {
+  const float vx = 0.0f, vy = -sinf(pitch), vz = cosf(pitch);
+  const float cy = cosf(yaw), sy = sinf(yaw);
+  // yawMatrix: i=(cy,0,sy) j=(0,1,0) k=(-sy,0,cy)
+  o[0] = cy * vx + 0.0f * vy + (-sy) * vz;
+  o[1] = 0.0f * vx + 1.0f * vy + 0.0f * vz;
+  o[2] = sy * vx + 0.0f * vy + cy * vz;
+}
+
+static inline void bb_geom_vert_(bb_MeshData_& m, float x, float y, float z,
+                                 float nx, float ny, float nz, float u, float v) {
+  bb_vert_push_(m, x, y, z, nx, ny, nz, u, v);
+}
+
+static inline void bb_geom_tri_(bb_MeshData_& m, int a, int b, int c) {
+  m.indices.push_back(static_cast<unsigned>(a));
+  m.indices.push_back(static_cast<unsigned>(b));
+  m.indices.push_back(static_cast<unsigned>(c));
+}
+
+// Eine Flaeche: h_segs Vertices am Nordpol (je einer pro Segment, damit jedes
+// Poldreieck sein eigenes u hat), v_segs-1 Ringe mit h_segs+1 Vertices (die
+// Naht doppelt), h_segs Vertices am Suedpol. Normale = Position.
 static inline bb_MeshData_ bb_gen_sphere_(int segs) {
-  if (segs < 3) segs = 3;
+  if (segs < 2) segs = 2;
+  const int h_segs = segs * 2, v_segs = segs;
   bb_MeshData_ m;
 
-  int rings = segs;    // latitudinal rings (excluding poles)
-  int slices = segs * 2;
-
-  const float pi  = 3.14159265358979323846f;
-  const float two_pi = 2.0f * pi;
-
-  // Build grid of vertices: (rings+2) rows × (slices+1) cols
-  // Row 0 = north pole, row rings+1 = south pole
-  int rows = rings + 2;
-  int cols = slices + 1;
-  std::vector<float> vx(rows * cols), vy(rows * cols), vz(rows * cols);
-  std::vector<float> uu(rows * cols), vv(rows * cols);
-
-  for (int r = 0; r < rows; ++r) {
-    float phi = pi * r / (rows - 1);   // 0 = top, pi = bottom
-    float cp  = cosf(phi), sp = sinf(phi);
-    for (int c = 0; c < cols; ++c) {
-      float theta = two_pi * c / slices;
-      float ct = cosf(theta), st = sinf(theta);
-      int i = r * cols + c;
-      vx[i] = sp * ct;
-      vy[i] = cp;
-      vz[i] = sp * st;
-      uu[i] = (float)c / slices;
-      vv[i] = (float)r / (rows - 1);
+  for (int k = 0; k < h_segs; ++k)
+    bb_geom_vert_(m, 0, 1, 0, 0, 1, 0, (k + .5f) / h_segs, 0);
+  for (int k = 1; k < v_segs; ++k) {
+    const float pitch = k * bb_geom_pi_ / v_segs - bb_geom_halfpi_;
+    for (int j = 0; j <= h_segs; ++j) {
+      const float yaw = (j % h_segs) * bb_geom_twopi_ / h_segs;
+      float p[3];
+      bb_geom_rot_k_(pitch, yaw, p);
+      bb_geom_vert_(m, p[0], p[1], p[2], p[0], p[1], p[2],
+                    float(j) / float(h_segs), float(k) / float(v_segs));
     }
   }
+  for (int k = 0; k < h_segs; ++k)
+    bb_geom_vert_(m, 0, -1, 0, 0, -1, 0, (k + .5f) / h_segs, 1);
 
-  // Emit quads for each cell
-  unsigned int base = 0;
-  for (int r = 0; r < rows - 1; ++r) {
-    for (int c = 0; c < cols - 1; ++c) {
-      int i00 = r * cols + c;
-      int i10 = r * cols + c + 1;
-      int i01 = (r+1) * cols + c;
-      int i11 = (r+1) * cols + c + 1;
-
-      auto push_v = [&](int i) {
-        bb_vert_push_(m, vx[i], vy[i], vz[i], vx[i], vy[i], vz[i], uu[i], vv[i]);
-      };
-
-      base = static_cast<unsigned int>(m.vertices.size() / BB_VF);
-      push_v(i00); push_v(i10); push_v(i11); push_v(i01);
-      // Umlaufsinn wie im Original, nach aussen im Uhrzeigersinn (BUG-126).
-      // Zusammen mit der Vorderseite im Renderer entscheidet er, welche
-      // Haelfte zu sehen ist; mit falscher Paarung bleibt die Kugel unter
-      // jedem Licht schwarz (BUG-92).
-      m.indices.push_back(base);   m.indices.push_back(base+1); m.indices.push_back(base+2);
-      m.indices.push_back(base);   m.indices.push_back(base+2); m.indices.push_back(base+3);
+  for (int k = 0; k < h_segs; ++k)
+    bb_geom_tri_(m, k, k + h_segs + 1, k + h_segs);
+  for (int k = 1; k < v_segs - 1; ++k) {
+    for (int j = 0; j < h_segs; ++j) {
+      const int a = k * (h_segs + 1) + j - 1;
+      bb_geom_tri_(m, a, a + 1, a + 1 + h_segs + 1);
+      bb_geom_tri_(m, a, a + 1 + h_segs + 1, a + h_segs + 1);
     }
+  }
+  for (int k = 0; k < h_segs; ++k) {
+    const int a = (h_segs + 1) * (v_segs - 1) + k - 1;
+    bb_geom_tri_(m, a, a + 1, a + 1 + h_segs);
   }
 
   m.dirty = true;
   return m;
 }
 
-// ============================================================
-// bb_gen_cylinder_ — Y-axis, radius=1, height=2 (-1 to +1)
-// ============================================================
-
-static inline bb_MeshData_ bb_gen_cylinder_(int segs, bool open) {
+// Mantel: je Segmentkante ein Vertex oben und einer unten, die Naht doppelt.
+// Deckel (solid): eigene Flaeche, je Segment ein Vertex oben und einer unten,
+// beide Faecher ab Vertex 0 bzw. 1.
+static inline std::vector<bb_MeshData_> bb_gen_cylinder_(int segs, bool solid) {
   if (segs < 3) segs = 3;
-  bb_MeshData_ m;
+  std::vector<bb_MeshData_> out(solid ? 2 : 1);
 
-  const float pi  = 3.14159265358979323846f;
-  const float two_pi = 2.0f * pi;
-
-  // Side faces
-  for (int i = 0; i < segs; ++i) {
-    float a0 = two_pi * i / segs;
-    float a1 = two_pi * (i + 1) / segs;
-    float x0 = cosf(a0), z0 = sinf(a0);
-    float x1 = cosf(a1), z1 = sinf(a1);
-    float u0 = (float)i / segs;
-    float u1 = (float)(i+1) / segs;
-    // Smooth normals on the sides
-    unsigned int base = static_cast<unsigned int>(m.vertices.size() / BB_VF);
-    bb_vert_push_(m, x0,-1,z0, x0,0,z0, u0,1);
-    bb_vert_push_(m, x1,-1,z1, x1,0,z1, u1,1);
-    bb_vert_push_(m, x1, 1,z1, x1,0,z1, u1,0);
-    bb_vert_push_(m, x0, 1,z0, x0,0,z0, u0,0);
-    // nach aussen im Uhrzeigersinn wie im Original (BUG-126)
-    m.indices.push_back(base); m.indices.push_back(base+2); m.indices.push_back(base+1);
-    m.indices.push_back(base); m.indices.push_back(base+3); m.indices.push_back(base+2);
+  bb_MeshData_& s = out[0];
+  for (int k = 0; k <= segs; ++k) {
+    const float yaw = (k % segs) * bb_geom_twopi_ / segs;
+    float p[3];
+    bb_geom_rot_k_(0.0f, yaw, p);
+    const float u = float(k) / segs;
+    bb_geom_vert_(s, p[0], 1, p[2], p[0], 0, p[2], u, 0);
+    bb_geom_vert_(s, p[0], -1, p[2], p[0], 0, p[2], u, 1);
   }
-
-  if (!open) {
-    // Top cap (+Y) and bottom cap (-Y) as triangle fans
-    unsigned int center;
-
-    // Top cap
-    center = static_cast<unsigned int>(m.vertices.size() / BB_VF);
-    bb_vert_push_(m, 0,1,0, 0,1,0, 0.5f,0.5f);
-    for (int i = 0; i < segs; ++i) {
-      float a0 = two_pi * i / segs;
-      float a1 = two_pi * (i+1) / segs;
-      float x0=cosf(a0), z0=sinf(a0), x1=cosf(a1), z1=sinf(a1);
-      unsigned int b = static_cast<unsigned int>(m.vertices.size() / BB_VF);
-      bb_vert_push_(m, x0,1,z0, 0,1,0, 0.5f+0.5f*x0, 0.5f-0.5f*z0);
-      bb_vert_push_(m, x1,1,z1, 0,1,0, 0.5f+0.5f*x1, 0.5f-0.5f*z1);
-      m.indices.push_back(center); m.indices.push_back(b+1); m.indices.push_back(b);
-    }
-
-    // Bottom cap (-Y)
-    center = static_cast<unsigned int>(m.vertices.size() / BB_VF);
-    bb_vert_push_(m, 0,-1,0, 0,-1,0, 0.5f,0.5f);
-    for (int i = 0; i < segs; ++i) {
-      float a0 = two_pi * i / segs;
-      float a1 = two_pi * (i+1) / segs;
-      float x0=cosf(a0), z0=sinf(a0), x1=cosf(a1), z1=sinf(a1);
-      unsigned int b = static_cast<unsigned int>(m.vertices.size() / BB_VF);
-      bb_vert_push_(m, x0,-1,z0, 0,-1,0, 0.5f+0.5f*x0, 0.5f+0.5f*z0);
-      bb_vert_push_(m, x1,-1,z1, 0,-1,0, 0.5f+0.5f*x1, 0.5f+0.5f*z1);
-      m.indices.push_back(center); m.indices.push_back(b); m.indices.push_back(b+1);
-    }
+  for (int k = 0; k < segs; ++k) {
+    const int a = k * 2;
+    bb_geom_tri_(s, a, a + 2, a + 3);
+    bb_geom_tri_(s, a, a + 3, a + 1);
   }
+  s.dirty = true;
+  if (!solid) return out;
 
-  m.dirty = true;
-  return m;
+  bb_MeshData_& c = out[1];
+  for (int k = 0; k < segs; ++k) {
+    const float yaw = k * bb_geom_twopi_ / segs;
+    float p[3];
+    bb_geom_rot_k_(0.0f, yaw, p);
+    const float u = p[0] * .5f + .5f, v = p[2] * .5f + .5f;
+    bb_geom_vert_(c, p[0], 1, p[2], 0, 1, 0, u, v);
+    bb_geom_vert_(c, p[0], -1, p[2], 0, -1, 0, u, v);
+  }
+  for (int k = 2; k < segs; ++k) {
+    bb_geom_tri_(c, 0, k * 2, (k - 1) * 2);
+    bb_geom_tri_(c, 1, (k - 1) * 2 + 1, k * 2 + 1);
+  }
+  c.dirty = true;
+  return out;
 }
 
-// ============================================================
-// bb_gen_cone_ — Y-axis apex at +1, base at -1, radius=1
-// ============================================================
-
-static inline bb_MeshData_ bb_gen_cone_(int segs, bool open) {
+// Mantel: segs Spitzenvertices (je Segment eigenes u), segs+1 Randvertices mit
+// waagerechter Normale. Boden (solid): eigene Flaeche, Normalen wie der Rand
+// des Mantels - so steht es im Original, nicht (0,-1,0).
+static inline std::vector<bb_MeshData_> bb_gen_cone_(int segs, bool solid) {
   if (segs < 3) segs = 3;
-  bb_MeshData_ m;
+  std::vector<bb_MeshData_> out(solid ? 2 : 1);
 
-  const float pi  = 3.14159265358979323846f;
-  const float two_pi = 2.0f * pi;
-  // Normal tilt for the lateral face: angle of slant from horizontal
-  const float slope_n = 1.0f / sqrtf(2.0f); // 45° (height=2, radius=1 → slope 1:1)
-
-  // Lateral faces: apex at (0,1,0)
-  for (int i = 0; i < segs; ++i) {
-    float a0 = two_pi * i / segs;
-    float a1 = two_pi * (i+1) / segs;
-    float x0=cosf(a0), z0=sinf(a0);
-    float x1=cosf(a1), z1=sinf(a1);
-    // Average normal direction for this segment
-    float xm = (x0+x1)*0.5f, zm = (z0+z1)*0.5f;
-    float nlen = sqrtf(xm*xm + zm*zm);
-    if (nlen > 1e-6f) { xm/=nlen; zm/=nlen; }
-    float nx0=x0*slope_n, ny0=slope_n, nz0=z0*slope_n;
-    float nx1=x1*slope_n, ny1=slope_n, nz1=z1*slope_n;
-    float nxa=xm*slope_n, nya=slope_n, nza=zm*slope_n;
-    float u0=(float)i/segs, u1=(float)(i+1)/segs, um=(u0+u1)*0.5f;
-
-    unsigned int base = static_cast<unsigned int>(m.vertices.size() / BB_VF);
-    bb_vert_push_(m, x0,-1,z0, nx0,ny0,nz0, u0,1);
-    bb_vert_push_(m, x1,-1,z1, nx1,ny1,nz1, u1,1);
-    bb_vert_push_(m, 0,  1, 0, nxa,nya,nza, um,0);
-    // nach aussen im Uhrzeigersinn wie im Original (BUG-126)
-    m.indices.push_back(base); m.indices.push_back(base+2); m.indices.push_back(base+1);
+  bb_MeshData_& s = out[0];
+  for (int k = 0; k < segs; ++k)
+    bb_geom_vert_(s, 0, 1, 0, 0, 1, 0, (k + .5f) / segs, 0);
+  for (int k = 0; k <= segs; ++k) {
+    const float yaw = (k % segs) * bb_geom_twopi_ / segs;
+    const float x = -sinf(yaw), z = cosf(yaw);    // yawMatrix(yaw).k
+    bb_geom_vert_(s, x, -1, z, x, 0, z, float(k) / segs, 1);
   }
+  for (int k = 0; k < segs; ++k)
+    bb_geom_tri_(s, k, k + segs + 1, k + segs);
+  s.dirty = true;
+  if (!solid) return out;
 
-  if (!open) {
-    // Bottom cap (-Y)
-    unsigned int center = static_cast<unsigned int>(m.vertices.size() / BB_VF);
-    bb_vert_push_(m, 0,-1,0, 0,-1,0, 0.5f,0.5f);
-    for (int i = 0; i < segs; ++i) {
-      float a0 = two_pi * i / segs;
-      float a1 = two_pi * (i+1) / segs;
-      float x0=cosf(a0), z0=sinf(a0), x1=cosf(a1), z1=sinf(a1);
-      unsigned int b = static_cast<unsigned int>(m.vertices.size() / BB_VF);
-      bb_vert_push_(m, x0,-1,z0, 0,-1,0, 0.5f+0.5f*x0, 0.5f+0.5f*z0);
-      bb_vert_push_(m, x1,-1,z1, 0,-1,0, 0.5f+0.5f*x1, 0.5f+0.5f*z1);
-      m.indices.push_back(center); m.indices.push_back(b); m.indices.push_back(b+1);
-    }
+  bb_MeshData_& b = out[1];
+  for (int k = 0; k < segs; ++k) {
+    const float yaw = k * bb_geom_twopi_ / segs;
+    const float x = -sinf(yaw), z = cosf(yaw);
+    bb_geom_vert_(b, x, -1, z, x, 0, z, x * .5f + .5f, z * .5f + .5f);
   }
-
-  m.dirty = true;
-  return m;
+  for (int k = 2; k < segs; ++k)
+    bb_geom_tri_(b, 0, k - 1, k);
+  b.dirty = true;
+  return out;
 }
 
 // ============================================================
 // Create commands
 // ============================================================
 
-static inline int bb_mesh_create_(bb_MeshData_ surf, int parent) {
+static inline int bb_mesh_create_(std::vector<bb_MeshData_> surfs, int parent) {
   auto ent = std::make_unique<bb_MeshEntity_>();
-  ent->surfaces().push_back(std::move(surf));
+  for (auto& s : surfs) ent->surfaces().push_back(std::move(s));
   return bb_entity_register_(std::move(ent), parent);
+}
+
+static inline int bb_mesh_create_(bb_MeshData_ surf, int parent) {
+  std::vector<bb_MeshData_> v;
+  v.push_back(std::move(surf));
+  return bb_mesh_create_(std::move(v), parent);
 }
 
 inline int bb_CreateCube(int parent = 0) {
@@ -341,12 +320,15 @@ inline int bb_CreateSphere(int segs = 8, int parent = 0) {
   return bb_mesh_create_(bb_gen_sphere_(segs), parent);
 }
 
-inline int bb_CreateCylinder(int segs = 8, int open = 0, int parent = 0) {
-  return bb_mesh_create_(bb_gen_cylinder_(segs, open != 0), parent);
+// Der zweite Parameter heisst im Original `solid` und steht auf 1: mit 0
+// fehlen die Deckel. Bis 2026-09-17 hiess er hier `open` mit Vorgabe 0 und
+// bedeutete das Gegenteil (BUG-133).
+inline int bb_CreateCylinder(int segs = 8, int solid = 1, int parent = 0) {
+  return bb_mesh_create_(bb_gen_cylinder_(segs, solid != 0), parent);
 }
 
-inline int bb_CreateCone(int segs = 8, int open = 0, int parent = 0) {
-  return bb_mesh_create_(bb_gen_cone_(segs, open != 0), parent);
+inline int bb_CreateCone(int segs = 8, int solid = 1, int parent = 0) {
+  return bb_mesh_create_(bb_gen_cone_(segs, solid != 0), parent);
 }
 
 // ============================================================

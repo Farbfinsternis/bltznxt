@@ -594,7 +594,7 @@ Each milestone is scoped to fit within a single AI-session context window:
 ### Milestone 52: Primitive Mesh Creation
 *Touch: `bb_mesh.h` (new file)*
 - [ ] `bb_CreateMesh()`, `bb_CreateCube(parent)`, `bb_CreateSphere(segs, parent)`
-- [ ] `bb_CreateCylinder(segs, open, parent)`, `bb_CreateCone(segs, open, parent)`
+- [ ] `bb_CreateCylinder(segs, solid, parent)`, `bb_CreateCone(segs, solid, parent)`
 - [ ] `bb_MeshWidth`, `bb_MeshHeight`, `bb_MeshDepth`
 - **Test:** `Local cube = CreateCube()`
 
