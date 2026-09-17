@@ -85,9 +85,7 @@ inline bool (*bb_canvas_tex_hook_)(int buf, bb_Canvas_& c) = nullptr;
 
 // Die Pixelkopie eines Frame sicherstellen. Ohne Kopie ist das Frame ein
 // frisches CreateImage: schwarz (ReadPixel liefert $FF000000) und damit ganz
-// maskiert. Aus der SDL-Zieltextur wird bewusst nicht zurueckgelesen - sie ist
-// leer, und SDL_SetRenderTarget stoert im 3D-Modus den Backbuffer: danach las
-// ReadPixel nur noch Weiss (gemessen 2026-09-17).
+// maskiert. Aus seiner SDL-Zieltextur gibt es nichts zurueckzulesen.
 inline void bb_img_ensure_pixels_(int handle, bb_FrameData_& fd) {
   const auto& img = bb_images_[handle];
   const size_t n = static_cast<size_t>(img.width) * img.height * 4;

@@ -144,14 +144,17 @@ inline void bb_RenderWorld(float tween = 1.0f) {
   // gleich noch einmal tut, faellt gegen das Zeichnen nicht ins Gewicht.
   bb_entity_update_all_();
 
-  // Lazy-compile shaders on first call (GL context must be active).
-  if (!bb_shaders_ready_) bb_shaders_init_();
-
   bb_tris_rendered_ = 0;
 
   // Flush pending 2D draws (background sprites, etc.) before going GL.
   if (bb_renderer_) SDL_FlushRenderer(bb_renderer_);
   SDL_GL_MakeCurrent(bb_window_, bb_gl_ctx_);
+
+  // Die Shader erst jetzt uebersetzen, im eigenen Kontext. Bis 2026-09-17
+  // stand das vor MakeCurrent: hatte vorher ein 2D-Befehl den Kontext des
+  // SDL-Renderers aktiviert (LoadImage, CreateImage), landeten die Programme
+  // dort, und das erste Bild blieb weiss (BUG-144).
+  if (!bb_shaders_ready_) bb_shaders_init_();
 
   auto cams = bb_collect_cameras_();
 

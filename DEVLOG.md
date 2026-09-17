@@ -1,5 +1,17 @@
 # BlitzNext Developer Log
 
+## 2026-09-17 — The first RenderWorld after loading an image (BUG-144)
+
+A 3D program that loaded or created an image before its first `RenderWorld` read only white from
+the screen afterwards. The cause was the order inside `RenderWorld`: it compiled its shaders on the
+first call before making its own GL context current. Creating an SDL texture for an image makes the
+2D renderer's context current, so the shaders ended up there. Shaders are now compiled after the
+context switch. `tests/test_bug144_render_nach_2d.bb` loads, creates and draws an image before the
+first render and checks `ReadPixel`, `LockBuffer` and `CopyRect` against Blitz3D. Suite 238/238.
+44 open bugs.
+
+---
+
 ## 2026-09-17 — CopyRect (BUG-118)
 
 `CopyRect` accepted all arguments and did nothing. In Blitz3D it is a blit without mask between any

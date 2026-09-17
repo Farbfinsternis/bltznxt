@@ -5,8 +5,9 @@
 ; sind ohne Angabe der aktuelle. Alle Werte am Original gemessen (2026-09-17):
 ; Image, Textur und Backbuffer als Quelle und Ziel, Clipping am Bildrand.
 ;
-; Der Fall Backbuffer -> Textur steht vorn, vor dem ersten CreateImage: danach
-; liest ReadPixel auf dem Bildschirm Weiss (BUG-144).
+; Der Fall Backbuffer -> Textur steht vorn, vor dem ersten CreateImage - so
+; entstand der Test, als das erste RenderWorld danach noch Weiss las (BUG-144,
+; behoben; test_bug144_render_nach_2d prueft das).
 
 Graphics3D 320,240,0,2
 

@@ -1,0 +1,3 @@
+readpixel mitte FF00C800 ecke FF280000
+lockbuffer FF00C800
+copyrect in textur FF00C800
