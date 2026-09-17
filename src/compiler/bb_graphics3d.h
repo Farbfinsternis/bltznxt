@@ -27,6 +27,7 @@ inline int bb_tris_rendered_ = 0;
 #include "bb_texture.h"
 #include "bb_mesh.h"
 #include "bb_surface.h"
+#include "bb_collision.h"
 #include "bb_loader.h"
 
 // ============================================================
@@ -38,7 +39,9 @@ inline int bb_tris_rendered_ = 0;
 inline void bb_UpdateWorld(float elapsed_time = 1.0f) {
   (void)elapsed_time;
   bb_entity_update_all_();
-  // 3D-18: collision detection (stub)
+  // Kollisionen (3D-18): jedes Entity mit Typ wird von seiner Lage beim
+  // vorigen UpdateWorld zur neuen bewegt, Treffer werden eingetragen.
+  bb_world_update_collisions_();
   // 3D-19: advance animation timers (stub)
 }
 

@@ -1,5 +1,24 @@
 # BlitzNext Developer Log
 
+## 2026-09-17 — Collisions and picking (3D-18, 3D-17, BUG-154)
+
+The heart of a Blitz3D game runs now. `Collisions` rules with all three methods (sphere, mesh
+triangles, box) and all responses, `EntityType`, `EntityRadius`, `EntityBox`, `EntityCollided`,
+`CountCollisions`, `CollisionX/Y/Z`, `CollisionNX/NY/NZ`, `CollisionTime/Entity/Surface/Triangle`,
+plus `LinePick`, `EntityPick`, `EntityPickMode`, the `Picked…` queries and `EntityVisible`. It is
+a translation of `collision.cpp` and `World::collide`, down to the order of the steps, because
+every one of those return values is observable. Two details only measurement could show: Blitz3D
+works through the entities one after another, so a collision registered on both partners is wiped
+again when the later one clears its own list, and the box method normalises the axes first, so a
+scaled entity keeps its box. The triangle tree of the original is rebuilt as well - it decides
+which of several equally close triangles wins, which is what `CollisionTriangle` reports.
+
+`ResetEntity` turned out to reset position, rotation and scale here; in Blitz3D it only tells the
+collision system to start from here (BUG-154). 55 cases measured against Blitz3D across three
+tests. What blox-n-balls still misses: `CreateMirror` and the TCP commands. Suite 252/252.
+
+---
+
 ## 2026-09-17 — Sprites (3D-16)
 
 `CreateSprite`, `LoadSprite`, `RotateSprite`, `ScaleSprite`, `HandleSprite` and `SpriteViewMode`

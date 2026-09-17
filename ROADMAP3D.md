@@ -994,53 +994,45 @@ Am Original gemessen (2026-09-17, `build/sprite20260917/`, 25 Faelle) und nach
 ---
 
 ### 3D-17 · Kamera: Fog & Picking
-*Dateien: `bb_camera.h`*
+*Dateien: `bb_camera.h`, `bb_collision.h`*
 
 - [ ] `bb_CameraFogMode(cam, mode)` — 0=Off, 1=Linear, 2=Exponential
 - [ ] `bb_CameraFogRange(cam, near, far)`, `bb_CameraFogColor(cam, r, g, b)`
       → als GLSL-Uniform an `lit`-Shader übergeben
 - [ ] `bb_CameraProject(cam, x, y, z)` → projiziert 3D auf 2D-Screen-Koordinaten
 - [ ] `bb_ProjectedX/Y/Z()` — letzte Projektion
-- [ ] `bb_CameraPick(cam, sx, sy)` → entity handle (Ray-Cast via Depth-Buffer-Read +
-      Unprojection; Trefferkandidaten via AABB, dann Triangle-Test)
-- [ ] `bb_PickedX/Y/Z()`, `bb_PickedNX/NY/NZ()`, `bb_PickedEntity()`
-- [ ] `bb_PickedSurface()`, `bb_PickedTriangle()`, `bb_PickedTime()` (0–1 Rayparameter)
+- [ ] `bb_CameraPick(cam, sx, sy)` → Strahl durch das Frustum, dann traceRay
+- [x] `bb_LinePick(x,y,z,dx,dy,dz,radius=0)`, `bb_EntityPick(entity, range)`
+- [x] `bb_EntityPickMode(h, mode, obscurer=1)` — 1 Kugel, 2 Dreiecke, 3 Box
+- [x] `bb_PickedX/Y/Z()`, `bb_PickedNX/NY/NZ()`, `bb_PickedEntity()`
+- [x] `bb_PickedSurface()`, `bb_PickedTriangle()`, `bb_PickedTime()`
+- [x] `bb_EntityVisible(src, dest)` — Sichtlinie, nur Obscurer blockieren
 - [ ] `bb_EntityInView(entity, cam)` → bool (Frustum-Culling AABB-Test)
-- **Test:** `tests/test_3d17_fog.bb`
+- **Test:** `tests/test_3d17_picking.bb` (+ `.expected` vom Original)
 
 ---
 
 ### 3D-18 · Kollisionssystem
-*Dateien: `bb_collision.h` (neu)*
+*Dateien: `bb_collision.h`*
 
-- [ ] `bb_Entity_` um `colType`, `colRadius`, `colBox (x,y,z,w,h,d)`, `colPickMode` erweitern
-- [ ] `bb_EntityRadius(h, xr, yr=0)`, `bb_EntityBox(h, x,y,z,w,h,d)`
-- [ ] `bb_EntityType(h, type, recurse=0)`, `bb_EntityPickMode(h, mode, obscure=1)`
-- [ ] `bb_GetEntityType(h)` → int
-- [ ] `bb_Collisions(typeA, typeB, method, response)` — registriert Kollisionsregel
-      (method: 1=Sphere-Sphere, 2=Sphere-Poly, 3=Box-Box; response: 1=Stop, 2=Slide, 3=Bounce)
-- [ ] `bb_ClearCollisions()` — löscht Kollisionsregeln
-- [ ] Kollisions-Detection in `UpdateWorld` (nach Transform-Propagation)
-- [ ] `bb_EntityCollided(h, type)` → handle des ersten Kollisions-Partners (0 = keiner)
-- [ ] `bb_CountCollisions(h)` → int
-- [ ] `bb_CollisionX/Y/Z(h, idx)`, `bb_CollisionNX/NY/NZ(h, idx)` → Punkt & Normal
-- [ ] `bb_CollisionTime(h, idx)`, `bb_CollisionEntity(h, idx)`, `bb_CollisionSurface(h, idx)`, `bb_CollisionTriangle(h, idx)`
-- **Test:** `tests/test_3d18_collision.bb`
-  ```blitzbasic
-  Graphics3D 800,600,32,1
-  Local cam    = CreateCamera()
-  Local player = CreateSphere()
-  Local wall   = CreateCube()
-  EntityType player, 1
-  EntityType wall,   2
-  EntityRadius player, 0.5
-  Collisions 1, 2, 2, 2
-  PositionEntity wall, 0, 0, 5
-  While Not KeyDown(1)
-    MoveEntity player, 0, 0, 0.1
-    UpdateWorld : RenderWorld : Flip
-  Wend
-  ```
+Uebersetzt aus `blitz3d/collision.cpp`, `world.cpp` und `meshcollider.cpp`,
+am Original gemessen (2026-09-17, `build/coll20260917/`, 55 Faelle).
+
+- [x] `bb_Entity_` um `collType`, `collRadX/Y`, `collBoxA/B`, `pickMode`,
+      `obscurer`, die Trefferliste und die vorige Weltlage erweitert
+- [x] `bb_EntityRadius(h, xr, yr=0)`, `bb_EntityBox(h, x,y,z,w,h,d)`
+- [x] `bb_EntityType(h, type, recursive=0)`, `bb_GetEntityType(h)`
+- [x] `bb_Collisions(src, dst, method, response)`, `bb_ClearCollisions()`
+      (method: 1 Kugel, 2 Dreiecke, 3 Box; response: 0 keine, 1 anhalten,
+      2 gleiten, 3 gleiten ohne Y)
+- [x] Kollision in `UpdateWorld`: je Entity nacheinander Liste leeren,
+      bewegen, vorige Lage setzen - die Reihenfolge ist beobachtbar
+- [x] Dreiecksbaum wie `MeshCollider` (Blaetter mit 16 Dreiecken); er
+      entscheidet bei gleich frueh getroffenen Dreiecken, welches gilt
+- [x] `bb_EntityCollided`, `bb_CountCollisions`, `bb_CollisionX/Y/Z`,
+      `bb_CollisionNX/NY/NZ`, `bb_CollisionTime/Entity/Surface/Triangle`
+- [x] `bb_ResetEntity` wie `Object::reset` (BUG-154)
+- **Test:** `tests/test_3d18_kollision.bb`, `tests/test_3d18_kollision_geometrie.bb`
 
 ---
 

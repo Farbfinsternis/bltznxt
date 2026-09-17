@@ -29,6 +29,17 @@ enum class bb_EntityKind_ {
 // bb_Entity_ — polymorphic base for all 3D scene objects
 // ============================================================
 
+// Ein eingetragener Zusammenstoss, wie ObjCollision im Original: mit wem,
+// wo, wann auf der Strecke, die Normale und welche Flaeche/welches Dreieck.
+struct bb_ObjColl_ {
+  int    with = 0;
+  float  coords[3] = { 0, 0, 0 };
+  float  time = 0;
+  float  normal[3] = { 0, 0, 0 };
+  int    surface = 0;   // Handle wie von GetSurface
+  int    index = 65535; // wie Collision::index (unsigned short, ~0)
+};
+
 struct bb_Entity_ {
   int      handle  = 0;
   bbString name;
@@ -58,6 +69,24 @@ struct bb_Entity_ {
   float px = 0, py = 0, pz = 0;   // position
   float rx = 0, ry = 0, rz = 0;   // rotation (Euler degrees, YXZ — same as Blitz3D)
   float sx = 1, sy = 1, sz = 1;   // scale
+
+  // ---- Kollision und Picking (3D-17, 3D-18) ----
+  // Vorgaben wie Object::Object im Original: Radien 1, Box -1..1, kein Typ,
+  // kein Pick. `prev` ist die Weltlage beim letzten UpdateWorld - von dort
+  // aus bewegt die Kollision das Entity (Object::getPrevWorldTform).
+  int      collType = 0;
+  float    collRadX = 1, collRadY = 1;
+  float    collBoxA[3] = { -1, -1, -1 };
+  float    collBoxB[3] = {  1,  1,  1 };
+  int      pickMode = 0;
+  bool     obscurer = false;
+  std::vector<bb_ObjColl_> colls;
+  float    prev[16] = {
+    1,0,0,0,
+    0,1,0,0,
+    0,0,1,0,
+    0,0,0,1
+  };
 
   // World matrix (column-major 4×4), updated by UpdateWorld
   float world[16] = {
@@ -109,6 +138,17 @@ inline void bb_entity_copy_fields_(bb_Entity_& dst, const bb_Entity_& src) {
   dst.rx = src.rx; dst.ry = src.ry; dst.rz = src.rz;
   dst.sx = src.sx; dst.sy = src.sy; dst.sz = src.sz;
   memcpy(dst.world, src.world, sizeof(dst.world));
+  // Object::Object(const Object&) uebernimmt Kollisionstyp, Radien, Box und
+  // Pickmodus und ruft danach reset(): die Trefferliste bleibt leer, die
+  // vorige Lage ist die aktuelle.
+  dst.collType = src.collType;
+  dst.collRadX = src.collRadX; dst.collRadY = src.collRadY;
+  memcpy(dst.collBoxA, src.collBoxA, sizeof(dst.collBoxA));
+  memcpy(dst.collBoxB, src.collBoxB, sizeof(dst.collBoxB));
+  dst.pickMode = src.pickMode;
+  dst.obscurer = src.obscurer;
+  dst.colls.clear();
+  memcpy(dst.prev, src.world, sizeof(dst.prev));
 }
 
 inline std::unique_ptr<bb_Entity_> bb_Entity_::clone() const {
@@ -891,12 +931,14 @@ inline void bb_AlignToVector(int h, float nx, float ny, float nz,
 // Reset
 // ============================================================
 
+// Object::reset im Original: Trefferliste leeren, Geschwindigkeit auf null
+// und die vorige Weltlage auf die aktuelle setzen. Die Lage des Entity
+// selbst bleibt unangetastet (BUG-154).
 inline void bb_ResetEntity(int h) {
   bb_Entity_* e = bb_entity_get_(h);
   if (!e) return;
-  e->px = e->py = e->pz = 0;
-  e->rx = e->ry = e->rz = 0;
-  e->sx = e->sy = e->sz = 1;
+  e->colls.clear();
+  memcpy(e->prev, bb_entity_world_(e), sizeof(e->prev));
 }
 
 // ============================================================

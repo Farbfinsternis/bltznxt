@@ -1,0 +1,21 @@
+1 kugel stop: 0,0,6999 1: [0,0,8000 n 0,0,-1000 t 350 tri 65535]
+2 ziel traegt treffer: 0
+3 collided: 1 1 entity 1
+4 zweiter anlauf: 0,0,6999 1: [0,0,8000 n 0,0,-1000 t 0 tri 65535]
+5 kugel gleiten: 0,0,0 0:
+6 gleiten ohne y: 0,6000,0 0:
+7 reaktion 0: 0,6714,8538 1: [0,1236,11572 n 0,618,786 t 382 tri 65535]
+8 wuerfel stop: 0,0,7999 1: [0,0,9000 n 0,0,-1000 t 400 tri 1]
+9 flaeche: 1
+10 schraeg: 500,0,0 0:
+11 kante: 1500,1500,0 0:
+12 versteckt: 0,0,0 0:
+13 ellipsoid: 0,3500,0 0:
+14 box: 0,0,0 0:
+15 gedreht: 0,0,0 0:
+16 skaliert: 0,0,0 0:
+17 rekursiv: 1
+18 kind trifft zuerst: 0,0,0 0
+19 resetentity lage: 3000,4000,5000 winkel 20000
+20 reset dann update: 3000,4000,5000 0
+21 gettype: 1 2 0

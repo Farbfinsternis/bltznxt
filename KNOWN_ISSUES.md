@@ -52,15 +52,14 @@ The full reasoning is in [ROADMAP3D.md](ROADMAP3D.md), section
 
 ## Missing commands
 
-153 of Blitz3D's 540 commands (not counting language keywords) are not available yet. A
+131 of Blitz3D's 540 commands (not counting language keywords) are not available yet. A
 program that uses one of them is rejected with `unknown function or command`. `blitzcc -k` lists
 everything that is available.
 
 | Area | Missing |
 |------|---------|
 | Networking | all TCP, UDP and DirectPlay commands (`OpenTCPStream`, `CreateUDPStream`, `HostNetGame`, `SendNetMsg`, …) |
-| Collision | `Collisions`, `ClearCollisions`, `EntityType`, `EntityRadius`, `EntityBox`, `EntityCollided`, `CountCollisions`, `CollisionX/Y/Z`, `CollisionNX/NY/NZ`, … |
-| Picking and projection | `CameraPick`, `EntityPick`, `LinePick`, `EntityPickMode`, `PickedX/Y/Z`, `PickedEntity`, `CameraProject`, `ProjectedX/Y/Z`, `EntityInView`, `EntityVisible` |
+| Picking and projection | `CameraPick`, `CameraProject`, `ProjectedX/Y/Z`, `EntityInView` |
 | Animation | `Animate`, `SetAnimTime`, `AnimTime`, `Animating`, `AnimSeq`, `AnimLength`, `LoadAnimSeq`, `AddAnimSeq`, `ExtractAnimSeq`, `SetAnimKey` |
 | Terrain, MD2, BSP | `CreateTerrain`, `LoadTerrain`, `ModifyTerrain`, `TerrainHeight`, …, `LoadMD2`, `AnimateMD2`, `LoadBSP`, … |
 | Planes and mirrors | `CreatePlane`, `CreateMirror` |

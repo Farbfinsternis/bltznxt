@@ -1,0 +1,10 @@
+21 linepick: 1 0,0,9000 n 0,0,-1000 t 450 tri 1 flaeche 1
+22 daneben: 0 t 1000
+23 mit radius: 1 0,1000,9000 t 384
+24 pick kugel: 1 t 350 n -1000
+25 pick box: 1 t 450
+26 pick aus: 0
+27 entitypick: 1 t 450
+28 sichtbar ohne obscurer: 0
+29 obscurer dazwischen: 0
+30 obscurer aus: 1 pick 1

@@ -41,6 +41,10 @@
 // Auswahl gibt es bei uns bisher weder vorher noch jetzt.
 inline constexpr int BB_VF = 14;
 
+// Jede Aenderung an der Geometrie zaehlt hoch. Der Dreiecksbaum fuer
+// Kollisionen (bb_collision.h) haengt daran und wird danach neu gebaut.
+inline unsigned long long bb_mesh_geom_version_ = 1;
+
 struct bb_MeshData_ {
   std::vector<float>        vertices;  // verschraenkt, BB_VF Floats je Vertex
   std::vector<unsigned int> indices;   // 3 indices per triangle

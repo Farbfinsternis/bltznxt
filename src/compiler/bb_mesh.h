@@ -34,6 +34,12 @@
 struct bb_MeshRep_ {
   std::vector<bb_MeshData_> surfaces;  // each surface = one draw call
 
+  // Der Dreiecksbaum fuer Kollisionen und Picking (bb_collision.h baut ihn,
+  // hier liegt er nur). `stamp` haelt fest, zu welchem Stand der Geometrie
+  // er gehoert.
+  std::shared_ptr<void>  collider;
+  unsigned long long     collider_stamp = 0;
+
   ~bb_MeshRep_() {
     for (auto& s : surfaces) bb_mesh_free_gpu_(&s);
   }
@@ -457,6 +463,7 @@ inline float bb_MeshDepth(int h) {
 // Jede Aenderung an den Vertices muss neu auf die Grafikkarte.
 static inline void bb_mesh_touch_(bb_MeshEntity_* me) {
   for (auto& s : me->surfaces()) s.dirty = true;
+  ++bb_mesh_geom_version_;
 }
 
 // ---- CreateMesh: leeres Netz, Geometrie kommt mit AddMesh oder 3D-15 ----
