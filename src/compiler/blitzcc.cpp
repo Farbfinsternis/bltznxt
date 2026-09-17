@@ -406,6 +406,7 @@ public:
     SourceMap    srcMap;
     srcMap.setMainFile(cfg.inputPath);
     std::string src = preproc.process(cfg.inputPath, included, srcMap);
+    if (preproc.hasErrors()) return 1;
     if (src.empty()) {
       std::cerr << cfg.inputPath << ":0:0: error: could not read file\n";
       return 1;

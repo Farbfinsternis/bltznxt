@@ -1,5 +1,18 @@
 # BlitzNext Developer Log
 
+## 2026-09-17 — Include paths are relative to the main file (BUG-151)
+
+A Blitz3D game from 2003 with 26 source files stopped at its first nested include:
+`includes\action.bb` includes `"includes\multiball.bb"`, and we looked for it in
+`includes\includes\`. Blitz3D changes into the main file's directory before it parses, so every
+include, from any file, is relative to that directory; an include relative to the including file
+is rejected. A missing include was also only a warning here and compilation went on into follow-up
+errors. Both now behave like Blitz3D, including the error position just past the closing quote.
+What stops the game now are missing commands only: sprites, collisions, picking, `CreateMirror`,
+TCP and `DebugLog`. Suite 245/245. 45 open bugs.
+
+---
+
 ## 2026-09-17 — World rotation without the parents' scale (BUG-149)
 
 Blitz3D keeps a world rotation apart from the world matrix: the product of the rotations from the

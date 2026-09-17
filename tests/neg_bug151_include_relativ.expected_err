@@ -1,0 +1,1 @@
+tests/inc_bug151/c.bb:2:15: error: Unable to open include file 'b.bb'
