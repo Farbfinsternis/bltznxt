@@ -1,5 +1,23 @@
 # BlitzNext Developer Log
 
+## 2026-09-17 — Mirrors, and what they uncovered (3D-16, BUG-155, BUG-156)
+
+`CreateMirror` works. A mirror has no geometry at all: before the scene itself, Blitz3D draws it
+once per visible mirror with the camera reflected in the mirror's XZ plane and the triangle winding
+reversed. A half-transparent floor laid over the mirror is part of that reflected pass too, which
+is why it blends twice. Twelve cases measured against Blitz3D, from `EntityClass` and the doubled
+`TrisRendered` to a hidden mirror, two mirrors and a mirror parented to a pivot.
+
+That last case exposed `EntityParent`: its third parameter defaults to 1 in Blitz3D, so a call
+without it keeps the entity's world position, while we kept the local one and the entity jumped.
+Decomposing the new local matrix also has to orthogonalise it the way `matrixQuat` does, or the
+roll comes out 23.5 degrees off under an unevenly scaled parent (BUG-155). And the depth test:
+Direct3D 7 compares with less-or-equal, OpenGL with less, so anything drawn twice at exactly the
+same depth was dropped here (BUG-156). What blox-n-balls still misses: the TCP commands.
+Suite 254/254.
+
+---
+
 ## 2026-09-17 — Collisions and picking (3D-18, 3D-17, BUG-154)
 
 The heart of a Blitz3D game runs now. `Collisions` rules with all three methods (sphere, mesh

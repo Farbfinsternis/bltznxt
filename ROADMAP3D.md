@@ -986,7 +986,9 @@ Am Original gemessen (2026-09-17, `build/sprite20260917/`, 25 Faelle) und nach
       oben; gezeichnet im selben Durchlauf wie die Netze (Reihenfolge,
       Blending, EntityOrder wie dort)
 - [ ] `bb_CreatePlane(segs=1, parent=0)` — flaches unendliches Mesh
-- [ ] `bb_CreateMirror(parent=0)` — reflektierende Ebene
+- [x] `bb_CreateMirror(parent=0)` — kein Netz: die Szene wird je sichtbarem
+      Spiegel vorab mit gespiegelter Kamera und umgekehrter Umlaufrichtung
+      gezeichnet (`bb_mirror.h`). Test `tests/test_3d16_mirror.bb`
 - **Test:** `tests/test_3d16_sprite.bb` (+ `.expected` vom Original)
 - **Dabei gefunden:** BUG-152 (Pixelmitte wie D3D7) und BUG-153 (Alpha beim
       Laden einer Textur ohne Alphakanal)

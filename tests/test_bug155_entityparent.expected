@@ -1,0 +1,8 @@
+1 ohne flag: lokal 0,1000,0 / 0,0,0 welt 0,0,0 / 0,0,0
+2 mit flag True: lokal 0,1000,0 / 0,0,0 welt 0,0,0 / 0,0,0
+3 mit flag False: lokal 0,0,0 / 0,0,0 welt 0,-1000,0 / 0,0,0
+4 gedreht ohne flag: lokal 1923,1793,-1000 / 48770,-74509,11239 welt 4000,5000,6000 / 29307,11646,17252
+5 gedreht mit flag: lokal 1923,1793,-1000 / 48770,-74509,11239 welt 4000,5000,6000 / 29307,11646,17252
+6 abhaengen ohne flag: lokal 4000,5000,6000 / 10000,20000,30000 welt 4000,5000,6000 / 10000,20000,30000
+7 abhaengen mit flag: lokal 4000,5000,6000 / 10000,20000,30000 welt 4000,5000,6000 / 10000,20000,30000
+8 gleicher elternteil: lokal 0,1000,0 / 0,0,0 welt 0,0,0 / 0,0,0

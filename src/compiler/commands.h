@@ -125,6 +125,7 @@ inline constexpr CmdInfo kCommands[] = {
   { "CreateImage",         "%", "w%,h%,nframes%?" },
   { "CreateLight",         "%", "type%?,parent%?" },
   { "CreateMesh",          "%", "parent%?" },
+  { "CreateMirror",        "%", "parent%?" },
   { "CreatePivot",         "%", "parent%?" },
   { "CreateSphere",        "%", "segs%?,parent%?" },
   { "CreateSprite",        "%", "parent%?" },

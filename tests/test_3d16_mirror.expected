@@ -1,0 +1,12 @@
+1 ohne spiegel: 00282828 00FF0000 00282828 tris 12
+2 klasse Mirror kinder 0
+3 mit spiegel: 00282828 00FF0000 00FF0000 tris 24
+4 spiegel bei y=1: 00282828 00FF0000 00FF0000 tris 24
+5 spiegel gekippt: 00282828 00FF0000 00282828 tris 24
+6 versteckt: 00282828 00FF0000 00282828 tris 12
+7 zwei spiegel: 00FF0000 00FF0000 00FF0000 tris 36
+8 kopie klasse Mirror
+9 spiegel als kind: 00282828 00FF0000 00FF0000 tris 24
+10 wuerfel unten: 00282828 00FF0000 00FF0000 tris 24
+11 mit boden: 00282828 00FF0000 004000BF tris 48
+12 spiegel weg: 00282828 00FF0000 00282828 tris 12

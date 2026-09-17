@@ -22,7 +22,7 @@
 // ============================================================
 
 enum class bb_EntityKind_ {
-  Pivot, Mesh, Camera, Light, Sprite
+  Pivot, Mesh, Camera, Light, Sprite, Mirror
 };
 
 // ============================================================
@@ -388,6 +388,30 @@ static inline void mat4_xform_pt_(float out[3], const float m[16],
   out[0] = m[0]*x + m[4]*y + m[8]*z  + m[12];
   out[1] = m[1]*x + m[5]*y + m[9]*z  + m[13];
   out[2] = m[2]*x + m[6]*y + m[10]*z + m[14];
+}
+
+// Die drei Achsen einer Matrix senkrecht zueinander stellen, wie
+// Matrix::orthogonalize in geom.h: k normieren, i = (j x k) normiert,
+// j = k x i. Die Verschiebung bleibt stehen.
+static inline void mat4_orthogonalize_(float out[16], const float m[16]) {
+  float i[3], j[3], k[3];
+  for (int n = 0; n < 3; ++n) { i[n] = m[n]; j[n] = m[4+n]; k[n] = m[8+n]; }
+  auto norm = [](float* v) {
+    const float l = sqrtf(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
+    if (l > 0) { v[0] /= l; v[1] /= l; v[2] /= l; }
+  };
+  auto cross = [](const float* a, const float* b, float* o) {
+    const float x = a[1]*b[2] - a[2]*b[1];
+    const float y = a[2]*b[0] - a[0]*b[2];
+    const float z = a[0]*b[1] - a[1]*b[0];
+    o[0] = x; o[1] = y; o[2] = z;
+  };
+  norm(k);
+  cross(j, k, i);
+  norm(i);
+  cross(k, i, j);
+  memcpy(out, m, 64);
+  for (int n = 0; n < 3; ++n) { out[n] = i[n]; out[4+n] = j[n]; out[8+n] = k[n]; }
 }
 
 // Extract YXZ Euler angles (degrees) from a column-major world matrix
@@ -1039,8 +1063,11 @@ inline float bb_EntityDistance(int h1, int h2) {
 // Hierarchy (3D-05)
 // ============================================================
 
-// Re-parent entity.  glob=1 preserves world-space position/rotation/scale.
-inline void bb_EntityParent(int h, int new_parent, int glob = 0) {
+// Umhaengen. Der Schalter ist im Original **vorbelegt**:
+// `EntityParent%entity%parent%global=1`, ein Aufruf ohne ihn haelt also die
+// Weltlage fest (gemessen 2026-09-17, BUG-155). Mit `False` bleibt die
+// lokale Lage stehen und das Entity springt mit dem Elternteil mit.
+inline void bb_EntityParent(int h, int new_parent, int glob = 1) {
   bb_Entity_* e = bb_entity_get_(h);
   if (!e || e->handle == new_parent) return;
 
@@ -1079,12 +1106,19 @@ inline void bb_EntityParent(int h, int new_parent, int glob = 0) {
     } else {
       memcpy(local, saved_world, 64);
     }
-    // Extract T, R, S from the local matrix
+    // Zerlegen wie Entity::setLocalTform: die Groesse sind die Laengen der
+    // drei Spalten, die Drehung kommt aus `matrixQuat`, und das
+    // **orthogonalisiert** erst (k normieren, i = j x k, j = k x i). Unter
+    // einem ungleichmaessig skalierten Elternteil ist die lokale Matrix
+    // schiefwinklig, und spaltenweises Normieren liefert dort einen anderen
+    // Rollwinkel - gemessen 23,5 Grad daneben (BUG-155).
     e->px = local[12]; e->py = local[13]; e->pz = local[14];
     e->sx = sqrtf(local[0]*local[0] + local[1]*local[1] + local[2]*local[2]);
     e->sy = sqrtf(local[4]*local[4] + local[5]*local[5] + local[6]*local[6]);
     e->sz = sqrtf(local[8]*local[8] + local[9]*local[9] + local[10]*local[10]);
-    mat4_extract_euler_YXZ_(local, e->rx, e->ry, e->rz);
+    float ortho[16];
+    mat4_orthogonalize_(ortho, local);
+    mat4_extract_euler_YXZ_(ortho, e->rx, e->ry, e->rz);
   }
 }
 
@@ -1215,6 +1249,7 @@ inline bbString bb_EntityClass(int h) {
     case bb_EntityKind_::Camera: return "Camera";
     case bb_EntityKind_::Light:  return "Light";
     case bb_EntityKind_::Sprite: return "Sprite";
+    case bb_EntityKind_::Mirror: return "Mirror";
   }
   return "";
 }

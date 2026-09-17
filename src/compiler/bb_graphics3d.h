@@ -28,6 +28,7 @@ inline int bb_tris_rendered_ = 0;
 #include "bb_mesh.h"
 #include "bb_surface.h"
 #include "bb_collision.h"
+#include "bb_mirror.h"
 #include "bb_loader.h"
 
 // ============================================================
@@ -169,7 +170,7 @@ inline void bb_RenderWorld(float tween = 1.0f) {
   if (cams.empty()) return;
 
   glEnable(GL_DEPTH_TEST);
-  glDepthFunc(GL_LESS);
+  glDepthFunc(GL_LEQUAL);
 
   // Rueckseiten werden entfernt - am Original gemessen: eine Kamera im Inneren
   // eines Wuerfels sieht dort den Hintergrund, nicht die Innenseiten.
@@ -251,6 +252,25 @@ inline void bb_RenderWorld(float tween = 1.0f) {
     if (sh) {
       bb_shader_bind_(sh);
       if (sh == bb_shader_lit_) bb_upload_lights_(sh, n, cam);
+
+      // Erst die Spiegel (3D-16): je sichtbarem Spiegel die ganze Szene mit
+      // gespiegelter Kamera und umgekehrter Umlaufrichtung, danach die
+      // normale Szene darueber. Geloescht wird nur einmal, oben.
+      for (auto& [mh, me] : bb_entities_) {
+        if (me->kind() != bb_EntityKind_::Mirror) continue;
+        if (!bb_entity_shown_(me.get())) continue;
+        float mcam[16], mview[16];
+        if (!bb_mirror_cam_(me.get(), cam->world, mcam)) continue;
+        if (!mat4_inverse_(mview, mcam)) continue;
+        mview[2]  = -mview[2];
+        mview[6]  = -mview[6];
+        mview[10] = -mview[10];
+        mview[14] = -mview[14];
+        glFrontFace(GL_CCW);
+        bb_render_meshes_(sh, mview, cam->proj, mcam);
+        glFrontFace(GL_CW);
+      }
+
       bb_render_meshes_(sh, cam->view, cam->proj, cam->world);
     }
   }
