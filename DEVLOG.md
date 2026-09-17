@@ -1,5 +1,14 @@
 # BlitzNext Developer Log
 
+## 2026-09-17 — DebugLog
+
+The first of the commands blox-n-balls still needs. In Blitz3D, `DebugLog` writes to the IDE
+debugger's log; a standalone program shows nothing and keeps running. There is no debugger here,
+so the line goes to stderr, next to runtime errors, and stdout stays exactly as in Blitz3D
+(measured with text, an integer, a float expression and a variable). Suite 249/249.
+
+---
+
 ## 2026-09-17 — Include paths are relative to the main file (BUG-151)
 
 A Blitz3D game from 2003 with 26 source files stopped at its first nested include:

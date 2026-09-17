@@ -120,6 +120,7 @@ inline constexpr CmdInfo kCommands[] = {
   { "CurrentDate",         "$", "" },
   { "CurrentDir",          "$", "" },
   { "CurrentTime",         "$", "" },
+  { "DebugLog",            "",  "text$" },
   { "Delay",               "",  "ms%" },
   { "DeleteDir",           "",  "path$" },
   { "DeleteFile",          "",  "path$" },

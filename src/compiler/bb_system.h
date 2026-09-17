@@ -138,6 +138,15 @@ inline void bb_ExecFile(const bbString &path) {
   std::system(path.c_str());
 }
 
+// DebugLog schreibt im Original ins Protokoll des IDE-Debuggers
+// (gx_runtime->debugLog); ohne angehaengten Debugger geschieht nichts
+// Sichtbares und das Programm laeuft weiter. Einen Debugger gibt es hier
+// nicht, die Zeile geht deshalb auf stderr - wie RuntimeError - und die
+// Programmausgabe auf stdout bleibt unberuehrt.
+inline void bb_DebugLog(const bbString &text) {
+  std::cerr << text << "\n";
+}
+
 // Prints an error message to stderr and terminates the program.
 inline void bb_RuntimeError(const bbString &msg) {
   std::cerr << "Runtime Error: " << msg << "\n";

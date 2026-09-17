@@ -52,7 +52,7 @@ The full reasoning is in [ROADMAP3D.md](ROADMAP3D.md), section
 
 ## Missing commands
 
-160 of Blitz3D's 540 commands (not counting language keywords) are not available yet. A
+159 of Blitz3D's 540 commands (not counting language keywords) are not available yet. A
 program that uses one of them is rejected with `unknown function or command`. `blitzcc -k` lists
 everything that is available.
 
@@ -67,7 +67,7 @@ everything that is available.
 | Camera fog | `CameraFogMode`, `CameraFogRange`, `CameraFogColor` |
 | 3D maths | `VectorYaw`, `VectorPitch`, `DeltaYaw`, `DeltaPitch`, `GetMatElement`, `TFormFilter` |
 | Movies | `OpenMovie`, `DrawMovie`, `CloseMovie`, `MovieWidth`, `MovieHeight`, `MoviePlaying` |
-| Other | `RectsOverlap`, `ResizeImage`, `TFormImage`, `VWait`, `ScanLine`, `GraphicsBuffer`, `BufferDirty`, `DebugLog`, `Stop`, `MouseWait`, `JoyWait`, the gamma commands, `CreateListener`, `EmitSound`, `MeshCullBox`, `Stats3D`, `RuntimeStats`, a few graphics-driver queries and joystick axis variants |
+| Other | `RectsOverlap`, `ResizeImage`, `TFormImage`, `VWait`, `ScanLine`, `GraphicsBuffer`, `BufferDirty`, `Stop`, `MouseWait`, `JoyWait`, the gamma commands, `CreateListener`, `EmitSound`, `MeshCullBox`, `Stats3D`, `RuntimeStats`, a few graphics-driver queries and joystick axis variants |
 
 The language keywords `Handle` and `Object` are also missing — see
 [Types and objects](#types-and-objects).
