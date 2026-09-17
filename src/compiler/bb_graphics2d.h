@@ -56,12 +56,24 @@ inline int bb_gfx_rate_   = 0;
 // wo Farben und Schriften stehen.
 inline void bb_gfx_reset_draw_state_(int buffer);
 
+// Jeder Moduswechsel schliesst im Original eine offene 3D-Szene
+// (freeGraphics -> blitz3d_close -> ClearWorld 1,1,1): alle Entities, Brushes
+// und Texturen sind danach frei (BUG-120). Die 3D-Schicht haengt ihre
+// Freigabe hier ein; Graphics3D oeffnet die Szene.
+inline void (*bb_world_close_hook_)() = nullptr;
+inline bool bb_scene_open_ = false;
+inline void bb_close_scene_() {
+  if (bb_scene_open_ && bb_world_close_hook_) bb_world_close_hook_();
+  bb_scene_open_ = false;
+}
+
 inline void bb_Graphics(int width, int height, int depth = 32, int mode = 0) {
   // Store requested parameters unconditionally so query functions always work.
   bb_gfx_width_  = width;
   bb_gfx_height_ = height;
   bb_gfx_depth_  = depth;
   bb_gfx_rate_   = 0;
+  bb_close_scene_();
   bb_gfx_reset_draw_state_(2);   // FrontBuffer
 
   bb_sdl_ensure_();
@@ -137,6 +149,7 @@ inline void bb_Graphics(int width, int height, int depth = 32, int mode = 0) {
 // console mode during a session.
 
 inline void bb_EndGraphics() {
+  bb_close_scene_();
   if (bb_renderer_) { SDL_DestroyRenderer(bb_renderer_); bb_renderer_ = nullptr; }
   if (bb_window_)   { SDL_DestroyWindow(bb_window_);     bb_window_   = nullptr; }
   bb_gfx_width_ = bb_gfx_height_ = bb_gfx_depth_ = bb_gfx_rate_ = 0;

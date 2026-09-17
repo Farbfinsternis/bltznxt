@@ -242,7 +242,9 @@ visibly wrong results because of the points below.
   a generated texture appear black. (BUG-127)
 - **Spherical environment mapping (texture flag 64) is ignored.** Chrome and reflection
   effects show the texture as if it were mapped normally. (BUG-130)
-- **`ClearWorld`** always removes all entities and ignores its three flags. (BUG-120)
+- **Changing the graphics mode keeps images and custom loader matrices.** Blitz3D frees all
+  images and resets `LoaderMatrix` on `Graphics`, `Graphics3D` and `EndGraphics`. Programs
+  written for Blitz3D reload their images after a mode change anyway. (BUG-140)
 - **`UpdateNormals`** averages per vertex index. Blitz3D also merges vertices at the same
   position, so a cube gets rounded corner normals there and stays faceted here. (BUG-134)
 - **`.3ds` models** number their vertices differently (`TriangleVertex` returns 0,2,1 where

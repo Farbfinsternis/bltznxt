@@ -1,5 +1,20 @@
 # BlitzNext Developer Log
 
+## 2026-09-17 — ClearWorld respects its flags, mode changes clear the world (BUG-120)
+
+`ClearWorld` removed every entity whatever its three flags said, and left brushes and textures
+alone. It now frees entities, brushes and textures only when asked; entities painted with a freed
+brush or texture keep their look, as in Blitz3D, because they hold their own copies. Blitz3D also
+closes the 3D scene on every `Graphics`, `Graphics3D` and `EndGraphics` with `ClearWorld 1,1,1` —
+here old cameras and cubes kept rendering after a mode change. That now happens too, before the old
+GL context goes away. `tests/test_bug120_clearworld.bb` has eight lines measured in Blitz3D; four
+fail on the old runtime. Suite 232/232.
+
+The source shows two more things a mode change does in Blitz3D — free all images and reset
+`LoaderMatrix` — that BlitzNext does not do yet (BUG-140, not measured). Still 44 open bugs.
+
+---
+
 ## 2026-09-17 — A graphics mode change resets the drawing state (BUG-131)
 
 After `Graphics3D`, text kept the colour set before the mode change — visible in the Blitz3D demos,

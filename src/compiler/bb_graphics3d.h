@@ -237,11 +237,19 @@ inline void bb_RenderWorld(float tween = 1.0f) {
 // ============================================================
 
 // Die drei Schalter sind optional - im Original
-// `ClearWorld [entities][,brushes][,textures]` (BUG-44).
+// `ClearWorld [entities][,brushes][,textures]` (BUG-44), und jeder gibt nur
+// seine Art frei (bbClearWorld, BUG-120). Gemessen am 2026-09-17: mit 0,0,0
+// bleibt alles stehen; freigegebene Brushes und Texturen nehmen bemalten
+// Entities ihr Aussehen nicht - die Entities halten eigene Kopien bzw.
+// Verweise. Die Handle-Zaehlung laeuft weiter, anders als am Programmende.
 inline void bb_ClearWorld(int entities = 1, int brushes = 1, int textures = 1) {
-  (void)entities; (void)brushes; (void)textures;
-  bb_entity_quit_();
+  if (entities) bb_entities_.clear();
+  if (brushes)  bb_brushes_.clear();
+  if (textures) bb_textures_.clear();
 }
+
+inline const bool bb_world_close_reg_ =
+    (bb_world_close_hook_ = [] { bb_ClearWorld(1, 1, 1); }, true);
 
 inline void bb_CaptureWorld() { /* stub — rarely used */ }
 
