@@ -1,0 +1,9 @@
+1 bildschirm rot FFFF0000 maskiert FF0000FF
+1b drawblock schwarz FF000000
+2 writepixel mit origin FF00FF00 ausserhalb viewport FF000000 readpixel ausserhalb viewport FF000000
+2b ausserhalb nach maskimage FFFF00FF
+3 lock readpixelfast FFFF0000 FF00FF00
+3b nach unlock FFFF00FF
+4 text pixel gesetzt 1
+4b schwarzer text als 000010 1
+5 maske FFFFFF00 punkt FF00FF00

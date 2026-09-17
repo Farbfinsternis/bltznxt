@@ -199,12 +199,16 @@ struct bb_FrameData_ {
     float                scale_x  = 1.0f;
     float                scale_y  = 1.0f;
     float                rotation = 0.0f;
+    // Die Pixelkopie wurde ueber bb_canvas.h geaendert; tex vor dem
+    // naechsten Zeichnen auf den Bildschirm neu erzeugen (BUG-141).
+    bool                 stale    = false;
 };
 
 struct bb_Image_ {
     int  width  = 0;   // per-frame cell width  (same for all frames)
     int  height = 0;   // per-frame cell height (same for all frames)
     bool valid  = false;
+    int  mask   = 0;   // Maskenfarbe RGB, Vorgabe Schwarz (MaskImage)
     std::vector<bb_FrameData_> frames;
 };
 
@@ -244,14 +248,29 @@ inline bool bb_img_ok_(int h) {
            && bb_images_[h].valid;
 }
 
+inline void bb_img_reupload_frame_(int handle, bb_FrameData_* fd);
+
+// DrawBlock & Co.: Farbe ersetzen, Alpha des Ziels stehen lassen. Mit
+// SDL_BLENDMODE_NONE kaeme das Masken-Alpha 0 in den Bildschirm, und
+// ReadPixel lieferte dort $00000000 statt $FF000000 (BUG-141).
+inline SDL_BlendMode bb_blockblend_() {
+    static const SDL_BlendMode m = SDL_ComposeCustomBlendMode(
+        SDL_BLENDFACTOR_ONE, SDL_BLENDFACTOR_ZERO, SDL_BLENDOPERATION_ADD,
+        SDL_BLENDFACTOR_ZERO, SDL_BLENDFACTOR_ONE, SDL_BLENDOPERATION_ADD);
+    return m;
+}
+
 // Returns a pointer to the requested frame (clamped to [0, frames.size()-1]).
-// Returns nullptr if the handle is invalid or has no frames.
+// Returns nullptr if the handle is invalid or has no frames. Eine ueber
+// bb_canvas.h geaenderte Pixelkopie wird dabei hochgeladen.
 inline bb_FrameData_* bb_img_frame_(int handle, int frame) {
     if (!bb_img_ok_(handle)) return nullptr;
     auto& img = bb_images_[handle];
     if (img.frames.empty()) return nullptr;
     if (frame < 0 || frame >= static_cast<int>(img.frames.size())) frame = 0;
-    return &img.frames[frame];
+    bb_FrameData_* fd = &img.frames[frame];
+    if (fd->stale) { fd->stale = false; bb_img_reupload_frame_(handle, fd); }
+    return fd;
 }
 
 // Re-uploads a frame's pixel buffer to its SDL_Texture.
@@ -370,7 +389,12 @@ inline int bb_ImageHeight(int handle) {
 
 // ---- DrawImage(handle, x, y [,frame=0]) ----
 
+inline bool bb_canvas_draw_image_(int handle, int x, int y, int frame,
+                                  int sx, int sy, int sw, int sh, bool whole, bool solid);
+inline bool bb_canvas_tile_(int handle, int x, int y, int frame, bool solid);
+
 inline void bb_DrawImage(int handle, int x, int y, int frame = 0) {
+    if (bb_canvas_draw_image_(handle, x, y, frame, 0, 0, 0, 0, true, false)) return;
     if (!bb_renderer_ || !bb_img_ok_(handle)) return;
     const bb_FrameData_* fd = bb_img_frame_(handle, frame);
     if (!fd || !fd->tex) return;
@@ -398,6 +422,7 @@ inline void bb_DrawImage(int handle, int x, int y, int frame = 0) {
 inline void bb_DrawImageRect(int handle, int x, int y,
                               int sx, int sy, int sw, int sh,
                               int frame = 0) {
+    if (bb_canvas_draw_image_(handle, x, y, frame, sx, sy, sw, sh, false, false)) return;
     if (!bb_renderer_ || !bb_img_ok_(handle)) return;
     const bb_FrameData_* fd = bb_img_frame_(handle, frame);
     if (!fd || !fd->tex) return;
@@ -413,6 +438,7 @@ inline void bb_DrawImageRect(int handle, int x, int y,
 // Like DrawImage but ignores handle offset.  Scale and rotation still apply.
 
 inline void bb_DrawBlock(int handle, int x, int y, int frame = 0) {
+    if (bb_canvas_draw_image_(handle, x, y, frame, 0, 0, 0, 0, true, true)) return;
     if (!bb_renderer_ || !bb_img_ok_(handle)) return;
     const bb_FrameData_* fd = bb_img_frame_(handle, frame);
     if (!fd || !fd->tex) return;
@@ -422,6 +448,9 @@ inline void bb_DrawBlock(int handle, int x, int y, int frame = 0) {
     float dh = img.height * fd->scale_y;
     SDL_FRect dst = { static_cast<float>(x), static_cast<float>(y), dw, dh };
 
+    // DrawBlock zeichnet auch die maskierten Pixel (gemessen 2026-09-17,
+    // BUG-141).
+    SDL_SetTextureBlendMode(fd->tex, bb_blockblend_());
     if (fd->rotation != 0.0f) {
         SDL_FPoint center = { dw * 0.5f, dh * 0.5f };
         SDL_RenderTextureRotated(bb_renderer_, fd->tex, nullptr, &dst,
@@ -430,6 +459,7 @@ inline void bb_DrawBlock(int handle, int x, int y, int frame = 0) {
     } else {
         SDL_RenderTexture(bb_renderer_, fd->tex, nullptr, &dst);
     }
+    SDL_SetTextureBlendMode(fd->tex, SDL_BLENDMODE_BLEND);
 }
 
 // ---- DrawBlockRect(handle, x, y, sx, sy, sw, sh [,frame=0]) ----
@@ -437,7 +467,12 @@ inline void bb_DrawBlock(int handle, int x, int y, int frame = 0) {
 inline void bb_DrawBlockRect(int handle, int x, int y,
                               int sx, int sy, int sw, int sh,
                               int frame = 0) {
+    if (bb_canvas_draw_image_(handle, x, y, frame, sx, sy, sw, sh, false, true)) return;
+    bb_FrameData_* fd = bb_img_frame_(handle, frame);
+    if (!fd || !fd->tex) return;
+    SDL_SetTextureBlendMode(fd->tex, bb_blockblend_());
     bb_DrawImageRect(handle, x, y, sx, sy, sw, sh, frame);
+    SDL_SetTextureBlendMode(fd->tex, SDL_BLENDMODE_BLEND);
 }
 
 // ==========================================================================
@@ -508,6 +543,7 @@ inline void bb_RotateImage(int handle, float deg) {
 inline void bb_MaskImage(int handle, int r, int g, int b) {
     if (!bb_img_ok_(handle)) return;
     auto& img = bb_images_[handle];
+    img.mask = ((r & 0xFF) << 16) | ((g & 0xFF) << 8) | (b & 0xFF);
     const int n = img.width * img.height;
     for (auto& fd : img.frames) {
         if (fd.pixels.empty()) continue;
@@ -527,6 +563,7 @@ inline void bb_MaskImage(int handle, int r, int g, int b) {
 
 // x und y sind optional: im Original `TileImage image[,x][,y][,frame]` (BUG-44).
 inline void bb_TileImage(int handle, int x = 0, int y = 0, int frame = 0) {
+    if (bb_canvas_tile_(handle, x, y, frame, false)) return;
     if (!bb_renderer_ || !bb_img_ok_(handle)) return;
     const bb_FrameData_* fd = bb_img_frame_(handle, frame);
     const auto& img = bb_images_[handle];
@@ -547,6 +584,7 @@ inline void bb_TileImage(int handle, int x = 0, int y = 0, int frame = 0) {
 }
 
 inline void bb_TileBlock(int handle, int x = 0, int y = 0, int frame = 0) {
+    if (bb_canvas_tile_(handle, x, y, frame, true)) return;
     if (!bb_renderer_ || !bb_img_ok_(handle)) return;
     const bb_FrameData_* fd = bb_img_frame_(handle, frame);
     const auto& img = bb_images_[handle];
@@ -556,6 +594,7 @@ inline void bb_TileBlock(int handle, int x = 0, int y = 0, int frame = 0) {
     int ox = (x % img.width  + img.width)  % img.width;
     int oy = (y % img.height + img.height) % img.height;
 
+    SDL_SetTextureBlendMode(fd->tex, bb_blockblend_());   // wie DrawBlock
     for (int ty = ox - img.height; ty < gh; ty += img.height) {
         for (int tx = oy - img.width; tx < gw; tx += img.width) {
             SDL_FRect dst = { static_cast<float>(tx), static_cast<float>(ty),
@@ -564,6 +603,7 @@ inline void bb_TileBlock(int handle, int x = 0, int y = 0, int frame = 0) {
             SDL_RenderTexture(bb_renderer_, fd->tex, nullptr, &dst);
         }
     }
+    SDL_SetTextureBlendMode(fd->tex, SDL_BLENDMODE_BLEND);
 }
 
 // ---- DrawImageEllipse(handle, x, y, rx, ry [,frame=0]) ----
@@ -739,12 +779,15 @@ inline std::unordered_map<int, bb_BufLock_> bb_buf_locks_;
 // ---- Decode an image buffer handle → img_h, frame ----
 
 inline bool bb_decode_img_buf_(int buf, int& img_h, int& frame) {
-    if (buf <= 2) return false;
+    if (buf <= 2 || buf >= BB_TEX_BUF_BASE_) return false;
     int raw = buf - BB_IMG_BUF_OFFSET_;           // = (img-1) + frame * STRIDE
     img_h = raw % BB_IMG_BUF_STRIDE_ + 1;         // 1-based
     frame = raw / BB_IMG_BUF_STRIDE_;
     return true;
 }
+
+inline int  bb_canvas_read_pixel_(int buf, int x, int y);
+inline void bb_canvas_write_pixel_(int buf, int x, int y, int argb);
 
 // ---- bb_LockBuffer(buf) ----
 
@@ -921,15 +964,7 @@ inline int bb_ReadPixel(int x, int y, int buf = bb_active_buffer_) {
             SDL_DestroySurface(surf);
             return bb_pixel_read_(px);
         }
-        bb_LockBuffer(buf);
-        auto lk = bb_buf_locks_.find(buf);
-        int v = 0;
-        if (lk != bb_buf_locks_.end() && lk->second.locked) {
-            const uint8_t* q = bb_buf_pixel_(lk->second, x, y);
-            if (q) v = bb_pixel_read_(q);
-        }
-        bb_UnlockBuffer(buf);
-        return v;
+        return bb_canvas_read_pixel_(buf, x, y);
     }
     const uint8_t* p = bb_buf_pixel_(it->second, x, y);
     return p ? bb_pixel_read_(p) : 0;
@@ -947,15 +982,7 @@ inline void bb_WritePixel(int x, int y, int color, int buf = bb_active_buffer_) 
             SDL_RenderPoint(bb_renderer_, (float)x, (float)y);
             return;
         }
-        bb_LockBuffer(buf);
-        auto lk = bb_buf_locks_.find(buf);
-        if (lk != bb_buf_locks_.end() && lk->second.locked) {
-            if (uint8_t* q = bb_buf_pixel_(lk->second, x, y)) {
-                bb_pixel_write_(q, color);
-                lk->second.dirty = true;
-            }
-        }
-        bb_UnlockBuffer(buf);
+        bb_canvas_write_pixel_(buf, x, y, color);
         return;
     }
     uint8_t* p = bb_buf_pixel_(it->second, x, y);
@@ -1282,3 +1309,6 @@ inline void bb_MirrorImage(int handle, int frame = 0) {
 }
 
 #endif // BLITZNEXT_BB_IMAGE_H
+
+// Zeichnen in Image- und Texturpuffer; braucht alles oben (BUG-141).
+#include "bb_canvas.h"

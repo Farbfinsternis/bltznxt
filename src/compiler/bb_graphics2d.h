@@ -195,6 +195,23 @@ inline constexpr int BB_BACK_BUFFER_H  = 1;
 inline constexpr int BB_FRONT_BUFFER_H = 2;
 
 inline int bb_active_buffer_ = BB_BACK_BUFFER_H;  // default render target
+
+// Texturpuffer liegen oberhalb aller Image-Puffer (bb_texture.h).
+inline constexpr int BB_TEX_BUF_BASE_ = 0x40000000;
+inline bool bb_buf_is_screen_(int buf) {
+  return buf == BB_BACK_BUFFER_H || buf == BB_FRONT_BUFFER_H;
+}
+
+// Zeichnen in Image- und Texturpuffer: definiert in bb_canvas.h (BUG-141).
+inline void bb_canvas_reset_(int buf);
+inline void bb_canvas_origin_(int x, int y);
+inline void bb_canvas_viewport_(int x, int y, int w, int h);
+inline void bb_canvas_cls_();
+inline void bb_canvas_plot_(int x, int y);
+inline void bb_canvas_line_(int x0, int y0, int x1, int y1);
+inline void bb_canvas_rect_(int x, int y, int w, int h, bool solid);
+inline void bb_canvas_oval_(int x, int y, int w, int h, bool solid);
+inline void bb_canvas_text_(int x, int y, const bbString& s, int centerX, int centerY);
 inline int bb_vsync_mode_    = -1;                // -1 = not set yet
 
 // Clear colour used by Cls() — defaults to black (0,0,0).
@@ -207,12 +224,9 @@ inline Uint8 bb_cls_r_ = 0, bb_cls_g_ = 0, bb_cls_b_ = 0;
 inline int bb_BackBuffer()  { return BB_BACK_BUFFER_H;  }
 inline int bb_FrontBuffer() { return BB_FRONT_BUFFER_H; }
 
-// SetBuffer(buf) — switch the active render target.
-// SDL3 has no separate front-buffer drawing surface; this is bookkeeping only.
-// Render-to-texture targets (ImageBuffer) are handled in M46.
-inline void bb_SetBuffer(int buf) {
-  bb_active_buffer_ = buf;
-}
+// SetBuffer(buf) — switch the active render target. Definiert nach
+// Origin/Viewport, deren Zustand es zuruecksetzt.
+inline void bb_SetBuffer(int buf);
 
 // ---- Origin / Viewport ----
 //
@@ -248,11 +262,13 @@ inline void bb_apply_viewport_() {
 }
 
 inline void bb_Origin(int x, int y) {
+  if (!bb_buf_is_screen_(bb_active_buffer_)) { bb_canvas_origin_(x, y); return; }
   bb_origin_x_ = x; bb_origin_y_ = y;
   bb_apply_viewport_();
 }
 
 inline void bb_Viewport(int x, int y, int w, int h) {
+  if (!bb_buf_is_screen_(bb_active_buffer_)) { bb_canvas_viewport_(x, y, w, h); return; }
   if (w <= 0 || h <= 0) {
     bb_viewport_active_ = false;
   } else {
@@ -262,12 +278,27 @@ inline void bb_Viewport(int x, int y, int w, int h) {
   bb_apply_viewport_();
 }
 
+// Wie bbSetBuffer im Original: der Puffer bekommt Origin 0 und sich selbst als
+// Viewport; Farbe, Loeschfarbe und Schrift gelten ohnehin fuer alle Puffer.
+// Image- und Texturpuffer zeichnen ueber bb_canvas.h (BUG-141).
+inline void bb_SetBuffer(int buf) {
+  bb_active_buffer_ = buf;
+  if (bb_buf_is_screen_(buf)) {
+    bb_origin_x_ = bb_origin_y_ = 0;
+    bb_viewport_active_ = false;
+    bb_apply_viewport_();
+  } else {
+    bb_canvas_reset_(buf);
+  }
+}
+
 // ---- Cls() ----
 //
 // Clears the current render target to bb_cls_r_/g_/b_ (default black).
 // Safe no-op when no renderer is available (headless / EndGraphics called).
 
 inline void bb_Cls() {
+  if (!bb_buf_is_screen_(bb_active_buffer_)) { bb_canvas_cls_(); return; }
   if (!bb_renderer_) return;
   SDL_SetRenderDrawColor(bb_renderer_, bb_cls_r_, bb_cls_g_, bb_cls_b_, 255);
   SDL_RenderClear(bb_renderer_);
@@ -415,6 +446,7 @@ inline int bb_Rgb(int r, int g, int b) {
 // Safe no-op when no renderer is available.
 
 inline void bb_Plot(int x, int y) {
+  if (!bb_buf_is_screen_(bb_active_buffer_)) { bb_canvas_plot_(x, y); return; }
   if (!bb_renderer_) return;
   SDL_SetRenderDrawColor(bb_renderer_, bb_draw_r_, bb_draw_g_, bb_draw_b_, 255);
   SDL_RenderPoint(bb_renderer_, (float)x, (float)y);
@@ -429,6 +461,7 @@ inline void bb_Plot(int x, int y) {
 // Draws a straight line from (x1,y1) to (x2,y2) in the current draw colour.
 
 inline void bb_Line(int x1, int y1, int x2, int y2) {
+  if (!bb_buf_is_screen_(bb_active_buffer_)) { bb_canvas_line_(x1, y1, x2, y2); return; }
   if (!bb_renderer_) return;
   SDL_SetRenderDrawColor(bb_renderer_, bb_draw_r_, bb_draw_g_, bb_draw_b_, 255);
   SDL_RenderLine(bb_renderer_, (float)x1, (float)y1, (float)x2, (float)y2);
@@ -441,6 +474,7 @@ inline void bb_Line(int x1, int y1, int x2, int y2) {
 //   solid = 0           : outline only
 
 inline void bb_Rect(int x, int y, int w, int h, int solid = 1) {
+  if (!bb_buf_is_screen_(bb_active_buffer_)) { bb_canvas_rect_(x, y, w, h, solid != 0); return; }
   if (!bb_renderer_) return;
   SDL_SetRenderDrawColor(bb_renderer_, bb_draw_r_, bb_draw_g_, bb_draw_b_, 255);
   SDL_FRect r = { (float)x, (float)y, (float)w, (float)h };
@@ -459,6 +493,7 @@ inline void bb_Rect(int x, int y, int w, int h, int solid = 1) {
 // SDL3 has no native ellipse primitive; both paths are software-computed.
 
 inline void bb_Oval(int x, int y, int w, int h, int solid = 1) {
+  if (!bb_buf_is_screen_(bb_active_buffer_)) { bb_canvas_oval_(x, y, w, h, solid != 0); return; }
   if (!bb_renderer_) return;
   if (w <= 0 || h <= 0) return;
   SDL_SetRenderDrawColor(bb_renderer_, bb_draw_r_, bb_draw_g_, bb_draw_b_, 255);
@@ -1008,6 +1043,10 @@ inline void bb_Text_ttf_(int x, int y, const bbString& s,
 
 inline void bb_Text(int x, int y, const bbString& s,
                     int centerX = 0, int centerY = 0) {
+    if (!bb_buf_is_screen_(bb_active_buffer_)) {
+        if (!s.empty()) bb_canvas_text_(x, y, s, centerX, centerY);
+        return;
+    }
     if (!bb_renderer_ || s.empty()) return;
 #ifdef BB_HAS_SDL3_TTF
     if (bb_active_font_ > 0

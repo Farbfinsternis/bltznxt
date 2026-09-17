@@ -1,5 +1,23 @@
 # BlitzNext Developer Log
 
+## 2026-09-17 — Drawing into image buffers (BUG-141)
+
+Starting on texture buffers (BUG-127) showed the deeper problem: every 2D command ignored
+`SetBuffer` and drew to the screen, so nothing could be drawn into an image either. In Blitz3D each
+buffer is a canvas with its own origin, viewport, handle and mask colour. BlitzNext now keeps that
+per buffer: when an image buffer is active, `Cls`, `Plot`, `Line`, `Rect`, `Oval`, `Text`,
+`DrawImage`, `DrawBlock`, `TileImage` and their variants draw into the image's pixel copy, using the
+algorithms of Blitz3D's `gxcanvas.cpp` — line clipping and Bresenham, the oval's float formulas,
+blitting with handle, mask and clipping, tiling. `SetBuffer` resets origin and viewport, `ReadPixel`
+and `WritePixel` respect them, and the image is uploaded again only when it is next drawn to the
+screen. The screen path stays on SDL for now; texture buffers and `CopyRect` build on this next.
+
+Nine pixel tables and nine further values were measured in Blitz3D; all match, and the two new
+tests differ from the old runtime in 147 of 210 lines. On the way, `DrawBlock` on the screen now
+draws masked pixels like Blitz3D. Suite 234/234. Still 44 open bugs.
+
+---
+
 ## 2026-09-17 — ClearWorld respects its flags, mode changes clear the world (BUG-120)
 
 `ClearWorld` removed every entity whatever its three flags said, and left brushes and textures
