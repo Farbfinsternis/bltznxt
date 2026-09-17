@@ -1,5 +1,18 @@
 # BlitzNext Developer Log
 
+## 2026-09-17 — Translucency in the default blend mode (BUG-142)
+
+`EntityAlpha 0.5` drew a solid cube. The renderer switched blending on but only set the blend
+function when the brush's blend mode differed from the last one it had set — and it started from 0,
+which is exactly the default brush's value. So the function was never set, or the previous object's
+stayed: after a multiply-blended cube, `BrushAlpha`, vertex alpha with `EntityFX 32` and alpha
+textures came out black. The blend function is now always set after blending is switched on, and
+blend mode 0 mixes like 1. Ten cases measured in Blitz3D — alpha, add, multiply, brush alpha, vertex
+alpha, an alpha texture — now match exactly; the old code missed four of them. Suite 239/239.
+43 open bugs.
+
+---
+
 ## 2026-09-17 — The first RenderWorld after loading an image (BUG-144)
 
 A 3D program that loaded or created an image before its first `RenderWorld` read only white from

@@ -11,7 +11,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-09-17 — 44 open bugs.*
+*Last updated: 2026-09-17 — 43 open bugs.*
 
 If your program behaves differently from Blitz3D and the cause is not listed here, please
 open an issue with a minimal `.bb` file and the output of both.
@@ -235,9 +235,6 @@ The 3D layer is under active development — see [ROADMAP3D.md](ROADMAP3D.md). B
 [missing commands](#missing-commands), several of the demos that ship with Blitz3D show
 visibly wrong results because of the points below.
 
-- **Translucent objects are drawn opaque.** `EntityAlpha`, textures with an alpha channel
-  and `EntityFX 32` switch blending on, but the default blend mode never sets the blend
-  function, so nothing shows through. (BUG-142)
 - **`CreateTexture` does not round sizes up to powers of two.** Blitz3D reports
   `TextureWidth` 32 for `CreateTexture(30,20)`; BlitzNext reports 30. Drawing into the texture
   buffer covers a different part of the surface. (BUG-143)

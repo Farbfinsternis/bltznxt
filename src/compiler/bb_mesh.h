@@ -911,7 +911,11 @@ static inline void bb_render_meshes_(bb_Shader_* shader,
     if (want_blend != blend_on) {
       blend_on = want_blend;
       if (want_blend) glEnable(GL_BLEND); else glDisable(GL_BLEND);
-      blend_mode = 0;
+      // Unbekannt, damit die Mischfunktion sicher gesetzt wird. Bis
+      // 2026-09-17 stand hier 0 - der Wert des Vorgabe-Brush -, und fuer ihn
+      // wurde glBlendFunc nie gerufen: EntityAlpha mischte gar nicht oder mit
+      // der Funktion des vorigen Objekts (BUG-142).
+      blend_mode = -1;
     }
 
     // ---- Z-Puffer ----
@@ -934,7 +938,7 @@ static inline void bb_render_meshes_(bb_Shader_* shader,
         switch (blend_mode) {
           case 2:  glBlendFunc(GL_DST_COLOR, GL_ZERO);            break;
           case 3:  glBlendFunc(GL_SRC_ALPHA, GL_ONE);             break;
-          default: glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+          default: glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);  // 0 und 1: Alpha
         }
       }
 

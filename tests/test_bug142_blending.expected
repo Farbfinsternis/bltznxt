@@ -1,0 +1,10 @@
+deckend 00FF0000
+entityalpha 0.5 007F0080
+entityalpha 0.5 blend 1 007F0080
+entityalpha 0 000000FF
+blend 3 add 00FF00FF
+blend 2 multiply 00000000
+brushalpha 0.25 004000BF
+fx 32 vertexalpha 0.5 00007F80
+fx 2 ohne 32 0000FF00
+alpha-textur 0.5 weiss 008080FF
