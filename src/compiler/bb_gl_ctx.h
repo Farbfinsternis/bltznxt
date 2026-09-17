@@ -482,6 +482,7 @@ inline void bb_Graphics3D(int w, int h, int depth = 32, int mode = 0) {
   bb_gfx_height_ = h;
   bb_gfx_depth_  = depth;
   bb_gfx_rate_   = 0;
+  bb_gfx_reset_draw_state_(1);   // BackBuffer (BUG-131)
 
   bb_sdl_ensure_();
   if (!bb_sdl_initialized_) return;

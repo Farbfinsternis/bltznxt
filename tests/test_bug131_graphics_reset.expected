@@ -1,0 +1,5 @@
+graphics3d: color 255,255,255 schrift wie beim start 1 cls 0 origin/viewport 16777215 0
+graphics: color 255,255,255 schrift wie beim start 1 cls 0 origin/viewport 16777215 0
+endgraphics: color 255,255,255 schrift wie beim start 1 cls 0 origin/viewport 16777215 0
+writepixel im backbuffer 65280
+fertig

@@ -49,12 +49,20 @@ inline int bb_gfx_rate_   = 0;
 // If SDL cannot be initialized (headless), the parameters are stored and the
 // function returns quietly — all query functions still return the stored values.
 
+// Setzt den Zeichenzustand zurueck wie graphics() in bbruntime/bbgraphics.cpp:
+// Color weiss, ClsColor schwarz, Standardschrift, der Puffer des Modus
+// (Graphics3D: BackBuffer, Graphics und EndGraphics: FrontBuffer), dazu
+// Origin und Viewport ueber bbSetBuffer (BUG-131). Definiert weiter unten,
+// wo Farben und Schriften stehen.
+inline void bb_gfx_reset_draw_state_(int buffer);
+
 inline void bb_Graphics(int width, int height, int depth = 32, int mode = 0) {
   // Store requested parameters unconditionally so query functions always work.
   bb_gfx_width_  = width;
   bb_gfx_height_ = height;
   bb_gfx_depth_  = depth;
   bb_gfx_rate_   = 0;
+  bb_gfx_reset_draw_state_(2);   // FrontBuffer
 
   bb_sdl_ensure_();
   if (!bb_sdl_initialized_) return;
@@ -132,6 +140,7 @@ inline void bb_EndGraphics() {
   if (bb_renderer_) { SDL_DestroyRenderer(bb_renderer_); bb_renderer_ = nullptr; }
   if (bb_window_)   { SDL_DestroyWindow(bb_window_);     bb_window_   = nullptr; }
   bb_gfx_width_ = bb_gfx_height_ = bb_gfx_depth_ = bb_gfx_rate_ = 0;
+  bb_gfx_reset_draw_state_(2);   // FrontBuffer
 }
 
 // ---- Query functions ----
@@ -878,6 +887,15 @@ inline void bb_SetFont(int handle) {
     if (handle > 0 && handle < static_cast<int>(bb_fonts_.size())
         && bb_fonts_[handle].valid)
         bb_active_font_ = handle;
+}
+
+inline void bb_gfx_reset_draw_state_(int buffer) {
+    bb_draw_r_ = bb_draw_g_ = bb_draw_b_ = 255;
+    bb_cls_r_  = bb_cls_g_  = bb_cls_b_  = 0;
+    bb_active_font_ = 0;
+    bb_active_buffer_ = buffer;
+    bb_origin_x_ = bb_origin_y_ = 0;
+    bb_viewport_active_ = false;
 }
 
 // ---- FreeFont(handle) ----

@@ -1,5 +1,21 @@
 # BlitzNext Developer Log
 
+## 2026-09-17 — A graphics mode change resets the drawing state (BUG-131)
+
+After `Graphics3D`, text kept the colour set before the mode change — visible in the Blitz3D demos,
+whose start menu draws a blue URL just before switching modes. Blitz3D resets more than the colour:
+`graphics()` sets the drawing colour to white, the clear colour to black, the default font and the
+buffer of the new mode (back buffer for `Graphics3D`, front buffer for `Graphics`), which also
+drops origin and viewport; `EndGraphics` does the same. All of that now happens here too, including
+a previously selected image buffer, which used to stay active. `tests/test_bug131_graphics_reset.bb`
+compares against Blitz3D after `Graphics3D`, `Graphics` and `EndGraphics`; four of its five lines
+fail on the old runtime. Suite 231/231.
+
+The measurement also showed that font heights differ — 8 instead of 13 for the default font, 45
+instead of 40 for Arial at size 40 (BUG-139). Still 44 open bugs.
+
+---
+
 ## 2026-09-17 — Several cameras render as in Blitz3D (BUG-129)
 
 A second camera with its own viewport seemed not to render. In fact every camera cleared the

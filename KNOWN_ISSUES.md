@@ -225,6 +225,9 @@ are the most likely reason for an old program to behave strangely.
 - **`ImagesCollide` and `ImageRectCollide`** compare bounding rectangles instead of visible
   pixels, and ignore the frame argument. Masked or transparent areas count as a hit.
   *Workaround:* none yet for pixel-accurate tests. (BUG-119)
+- **Font heights differ.** The default font is 8 pixels high instead of 13, and a font loaded
+  with `LoadFont(name, 40)` reports `FontHeight` 45 instead of 40. Text laid out with
+  `FontHeight` or `StringWidth` ends up spaced differently. (BUG-139)
 
 ---
 
@@ -239,9 +242,6 @@ visibly wrong results because of the points below.
   a generated texture appear black. (BUG-127)
 - **Spherical environment mapping (texture flag 64) is ignored.** Chrome and reflection
   effects show the texture as if it were mapped normally. (BUG-130)
-- **`Graphics3D` does not reset the drawing colour to white.** Text drawn afterwards keeps
-  the colour set before the mode change. *Workaround:* call `Color 255,255,255` after
-  `Graphics3D`. (BUG-131)
 - **`ClearWorld`** always removes all entities and ignores its three flags. (BUG-120)
 - **`UpdateNormals`** averages per vertex index. Blitz3D also merges vertices at the same
   position, so a cube gets rounded corner normals there and stays faceted here. (BUG-134)
