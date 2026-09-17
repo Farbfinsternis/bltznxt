@@ -76,6 +76,7 @@ struct bb_Canvas_ {
   int            hx = 0, hy = 0;    // Handle, wenn der Canvas Quelle ist
   bb_FrameData_* fd = nullptr;      // Image-Frame, wird als veraltet markiert
   bool*          dirty = nullptr;   // Textur: neu hochladen
+  bool           keep_alpha = false; // Textur mit Alphakanal: WritePixel behaelt Alpha
   bb_CRect_ clip() const { return { 0, 0, w, h }; }
 };
 
@@ -451,9 +452,8 @@ inline int bb_canvas_read_pixel_(int buf, int x, int y) {
   x += c.st->ox; y += c.st->oy;
   if (x < c.st->vp.l || x >= c.st->vp.r || y < c.st->vp.t || y >= c.st->vp.b)
     return static_cast<int>(0xFF000000u | static_cast<unsigned>(c.mask));
-  if (c.mask_alpha) return static_cast<int>(0xFF000000u | static_cast<unsigned>(bb_canvas_rgb_(c, x, y)));
-  const uint8_t* p = c.px + (static_cast<size_t>(y) * c.w + x) * 4;
-  return (p[3] << 24) | bb_canvas_rgb_(c, x, y);
+  // Ohne Sperre immer mit Alpha FF, auch bei Alpha-Texturen (gemessen).
+  return static_cast<int>(0xFF000000u | static_cast<unsigned>(bb_canvas_rgb_(c, x, y)));
 }
 
 inline void bb_canvas_write_pixel_(int buf, int x, int y, int argb) {
@@ -462,8 +462,42 @@ inline void bb_canvas_write_pixel_(int buf, int x, int y, int argb) {
   x += c.st->ox; y += c.st->oy;
   if (x < c.st->vp.l || x >= c.st->vp.r || y < c.st->vp.t || y >= c.st->vp.b) return;
   bb_canvas_put_(c, x, y, argb);
-  if (!c.mask_alpha) c.px[(static_cast<size_t>(y) * c.w + x) * 4 + 3] = 255;
+  // Texturen mit Alphakanal behalten das geschriebene Alpha - es wirkt im
+  // Bild, auch 0 (gemessen 2026-09-17, BUG-127).
+  if (c.keep_alpha)
+    c.px[(static_cast<size_t>(y) * c.w + x) * 4 + 3] = static_cast<uint8_t>((argb >> 24) & 0xFF);
   bb_canvas_done_(c);
+}
+
+// LockBuffer auf einem Texturpuffer: die Sperre arbeitet auf einer Kopie,
+// UnlockBuffer schreibt sie zurueck; die Textur wird vor dem naechsten
+// RenderWorld hochgeladen.
+inline bool bb_canvas_lock_copy_(int buf, std::vector<uint8_t>& px, int& w, int& h) {
+  bb_Canvas_ c;
+  if (!bb_canvas_open_(buf, c)) return false;
+  w = c.w; h = c.h;
+  px.assign(c.px, c.px + static_cast<size_t>(c.w) * c.h * 4);
+  return true;
+}
+
+inline void bb_canvas_unlock_copy_(int buf, const std::vector<uint8_t>& px) {
+  bb_Canvas_ c;
+  if (!bb_canvas_open_(buf, c)) return;
+  const size_t n = static_cast<size_t>(c.w) * c.h * 4;
+  if (px.size() != n) return;
+  std::copy(px.begin(), px.end(), c.px);
+  bb_canvas_done_(c);
+}
+
+inline bool bb_canvas_keeps_alpha_(int buf) {
+  bb_Canvas_ c;
+  return bb_canvas_open_(buf, c) && c.keep_alpha;
+}
+
+inline int bb_canvas_size_(int buf, bool width) {
+  bb_Canvas_ c;
+  if (!bb_canvas_open_(buf, c)) return 0;
+  return width ? c.w : c.h;
 }
 
 #endif // BLITZNEXT_BB_CANVAS_H

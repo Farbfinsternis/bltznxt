@@ -1,0 +1,15 @@
+1 frisch FF000000 w 32 h 32
+1c alpha frisch FF000000
+2 rect FFFF0000 FF00FF00
+3 wuerfel mitte 0000FF00 rand 0000FF00
+4 nach aenderung 000000FF
+5 alpha-textur FFFF0000 farbtextur FFFF0000
+5b readpixelfast FF112233
+5c readpixel danach FF112233
+6 cls FF000000 ausserhalb viewport FF000000 innen FFFFFF00
+6b wuerfel gelb 00FFFF00
+7 frames FFFF0000 FF00FF00 FF0000FF
+7b wuerfel frame 2 000000FF
+8 geladen bemalt FFFF00FF w 16
+9 image in textur FFFF8000
+9b puffer ungleich 0 1 verschieden 1

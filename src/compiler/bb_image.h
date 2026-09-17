@@ -788,6 +788,10 @@ inline bool bb_decode_img_buf_(int buf, int& img_h, int& frame) {
 
 inline int  bb_canvas_read_pixel_(int buf, int x, int y);
 inline void bb_canvas_write_pixel_(int buf, int x, int y, int argb);
+// Texturpuffer: Kopie der Pixel fuer LockBuffer holen und zurueckschreiben
+// (bb_canvas.h, BUG-127).
+inline bool bb_canvas_lock_copy_(int buf, std::vector<uint8_t>& px, int& w, int& h);
+inline void bb_canvas_unlock_copy_(int buf, const std::vector<uint8_t>& px);
 
 // ---- bb_LockBuffer(buf) ----
 
@@ -823,6 +827,9 @@ inline void bb_LockBuffer(int buf = bb_active_buffer_) {
         }
         lock.pixels.assign(n, 0);
         lock.locked = true;
+
+    } else if (buf >= BB_TEX_BUF_BASE_) {
+        lock.locked = bb_canvas_lock_copy_(buf, lock.pixels, lock.width, lock.height);
 
     } else {
         int img_h = 0, img_frame = 0;
@@ -893,6 +900,8 @@ inline void bb_UnlockBuffer(int buf = bb_active_buffer_) {
                     }
                 }
             }
+        } else if (buf >= BB_TEX_BUF_BASE_) {
+            bb_canvas_unlock_copy_(buf, lock.pixels);
         } else if (lock.img_h > 0 && bb_img_ok_(lock.img_h)) {
             auto& img = bb_images_[lock.img_h];
             int   f   = lock.img_frame;
@@ -936,6 +945,15 @@ inline void bb_pixel_write_(uint8_t* p, int color) {
     p[2] = static_cast<uint8_t>( color        & 0xFF);
     const uint8_t a = static_cast<uint8_t>((color >> 24) & 0xFF);
     p[3] = (a == 0) ? 255 : a;
+}
+
+// Texturpuffer mit Alphakanal behalten das Alpha so, wie es geschrieben
+// wird; ohne Alphakanal ist es 255 (BUG-127).
+inline bool bb_canvas_keeps_alpha_(int buf);
+inline void bb_pixel_write_buf_(uint8_t* p, int color, int buf) {
+    bb_pixel_write_(p, color);
+    if (buf >= BB_TEX_BUF_BASE_)
+        p[3] = bb_canvas_keeps_alpha_(buf) ? static_cast<uint8_t>((color >> 24) & 0xFF) : 255;
 }
 
 inline int bb_pixel_read_(const uint8_t* p) {
@@ -987,7 +1005,7 @@ inline void bb_WritePixel(int x, int y, int color, int buf = bb_active_buffer_) 
     }
     uint8_t* p = bb_buf_pixel_(it->second, x, y);
     if (!p) return;
-    bb_pixel_write_(p, color);
+    bb_pixel_write_buf_(p, color, buf);
     it->second.dirty = true;
 }
 
@@ -1000,7 +1018,7 @@ inline int bb_ReadPixelFast(int x, int y, int buf = bb_active_buffer_) {
 inline void bb_WritePixelFast(int x, int y, int color, int buf = bb_active_buffer_) {
     auto it = bb_buf_locks_.find(buf);
     if (it == bb_buf_locks_.end() || !it->second.locked) return;
-    bb_pixel_write_(bb_buf_pixel_fast_(it->second, x, y), color);
+    bb_pixel_write_buf_(bb_buf_pixel_fast_(it->second, x, y), color, buf);
     it->second.dirty = true;
 }
 
@@ -1063,12 +1081,15 @@ inline int bb_SaveBuffer(int buf, const bbString& file) {
                           lock.pixels.data(), lock.width * 4) ? 1 : 0;
 }
 
+inline int bb_canvas_size_(int buf, bool width);
+
 inline int bb_BufferWidth(int buf) {
     auto it = bb_buf_locks_.find(buf);
     if (it != bb_buf_locks_.end() && (it->second.locked || it->second.width > 0))
         return it->second.width;
     if (buf == BB_BACK_BUFFER_H || buf == BB_FRONT_BUFFER_H)
         return bb_gfx_width_;
+    if (buf >= BB_TEX_BUF_BASE_) return bb_canvas_size_(buf, true);
     int img_h = 0, frame = 0;
     if (!bb_decode_img_buf_(buf, img_h, frame)) return 0;
     return bb_img_ok_(img_h) ? bb_images_[img_h].width : 0;
@@ -1080,6 +1101,7 @@ inline int bb_BufferHeight(int buf) {
         return it->second.height;
     if (buf == BB_BACK_BUFFER_H || buf == BB_FRONT_BUFFER_H)
         return bb_gfx_height_;
+    if (buf >= BB_TEX_BUF_BASE_) return bb_canvas_size_(buf, false);
     int img_h = 0, frame = 0;
     if (!bb_decode_img_buf_(buf, img_h, frame)) return 0;
     return bb_img_ok_(img_h) ? bb_images_[img_h].height : 0;

@@ -1,5 +1,23 @@
 # BlitzNext Developer Log
 
+## 2026-09-17 — Drawing into textures (BUG-127)
+
+`TextureBuffer` returned 0, so a texture drawn with `Rect`, `Text` or pixel commands stayed black —
+the checkerboard objects in the `primitives` and `multicam` demos were invisible. Texture buffers now
+build on the canvas layer from BUG-141: every frame of a texture has its own buffer, 2D commands,
+`LockBuffer` and the pixel commands work on the texture's pixel copy, and the texture is uploaded
+before the next `RenderWorld`. Measured in Blitz3D and matched: a fresh texture reads `$FF000000`,
+changes show up in the next render even after the texture was already used, loaded textures can be
+painted, and written alpha survives only in textures with an alpha channel — flag 4, or flags 1 and
+2 together, as Blitz3D's `texture.cpp` implies. Two new tests have 23 lines measured in Blitz3D, all
+of which fail on the old runtime. Suite 236/236.
+
+Two new entries came out of it: translucent objects are drawn opaque because the default blend mode
+never sets a blend function (BUG-142), and `CreateTexture` does not round to powers of two
+(BUG-143). 45 open bugs.
+
+---
+
 ## 2026-09-17 — Drawing into image buffers (BUG-141)
 
 Starting on texture buffers (BUG-127) showed the deeper problem: every 2D command ignored

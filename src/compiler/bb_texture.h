@@ -453,19 +453,46 @@ inline const bool bb_texture_hook_reg_ =
 // Noch nicht eingeloest
 // ============================================================
 
-// TextureBuffer setzt 2D-Zeichnen in eine Textur voraus (SetBuffer, Cls,
-// Text). Das kommt mit dem Pixelzugriff; bis dahin ist 0 die ehrliche
-// Antwort - ein erfundenes Pufferhandle wuerde still in ein fremdes Bild
-// zeichnen.
-inline int bb_TextureBuffer(int /*texture*/, int /*frame*/ = 0) {
-  static bool warned = false;
-  if (!warned) {
-    warned = true;
-    std::cerr << "[runtime] TextureBuffer: Zeichnen in Texturen ist noch nicht "
-                 "umgesetzt - liefert 0 (3D-11)\n";
-  }
-  return 0;
+// ============================================================
+// TextureBuffer (BUG-127)
+//
+// Der Puffer eines Frame. Gezeichnet wird ueber bb_canvas.h in die
+// RGBA-Kopie `px`; `dirty` laedt sie vor dem naechsten RenderWorld hoch.
+// Gemessen am Original (2026-09-17): eine frische Textur liest sich als
+// $FF000000, ReadPixel liefert Alpha immer FF, jeder Frame hat seinen eigenen
+// Puffer, und eine Aenderung ist im naechsten RenderWorld sichtbar.
+// ============================================================
+
+inline int bb_TextureBuffer(int texture, int frame = 0) {
+  bb_Texture_ *t = bb_texture_get_(texture);
+  if (!t || texture >= BB_IMG_BUF_STRIDE_) return 0;
+  if (frame < 0 || frame >= static_cast<int>(t->frames.size())) return 0;
+  return BB_TEX_BUF_BASE_ + (texture - 1) + frame * BB_IMG_BUF_STRIDE_;
 }
+
+inline bool bb_texture_canvas_(int buf, bb_Canvas_ &c) {
+  const int raw = buf - BB_TEX_BUF_BASE_;
+  if (raw < 0) return false;
+  const int h = raw % BB_IMG_BUF_STRIDE_ + 1;
+  const int fr = raw / BB_IMG_BUF_STRIDE_;
+  bb_Texture_ *t = bb_texture_get_(h);
+  if (!t || fr >= static_cast<int>(t->frames.size())) return false;
+  auto &px = t->frames[fr].px;
+  if (px.size() != static_cast<size_t>(t->w) * t->h * 4) return false;
+  c.px = px.data();
+  c.w = t->w;
+  c.h = t->h;
+  c.mask = 0;
+  c.mask_alpha = false;
+  c.dirty = &t->dirty;
+  // Einen Alphakanal hat die Textur mit Farbe und Alpha; Flag 4 setzt im
+  // Original beides (blitz3d/texture.cpp). Gemessen fuer die Flags 0 bis 7.
+  c.keep_alpha = (t->flags & 4) != 0 || (t->flags & 3) == 3;
+  return true;
+}
+
+inline const bool bb_texture_canvas_reg_ =
+    (bb_canvas_tex_hook_ = bb_texture_canvas_, true);
 
 // Wuerfelumgebungskarten (Flag 128) mischt der Shader nicht.
 inline void bb_SetCubeFace(int /*texture*/, int /*face*/) {}
