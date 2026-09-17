@@ -144,6 +144,10 @@ are the most likely reason for an old program to behave strangely.
 
   *Workaround:* put each `Include` on its own line, spell file names consistently, and keep
   included files in the same directory as the main program. (BUG-94)
+- **Two functions with the same name are not reported.** Blitz3D stops with `duplicate
+  identifier`. Here the build fails later in the C++ compiler, or — if the names differ only in
+  case — succeeds, and it is unclear which function is called.
+  *Workaround:* give every function a unique name. (BUG-138)
 - **The type check treats an untagged variable as having the type of its first value.** In
   Blitz3D a variable created without a tag is always an integer. Valid programs are
   therefore rejected here: `x = 1.5` followed by a use of `x%` is reported as a type
@@ -233,8 +237,6 @@ visibly wrong results because of the points below.
 - **Drawing into a texture has no effect.** `SetBuffer TextureBuffer(tex)` followed by
   `Rect`, `Text`, `WritePixel` or `CopyRect` leaves the texture black, so objects that use
   a generated texture appear black. (BUG-127)
-- **A second camera with its own `CameraViewport` does not render.** Split screens and
-  render-to-texture setups show empty viewports. (BUG-129)
 - **Spherical environment mapping (texture flag 64) is ignored.** Chrome and reflection
   effects show the texture as if it were mapped normally. (BUG-130)
 - **`Graphics3D` does not reset the drawing colour to white.** Text drawn afterwards keeps

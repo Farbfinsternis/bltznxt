@@ -34,6 +34,12 @@ struct bb_Entity_ {
   bbString name;
   int      parent  = 0;         // handle of parent entity, 0 = root
   std::vector<int> children;    // handles of direct children
+  // Einfuegenummer: wann das Entity zuletzt in eine Geschwisterliste kam
+  // (Erzeugung oder EntityParent). Im Original haengt Entity::insert() ans
+  // Ende der Liste der Wurzeln bzw. der Kinder, und RenderWorld zaehlt die
+  // Kameras in dieser Reihenfolge auf (BUG-129). Die Kinder stehen bei uns
+  // ohnehin geordnet in `children`; fuer die Wurzeln sortiert diese Nummer.
+  unsigned long long seq = 0;
   bool     visible = true;
   // Zeichenreihenfolge (3D-10). Am Original gemessen: > 0 zuerst und damit
   // hinter allem, < 0 zuletzt und damit vor allem; bei einem Wert ungleich 0
@@ -117,6 +123,7 @@ inline std::unique_ptr<bb_Entity_> bb_Entity_::clone() const {
 
 inline std::unordered_map<int, std::unique_ptr<bb_Entity_>> bb_entities_;
 inline int bb_entity_next_id_ = 1;
+inline unsigned long long bb_entity_seq_ = 0;
 
 // Returns a raw pointer to the entity, or nullptr if handle is invalid.
 inline bb_Entity_* bb_entity_get_(int h) {
@@ -133,6 +140,7 @@ inline int bb_entity_register_(std::unique_ptr<bb_Entity_> ent, int parent) {
   int h = bb_entity_next_id_++;
   ent->handle = h;
   ent->parent = parent;
+  ent->seq = ++bb_entity_seq_;
   if (parent) {
     bb_Entity_* p = bb_entity_get_(parent);
     if (p) p->children.push_back(h);
@@ -962,20 +970,22 @@ inline void bb_EntityParent(int h, int new_parent, int glob = 0) {
   float saved_world[16];
   if (glob) memcpy(saved_world, bb_entity_world_(e), 64);
 
-  // Detach from current parent
-  if (e->parent) {
-    bb_Entity_* old_p = bb_entity_get_(e->parent);
-    if (old_p) {
-      auto& ch = old_p->children;
-      ch.erase(std::remove(ch.begin(), ch.end(), h), ch.end());
+  // Umhaengen wie Entity::setParent im Original: derselbe Elternteil aendert
+  // nichts, sonst ans Ende der neuen Geschwisterliste (BUG-129).
+  if (e->parent != new_parent) {
+    if (e->parent) {
+      bb_Entity_* old_p = bb_entity_get_(e->parent);
+      if (old_p) {
+        auto& ch = old_p->children;
+        ch.erase(std::remove(ch.begin(), ch.end(), h), ch.end());
+      }
     }
-  }
-
-  // Attach to new parent
-  e->parent = new_parent;
-  if (new_parent) {
-    bb_Entity_* np = bb_entity_get_(new_parent);
-    if (np) np->children.push_back(h);
+    e->parent = new_parent;
+    if (new_parent) {
+      bb_Entity_* np = bb_entity_get_(new_parent);
+      if (np) np->children.push_back(h);
+    }
+    e->seq = ++bb_entity_seq_;
   }
 
   if (glob) {

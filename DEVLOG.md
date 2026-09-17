@@ -1,5 +1,22 @@
 # BlitzNext Developer Log
 
+## 2026-09-17 — Several cameras render as in Blitz3D (BUG-129)
+
+A second camera with its own viewport seemed not to render. In fact every camera cleared the
+whole screen, because `glClear` ignores the viewport, and the cameras came in an arbitrary order,
+so the last one wiped out the others. Each camera now clears only its viewport (scissor test),
+and cameras render in Blitz3D's order: collected in scene-tree order, then taken from a priority
+queue by `EntityOrder`, higher first — the reverse of what BlitzNext did. For equal orders the
+sequence follows the heap mechanics of Blitz3D's STL rather than creation order (five equal
+cameras render 0, 2, 4, 1, 3); it was measured pairwise for 2 to 10 cameras, twelve random order
+assignments and cameras in a hierarchy, and is rebuilt exactly. `tests/test_bug129_kameras.bb`
+has 36 lines measured in Blitz3D; 34 fail on the old runtime. Suite 230/230.
+
+While building that test, a helper function ended up in it twice: Blitz3D rejects that with
+`duplicate identifier`, BlitzNext did not notice (BUG-138). Still 44 open bugs.
+
+---
+
 ## 2026-09-17 — RenderWorld without a camera draws nothing (BUG-137)
 
 Without an active camera, `RenderWorld` cleared the back buffer using a made-up fallback state.

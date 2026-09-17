@@ -144,20 +144,63 @@ static inline void bb_cam_proj_ortho_(bb_CameraEntity_* c, float aspect) {
 // Collect visible cameras (sorted by render order) for RenderWorld
 // ============================================================
 
-// Eine Kamera mit CameraProjMode 0 ist abgeschaltet: sie rendert nicht und
-// loescht auch nicht (gemessen 2026-09-17, BUG-137).
+// Die Reihenfolge ist die des Originals, am 2026-09-17 fuer 2 bis 10 Kameras
+// und zwoelf gemischte EntityOrder-Faelle paarweise gemessen (BUG-129):
+//
+//  1. Aufzaehlen wie Entity::enumVisible: Wurzeln in Einfuegereihenfolge, je
+//     Entity erst es selbst, dann die Kinder; ein verstecktes Entity beendet
+//     seinen Ast (BUG-136).
+//  2. In dieser Reihenfolge in eine priority_queue mit `a.order < b.order`
+//     (World::render) - hoehere Order zuerst. Bei gleicher Order entscheidet
+//     die Heap-Mechanik der STL des Originals, nicht die Erzeugung: fuenf
+//     gleiche Kameras laufen 0,2,4,1,3. Nachgebaut ist sie unten; ein
+//     std::priority_queue von libstdc++ liefert eine andere Folge.
+//  3. Eine Kamera mit CameraProjMode 0 steht mit in der Schlange, rendert aber
+//     nicht und loescht nicht (Camera::beginRenderFrame, BUG-137).
+static inline void bb_enum_cameras_(bb_Entity_* e, std::vector<bb_CameraEntity_*>& out) {
+  if (!e->visible) return;
+  if (e->kind() == bb_EntityKind_::Camera)
+    out.push_back(static_cast<bb_CameraEntity_*>(e));
+  for (int k : e->children)
+    if (bb_Entity_* c = bb_entity_get_(k)) bb_enum_cameras_(c, out);
+}
+
 static inline std::vector<bb_CameraEntity_*> bb_collect_cameras_() {
-  std::vector<bb_CameraEntity_*> cams;
-  for (auto& [h, e] : bb_entities_) {
-    if (e->kind() != bb_EntityKind_::Camera || !bb_entity_shown_(e.get()))
-      continue;
-    auto* c = static_cast<bb_CameraEntity_*>(e.get());
-    if (c->projMode != 0) cams.push_back(c);
+  std::vector<bb_Entity_*> roots;
+  for (auto& [h, e] : bb_entities_)
+    if (e->parent == 0) roots.push_back(e.get());
+  std::sort(roots.begin(), roots.end(),
+            [](bb_Entity_* a, bb_Entity_* b) { return a->seq < b->seq; });
+  std::vector<bb_CameraEntity_*> found;
+  for (bb_Entity_* r : roots) bb_enum_cameras_(r, found);
+
+  // Heap wie gemessen: Einfuegen steigt nur bei echt kleinerem Elternteil
+  // auf; Entnehmen setzt das letzte Element an die Spitze und senkt es ab,
+  // solange das groessere Kind nicht kleiner ist - bei Gleichstand das rechte.
+  std::vector<bb_CameraEntity_*> heap;
+  for (auto* c : found) {
+    heap.push_back(c);
+    for (size_t i = heap.size() - 1; i > 0;) {
+      size_t j = (i - 1) / 2;
+      if (!(heap[j]->order < heap[i]->order)) break;
+      std::swap(heap[i], heap[j]);
+      i = j;
+    }
   }
-  std::sort(cams.begin(), cams.end(),
-            [](bb_CameraEntity_* a, bb_CameraEntity_* b) {
-              return a->order < b->order;
-            });
+  std::vector<bb_CameraEntity_*> cams;
+  while (!heap.empty()) {
+    if (heap[0]->projMode != 0) cams.push_back(heap[0]);
+    heap[0] = heap.back();
+    heap.pop_back();
+    const size_t z = heap.size();
+    for (size_t i = 0; 2 * i + 1 < z;) {
+      size_t j = 2 * i + 1;
+      if (j + 1 < z && !(heap[j + 1]->order < heap[j]->order)) ++j;
+      if (heap[j]->order < heap[i]->order) break;
+      std::swap(heap[i], heap[j]);
+      i = j;
+    }
+  }
   return cams;
 }
 

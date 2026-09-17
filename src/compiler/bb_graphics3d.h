@@ -181,6 +181,7 @@ inline void bb_RenderWorld(float tween = 1.0f) {
   glEnable(GL_CULL_FACE);
   glCullFace(GL_BACK);
   glFrontFace(GL_CW);
+  glEnable(GL_SCISSOR_TEST);
 
   for (auto* cam : cams) {
     // Viewport — Blitz3D y=0 is top-left; GL y=0 is bottom-left, so flip.
@@ -188,6 +189,10 @@ inline void bb_RenderWorld(float tween = 1.0f) {
     int vh = (cam->vpH > 0) ? cam->vpH : bb_gfx_height_;
     int gl_y = bb_gfx_height_ - cam->vpY - vh;
     glViewport(cam->vpX, gl_y, vw, vh);
+    // glClear beachtet den Viewport nicht, die Schere schon. Im Original
+    // loescht jede Kamera nur ihren Viewport; ausserhalb bleibt stehen, was
+    // vorher dort war (BUG-129).
+    glScissor(cam->vpX, gl_y, vw, vh);
 
     // Clear according to per-camera settings.
     GLbitfield bits = 0;
@@ -224,6 +229,7 @@ inline void bb_RenderWorld(float tween = 1.0f) {
       bb_render_meshes_(sh, cam->view, cam->proj, cam_pos);
     }
   }
+  glDisable(GL_SCISSOR_TEST);
 }
 
 // ============================================================
