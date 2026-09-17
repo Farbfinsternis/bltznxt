@@ -650,17 +650,15 @@ inline void bb_MoveEntity(int h, float dx, float dy, float dz) {
   e->pz += dx * R[2] + dy * R[6] + dz * R[10];
 }
 
-// Translate by delta.  glob=0 → entity-local space; glob=1 → world space.
+// Translate by delta.  glob=0 → parent space; glob=1 → world space.
+// Anders als MoveEntity wirkt die eigene Drehung nicht (BUG-145, am Original
+// gemessen 2026-09-17): der lokale Zweig addiert das Delta unveraendert zur
+// Position im Raum des Elternteils.
 inline void bb_TranslateEntity(int h, float dx, float dy, float dz, int glob = 0) {
   bb_Entity_* e = bb_entity_get_(h);
   if (!e) return;
   if (glob == 0) {
-    // Local space: same as MoveEntity
-    float R[16];
-    mat4_make_euler_YXZ_(R, e->rx, e->ry, e->rz);
-    e->px += dx * R[0] + dy * R[4] + dz * R[8];
-    e->py += dx * R[1] + dy * R[5] + dz * R[9];
-    e->pz += dx * R[2] + dy * R[6] + dz * R[10];
+    e->px += dx; e->py += dy; e->pz += dz;
   } else {
     // World space delta → convert to parent-local space
     if (e->parent == 0) {

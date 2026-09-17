@@ -1,0 +1,7 @@
+1 gier 90 translate 0,0,1: 0,0,100
+2 global 1,0,0: 100,0,100
+3 nick 30 gier 45 translate 0,1,0: 0,100,0
+4 kind von gier 90 translate 0,0,1: -100,0,0
+5 pointentity dann translate 0,0,-5: 0,100,-200
+6 gier 90 move 0,0,1: -100,0,0
+7 rollen 90 translate 2,0,0 und 0,-3,0: 200,-300,0

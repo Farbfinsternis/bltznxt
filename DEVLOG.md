@@ -1,5 +1,17 @@
 # BlitzNext Developer Log
 
+## 2026-09-17 — TranslateEntity ignores the entity's own rotation (BUG-145)
+
+`TranslateEntity` without the global flag rotated the offset by the entity's own rotation, which is
+what `MoveEntity` does. Blitz3D adds it unchanged in the parent's axes: a pivot turned 90 degrees
+and translated by 0,0,1 ends at (0,0,1), not (-1,0,0); a child still follows its parent's rotation.
+The local branch now just adds the offset. Seven cases measured in Blitz3D, including `MoveEntity`
+as the counter-check, match exactly; three of them failed before. In Jet Tails the camera now
+follows the jet instead of drifting away. The flight path still differs, because `Rnd` produces a
+different sequence (BUG-116). Suite 240/240. 45 open bugs.
+
+---
+
 ## 2026-09-17 — The demos again
 
 The demos compared on 2026-09-16 were recorded again in both systems, in windowed copies with the
