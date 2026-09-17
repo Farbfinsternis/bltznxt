@@ -220,8 +220,9 @@ are the most likely reason for an old program to behave strangely.
 
 ## 2D graphics
 
-- **`CopyRect`** does nothing. Together with BUG-127 this also rules out copying a
-  rendered image into a texture. (BUG-118)
+- **After `CreateImage` in 3D mode, reading the screen returns white.** `ReadPixel`,
+  `LockBuffer BackBuffer()` and `CopyRect` from the back buffer see only white once an image has
+  been created. *Workaround:* none yet. (BUG-144)
 - **`ImagesCollide` and `ImageRectCollide`** compare bounding rectangles instead of visible
   pixels, and ignore the frame argument. Masked or transparent areas count as a hit.
   *Workaround:* none yet for pixel-accurate tests. (BUG-119)

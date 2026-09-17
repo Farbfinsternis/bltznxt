@@ -1,5 +1,21 @@
 # BlitzNext Developer Log
 
+## 2026-09-17 — CopyRect (BUG-118)
+
+`CopyRect` accepted all arguments and did nothing. In Blitz3D it is a blit without mask between any
+two buffers, defaulting to the current buffer for both — BlitzNext defaulted to the back buffer. It
+now uses the canvas layer: image and texture buffers copy directly; the screen is read back once as
+a source, and as a destination the changed rectangle is drawn back without blending. The source
+image's handle offsets the copy and the destination's origin and viewport apply, as measured.
+`tests/test_bug118_copyrect.bb` covers image, texture and back buffer as source and destination,
+with clipping, origin and viewport — nine lines measured in Blitz3D, all failing on the old runtime.
+Suite 237/237.
+
+Measuring it turned up an older problem: once `CreateImage` has been called in 3D mode, reading the
+screen returns white (BUG-144). Still 45 open bugs.
+
+---
+
 ## 2026-09-17 — Drawing into textures (BUG-127)
 
 `TextureBuffer` returned 0, so a texture drawn with `Rect`, `Text` or pixel commands stayed black —

@@ -83,28 +83,16 @@ struct bb_Canvas_ {
 // Texturen melden sich hier an (bb_texture.h); die 2D-Schicht kennt sie nicht.
 inline bool (*bb_canvas_tex_hook_)(int buf, bb_Canvas_& c) = nullptr;
 
-// Die Pixelkopie eines Frame sicherstellen. Ein frisch erzeugtes Image ist
-// schwarz (ReadPixel liefert $FF000000) und damit ganz maskiert.
+// Die Pixelkopie eines Frame sicherstellen. Ohne Kopie ist das Frame ein
+// frisches CreateImage: schwarz (ReadPixel liefert $FF000000) und damit ganz
+// maskiert. Aus der SDL-Zieltextur wird bewusst nicht zurueckgelesen - sie ist
+// leer, und SDL_SetRenderTarget stoert im 3D-Modus den Backbuffer: danach las
+// ReadPixel nur noch Weiss (gemessen 2026-09-17).
 inline void bb_img_ensure_pixels_(int handle, bb_FrameData_& fd) {
   const auto& img = bb_images_[handle];
   const size_t n = static_cast<size_t>(img.width) * img.height * 4;
   if (fd.pixels.size() == n) return;
   fd.pixels.assign(n, 0);
-  if (bb_renderer_ && fd.tex) {
-    if (SDL_SetRenderTarget(bb_renderer_, fd.tex)) {
-      SDL_Surface* s = SDL_RenderReadPixels(bb_renderer_, nullptr);
-      SDL_SetRenderTarget(bb_renderer_, nullptr);
-      if (s) {
-        SDL_Surface* rgba = SDL_ConvertSurface(s, SDL_PIXELFORMAT_RGBA32);
-        SDL_DestroySurface(s);
-        if (rgba && static_cast<size_t>(rgba->w) * rgba->h * 4 == n)
-          std::memcpy(fd.pixels.data(), rgba->pixels, n);
-        if (rgba) SDL_DestroySurface(rgba);
-      }
-    } else {
-      SDL_SetRenderTarget(bb_renderer_, nullptr);
-    }
-  }
 }
 
 inline bool bb_canvas_from_img_(int handle, int frame, bb_Canvas_& c) {
@@ -341,7 +329,8 @@ inline void bb_canvas_oval_(int x1, int y1, int w, int h, bool solid) {
 // gxCanvas::blit - der Handle der Quelle verschiebt, Origin und Viewport des
 // Ziels gelten, "solid" kopiert auch die Maskenfarbe.
 inline void bb_canvas_blit_(bb_Canvas_& d, int x, int y, const bb_Canvas_& s,
-                            int sx, int sy, int sw, int sh, bool solid) {
+                            int sx, int sy, int sw, int sh, bool solid,
+                            bb_CRect_* written = nullptr) {
   x += d.st->ox - s.hx;
   y += d.st->oy - s.hy;
   bb_CRect_ dr = bb_crect_(x, y, sw, sh), sr = bb_crect_(sx, sy, sw, sh);
@@ -349,6 +338,7 @@ inline void bb_canvas_blit_(bb_Canvas_& d, int x, int y, const bb_Canvas_& s,
   if (!bb_cclip2_(s.clip(), &sr, &dr)) return;
   const int w = dr.r - dr.l, h = dr.b - dr.t;
   if (w <= 0 || h <= 0) return;
+  if (written) *written = dr;
   // Quelle und Ziel duerfen derselbe Puffer sein
   std::vector<int> row(static_cast<size_t>(w));
   const bool down = (s.px == d.px) && (sr.t < dr.t);
@@ -467,6 +457,94 @@ inline void bb_canvas_write_pixel_(int buf, int x, int y, int argb) {
   if (c.keep_alpha)
     c.px[(static_cast<size_t>(y) * c.w + x) * 4 + 3] = static_cast<uint8_t>((argb >> 24) & 0xFF);
   bb_canvas_done_(c);
+}
+
+// ---- CopyRect (BUG-118) -------------------------------------------------
+
+// Der Bildschirm als Canvas fuer CopyRect: eine Kopie des Backbuffer, dazu
+// Origin und Viewport des Bildschirms nach den Regeln des Originals (der
+// Viewport liegt absolut, der Origin verschiebt ihn nicht).
+inline bool bb_canvas_screen_(bb_CanvasSt_& st, std::vector<uint8_t>& px,
+                              bb_Canvas_& c, bool read) {
+  const int w = bb_gfx_width_, h = bb_gfx_height_;
+  if (!bb_renderer_ || w <= 0 || h <= 0) return false;
+  px.assign(static_cast<size_t>(w) * h * 4, 0);
+  if (read) {
+    SDL_SetRenderViewport(bb_renderer_, nullptr);
+    SDL_Surface* s = SDL_RenderReadPixels(bb_renderer_, nullptr);
+    bb_apply_viewport_();
+    if (s) {
+      SDL_Surface* rgba = SDL_ConvertSurface(s, SDL_PIXELFORMAT_RGBA32);
+      SDL_DestroySurface(s);
+      if (rgba) {
+        const int cw = std::min(w, rgba->w), ch = std::min(h, rgba->h);
+        const uint8_t* src = static_cast<const uint8_t*>(rgba->pixels);
+        for (int j = 0; j < ch; ++j)
+          std::memcpy(px.data() + static_cast<size_t>(j) * w * 4,
+                      src + static_cast<size_t>(j) * rgba->pitch, static_cast<size_t>(cw) * 4);
+        SDL_DestroySurface(rgba);
+      }
+    }
+  }
+  st.init = true;
+  st.ox = bb_origin_x_; st.oy = bb_origin_y_;
+  st.vp = { 0, 0, w, h };
+  if (bb_viewport_active_) {
+    bb_CRect_ r = bb_crect_(bb_viewport_rect_.x, bb_viewport_rect_.y,
+                            bb_viewport_rect_.w, bb_viewport_rect_.h);
+    if (!bb_cclip_(st.vp, &r)) r = {};
+    st.vp = r;
+  }
+  c.px = px.data(); c.w = w; c.h = h; c.st = &st;
+  return true;
+}
+
+inline void bb_canvas_copyrect_(int sx, int sy, int sw, int sh, int dx, int dy,
+                                int srcbuf, int dstbuf) {
+  const bool src_screen = bb_buf_is_screen_(srcbuf);
+  const bool dst_screen = bb_buf_is_screen_(dstbuf);
+  bb_CanvasSt_ screen_st;
+  std::vector<uint8_t> screen_px;
+  bb_Canvas_ s, d;
+
+  if (src_screen || dst_screen) {
+    bb_Canvas_ sc;
+    if (!bb_canvas_screen_(screen_st, screen_px, sc, src_screen)) return;
+    if (src_screen) s = sc;
+    if (dst_screen) d = sc;
+  }
+  if (!src_screen && !bb_canvas_open_(srcbuf, s)) return;
+  if (!dst_screen && !bb_canvas_open_(dstbuf, d)) return;
+
+  bb_CRect_ written;
+  bool any = false;
+  {
+    bb_CRect_ probe{ 0, 0, 0, 0 };
+    bb_canvas_blit_(d, dx, dy, s, sx, sy, sw, sh, true, &probe);
+    written = probe;
+    any = probe.r > probe.l && probe.b > probe.t;
+  }
+  if (!any) return;
+  if (!dst_screen) { bb_canvas_done_(d); return; }
+
+  // Das geaenderte Rechteck zurueck auf den Bildschirm, Farbe ersetzen.
+  const int w = written.r - written.l, h = written.b - written.t;
+  SDL_Surface* surf = SDL_CreateSurface(w, h, SDL_PIXELFORMAT_RGBA32);
+  if (!surf) return;
+  for (int j = 0; j < h; ++j)
+    std::memcpy(static_cast<uint8_t*>(surf->pixels) + static_cast<size_t>(j) * surf->pitch,
+                d.px + (static_cast<size_t>(written.t + j) * d.w + written.l) * 4,
+                static_cast<size_t>(w) * 4);
+  SDL_Texture* tex = SDL_CreateTextureFromSurface(bb_renderer_, surf);
+  SDL_DestroySurface(surf);
+  if (!tex) return;
+  SDL_SetTextureBlendMode(tex, SDL_BLENDMODE_NONE);
+  SDL_SetRenderViewport(bb_renderer_, nullptr);
+  SDL_FRect dst = { static_cast<float>(written.l), static_cast<float>(written.t),
+                    static_cast<float>(w), static_cast<float>(h) };
+  SDL_RenderTexture(bb_renderer_, tex, nullptr, &dst);
+  bb_apply_viewport_();
+  SDL_DestroyTexture(tex);
 }
 
 // LockBuffer auf einem Texturpuffer: die Sperre arbeitet auf einer Kopie,

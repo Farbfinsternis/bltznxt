@@ -1,0 +1,9 @@
+4 backbuffer->textur mitte FF00C800 ecke FF00C800
+5 textur->backbuffer FF0000FF geklippt rechts FF000000 daneben FF000000
+1 image->image FFFF0000
+2 bbbbbbbbbbbbbbbb|bbbbbbbbbbbbbbbb|bbbbbbbbbbbbbbbb|bbbbbbbbbbbbbbbb|bbbbbbbbbbbbbbbb|bbbbbbbbbbbbbbbb|bbbbbbbbbbbbbbbb|bbbbbbbbbbbbbbbb|bbbbbbbbbbbbbbbb|bbbbbbbbbggggggg|bbbbbbbbbggggggg|bbbbbbbbbgg..ggg|bbbbbbbbbgg..ggg|bbbbbbbbbggggggg|bbbbbbbbbggggggg|bbbbbbbbbggggggg|
+3 innerhalb FFFFFF00
+6 origin FF000000 viewport FF00FF00 ausserhalb FF000000
+7 backbuffer->backbuffer FFFF00FF
+8 textur->image FF0000FF
+8b image->textur FF000000 FF00FF00

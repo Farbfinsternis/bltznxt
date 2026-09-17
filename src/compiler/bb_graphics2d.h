@@ -347,16 +347,22 @@ inline void bb_Flip(int vblank = 1) {
 //  sx, sy       : source top-left
 //  sw, sh       : source width and height (0 = whole buffer)
 //  dx, dy       : destination top-left
-//  srcbuf       : source buffer handle  (default: BackBuffer)
-//  dstbuf       : destination buffer    (default: BackBuffer)
+//  srcbuf       : source buffer handle  (default 0: aktueller Puffer)
+//  dstbuf       : destination buffer    (default 0: aktueller Puffer)
+//
+// Wie bbCopyRect im Original ein blit ohne Maske: Handle der Quelle,
+// Origin und Viewport des Ziels gelten. Umgesetzt in bb_canvas.h (BUG-118).
+
+inline void bb_canvas_copyrect_(int sx, int sy, int sw, int sh, int dx, int dy,
+                                int srcbuf, int dstbuf);
 
 inline void bb_CopyRect(int sx, int sy, int sw, int sh,
                         int dx, int dy,
-                        int srcbuf = BB_BACK_BUFFER_H,
-                        int dstbuf = BB_BACK_BUFFER_H) {
-  (void)sx; (void)sy; (void)sw; (void)sh;
-  (void)dx; (void)dy; (void)srcbuf; (void)dstbuf;
-  // Stub — requires render-to-texture (M46).
+                        int srcbuf = 0,
+                        int dstbuf = 0) {
+  bb_canvas_copyrect_(sx, sy, sw, sh, dx, dy,
+                      srcbuf ? srcbuf : bb_active_buffer_,
+                      dstbuf ? dstbuf : bb_active_buffer_);
 }
 
 // ==========================================================================
