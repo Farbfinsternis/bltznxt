@@ -14,6 +14,7 @@
 #include "bb_entity_core.h"
 #include "bb_mesh_core.h"
 #include "bb_texture.h"
+#include "bb_sprite.h"
 #include <algorithm>
 #include <cmath>
 #include <cfloat>
@@ -339,7 +340,9 @@ inline int bb_CreateCone(int segs = 8, int solid = 1, int parent = 0) {
 // 0-7 und dient dem Multitexturing (siehe TextureBlend). Ein Texturhandle
 // von 0 raeumt die Lage wieder ab.
 inline void bb_EntityTexture(int entity, int texture, int frame = 0, int index = 0) {
-  auto* me = bb_mesh_ent_(entity);
+  // Im Original ein Model: Netze und Sprites (3D-16), keine Pivots.
+  bb_Entity_* me = bb_mesh_ent_(entity);
+  if (!me) me = bb_sprite_ent_(entity);
   if (!me) return;
   if (index < 0 || index >= BB_TEX_SLOTS) return;
   // Seit 3D-15 landet sie im Brush der **Entity** und nicht mehr in dem
@@ -831,6 +834,16 @@ static inline bool bb_tri_tri_hit_(const float* a0, const float* a1, const float
 // Braucht dieses Entity Blending? Alles, was nicht deckend Alpha 1 im
 // Vorgabemodus ist: ein Alphawert unter 1, ein anderer Blendmodus,
 // EntityFX 32 oder eine Texturlage mit Alphaflag.
+static inline bool bb_brush_translucent_(const bb_Brush_& br) {
+  if (br.alpha < 1.0f) return true;
+  if (br.blend >= 2)   return true;
+  if (br.fx & 32)      return true;
+  for (int i = 0; i < BB_TEX_SLOTS; ++i)
+    if (br.tex.tex[i] && (br.tex.tex[i]->flags & BB_TEX_ALPHA))
+      return true;
+  return false;
+}
+
 static inline bool bb_ent_translucent_(const bb_MeshEntity_* me) {
   if (me->brush.alpha < 1.0f) return true;
   if (me->brush.blend >= 2)   return true;
@@ -850,17 +863,22 @@ static inline bool bb_ent_translucent_(const bb_MeshEntity_* me) {
 static inline void bb_render_meshes_(bb_Shader_* shader,
                                       const float* view,
                                       const float* proj,
-                                      const float* cam_pos) {
+                                      const float* cam_world) {
+  const float cam_pos[3] = { cam_world[12], cam_world[13], cam_world[14] };
   // "fade" ist nur der Faktor aus EntityAutoFade; die Deckkraft entsteht
-  // erst je Flaeche aus dem verrechneten Brush.
-  struct Item { bb_MeshEntity_* me; float fade; float dist; bool translucent; };
+  // erst je Flaeche aus dem verrechneten Brush. Ein Sprite (3D-16) hat
+  // keine Flaechen, nur seinen Brush und das je Kamera gebaute Quadrat.
+  struct Item { bb_Entity_* e; bb_MeshEntity_* me; bb_SpriteEntity_* sp;
+                float fade; float dist; bool translucent; };
   std::vector<Item> items;
   items.reserve(bb_entities_.size());
 
   for (auto& [h, ent] : bb_entities_) {
-    if (ent->kind() != bb_EntityKind_::Mesh) continue;
+    const bool is_mesh   = ent->kind() == bb_EntityKind_::Mesh;
+    const bool is_sprite = ent->kind() == bb_EntityKind_::Sprite;
+    if (!is_mesh && !is_sprite) continue;
     if (!bb_entity_shown_(ent.get())) continue;
-    auto* me = static_cast<bb_MeshEntity_*>(ent.get());
+    bb_Entity_* me = ent.get();
 
     float dx = me->world[12] - cam_pos[0];
     float dy = me->world[13] - cam_pos[1];
@@ -879,12 +897,19 @@ static inline void bb_render_meshes_(bb_Shader_* shader,
     const float ent_alpha = me->brush.alpha * fade;
     if (ent_alpha <= 0.0f) continue;
 
-    items.push_back({ me, fade, dist,
-                      bb_ent_translucent_(me) || ent_alpha < 1.0f });
+    if (is_mesh) {
+      auto* mm = static_cast<bb_MeshEntity_*>(me);
+      items.push_back({ me, mm, nullptr, fade, dist,
+                        bb_ent_translucent_(mm) || ent_alpha < 1.0f });
+    } else {
+      auto* sp = static_cast<bb_SpriteEntity_*>(me);
+      items.push_back({ me, nullptr, sp, fade, dist,
+                        bb_brush_translucent_(sp->brush) || ent_alpha < 1.0f });
+    }
   }
 
   std::sort(items.begin(), items.end(), [](const Item& a, const Item& b) {
-    if (a.me->order != b.me->order) return a.me->order > b.me->order;
+    if (a.e->order != b.e->order) return a.e->order > b.e->order;
     if (a.translucent != b.translucent) return !a.translucent;
     if (a.translucent) return a.dist > b.dist;   // hinten zuerst
     return false;
@@ -897,11 +922,16 @@ static inline void bb_render_meshes_(bb_Shader_* shader,
   float vm[16];
   mat4_mul_(vm, proj, view);
 
-  for (const Item& it : items) {
-    bb_MeshEntity_* me = it.me;
+  static const float identity[16] = { 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1 };
 
+  for (const Item& it : items) {
+    bb_Entity_* me = it.e;
+
+    // Ein Sprite liegt schon in Weltkoordinaten.
+    if (it.sp) bb_sprite_build_(it.sp, cam_world);
+    const float* model = it.sp ? identity : me->world;
     float mvp[16];
-    mat4_mul_(mvp, vm, me->world);
+    mat4_mul_(mvp, vm, model);
 
     // ---- Blending ----
     // Am Original gemessen: 1 = Alpha (Vorgabe), 2 = Multiply, 3 = Add. Der
@@ -930,8 +960,11 @@ static inline void bb_render_meshes_(bb_Shader_* shader,
     // Entity verrechnet - Farbe und Deckkraft mal, Glanz plus, FX oder,
     // Texturen von der Entity ueberschrieben. Die Formel steht in
     // bb_brush.h und stammt aus blitz3d/brush.cpp.
-    for (auto& surf : me->surfaces()) {
-      const bb_Brush_ br = bb_brush_combine_(surf.brush, me->brush);
+    const size_t nsurf = it.sp ? 1 : it.me->surfaces().size();
+    for (size_t si = 0; si < nsurf; ++si) {
+      bb_MeshData_& surf = it.sp ? it.sp->quad : it.me->surfaces()[si];
+      const bb_Brush_ br = it.sp ? me->brush
+                                 : bb_brush_combine_(surf.brush, me->brush);
 
       if (want_blend && br.blend != blend_mode) {
         blend_mode = br.blend;
@@ -957,7 +990,7 @@ static inline void bb_render_meshes_(bb_Shader_* shader,
                          br.alpha * it.fade };
       bb_shader_uniform_f(shader, "u_shininess", br.shininess);
       bb_texture_bind_(shader, br.tex);
-      bb_mesh_draw_(&surf, shader, mvp, me->world, color, nullptr);
+      bb_mesh_draw_(&surf, shader, mvp, model, color, nullptr);
       bb_tris_rendered_ += surf.triCount;
     }
   }

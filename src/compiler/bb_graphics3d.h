@@ -248,8 +248,7 @@ inline void bb_RenderWorld(float tween = 1.0f) {
     if (sh) {
       bb_shader_bind_(sh);
       if (sh == bb_shader_lit_) bb_upload_lights_(sh, n, cam);
-      const float cam_pos[3] = { cam->world[12], cam->world[13], cam->world[14] };
-      bb_render_meshes_(sh, cam->view, cam->proj, cam_pos);
+      bb_render_meshes_(sh, cam->view, cam->proj, cam->world);
     }
   }
   glDisable(GL_SCISSOR_TEST);

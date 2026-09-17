@@ -1,0 +1,34 @@
+1 klasse Sprite
+2 vorgabe: 128,191 / 88,151 tris 2 farbe 00FF0000
+3 scale 2,1: 96,223 / 88,151 tris 2
+4 handle 1,0: 96,159 / 88,151 tris 2
+5 scale 2,.5 rotate 90: 144,175 / 56,183 tris 2
+6 dazu handle 1,0: -1,-1 / 120,239 tris 2 / 144,175 / 120,239
+7 mode1 scaleentity 2: 128,191 / 88,151 tris 2
+8 mode2 scaleentity 2: 96,223 / 56,183 tris 2
+9 mode2 umgedreht: -1,-1 / -1,-1 tris 2
+10 mode1 roll entity 30: 128,191 / 88,151 tris 2 ecke 00FF0000
+11 mode2 roll entity 30: 124,196 / 84,156 tris 2 ecke 00FF0000
+12 kamera schraeg mode 1: 132,188 / 92,148 tris 2
+12 kamera schraeg mode 2: 132,188 / 98,137 tris 2
+12 kamera schraeg mode 3: 132,188 / 92,148 tris 2
+12 kamera schraeg mode 4: 132,188 / 98,137 tris 2
+13 kamera seitlich mode 1: 132,188 / 92,148 tris 2
+13 kamera seitlich mode 2: 143,182 / 92,148 tris 2
+13 kamera seitlich mode 3: 132,188 / 92,148 tris 2
+13 kamera seitlich mode 4: 132,188 / 92,148 tris 2
+14 kamera gerollt mode 1: 132,188 / 92,148 tris 2
+14 kamera gerollt mode 2: 141,185 / 92,154 tris 2
+14 kamera gerollt mode 3: 129,191 / 89,151 tris 2
+14 kamera gerollt mode 4: 129,191 / 89,151 tris 2
+15 loadsprite quad: 128,191 / 88,151 tris 2 farben 00F02828 0028F028 002828F0 00F0F0F0
+16 loadsprite flag 2: 00511E1E 00A5A5A5
+17 loadsprite flag 4: 00282828 0000A000
+18 loadsprite flag 5: 00282828 0000A000
+19 fehlt: 0
+20 createsprite entitytexture: 00C80000 00C8C8C8
+21 dazu farbe 128: 00640000 00646464
+22 blend 3: 00F02828 00F0F0F0
+23 kopie: 128,159 / 120,151 tris 2
+24 eltern skaliert mode2: 96,223 / 88,151 tris 2
+25 eltern skaliert mode1: 128,191 / 88,151 tris 2

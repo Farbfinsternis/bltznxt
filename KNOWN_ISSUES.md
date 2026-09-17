@@ -52,7 +52,7 @@ The full reasoning is in [ROADMAP3D.md](ROADMAP3D.md), section
 
 ## Missing commands
 
-159 of Blitz3D's 540 commands (not counting language keywords) are not available yet. A
+153 of Blitz3D's 540 commands (not counting language keywords) are not available yet. A
 program that uses one of them is rejected with `unknown function or command`. `blitzcc -k` lists
 everything that is available.
 
@@ -63,7 +63,7 @@ everything that is available.
 | Picking and projection | `CameraPick`, `EntityPick`, `LinePick`, `EntityPickMode`, `PickedX/Y/Z`, `PickedEntity`, `CameraProject`, `ProjectedX/Y/Z`, `EntityInView`, `EntityVisible` |
 | Animation | `Animate`, `SetAnimTime`, `AnimTime`, `Animating`, `AnimSeq`, `AnimLength`, `LoadAnimSeq`, `AddAnimSeq`, `ExtractAnimSeq`, `SetAnimKey` |
 | Terrain, MD2, BSP | `CreateTerrain`, `LoadTerrain`, `ModifyTerrain`, `TerrainHeight`, …, `LoadMD2`, `AnimateMD2`, `LoadBSP`, … |
-| Sprites, planes, mirrors | `CreateSprite`, `LoadSprite`, `RotateSprite`, `ScaleSprite`, `HandleSprite`, `SpriteViewMode`, `CreatePlane`, `CreateMirror` |
+| Planes and mirrors | `CreatePlane`, `CreateMirror` |
 | Camera fog | `CameraFogMode`, `CameraFogRange`, `CameraFogColor` |
 | 3D maths | `VectorYaw`, `VectorPitch`, `DeltaYaw`, `DeltaPitch`, `GetMatElement`, `TFormFilter` |
 | Movies | `OpenMovie`, `DrawMovie`, `CloseMovie`, `MovieWidth`, `MovieHeight`, `MoviePlaying` |

@@ -962,30 +962,34 @@ Sprachobjekt.
 ---
 
 ### 3D-16 · Sprites
-*Dateien: `bb_sprite.h` (neu)*
+*Dateien: `bb_sprite.h`*
 
-- [ ] `bb_SpriteEntity_` erbt von `bb_Entity_`:
-      `texHandle`, `rotAngle`, `scaleX/Y`, `handleX/Y`, `viewMode`
-      (viewMode: 1=Billboard, 2=Faced, 3=Fixed, 4=Free)
-- [ ] `bb_CreateSprite(parent=0)` → handle
-- [ ] `bb_LoadSprite(path$, flags=1, parent=0)` → handle + Textur auto-laden
-- [ ] `bb_RotateSprite(h, angle)`, `bb_ScaleSprite(h, sx, sy)`
-- [ ] `bb_HandleSprite(h, hx, hy)` — Pivot-Offset
-- [ ] `bb_SpriteViewMode(h, mode)` — Billboard-Verhalten
-- [ ] Billboard in `RenderWorld`: Quad immer zur Camera orientieren
-      (Cylindrical Billboard für ViewMode 2, Free für 3)
-- [ ] `bb_CreatePlane(segs=1, parent=0)` — flaches unendliches Mesh (riesige Plane)
-- [ ] `bb_CreateMirror(parent=0)` — Stub (reflektierende Plane, FBO-basiert, aufwendig)
-- **Test:** `tests/test_3d16_sprite.bb`
-  ```blitzbasic
-  Graphics3D 800,600,32,1
-  Local cam = CreateCamera()
-  PositionEntity cam, 0,0,-5
-  Local s   = CreateSprite()
-  EntityTexture s, LoadTexture("tests/assets/star.png")
-  ScaleSprite s, 2, 2
-  UpdateWorld : RenderWorld : Flip : WaitKey
-  ```
+Am Original gemessen (2026-09-17, `build/sprite20260917/`, 25 Faelle) und nach
+`blitz3d/sprite.cpp` gebaut. Die Modi im alten Entwurf (1 Billboard, 2 Faced,
+3 Fixed, 4 Free) waren falsch.
+
+- [x] `bb_SpriteEntity_` erbt von `bb_Entity_`: `xhandle/yhandle`, `rot`
+      (Bogenmass), `xscale/yscale`, `viewMode`, dazu das je Kamera neu
+      gebaute Quadrat
+- [x] `bb_CreateSprite(parent=0)` → handle, zeichnet voll hell (EntityFX 1)
+- [x] `bb_LoadSprite(file$, texture_flags=1, parent=0)` → handle; die
+      Mischart kommt aus den Flags: 4 deckend, sonst 2 Alpha, sonst additiv.
+      Die Textur ist kein Handle des Programms.
+- [x] `bb_RotateSprite(h, angle)` (gegen den Uhrzeigersinn),
+      `bb_ScaleSprite(h, sx, sy)`
+- [x] `bb_HandleSprite(h, hx, hy)` — verschiebt die Ecken
+- [x] `bb_SpriteViewMode(h, mode)`: **1** Drehung der Kamera (eigene Lage und
+      ScaleEntity wirken nicht), **2** eigene Weltdrehung (von hinten
+      unsichtbar), **3** aufrecht (eigene j-Achse, k von der Kamera,
+      orthogonalisiert), **4** aufrecht mit der Gier der Kamera
+- [x] Quadrat von -1..1 in Weltkoordinaten, zwei Dreiecke, UV (0,0) links
+      oben; gezeichnet im selben Durchlauf wie die Netze (Reihenfolge,
+      Blending, EntityOrder wie dort)
+- [ ] `bb_CreatePlane(segs=1, parent=0)` — flaches unendliches Mesh
+- [ ] `bb_CreateMirror(parent=0)` — reflektierende Ebene
+- **Test:** `tests/test_3d16_sprite.bb` (+ `.expected` vom Original)
+- **Dabei gefunden:** BUG-152 (Pixelmitte wie D3D7) und BUG-153 (Alpha beim
+      Laden einer Textur ohne Alphakanal)
 
 ---
 

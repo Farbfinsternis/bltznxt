@@ -1,5 +1,18 @@
 # BlitzNext Developer Log
 
+## 2026-09-17 — Sprites (3D-16)
+
+`CreateSprite`, `LoadSprite`, `RotateSprite`, `ScaleSprite`, `HandleSprite` and `SpriteViewMode`
+work. A sprite is a 2x2 square rebuilt for every camera: view mode 1 takes the camera's rotation
+(its own rotation and `ScaleEntity` do nothing), 2 its own, 3 stays upright with the camera's
+forward axis, 4 follows only the camera's yaw. `LoadSprite` picks its blend from the texture
+flags: masked draws solid, alpha blends, everything else adds. 25 cases measured in Blitz3D -
+extents on screen, handle, rotation, all four view modes under a tilted, turned and rolled camera,
+texture orientation, copies and a scaled parent - match pixel for pixel. The first of the commands
+blox-n-balls needs beyond DebugLog. Suite 249/249. 45 open bugs.
+
+---
+
 ## 2026-09-17 — Half a pixel (BUG-153 and BUG-152)
 
 Two older faults that the sprite measurements uncovered. The alpha a texture gets when its image
