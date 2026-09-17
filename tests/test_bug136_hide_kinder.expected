@@ -1,0 +1,20 @@
+M1 pivot versteckt: 0
+M2 nur kind gezeigt: 0
+M3 pivot gezeigt: 255
+M4 grosseltern versteckt: 0
+M5 wieder gezeigt: 16711680
+M6 mesh als elternteil versteckt: 0
+M7 neuer wuerfel: 65280
+M8 unter verstecktes mesh gehaengt: 0
+M9 wieder abgehaengt: 65280
+S1 kind blieb selbst versteckt: 0
+S2 kind gezeigt: 255
+T1 tris, pivot versteckt: 0
+T2 tris, alles sichtbar: 24
+L1 licht unter sichtbarem pivot: 16777215
+L2 pivot versteckt: 0
+L3 pivot gezeigt: 16777215
+K1 kamera unter sichtbarem pivot: 16744448
+K2 pivot versteckt, rendert nicht: 1
+K3 pivot gezeigt: 16744448
+fertig

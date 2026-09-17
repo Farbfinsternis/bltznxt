@@ -70,8 +70,8 @@ inline int bb_collect_lights_() {
   int n = 0;
   for (auto &[h, ent] : bb_entities_) {
     if (n >= BB_MAX_LIGHTS) break;
-    if (!ent->visible) continue;
     if (ent->kind() != bb_EntityKind_::Light) continue;
+    if (!bb_entity_shown_(ent.get())) continue;
     bb_active_lights_[n++] = static_cast<bb_LightEntity_ *>(ent.get());
   }
   return n;

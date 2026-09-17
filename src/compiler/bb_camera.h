@@ -159,7 +159,7 @@ static inline void bb_cam_proj_ortho_(bb_CameraEntity_* c, float aspect) {
 static inline std::vector<bb_CameraEntity_*> bb_collect_cameras_() {
   std::vector<bb_CameraEntity_*> cams;
   for (auto& [h, e] : bb_entities_) {
-    if (e->kind() == bb_EntityKind_::Camera && e->visible)
+    if (e->kind() == bb_EntityKind_::Camera && bb_entity_shown_(e.get()))
       cams.push_back(static_cast<bb_CameraEntity_*>(e.get()));
   }
   std::sort(cams.begin(), cams.end(),

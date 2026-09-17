@@ -187,6 +187,20 @@ inline void bb_ShowEntity(int h) {
   if (e) e->visible = true;
 }
 
+// Wirkt ein Entity in RenderWorld mit? Nur, wenn es selbst und jeder Vorfahr
+// sichtbar ist - Entity::enumVisible im Original bricht an einem versteckten
+// Entity ab, bevor es die Kinder durchlaeuft. Gemessen am 2026-09-17 fuer
+// Meshes, Lichter und Kameras (BUG-136). Das eigene Flag bleibt dabei
+// unberuehrt: ein selbst verstecktes Kind bleibt versteckt, wenn der
+// Elternteil wieder gezeigt wird.
+inline bool bb_entity_shown_(const bb_Entity_* e) {
+  while (e) {
+    if (!e->visible) return false;
+    e = e->parent ? bb_entity_get_(e->parent) : nullptr;
+  }
+  return true;
+}
+
 // ============================================================
 // Name (NameEntity = setter, EntityName = getter, like Blitz3D)
 // ============================================================

@@ -1,5 +1,19 @@
 # BlitzNext Developer Log
 
+## 2026-09-17 — Hiding a parent hides its children (BUG-136)
+
+`HideEntity` only switched off the entity itself; its children kept rendering. In Blitz3D the
+whole branch disappears, over any number of levels and for meshes, lights and cameras alike — a
+light under a hidden pivot no longer lights, a camera under a hidden pivot no longer renders, and
+`TrisRendered` does not count what is hidden that way. An entity attached later with
+`EntityParent` to a hidden one disappears too. The child's own flag is untouched: showing the child
+alone does not bring it back, and a child hidden by itself stays hidden when its parent is shown
+again. Rendering now walks up the parent chain before drawing a mesh, using a light or rendering
+from a camera. `tests/test_bug136_hide_kinder.bb` has 20 lines measured in Blitz3D; eight fail on
+the old runtime. Suite 228/228. 45 open bugs.
+
+---
+
 ## 2026-09-17 — Copies are always visible (BUG-128)
 
 `CopyEntity` of a hidden entity returned a hidden copy, so the common pattern of loading a

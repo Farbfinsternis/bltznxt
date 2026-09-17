@@ -858,8 +858,8 @@ static inline void bb_render_meshes_(bb_Shader_* shader,
   items.reserve(bb_entities_.size());
 
   for (auto& [h, ent] : bb_entities_) {
-    if (!ent->visible) continue;
     if (ent->kind() != bb_EntityKind_::Mesh) continue;
+    if (!bb_entity_shown_(ent.get())) continue;
     auto* me = static_cast<bb_MeshEntity_*>(ent.get());
 
     float dx = me->world[12] - cam_pos[0];
