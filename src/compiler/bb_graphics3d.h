@@ -7,18 +7,6 @@
 #include "bb_gl_ctx.h"
 #include "bb_entity_core.h"
 
-// ============================================================
-// Global camera-clear fallback state
-// Used by RenderWorld when no Camera entity exists (backward compat).
-// Per-camera overrides live in bb_CameraEntity_ (bb_camera.h).
-// ============================================================
-
-inline bool bb_cam_cls_color_ = true;
-inline bool bb_cam_cls_zbuf_  = true;
-inline float bb_cam_cls_r_    = 0;
-inline float bb_cam_cls_g_    = 0;
-inline float bb_cam_cls_b_    = 0;
-
 // Globales Umgebungslicht. **Vorgabe 127,127,127** laut Blitz3D-Doku
 // (help/commands/3d_commands/AmbientLight.htm) - eine Szene ohne AmbientLight
 // ist dort also mittelgrau beleuchtet, nicht schwarz. Float, weil das Original
@@ -167,20 +155,12 @@ inline void bb_RenderWorld(float tween = 1.0f) {
 
   auto cams = bb_collect_cameras_();
 
-  if (cams.empty()) {
-    // No camera entity — use global fallback state (e.g. test_3d02).
-    glViewport(0, 0, bb_gfx_width_, bb_gfx_height_);
-    GLbitfield bits = 0;
-    if (bb_cam_cls_color_) {
-      glClearColor(bb_cam_cls_r_ / 255.0f,
-                   bb_cam_cls_g_ / 255.0f,
-                   bb_cam_cls_b_ / 255.0f, 1.0f);
-      bits |= GL_COLOR_BUFFER_BIT;
-    }
-    if (bb_cam_cls_zbuf_) { glClearDepth(1.0); bits |= GL_DEPTH_BUFFER_BIT; }
-    if (bits) glClear(bits);
-    return;
-  }
+  // Ohne aktive Kamera zeichnet RenderWorld nichts, auch keinen Hintergrund:
+  // was vorher im Backbuffer stand (Cls, 2D, das letzte Bild), bleibt stehen.
+  // Gemessen am 2026-09-17 ohne jede Kamera, mit versteckter Kamera und mit
+  // CameraProjMode 0 (BUG-137). Bis dahin loeschte hier ein erfundener
+  // Ersatzzustand das Bild.
+  if (cams.empty()) return;
 
   glEnable(GL_DEPTH_TEST);
   glDepthFunc(GL_LESS);

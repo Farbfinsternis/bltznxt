@@ -3,8 +3,7 @@
 
 // Camera Entity (3D-06).
 //
-// Must be included from bb_graphics3d.h AFTER the global camera fallback
-// state variables are declared (bb_cam_cls_color_ etc.).
+// Included from bb_graphics3d.h.
 // Provides: bb_CameraEntity_, CreateCamera, CameraRange, CameraZoom,
 //           CameraProjMode, CameraViewport, CameraClsMode, CameraClsColor,
 //           bb_collect_cameras_() used by RenderWorld.
@@ -14,19 +13,12 @@
 
 #include <algorithm>
 
-// Forward declarations of global camera fallback state (defined in bb_graphics3d.h).
-extern bool bb_cam_cls_color_;
-extern bool bb_cam_cls_zbuf_;
-extern float bb_cam_cls_r_;
-extern float bb_cam_cls_g_;
-extern float bb_cam_cls_b_;
-
 // ============================================================
 // Camera entity struct
 // ============================================================
 
 struct bb_CameraEntity_ : bb_Entity_ {
-  int   projMode = 1;        // 1=perspective, 2=ortho
+  int   projMode = 1;        // 0=aus, 1=perspective, 2=ortho
   float near_    = 1.0f;     // near clip plane
   float far_     = 1000.0f;  // far clip plane
   float zoom     = 1.0f;     // zoom factor: 1.0 = 90° horizontal FOV
@@ -87,14 +79,12 @@ inline void bb_CameraViewport(int h, int x, int y, int w, int hh) {
   if (auto* c = bb_cam_(h)) { c->vpX = x; c->vpY = y; c->vpW = w; c->vpH = hh; }
 }
 
-// Per-camera cls mode.  Falls back to global state when h is not a camera.
+// Per-camera cls mode. Ohne gueltige Kamera wirkungslos (BUG-137: der
+// fruehere Ersatzzustand fuer RenderWorld ohne Kamera ist entfallen).
 inline void bb_CameraClsMode(int h, int cls_color, int cls_zbuf) {
   if (auto* c = bb_cam_(h)) {
     c->clsColor = (cls_color != 0);
     c->clsZbuf  = (cls_zbuf  != 0);
-  } else {
-    bb_cam_cls_color_ = (cls_color != 0);
-    bb_cam_cls_zbuf_  = (cls_zbuf  != 0);
   }
 }
 
@@ -104,8 +94,6 @@ inline void bb_CameraClsMode(int h, int cls_color, int cls_zbuf) {
 inline void bb_CameraClsColor(int h, float r, float g, float b) {
   if (auto* c = bb_cam_(h)) {
     c->clsR = r; c->clsG = g; c->clsB = b;
-  } else {
-    bb_cam_cls_r_ = r; bb_cam_cls_g_ = g; bb_cam_cls_b_ = b;
   }
 }
 
@@ -156,11 +144,15 @@ static inline void bb_cam_proj_ortho_(bb_CameraEntity_* c, float aspect) {
 // Collect visible cameras (sorted by render order) for RenderWorld
 // ============================================================
 
+// Eine Kamera mit CameraProjMode 0 ist abgeschaltet: sie rendert nicht und
+// loescht auch nicht (gemessen 2026-09-17, BUG-137).
 static inline std::vector<bb_CameraEntity_*> bb_collect_cameras_() {
   std::vector<bb_CameraEntity_*> cams;
   for (auto& [h, e] : bb_entities_) {
-    if (e->kind() == bb_EntityKind_::Camera && bb_entity_shown_(e.get()))
-      cams.push_back(static_cast<bb_CameraEntity_*>(e.get()));
+    if (e->kind() != bb_EntityKind_::Camera || !bb_entity_shown_(e.get()))
+      continue;
+    auto* c = static_cast<bb_CameraEntity_*>(e.get());
+    if (c->projMode != 0) cams.push_back(c);
   }
   std::sort(cams.begin(), cams.end(),
             [](bb_CameraEntity_* a, bb_CameraEntity_* b) {

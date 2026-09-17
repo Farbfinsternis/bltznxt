@@ -8,8 +8,8 @@
 ; zeigt es nicht, und ein selbst verstecktes Kind bleibt versteckt, wenn der
 ; Elternteil wieder gezeigt wird.
 ;
-; Bei der Kamera wird nur geprueft, dass sie nicht mehr rendert: ohne sichtbare
-; Kamera laesst das Original den Backbuffer stehen, wir loeschen ihn (BUG-137).
+; Bei der Kamera wird nur geprueft, dass sie nicht mehr rendert; was ohne
+; sichtbare Kamera im Backbuffer bleibt, prueft test_bug137_ohne_kamera.
 
 Graphics3D 320, 240, 0, 2
 

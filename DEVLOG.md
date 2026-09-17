@@ -1,5 +1,17 @@
 # BlitzNext Developer Log
 
+## 2026-09-17 — RenderWorld without a camera draws nothing (BUG-137)
+
+Without an active camera, `RenderWorld` cleared the back buffer using a made-up fallback state.
+Blitz3D draws nothing at all in that case: whatever was there — a `Cls`, 2D drawing, the previous
+frame — stays. The same holds for a camera switched off with `CameraProjMode 0`, which here kept
+rendering in perspective. `RenderWorld` now returns when no camera is active, cameras in
+projection mode 0 are skipped, and the fallback state behind `CameraClsColor`/`CameraClsMode` on
+an invalid handle is gone. `tests/test_bug137_ohne_kamera.bb` has six lines measured in Blitz3D;
+four fail on the old runtime. Suite 229/229. 44 open bugs.
+
+---
+
 ## 2026-09-17 — Hiding a parent hides its children (BUG-136)
 
 `HideEntity` only switched off the entity itself; its children kept rendering. In Blitz3D the
