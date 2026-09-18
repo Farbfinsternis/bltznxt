@@ -1,5 +1,20 @@
 # BlitzNext Developer Log
 
+## 2026-09-18 — Mouse movement that arrived too late (BUG-165)
+
+The paddle in blox-n-balls did not move with the mouse. A log inside the game showed
+`MouseXSpeed` returning 0 in 2308 of 2310 frames. The game reads the speed at the top of its
+loop and puts the mouse back in the middle with `MoveMouse` after `RenderWorld`. Our runtime also
+collects input events during `RenderWorld` and `Flip`, so the movement arrived after the read,
+and `MoveMouse` overwrote it before the program ever saw it. In Blitz3D, DirectInput buffers the
+movement and the next read applies it, even after `MoveMouse`. `MoveMouse` now carries the
+unread movement over, including the fraction below one pixel that gets lost when the image is
+scaled to a larger screen, and `FlushMouse` no longer drops movement, only button state, as in
+Blitz3D. Measured with synthetic mouse input: the game's loop order went from 0 to 200 frames
+with movement. The paddle now moves smoothly. Suite 271/271.
+
+---
+
 ## 2026-09-18 — Nested Gosub, found in blox-n-balls (BUG-106)
 
 blox-n-balls froze while loading; Windows marked the window as not responding. Attaching gdb to

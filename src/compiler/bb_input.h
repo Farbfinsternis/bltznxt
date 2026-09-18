@@ -160,11 +160,19 @@ inline void bb_FlushKeys() {
 // Current cursor position (pixels, relative to window top-left).
 inline int bb_MouseX() {
   if (bb_sdl_initialized_) bb_PollEvents();
-  return (int)bb_mouse_x_;
+  // Als gelesen gilt, was das Programm bekommt; der abgeschnittene Bruchteil
+  // bleibt ungelesen und wandert bei MoveMouse mit (BUG-165) - im skalierten
+  // Vollbild ist ein Bildschirmpixel nur ein Bruchteil eines Spielpixels.
+  bb_mouse_read_x_ = std::floor(bb_mouse_x_);
+  return (int)bb_mouse_read_x_;
 }
 inline int bb_MouseY() {
   if (bb_sdl_initialized_) bb_PollEvents();
-  return (int)bb_mouse_y_;
+  // Als gelesen gilt, was das Programm bekommt; der abgeschnittene Bruchteil
+  // bleibt ungelesen und wandert bei MoveMouse mit (BUG-165) - im skalierten
+  // Vollbild ist ein Bildschirmpixel nur ein Bruchteil eines Spielpixels.
+  bb_mouse_read_y_ = std::floor(bb_mouse_y_);
+  return (int)bb_mouse_read_y_;
 }
 
 // Scroll-wheel accumulator (ticks; positive = scroll up).
@@ -240,8 +248,11 @@ inline void bb_FlushMouse() {
   }
   bb_mouse_zrel_ = 0.0f;
   bb_mouse_queue_head_ = bb_mouse_queue_tail_ = 0;
+  // Bewegungen bleiben erhalten: gxDevice::flush im Original setzt nur Tasten
+  // und Warteschlange zurueck. Vorher warf das hier auch die noch nicht
+  // abgeholten Bewegungsereignisse weg (BUG-165).
   if (bb_sdl_initialized_)
-    SDL_FlushEvents(SDL_EVENT_MOUSE_MOTION, SDL_EVENT_MOUSE_WHEEL);
+    SDL_FlushEvents(SDL_EVENT_MOUSE_BUTTON_DOWN, SDL_EVENT_MOUSE_WHEEL);
 }
 
 // Setzt die Maus auf (x, y) in Spielkoordinaten. Wie im Original gilt die neue
@@ -251,8 +262,17 @@ inline void bb_MoveMouse(int x, int y) {
   bb_sdl_ensure_();
   if (!bb_sdl_initialized_) return;
   bb_PollEvents();   // aeltere Bewegungen duerfen die neue Lage nicht ueberschreiben
-  bb_mouse_x_ = (float)x;
-  bb_mouse_y_ = (float)y;
+  // Was sich seit dem letzten Lesen bewegt hat, gilt ab der neuen Lage weiter
+  // (BUG-165): "MouseXSpeed ... RenderWorld : MoveMouse Mitte : Flip" verlor
+  // sonst jede Bewegung, die waehrend RenderWorld/Flip eintraf.
+  const float ux = bb_mouse_x_ - bb_mouse_read_x_;
+  const float uy = bb_mouse_y_ - bb_mouse_read_y_;
+  bb_mouse_off_x_ = ux;
+  bb_mouse_off_y_ = uy;
+  bb_mouse_x_ = (float)x + ux;
+  bb_mouse_y_ = (float)y + uy;
+  bb_mouse_read_x_ = (float)x;
+  bb_mouse_read_y_ = (float)y;
   bb_mouse_speed_x_ = x;
   bb_mouse_speed_y_ = y;
   if (bb_window_)
@@ -260,6 +280,17 @@ inline void bb_MoveMouse(int x, int y) {
                                       bb_present_to_window_y_((float)y));
   else
     SDL_WarpMouseGlobal((float)x, (float)y);
+  // SDL legt fuer den Warp ein eigenes Bewegungsereignis mit der Zielposition
+  // in die Warteschlange. Wurde es erst beim naechsten MouseXSpeed verarbeitet,
+  // setzte es die Lage nach den echten Bewegungen wieder auf das Ziel - jede
+  // Bewegung zwischen MoveMouse und dem naechsten Abfragen ging verloren. Die
+  // uebliche Schleife "MouseXSpeed ... MoveMouse Mitte : Flip" lieferte so
+  // immer 0 (blox-n-balls: Paddle unbeweglich, BUG-165). Das Original kennt
+  // dieses Echo nicht; also sofort wegwerfen. (Die Lage stimmt auch ohne
+  // diese Zeilen, weil das Echo genau die Ziellage meldet - aber es kostete
+  // die ungelesene Bewegung, die der Versatz oben traegt.)
+  SDL_PumpEvents();
+  SDL_FlushEvent(SDL_EVENT_MOUSE_MOTION);
 }
 
 // ---- Joystick API ----

@@ -62,6 +62,12 @@ inline float bb_mouse_x_    = 0.0f, bb_mouse_y_    = 0.0f;
 inline float bb_mouse_z_    = 0.0f;
 inline float bb_mouse_zrel_ = 0.0f;
 inline int   bb_mouse_speed_x_ = 0, bb_mouse_speed_y_ = 0;   // MouseXSpeed/YSpeed
+// Wie der DirectInput-Puffer des Originals: Bewegung, die das Programm noch
+// nicht gelesen hat, geht bei MoveMouse nicht verloren (BUG-165). read_ ist
+// die zuletzt gelesene bzw. per MoveMouse gesetzte Lage, off_ der Versatz
+// zwischen Cursor und Spiel-Lage, der die ungelesene Bewegung traegt.
+inline float bb_mouse_read_x_ = 0.0f, bb_mouse_read_y_ = 0.0f;
+inline float bb_mouse_off_x_  = 0.0f, bb_mouse_off_y_  = 0.0f;
 
 // ---- Abbildung Spielbild -> Fenster (BUG-159) ----
 //
@@ -93,6 +99,8 @@ inline void bb_present_update_(int gw, int gh) {
   // Cursors meldet, wird deshalb verworfen.
   bb_mouse_x_ = bb_mouse_y_ = 0.0f;
   bb_mouse_speed_x_ = bb_mouse_speed_y_ = 0;
+  bb_mouse_read_x_ = bb_mouse_read_y_ = 0.0f;
+  bb_mouse_off_x_ = bb_mouse_off_y_ = 0.0f;
   if (bb_window_) {
     SDL_PumpEvents();
     SDL_FlushEvent(SDL_EVENT_MOUSE_MOTION);
@@ -279,8 +287,8 @@ inline void bb_sdl_process_event_(const SDL_Event &ev) {
   if (ev.type == SDL_EVENT_MOUSE_MOTION) {
     // Die Maus meldet Fensterkoordinaten; das Programm erwartet die seiner
     // eigenen Aufloesung (BUG-159).
-    bb_mouse_x_    = bb_present_to_game_x_(ev.motion.x);
-    bb_mouse_y_    = bb_present_to_game_y_(ev.motion.y);
+    bb_mouse_x_    = bb_present_to_game_x_(ev.motion.x) + bb_mouse_off_x_;
+    bb_mouse_y_    = bb_present_to_game_y_(ev.motion.y) + bb_mouse_off_y_;
   }
   if (ev.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
     int btn = bb_sdl_btn_to_blitz_(ev.button.button);
