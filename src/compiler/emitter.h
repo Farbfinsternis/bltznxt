@@ -997,14 +997,65 @@ public:
   }
 
   // obj\field = expr
+  // Eine Zuweisung an ein Feld wandelt auf dessen Typ, genau wie die an eine
+  // Variable: "glist\\player = Str(...)" schreibt in ein Integer-Feld und ist
+  // im Original gueltig (BUG-157). Ohne die Wandlung stand ein bbString in
+  // einem int und g++ brach ab.
   void visit(FieldAssignStmt *node) override {
     output << ind();
     bool prev = inExprCtx; inExprCtx = true;
     node->object->accept(this);
     inExprCtx = prev;
     output << "->var_" << toLower(node->fieldName) << " = ";
-    emitExpr(node->value.get());
+    // Ein Feld ohne Tag ist ein Integer - genau wie eine Variable ohne Tag.
+    // Nur wenn der Typ des Feldes gar nicht bekannt ist (unbekanntes Objekt)
+    // oder es ein Objektfeld ist, bleibt der Wert unangetastet.
+    const bool known = fieldTypeKnown(node->object.get(), node->fieldName);
+    const std::string hint = fieldHintOf(node->object.get(), node->fieldName);
+    bool p2 = inExprCtx; inExprCtx = true;
+    auto *rd = dynamic_cast<DataReadExpr *>(node->value.get());
+    if (!known || (!hint.empty() && hint[0] == '.')) {
+      emitExpr(node->value.get());
+    } else if (rd && rd->typeHint.empty()) {
+      // "Read o\feld": bb_DataVal wandelt sich selbst in den Feldtyp, genau
+      // wie bei "Read x" in eine Variable; bb_ToInt(bb_DataVal) waere mehrdeutig.
+      output << "(" << hintToType(hint).first << ")";
+      emitExpr(node->value.get());
+    } else {
+      emitConverted(node->value.get(), hint);
+    }
+    inExprCtx = p2;
     output << ";\n";
+  }
+
+  // Kennt der Emitter den Typ dieses Feldes ueberhaupt?
+  bool fieldTypeKnown(ExprNode *object, const std::string &field) {
+    const std::string tname = objectTypeOf(object);
+    if (tname.empty()) return false;
+    auto it = typeFieldHints_.find(tname);
+    if (it == typeFieldHints_.end()) return false;
+    return it->second.count(toLower(field)) != 0;
+  }
+
+  // Der Typ eines Feldes, oder "" wenn er sich hier nicht bestimmen laesst.
+  std::string fieldHintOf(ExprNode *object, const std::string &field) {
+    const std::string tname = objectTypeOf(object);
+    if (tname.empty()) return "";
+    auto it = typeFieldHints_.find(tname);
+    if (it == typeFieldHints_.end()) return "";
+    auto f = it->second.find(toLower(field));
+    return (f == it->second.end()) ? std::string() : f->second;
+  }
+
+  // Der Typname hinter einem Ausdruck: eine Variable mit Objekttyp, ein Feld
+  // mit Objekttyp oder ein New/First/Last/Before/After.
+  std::string objectTypeOf(ExprNode *e) {
+    if (auto *fa = dynamic_cast<FieldAccess *>(e)) {
+      const std::string h = fieldHintOf(fa->object.get(), fa->fieldName);
+      return (h.size() > 1 && h[0] == '.') ? toLower(h.substr(1)) : std::string();
+    }
+    if (auto *ne = dynamic_cast<NewExpr *>(e)) return toLower(ne->typeName);
+    return toLower(getExprTypeName(e));
   }
 
   // a[i] - ein Element eines festen Arrays. Die Groesse steckt im C++-Typ
@@ -1101,6 +1152,8 @@ private:
       dimObjectTypes_[lo] = toLower(hint.substr(1));
   }
   std::unordered_map<std::string, std::string> varObjectTypes; // lowercase var → TypeName
+  // Typname → Feldname → Tag ("%", "#", "$" oder ".Typ"), fuer BUG-157
+  std::unordered_map<std::string, std::unordered_map<std::string, std::string>> typeFieldHints_;
   int  indentLevel    = 1;
   bool inExprCtx      = false;
   bool inFunctionBody = false;
@@ -1399,6 +1452,11 @@ private:
     // In C++, a struct tag can always be named unambiguously via "struct X" even
     // when a function named X is in scope.
     const std::string spname = "struct " + sname + " *";  // pointer type
+
+    // Die Tags der Felder merken: eine Zuweisung an ein Feld wandelt wie
+    // jede andere (BUG-157).
+    for (auto &f : td->fields)
+      typeFieldHints_[tname][toLower(f.name)] = f.typeHint;
 
     // Struct definition
     output << "struct " << sname << " {\n";
@@ -1843,6 +1901,11 @@ private:
         globalVarNames.insert(lo);
         declaredVars.insert(lo); // prevent implicit re-declaration inside functions
         varHints_[lo] = vd->typeHint;
+        // Ein Global mit Objekttyp ("Global glist.tGList") muss auch als
+        // solches bekannt sein - sonst findet eine Zuweisung an eines seiner
+        // Felder den Feldtyp nicht (BUG-157).
+        if (!vd->typeHint.empty() && vd->typeHint[0] == '.')
+          varObjectTypes[lo] = toLower(vd->typeHint.substr(1));
         auto [type, defVal] = declType(vd->typeHint, vd->vecSize.get());
         output << type << " var_" << lo << " = " << defVal << ";\n";
       }
