@@ -623,12 +623,25 @@ private:
       // (BUG-19, ForNode::semant in the reference). An array element or a
       // field counter is checked like any other access and declares nothing
       // (BUG-30).
-      if (fs->target)
-        expr(fs->target.get());
-      else if (lookup(fs->varName))
+      Ty counter;
+      if (fs->target) {
+        counter = expr(fs->target.get());
+      } else if (const Ty *had = lookup(fs->varName)) {
         checkTag(fs->varName, fs->typeHint, fs->line, fs->col);
-      else
-        declare(fs->varName, fromHint(fs->typeHint));
+        counter = *had;
+      } else {
+        counter = fromHint(fs->typeHint);
+        declare(fs->varName, counter);
+      }
+      // ForNode::semant: "index variable must be integer or real". Ohne
+      // diese Pruefung wurde "For s$ = 1 To 3" angenommen und scheiterte
+      // erst im C++-Backend am ++ auf einer Zeichenkette.
+      if (counter.known() && !counter.vec && counter.k != Ty::INT &&
+          counter.k != Ty::FLOAT)
+        error(fs->line, fs->col,
+              "the index variable of a For loop must be an int or a float, "
+              "not " + counter.name() +
+                  " (Blitz3D: \"index variable must be integer or real\")");
       block(fs->block);
     } else if (auto *fes = dynamic_cast<ForEachStmt *>(n)) {
       knownType(fes->typeName, fes->line, fes->col);

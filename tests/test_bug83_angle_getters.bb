@@ -6,11 +6,9 @@
 ; ist dieselbe Lage wie "pitch -20, yaw -180, roll 180". Vorher gaben wir
 ; zurueck, was gesetzt wurde: 200, 370, 181.2.
 ;
-; Zur Genauigkeit: von den 27 Zahlen unten sind 21 Zeichen fuer Zeichen die
-; des Originals. Die sechs uebrigen weichen um 1 in der letzten Stelle ab,
-; weil unser Int() abschneidet und Blitz3D rundet (A-03). Das ist gemessen und
-; nicht vermutet: mit *10000 statt *100 bleibt die Abweichung bei 1, sie
-; waechst also nicht mit - die Winkel stimmen auf ein Zehntausendstel Grad.
+; Zur Genauigkeit: alle 27 Zahlen unten sind Zeichen fuer Zeichen die des
+; Originals (nachgemessen 2026-09-18). Bis BUG-95 wichen sechs davon um 1 in
+; der letzten Stelle ab, weil unser Int() abschnitt, wo Blitz3D rundet.
 
 Graphics3D 640,480,0,2
 

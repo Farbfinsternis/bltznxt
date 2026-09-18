@@ -46,11 +46,12 @@ inline float bb_Exp(float x)   { return std::exp(x); }
 inline float bb_Floor(float x) { return std::floor(x); }
 inline float bb_Ceil(float x)  { return std::ceil(x); }
 
-// Int(double/int) — truncate toward zero (distinct from Int(string) in bb_string.h).
+// Int(double/int) — rounds like every other float -> int conversion
+// (bb_FloatToInt_ in bb_string.h, BUG-95); Int(string) there uses atoi.
 // double overload: handles both float (implicit float→double) and double literals.
 // int overload: exact match for integer arguments, avoids int→double promotion.
 // Together these eliminate any ambiguity with bb_Int(const bbString&) from bb_string.h.
-inline int   bb_Int(double x)  { return static_cast<int>(x); }
+inline int   bb_Int(double x)  { return bb_FloatToInt_(x); }
 inline int   bb_Int(int x)     { return x; }
 
 // Sgn — returns sign of x as -1, 0, or 1

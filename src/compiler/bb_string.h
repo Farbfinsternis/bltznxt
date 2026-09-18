@@ -127,24 +127,13 @@ inline const bbString &bb_Str(const bbString &s) { return s; }
 // Zahlanteil zaehlt, der Rest wird ignoriert, gar keine Ziffer ergibt 0. Kein
 // Fehler, keine Ausnahme. Das Sprach-Int() und Float() gehen seit BUG-82
 // denselben Weg - siehe dort.
-inline int bb_ToInt(const bbString &s) { return std::atoi(s.c_str()); }
-inline int bb_ToInt(int n)             { return n; }
-// Float -> Int bleibt hier bewusst das, was der erzeugte C++-Code bisher schon
-// tat (Abschneiden). Dass Blitz3D stattdessen rundet, ist eine eigene, bereits
-// notierte Abweichung; sie hier stillschweigend mitzuaendern wuerde den Befund
-// verwischen und mehr aendern, als dieser Fix verantwortet.
-inline int bb_ToInt(float f)           { return static_cast<int>(f); }
-inline int bb_ToInt(double f)          { return static_cast<int>(f); }
-
-// BUG-61: integer contexts in conditions, subscripts and Dim bounds.
-// Original: CastNode/FloatConstNode (compiler/exprnode.cpp), x87 nearest-even;
-// StringConstNode and __bbStrToInt use atoi instead. Keep this separate from
-// the existing assignment/call conversions, whose float rounding is still open.
-inline int bb_IntegerContext(const bbString &s) { return bb_ToInt(s); }
-// constexpr: seit BUG-54 steht der Helfer auch in "Const A = 1 Or 2" und in
-// der Groesse eines festen Arrays, beides konstante Ausdruecke in C++.
-inline constexpr int bb_IntegerContext(int n) { return n; }
-inline int bb_IntegerContext(double value) {
+// Float -> Int, wie das Original es an jeder Stelle der Sprache tut: CastNode
+// und FloatConstNode (compiler/exprnode.cpp) wandeln mit fistp im
+// x87-Vorgabemodus, also zur naechsten Ganzzahl, bei .5 zur geraden. Am
+// Original gemessen (BUG-95): 2.5 -> 2, 3.5 -> 4, -2.5 -> -2, 1.9 -> 2, gleich
+// ob Int(), Zuweisung, Parameter, Return, Vorgabe, Feld, Array, For oder Case.
+// Nur Read schneidet ab - das laeuft ueber bb_DataVal, nicht hierueber.
+inline int bb_FloatToInt_(double value) {
     // Blitz3D's numeric float type is 32 bit, including folded literals.
     double f = static_cast<float>(value);
     double lower = std::floor(f);
@@ -158,6 +147,19 @@ inline int bb_IntegerContext(double value) {
         return std::numeric_limits<int>::min();
     return static_cast<int>(rounded);
 }
+
+inline int bb_ToInt(const bbString &s) { return std::atoi(s.c_str()); }
+inline int bb_ToInt(int n)             { return n; }
+inline int bb_ToInt(float f)           { return bb_FloatToInt_(f); }
+inline int bb_ToInt(double f)          { return bb_FloatToInt_(f); }
+
+// BUG-61: integer contexts in conditions, subscripts and Dim bounds.
+// StringConstNode and __bbStrToInt use atoi instead of rounding.
+inline int bb_IntegerContext(const bbString &s) { return bb_ToInt(s); }
+// constexpr: seit BUG-54 steht der Helfer auch in "Const A = 1 Or 2" und in
+// der Groesse eines festen Arrays, beides konstante Ausdruecke in C++.
+inline constexpr int bb_IntegerContext(int n) { return n; }
+inline int bb_IntegerContext(double value) { return bb_FloatToInt_(value); }
 
 inline float bb_ToFloat(const bbString &s) { return (float)std::atof(s.c_str()); }
 inline float bb_ToFloat(int n)             { return (float)n; }
@@ -199,8 +201,10 @@ inline float  bb_ToNum(const bbString &s)  { return bb_ToFloat(s); }
 // wenigstens laut an C++. Zahl gegen Zahl bleibt Zeichen fuer Zeichen das,
 // was der erzeugte Code vorher schon rechnete.
 inline bool bb_CaseEq(int s, int c)                        { return s == c; }
-inline bool bb_CaseEq(int s, float c)                      { return s == c; }
-inline bool bb_CaseEq(int s, double c)                     { return s == c; }
+// Ein Kommawert trifft einen ganzzahligen Select nach Rundung: "Select 2 :
+// Case 1.9" und "Case 2.5" treffen im Original (BUG-95).
+inline bool bb_CaseEq(int s, float c)                      { return s == bb_ToInt(c); }
+inline bool bb_CaseEq(int s, double c)                     { return s == bb_ToInt(c); }
 inline bool bb_CaseEq(float s, int c)                      { return s == c; }
 inline bool bb_CaseEq(float s, float c)                    { return s == c; }
 inline bool bb_CaseEq(float s, double c)                   { return s == c; }

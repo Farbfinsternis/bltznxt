@@ -39,12 +39,12 @@ Print Log10(100.0)
 Print Log10(1000.0)
 ; Expected: 3.0
 
-; ----- Int(float) — truncate toward zero -----
+; ----- Int(float) — rounds to nearest like the original (BUG-95) -----
 Print "=== Int ==="
 Print Int(3.9)
-; Expected: 3
+; Expected: 4
 Print Int(-3.9)
-; Expected: -3
+; Expected: -4
 
 ; ----- Floor/Ceil regression -----
 Print "=== Floor/Ceil ==="

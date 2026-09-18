@@ -1,0 +1,53 @@
+int 2 2 4 0 2 0 -2 -2 -2
+intvar 2 4 -2
+assign 2 4
+assignvar 2 4
+arith 4
+arith2 8
+compound 2
+compound2 2
+param 2 4 2 4 -2
+return 2 4
+default 2 2 -2
+forto19 2
+forto25 2
+forto35 4
+fortovar 4
+forstart 1,2,3,
+forstart25 2,3,4,5,
+forstep 0,2,4,6,8,10,
+forstep35 0,4,8,
+case19 hit
+case25 hit
+case35 hit
+casevar hit
+casevar25 hit
+selfloat miss
+field 2 4
+array 2 4 4
+global 2
+read 2,3,-2,1
+intstr 2 3 -3
+big -2147483648 -2147483648 -2147483648
+chr BBD
+mid bc
+expr 2
+almosthalf 0
+forstr 1,2,
+forstrto 1,2,3,
+forfloat 0,5,10,
+forfloatstart 5,15,
+fornegstep 5,3,1,
+fornegstep25 5,3,1,
+forfield 1,2,
+forfieldf 0,5,10,
+forarr 1,2,
+arrcopy 2 2.5
+vec 2 4
+vecf 20 35
+fieldvec 2 4
+intdiv 3
+mulhalf 4
+sgnint -1
+fstr 2.5
+readziel 3 3 3

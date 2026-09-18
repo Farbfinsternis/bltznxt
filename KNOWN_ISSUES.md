@@ -78,12 +78,6 @@ The language keywords `Handle` and `Object` are also missing — see
 These compile and run without any message, but compute something else than Blitz3D. They
 are the most likely reason for an old program to behave strangely.
 
-- **Converting a float to an integer truncates instead of rounding.** Blitz3D rounds to the
-  nearest integer; BlitzNext cuts off the fraction. This affects assignments (`x% = 1.9`
-  gives 1, Blitz3D gives 2), `Int()`, integer parameters and parameter defaults, `For`
-  loop bounds (`For i = 1 To 1.9` runs once instead of twice) and numeric `Case` values.
-  Conditions and array indexes already round correctly.
-  *Workaround:* round explicitly, e.g. `x% = Floor(v# + 0.5)`. (BUG-95)
 - **An untagged `Const` keeps a float value.** `Const c = 1.5` is the integer 2 in Blitz3D
   and 1.5 here. *Workaround:* tag the constant (`Const c# = 1.5`). (BUG-99)
 - **`Abs` always returns a float and `Sgn` always an integer.** In Blitz3D the result has
@@ -155,8 +149,12 @@ are the most likely reason for an old program to behave strangely.
 - **`Dim` inside an `If`, `While`, `For` or `Select` block of the main program** fails in the
   C++ compiler. *Workaround:* move the `Dim` to the top level. (WEAK-05)
 - **`Not` applied to a string** (`Not "0"`) fails in the C++ compiler. (BUG-108)
-- **A `For` loop with a string start value** (`For i = "1" To 2`) fails in the C++
-  compiler. (BUG-109)
+- **An element of a fixed array as `For` counter** (`For v[0] = 1 To 3`) is rejected, and so
+  is a chain of fields (`For a\b\c = …`). *Workaround:* count in a plain variable and assign
+  it inside the loop. (BUG-160)
+- **Declaring the same `Local` twice is not reported.** Blitz3D stops with `Duplicate
+  variable name`; here the second declaration is accepted and, if its tag differs, ignored.
+  (BUG-161)
 - **Parameter defaults that use `Int()` or `Float()`** (`Function F(n = Int(1.9))`) are
   rejected as not constant. (BUG-49)
 - **`Const` with a conversion** (`Const c% = Int(1.9)`, `Const c = "42"`) fails in the C++

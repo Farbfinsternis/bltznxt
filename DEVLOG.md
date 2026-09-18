@@ -1,5 +1,24 @@
 # BlitzNext Developer Log
 
+## 2026-09-18 — Float to int rounds everywhere (BUG-95, BUG-109)
+
+Converting a float to an integer now rounds the way Blitz3D does, to the nearest integer and
+to the even one at .5 (the x87 default): `Int(2.5)` is 2, `Int(3.5)` is 4, `x% = 1.9` is 2.
+Until now only conditions and array indexes rounded; assignments, parameters, `Return`,
+defaults, fields and `Int()` cut the fraction off. `For` converts its start, bound and step to
+the counter's type (`For i = 1 To 1.9` runs twice, `Step 3.5` counts 0, 4, 8, `For i = "1" To 2`
+now compiles), a float `Case` matches an integer `Select` after rounding, and assigning to an
+array element converts to the element type. `Read` is the one exception and keeps truncating,
+as in Blitz3D. A string `For` counter is now reported like Blitz3D does instead of failing in
+the C++ compiler.
+
+53 cases measured against the original, all equal. Three older tests had our truncation
+written into their expected output; they now expect the original's values. Found on the way:
+`For v[0] = …` is rejected (BUG-160) and a second `Local` of the same name is not reported
+(BUG-161). Suite 260/260.
+
+---
+
 ## 2026-09-18 — TCP, and what blox-n-balls needed besides (BUG-157, BUG-158, BUG-159, BUG-23)
 
 The TCP commands are in: `OpenTCPStream`, `CreateTCPServer`, `AcceptTCPStream`, the close

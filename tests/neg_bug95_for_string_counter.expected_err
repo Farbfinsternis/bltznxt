@@ -1,0 +1,1 @@
+tests/neg_bug95_for_string_counter.bb:4:1: error: the index variable of a For loop must be an int or a float, not string (Blitz3D: "index variable must be integer or real")

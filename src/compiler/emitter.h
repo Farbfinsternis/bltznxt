@@ -33,6 +33,7 @@ public:
     typeNames.clear();
     varObjectTypes.clear();
     dimObjectTypes_.clear();
+    dimHints_.clear();
     declaredVars.clear();
     globalVarNames.clear();
     hoistedConsts_.clear();
@@ -453,18 +454,6 @@ public:
       else              output << "var_" << v;
     };
 
-    // Grenze und Schrittweite gehen durch bb_ToNum(). Fuer Zahlen ist das ein
-    // Durchreicher; eine Zeichenkette wird zur Zahl, wie am Original gemessen
-    // ("For i = 1 To '10'" laeuft zehnmal). Ohne diese Wandlung wuerden die
-    // Vergleichsueberladungen aus BUG-79 hier greifen und die Grenze mit dem
-    // Zaehler als Zeichenkette vergleichen - ein stilles Falschergebnis an
-    // einer Stelle, die vorher wenigstens laut scheiterte.
-    auto bound = [&](ASTNode *e) {
-      output << "bb_ToNum(";
-      emitExpr(e);
-      output << ")";
-    };
-
     // Declare only what does not exist yet, and in the enclosing scope so it
     // outlives the loop - the same rule visit(AssignStmt*) uses for an
     // implicitly created variable. An untagged variable is an int in Blitz3D,
@@ -474,7 +463,39 @@ public:
       auto [type, defVal] = hintToType(node->typeHint);
       output << ind() << type << " var_" << v << " = " << defVal << ";\n";
       declaredVars.insert(v);
+      varHints_[v] = node->typeHint;
     }
+
+    // Start, Grenze und Schrittweite nehmen den Typ des Zaehlers an, wie in
+    // ForNode::semant (compiler/stmtnode.cpp). Am Original gemessen (BUG-95,
+    // BUG-109): "For i = 1 To 1.9" laeuft zweimal, "For i = 0.6 To 3" beginnt
+    // bei 1, "Step 3.5" zaehlt 0,4,8, "For i = '1' To 2" laeuft. Eine
+    // Zeichenkette wird dabei ueber atoi bzw. atof zur Zahl ("To '10'" laeuft
+    // zehnmal, "To '3.7'" dreimal) - der Vergleich mit dem Zaehler als
+    // Zeichenkette aus BUG-79 darf hier nie greifen.
+    std::string hint = node->target ? lvalueHintOf(node->target.get())
+                                    : node->typeHint;
+    if (!node->target && hint.empty()) {
+      auto ith = varHints_.find(v);
+      hint = (ith != varHints_.end()) ? ith->second : std::string("?");
+    }
+    auto start = [&]() {
+      bool prev = inExprCtx; inExprCtx = true;
+      emitConverted(node->start.get(), hint);
+      inExprCtx = prev;
+    };
+    // Unbekannter Zaehlertyp: wenigstens zur Zahl machen, wie bisher.
+    auto bound = [&](ExprNode *e) {
+      if (!convFor(hint)) {
+        output << "bb_ToNum(";
+        emitExpr(e);
+        output << ")";
+        return;
+      }
+      bool prev = inExprCtx; inExprCtx = true;
+      emitConverted(e, hint);
+      inExprCtx = prev;
+    };
 
     if (node->step) {
       // A STEP may be negative, so the direction of the comparison is decided
@@ -499,7 +520,7 @@ public:
       output << ind() << "for (";
       counter();
       output << " = ";
-      emitExpr(node->start.get());
+      start();
       output << "; (_step_" << v << " > 0 ? ";
       counter();
       output << " <= ";
@@ -524,7 +545,7 @@ public:
       output << ind() << "for (";
       counter();
       output << " = ";
-      emitExpr(node->start.get());
+      start();
       output << "; ";
       counter();
       output << " <= ";
@@ -818,7 +839,13 @@ public:
       output << ")";
     }
     output << " = ";
-    emitExpr(node->value.get());
+    // Wie jede Zuweisung auf den Elementtyp wandeln: "a(0) = 2.5" legt im
+    // Original 2 ab (BUG-95). Ohne Dim in Sicht bleibt der Wert, wie er ist.
+    auto it = dimHints_.find(toLower(node->name));
+    bool prev = inExprCtx; inExprCtx = true;
+    if (it != dimHints_.end()) emitConverted(node->value.get(), it->second);
+    else                       emitExpr(node->value.get());
+    inExprCtx = prev;
     output << ";\n";
   }
 
@@ -1048,6 +1075,35 @@ public:
     output << ";\n";
   }
 
+  // Der Elementtag eines festen Arrays "a[n]" hinter einer Variablen oder
+  // einem Feld, "?" wenn er sich nicht bestimmen laesst.
+  std::string vectorElemHintOf(ExprNode *base) {
+    if (auto *ve = dynamic_cast<VarExpr *>(base)) {
+      auto it = varHints_.find(toLower(ve->name));
+      return it != varHints_.end() ? it->second : std::string("?");
+    }
+    if (auto *fa = dynamic_cast<FieldAccess *>(base))
+      if (fieldTypeKnown(fa->object.get(), fa->fieldName))
+        return fieldHintOf(fa->object.get(), fa->fieldName);
+    return "?";
+  }
+
+  // Der Tag eines beschreibbaren Ziels (Array-Element, Feld, Element eines
+  // festen Arrays), "?" wenn er sich hier nicht bestimmen laesst.
+  std::string lvalueHintOf(ExprNode *e) {
+    if (auto *aa = dynamic_cast<ArrayAccess *>(e)) {
+      auto it = dimHints_.find(toLower(aa->name));
+      return it != dimHints_.end() ? it->second : std::string("?");
+    }
+    if (auto *fa = dynamic_cast<FieldAccess *>(e))
+      return fieldTypeKnown(fa->object.get(), fa->fieldName)
+                 ? fieldHintOf(fa->object.get(), fa->fieldName)
+                 : std::string("?");
+    if (auto *va = dynamic_cast<VectorAccess *>(e))
+      return vectorElemHintOf(va->base.get());
+    return "?";
+  }
+
   // Kennt der Emitter den Typ dieses Feldes ueberhaupt?
   bool fieldTypeKnown(ExprNode *object, const std::string &field) {
     const std::string tname = objectTypeOf(object);
@@ -1101,8 +1157,8 @@ public:
     output << "[";
     emitIntegerContext(node->index.get());
     output << "] = ";
+    emitConverted(node->value.get(), vectorElemHintOf(node->base.get()));
     inExprCtx = prev;
-    emitExpr(node->value.get());
     output << ";\n";
   }
 
@@ -1167,7 +1223,10 @@ private:
   std::unordered_set<std::string> hoistedDims_;       // lowercase names of forward-declared Dim arrays
   // Dim-Array -> Objekttyp seiner Elemente (klein), nur fuer "Dim a.T(n)".
   std::unordered_map<std::string, std::string> dimObjectTypes_;
+  // Dim-Array -> Tag seiner Elemente, fuer die Umwandlung beim Zuweisen.
+  std::unordered_map<std::string, std::string> dimHints_;
   void noteDimObjectType(const std::string &lo, const std::string &hint) {
+    dimHints_[lo] = hint;
     if (!hint.empty() && hint[0] == '.')
       dimObjectTypes_[lo] = toLower(hint.substr(1));
   }
@@ -2040,6 +2099,14 @@ private:
     // "Return Len(s)" wurde so zu "bb_ToInt(  bb_Len(...);\n)".
     const char *fn = convFor(hint);
     if (!fn || literalAlreadyFits(e, hint)) { emitExpr(e); return; }
+    // "Read arr(i)", "Read v[i]": bb_DataVal wandelt sich selbst in den
+    // Zieltyp - und schneidet dabei ab wie das Original, statt zu runden
+    // (BUG-95). bb_ToInt(bb_DataVal) waere ausserdem mehrdeutig.
+    if (dynamic_cast<DataReadExpr *>(e)) {
+      output << "(" << hintToType(hint).first << ")";
+      emitExpr(e);
+      return;
+    }
     output << fn << "(";
     emitExpr(e);
     output << ")";
