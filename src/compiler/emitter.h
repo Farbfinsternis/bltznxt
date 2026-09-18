@@ -128,7 +128,9 @@ public:
 
     output << "int main(int argc, char** argv) {\n";
     output << "    bbInit(argc, argv);\n";
-    output << "    int __gosub_ret__ = 0;\n";
+    // Ruecksprungstapel fuer Gosub: im Original ein x86-"call" mit "ret",
+    // also beliebig tief verschachtelt und rekursiv (BUG-106).
+    output << "    std::vector<int> __gosub_ret__;\n";
 
     // Emit Data pool initialisation + label index constants.
     size_t dataIdx = 0;
@@ -150,10 +152,17 @@ public:
     // Placed after return 0 so it never executes via fall-through;
     // only reachable via "goto __gosub_dispatch__" from a bare Return.
     if (gosubCount > 0) {
+      // Ein Return ohne offenes Gosub beendet das Programm normal - im
+      // Original kehrt das "ret" aus dem Hauptprogramm zurueck (gemessen).
       output << "    __gosub_dispatch__:\n";
-      output << "    switch (__gosub_ret__) {\n";
+      output << "    if (__gosub_ret__.empty()) { bbEnd(); return 0; }\n";
+      output << "    {\n";
+      output << "      const int __r__ = __gosub_ret__.back();\n";
+      output << "      __gosub_ret__.pop_back();\n";
+      output << "      switch (__r__) {\n";
       for (int i = 1; i <= gosubCount; ++i)
-        output << "      case " << i << ": goto _gosub_ret_" << i << "_;\n";
+        output << "        case " << i << ": goto _gosub_ret_" << i << "_;\n";
+      output << "      }\n";
       output << "    }\n";
     }
     output << "}\n";
@@ -1235,7 +1244,7 @@ public:
     // Portable Gosub: store return-site ID, jump to subroutine.
     // A bare Return emits "goto __gosub_dispatch__" which dispatches back
     // via a switch table emitted at the end of main().
-    output << ind() << "__gosub_ret__ = " << n << ";\n";
+    output << ind() << "__gosub_ret__.push_back(" << n << ");\n";
     output << ind() << "goto lbl_" << toLower(node->label) << ";\n";
     output << ind() << "_gosub_ret_" << n << "_:;\n";
   }

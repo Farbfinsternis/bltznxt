@@ -1,5 +1,18 @@
 # BlitzNext Developer Log
 
+## 2026-09-18 — Nested Gosub, found in blox-n-balls (BUG-106)
+
+blox-n-balls froze while loading; Windows marked the window as not responding. Attaching gdb to
+the frozen process showed the main thread in our Gosub return table. The game calls
+`Gosub start`, and `.start` itself calls `Gosub closedoors`. We kept only one return address,
+so after `closedoors` the `Return` of `.start` jumped back behind `Gosub closedoors` again,
+forever. Blitz3D compiles `Gosub` to a real `call` and `Return` to `ret`; we now keep a stack of
+return addresses. Nesting and recursion (5000 deep) match the original, and a `Return` without
+an open `Gosub` ends the program normally, as it does there. The game now gets past loading into
+the first level. Suite 271/271.
+
+---
+
 ## 2026-09-18 — Math functions as the x87 computes them (BUG-163)
 
 `Sin(30) - 0.5` is `1.26184e-008` in Blitz3D, and `Sin(30) = 0.5` is false. The reason is the

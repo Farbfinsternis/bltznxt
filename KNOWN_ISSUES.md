@@ -11,7 +11,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-09-18 — 41 open bugs.*
+*Last updated: 2026-09-18 — 40 open bugs.*
 
 If your program behaves differently from Blitz3D and the cause is not listed here, please
 open an issue with a minimal `.bb` file and the output of both.
@@ -132,9 +132,6 @@ are the most likely reason for an old program to behave strangely.
   therefore rejected here: `x = 1.5` followed by a use of `x%` is reported as a type
   mismatch, and `x = "12" : Print x - 1` (which prints `11` in Blitz3D) as arithmetic on a
   string. *Workaround:* tag the variable where it first appears (`x% = …`). (BUG-80)
-- **A `Gosub` inside a `Gosub` routine returns to the wrong place.** Only one return
-  address is kept, so the outer `Return` jumps back into the outer routine.
-  *Workaround:* use functions for anything that nests. (BUG-106)
 - **`Dim` inside an `If`, `While`, `For` or `Select` block of the main program** fails in the
   C++ compiler. *Workaround:* move the `Dim` to the top level. (WEAK-05)
 - **`Not` applied to a string** (`Not "0"`) fails in the C++ compiler. (BUG-108)
