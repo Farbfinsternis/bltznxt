@@ -11,7 +11,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-09-18 — 43 open bugs.*
+*Last updated: 2026-09-18 — 42 open bugs.*
 
 If your program behaves differently from Blitz3D and the cause is not listed here, please
 open an issue with a minimal `.bb` file and the output of both.
@@ -82,10 +82,6 @@ are the most likely reason for an old program to behave strangely.
   and 1.5 here. *Workaround:* tag the constant (`Const c# = 1.5`). (BUG-99)
 - **Numbers with a leading zero are read as octal.** `Print 010` prints `8`; `08` does not
   compile at all. *Workaround:* remove leading zeros. (BUG-98)
-- **An integer divided by a constant power of two rounds differently for negative
-  numbers.** Blitz3D computes `i / 16` for a variable `i` as a bit shift, so `-33 / 16` gives
-  `-3` there when the left side is a variable (and `-2` when it is a constant). BlitzNext
-  gives `-2` in both cases. (BUG-162)
 - **`ATan`, `ATan2`, `ASin`, `ACos` and `Exp` can differ in the last digit**, and `Sin(30)` is
   exactly `0.5` here but not in Blitz3D. Blitz3D computes these in double precision. (BUG-163)
 - **`WriteString` and `ReadString` use a different file format.** Blitz3D writes a 4-byte

@@ -1,5 +1,17 @@
 # BlitzNext Developer Log
 
+## 2026-09-18 — Dividing by a constant power of two (BUG-162)
+
+Blitz3D's code generator turns an integer division by a constant power of two into an
+arithmetic shift (`munchArith` in `codegen_x86.cpp`). For negative numbers a shift rounds
+down instead of towards zero, so with `i = -33`, `i / 16` is `-3` in Blitz3D. We now do the
+same, under the same conditions: the divisor is a constant `1 << k` (including `$80000000`)
+and the left side is not a constant, because two constants are folded first and truncate as
+usual. 27 cases measured, all equal, and the 2000 random expressions from BUG-97 now all match.
+Suite 266/266.
+
+---
+
 ## 2026-09-18 — Float literals are floats (BUG-97)
 
 A float literal like `0.1` went into the generated C++ as a double, and so every calculation

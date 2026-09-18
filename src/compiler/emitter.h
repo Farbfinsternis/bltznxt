@@ -37,6 +37,7 @@ public:
     declaredVars.clear();
     globalVarNames.clear();
     hoistedConsts_.clear();
+    constNames_.clear();
     pinned_.clear();
     pinCount_ = 0;
     userFuncDecls_.clear();
@@ -262,6 +263,18 @@ public:
       output << " " << mapOp(node->op) << " ";
       emitIntegerContext(node->right.get());
       output << ")";
+    } else if (node->op == "/" && isConstExpr(node->right.get()) &&
+               !isConstExpr(node->left.get())) {
+      // Laufzeitwert durch Konstante: der Codegenerator des Originals macht
+      // aus einer Ganzzahldivision durch 1<<k ein "sar" (munchArith in
+      // codegen_x86/codegen_x86.cpp), das bei negativen Zahlen abrundet -
+      // "i / 16" mit i = -33 ist dort -3 (BUG-162). Ob beide Seiten int sind,
+      // entscheidet bb_IDivC an den C++-Typen.
+      output << "bb_IDivC_(";
+      emitOperand(node->left.get());
+      output << ", ";
+      emitOperand(node->right.get());
+      output << ")";
     } else {
       output << "(";
       emitOperand(node->left.get());
@@ -271,6 +284,27 @@ public:
     }
 
     inExprCtx = prev;
+  }
+
+  // Ein Ausdruck, den das Original schon beim Uebersetzen faltet: Literale,
+  // Const-Namen und Rechnungen daraus, dazu die Operatoren Int/Float/Abs/Sgn
+  // (CastNode/UniExprNode falten Konstanten). Alles andere gilt als
+  // Laufzeitwert - im Zweifel also keine Faltung angenommen.
+  bool isConstExpr(const ExprNode *e) const {
+    if (!e) return false;
+    if (auto *le = dynamic_cast<const LiteralExpr *>(e)) return !le->isNull;
+    if (auto *ve = dynamic_cast<const VarExpr *>(e))
+      return constNames_.count(toLower(ve->name)) != 0;
+    if (auto *ue = dynamic_cast<const UnaryExpr *>(e))
+      return isConstExpr(ue->expr.get());
+    if (auto *be = dynamic_cast<const BinaryExpr *>(e))
+      return isConstExpr(be->left.get()) && isConstExpr(be->right.get());
+    if (auto *ce = dynamic_cast<const CallExpr *>(e)) {
+      const std::string lo = toLower(ce->name);
+      return (lo == "int" || lo == "float" || lo == "abs" || lo == "sgn") &&
+             ce->args.size() == 1 && isConstExpr(ce->args[0].get());
+    }
+    return false;
   }
 
   void visit(UnaryExpr *node) override {
@@ -802,6 +836,7 @@ public:
   }
 
   void visit(ConstDecl *node) override {
+    constNames_.insert(toLower(node->name));
     // Already emitted at file scope by collectConsts().
     if (hoistedConsts_.count(toLower(node->name))) return;
     bool prev = inExprCtx; inExprCtx = true;
@@ -1239,6 +1274,7 @@ private:
   std::unordered_map<std::string, std::string> varHints_;
   std::unordered_set<std::string> globalVarNames;     // lowercase names of file-scope globals
   std::unordered_set<std::string> hoistedConsts_;     // lowercase names of file-scope constants
+  std::unordered_set<std::string> constNames_;        // alle Const-Namen (auch in Funktionen)
   std::unordered_map<const ExprNode *, std::string> pinned_; // operand -> temp name
   std::unordered_map<std::string, const FunctionDecl *> userFuncDecls_;
   std::unordered_map<std::string, bool> writesState_; // memo per function
@@ -1969,6 +2005,7 @@ private:
         std::string lo = toLower(cd->name);
         if (hoistedConsts_.count(lo)) continue; // skip duplicates
         hoistedConsts_.insert(lo);
+        constNames_.insert(lo);
         declaredVars.insert(lo); // never re-declared as an implicit variable
         if (cd->typeHint == "$") {
           output << "const bbString var_" << lo << " = ";

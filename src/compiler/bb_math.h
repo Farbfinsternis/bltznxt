@@ -43,6 +43,31 @@ inline int   bb_Abs(int x)     { return x >= 0 ? x : static_cast<int>(0u - stati
 inline float bb_Abs(float x)   { return std::fabs(x); }
 inline float bb_Abs(double x)  { return std::fabs(static_cast<float>(x)); }
 inline float bb_Log(float x)   { return std::log(x); }
+// Ganzzahl durch eine konstante Zweierpotenz: das Original erzeugt dafuer
+// "sar" statt "idiv" (munchArith in codegen_x86.cpp; 1<<k fuer k = 0..31, also
+// auch $80000000). Fuer negative Zahlen rundet das ab: -33/16 = -3, -1/2 = -1.
+// Der Emitter ruft das nur, wenn der Teiler konstant ist und der Zaehler
+// nicht (sonst faltet das Original und schneidet ab). Andere Typen: normale
+// Division (BUG-162).
+template <class L, class R>
+inline auto bb_IDivC_(L l, R r) {
+  // Jede Ganzzahl-Art zaehlt als Blitz-int: "Const M = $80000000" steht im
+  // C++ als -2147483648, und das ist dort ein long long.
+  if constexpr (std::is_integral_v<L> && std::is_integral_v<R> &&
+                !std::is_same_v<L, bool> && !std::is_same_v<R, bool>) {
+    const int li = static_cast<int>(l), ri = static_cast<int>(r);
+    const unsigned u = static_cast<unsigned>(ri);
+    if (u != 0 && (u & (u - 1)) == 0) {
+      int s = 0;
+      for (unsigned v = u; v > 1; v >>= 1) ++s;
+      return li >> s; // arithmetisch, wie sar
+    }
+    return li / ri;
+  } else {
+    return l / r;
+  }
+}
+
 // "^" ist im Original immer float: ArithExprNode wandelt beide Seiten auf
 // float und ruft __bbFPow = (float)pow(x,y) (bbruntime/basic.cpp). Vorher
 // stand hier std::pow, das double liefert - "2^24 + 1 - 2^24" ergab 1 statt 0
