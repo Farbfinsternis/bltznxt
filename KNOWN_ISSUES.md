@@ -11,7 +11,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-09-17 — 45 open bugs.*
+*Last updated: 2026-09-18 — 44 open bugs.*
 
 If your program behaves differently from Blitz3D and the cause is not listed here, please
 open an issue with a minimal `.bb` file and the output of both.
@@ -52,13 +52,13 @@ The full reasoning is in [ROADMAP3D.md](ROADMAP3D.md), section
 
 ## Missing commands
 
-130 of Blitz3D's 540 commands (not counting language keywords) are not available yet. A
+109 of Blitz3D's commands (not counting language keywords) are not available yet. A
 program that uses one of them is rejected with `unknown function or command`. `blitzcc -k` lists
 everything that is available.
 
 | Area | Missing |
 |------|---------|
-| Networking | all TCP, UDP and DirectPlay commands (`OpenTCPStream`, `CreateUDPStream`, `HostNetGame`, `SendNetMsg`, …) |
+| Networking | all UDP and DirectPlay commands (`CreateUDPStream`, `SendUDPMsg`, `HostNetGame`, `SendNetMsg`, …) and `CopyStream`; TCP is available |
 | Picking and projection | `CameraPick`, `CameraProject`, `ProjectedX/Y/Z`, `EntityInView` |
 | Animation | `Animate`, `SetAnimTime`, `AnimTime`, `Animating`, `AnimSeq`, `AnimLength`, `LoadAnimSeq`, `AddAnimSeq`, `ExtractAnimSeq`, `SetAnimKey` |
 | Terrain, MD2, BSP | `CreateTerrain`, `LoadTerrain`, `ModifyTerrain`, `TerrainHeight`, …, `LoadMD2`, `AnimateMD2`, `LoadBSP`, … |
@@ -152,7 +152,6 @@ are the most likely reason for an old program to behave strangely.
 - **A `Gosub` inside a `Gosub` routine returns to the wrong place.** Only one return
   address is kept, so the outer `Return` jumps back into the outer routine.
   *Workaround:* use functions for anything that nests. (BUG-106)
-- **`Goto` into a `Select` block** fails in the C++ compiler. (BUG-23)
 - **`Dim` inside an `If`, `While`, `For` or `Select` block of the main program** fails in the
   C++ compiler. *Workaround:* move the `Dim` to the top level. (WEAK-05)
 - **`Not` applied to a string** (`Not "0"`) fails in the C++ compiler. (BUG-108)

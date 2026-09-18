@@ -1,5 +1,32 @@
 # BlitzNext Developer Log
 
+## 2026-09-18 — TCP, and what blox-n-balls needed besides (BUG-157, BUG-158, BUG-159, BUG-23)
+
+The TCP commands are in: `OpenTCPStream`, `CreateTCPServer`, `AcceptTCPStream`, the close
+commands, `TCPStreamIP/Port`, `TCPTimeouts`, `DottedIP`, `CountHostIPs` and `HostIP`. A TCP
+stream is a stream like a file, so all the `Read…`/`Write…` commands, `ReadAvail` and `Eof` now
+go through one path that serves files and sockets alike. Fourteen cases, measured against
+Blitz3D with a server and a client in the same program, give the same results. UDP and
+DirectPlay are still missing.
+
+blox-n-balls needed three more things. Assigning to a field did not convert the value to the
+field's type, so `list\player = Str(...)` into an integer field broke the C++ build (BUG-157).
+A `Gosub` inside a `Case` returns by jumping back into that branch, and C++ does not allow a
+jump over the initialisation of the `Select` temporary (BUG-158). `Select` now works as in
+Blitz3D: it first finds the matching case in a block of its own, then runs that case's body.
+Only an uninitialised `int` with the case number is left in scope, and a jump may cross it.
+This also fixes the last open case of BUG-23, a `Goto` into a `Case` from outside.
+
+In fullscreen the game's 800×600 image sat in the top left corner of the screen and clicks
+landed in the wrong place (BUG-159). It is now scaled with borders, and the mouse is mapped
+back to game coordinates. `MoveMouse` does the reverse mapping. `MouseXSpeed`/`MouseYSpeed` now
+work as in `bbinput.cpp`: they return the distance from the last call or the last `MoveMouse`.
+Before, the jump made by `MoveMouse` itself counted as movement, which works against the usual
+mouse-look loop. After `Graphics` the mouse starts at 0,0, as in Blitz3D. Measured in a window
+and in fullscreen against the original. Suite 258/258.
+
+---
+
 ## 2026-09-17 — Mirrors, and what they uncovered (3D-16, BUG-155, BUG-156)
 
 `CreateMirror` works. A mirror has no geometry at all: before the scene itself, Blitz3D draws it

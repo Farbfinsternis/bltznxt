@@ -6,7 +6,7 @@
 
 **BlitzNext** is a modern compiler that converts Blitz3D (`.bb`) source files directly into native Windows executables via a C++17 transpilation pipeline. It targets 100% command parity with the original Blitz3D engine, using a bundled MinGW toolchain and SDL3 for audio and graphics.
 
-> **Status: active development — v0.5.0.** The language, the core runtime and 2D graphics are in place; the 3D layer is being built (13 of 24 3D milestones complete).
+> **Status: active development — v0.5.0.** BlitzNext compiles the unmodified game **blox-n-balls**. The runtime now includes sprites, mirrors, collisions and line/entity picking; full gameplay compatibility is still being verified.
 > **[KNOWN_ISSUES.md](KNOWN_ISSUES.md) lists everything that does not yet behave like Blitz3D** — please check it before reporting a bug.
 > See [roadmap.md](roadmap.md) and [ROADMAP3D.md](ROADMAP3D.md) for the milestones and [DEVLOG.md](DEVLOG.md) for the changelog.
 
@@ -32,19 +32,21 @@ Mark passed away in 2024. BlitzNext exists to carry his idea forward — the bel
 
 ## Compatibility Progress
 
-| Area | State (2026-09-16) |
+| Area | State (2026-09-18) |
 |------|--------------------|
 | **Language** | All constructs except `Handle` and `Object` |
-| **Built-in commands** | 380 of Blitz3D's 540 commands (70 %), plus 27 BlitzNext additions |
+| **Built-in commands** | 458 entries in `src/compiler/commands.h`, including extensions; this counts signatures, not verified behaviour |
 | **2D milestones** | Milestones 6–46 complete ([roadmap.md](roadmap.md)) |
-| **3D milestones** | 13 of 24 complete, mesh loading and the surface API in progress ([ROADMAP3D.md](ROADMAP3D.md)) |
-| **Known deviations** | 45 open bugs, all reproduced against Blitz3D 11.8 ([KNOWN_ISSUES.md](KNOWN_ISSUES.md)) |
+| **3D runtime** | Meshes, surfaces, brushes, sprites, mirrors, collisions and line/entity picking available; remaining work in [ROADMAP3D.md](ROADMAP3D.md) |
+| **Known deviations** | 44 open bugs, all reproduced against Blitz3D 11.8 ([KNOWN_ISSUES.md](KNOWN_ISSUES.md)) |
+| **Primary integration test** | blox-n-balls: all 26 source files unchanged, full executable build verified; complete gameplay not yet verified |
 
 Compatibility is measured, not estimated: questions about the language are answered from the
 [original source](https://github.com/blitz-research/blitz3d), and results are compared with a
-running Blitz3D 11.8. Of the 156 example sources that ship with Blitz3D, 67 are accepted and
-all 67 build; of the 70 that only Blitz3D accepts, 58 fail solely on commands that do not exist
-yet.
+running Blitz3D 11.8. In the 2026-09-15/16 baseline, 67 of 156 example sources were accepted
+and all 67 built; of the 70 accepted only by Blitz3D, 58 failed solely on missing commands.
+That corpus has not been fully remeasured after the latest additions; these are historical
+baseline figures, not current coverage percentages.
 
 **Language.** Every construct except `Handle` and `Object` is implemented, but several still
 differ from Blitz3D in detail — most importantly float-to-integer conversion (truncates instead
@@ -52,13 +54,23 @@ of rounding), `Include` on a line with other statements, and nested `Gosub`. See
 [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 
 **Runtime.** Math, strings, files, banks, input, audio and 2D graphics are available. A few
-commands exist but do not work yet, among them `CopyRect`, pixel-accurate `ImagesCollide`,
-`SystemProperty` and `CallDLL`. In 3D, entities, cameras, lights, textures, brushes, primitive
-meshes, `.x`/`.3ds` loading and the surface API are available; collision, picking, animation,
-terrain, sprites and fog are not.
+commands remain incomplete, including pixel-accurate `ImagesCollide`, `SystemProperty` and
+`CallDLL`. `CopyRect`, image/texture buffer drawing and multi-camera rendering have received
+compatibility fixes. In 3D, entities, cameras, lights, textures, brushes, primitive meshes,
+`.x`/`.3ds` loading, the surface API, sprites, mirrors, collisions and line/entity picking
+are available. Camera picking/projection, animation, terrain, fog and planes remain missing.
+TCP streams and hostname lookup are available; UDP and DirectPlay remain missing.
 
-**Blitz2D compatibility** is a practical secondary target. Most Blitz2D games and demos compile
-today; the remaining gaps are listed in [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+**Blitz2D compatibility** is a practical secondary target. The 2D runtime is available, with
+remaining gaps listed in [KNOWN_ISSUES.md](KNOWN_ISSUES.md); no broad game-compatibility rate
+has been established.
+
+**Test priority.** blox-n-balls is the primary real-game integration test: changes should
+preserve its build and be checked through loading, menus, input, gameplay, level transitions
+and save/load where applicable. It uses only a subset of Blitz3D. Passing this game does
+not establish complete language, command or runtime compatibility, and features it does not
+use remain in scope. Focused regression tests, comparisons with Blitz3D 11.8 and additional
+demos/games must cover those gaps.
 
 ---
 
@@ -121,9 +133,9 @@ bin\blitzcc.exe hello.bb
 
 ¹ Works, with known deviations from Blitz3D — see [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 
-### Built-in Commands (407 total)
+### Built-in Commands (458 table entries)
 
-`blitzcc -k` prints the complete list, `blitzcc +k` the signatures. Commands that exist but do not
+The groups below are an overview. `blitzcc -k` prints the complete list, `blitzcc +k` the signatures. Commands that exist but do not
 yet work like Blitz3D are listed in [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 
 **Math** — `Sin`, `Cos`, `Tan`, `ASin`, `ACos`, `ATan`, `ATan2`, `Sqr`, `Log`, `Log10`, `Exp`, `Floor`, `Ceil`, `Min`, `Max` (`Abs` and `Sgn` are reserved words, not commands: unary operators over the following expression, so `Abs -3` needs no parentheses. `Pi` likewise is a reserved word for the constant.) (`Pi` is not a command but a reserved word for the constant, as in Blitz3D — it takes no parentheses and cannot be declared)
@@ -169,6 +181,12 @@ yet work like Blitz3D are listed in [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 **3D Graphics — Lights** — `CreateLight`, `LightColor`, `LightRange`, `LightConeAngles`
 
 **3D Graphics — Textures** — `CreateTexture`, `LoadTexture`, `LoadAnimTexture`, `FreeTexture`, `TextureBlend`, `TextureCoords`, `ScaleTexture`, `PositionTexture`, `RotateTexture`, `TextureWidth`, `TextureHeight`, `TextureBuffer`, `TextureName`, `TextureFilter`, `ClearTextureFilters`, `SetCubeFace`, `SetCubeMode`, `ActiveTextures`, `HWTexUnits`
+
+**3D Graphics — Sprites & Mirrors** — `CreateSprite`, `LoadSprite`, `RotateSprite`, `ScaleSprite`, `HandleSprite`, `SpriteViewMode`, `CreateMirror`
+
+**3D Graphics — Collision & Picking** — `Collisions`, `ClearCollisions`, `EntityType`, `GetEntityType`, `EntityRadius`, `EntityBox`, `EntityCollided`, `CountCollisions`, the `Collision…` queries, `LinePick`, `EntityPick`, `EntityPickMode`, the `Picked…` queries, `EntityVisible`
+
+**Networking** — TCP streams, servers, timeouts and hostname lookup; UDP and DirectPlay are not implemented.
 
 **3D Graphics — Brushes** — `CreateBrush`, `LoadBrush`, `FreeBrush`, `BrushColor`, `BrushAlpha`, `BrushShininess`, `BrushTexture`, `BrushBlend`, `BrushFX`, `GetBrushTexture`
 
@@ -275,6 +293,7 @@ src/compiler/
   bb_string.h       ← string functions
   bb_system.h       ← time, system, process
   bb_file.h         ← file I/O
+  bb_socket.h       ← TCP streams and hostname lookup
   bb_bank.h         ← memory banks
   bb_sdl.h          ← SDL3 window & event loop
   bb_input.h        ← keyboard, mouse, joystick
@@ -296,6 +315,9 @@ src/compiler/
   bb_loader_x.h     ← DirectX .x loader, text and binary (3D-13)
   bb_brush.h        ← brushes (3D-15)
   bb_surface.h      ← surfaces, vertices, triangles (3D-15)
+  bb_sprite.h       ← sprites and view modes (3D-16)
+  bb_mirror.h       ← reflected scene passes (3D-16)
+  bb_collision.h    ← collisions, line/entity picking and visibility (3D-17–18)
   suggest.h         ← "did you mean …?" for unknown names
 ```
 
@@ -305,7 +327,7 @@ The runtime is **header-only** — the generated `.cpp` file `#include`s only wh
 
 ## Roadmap Overview
 
-Milestones 6–46 (language, runtime, 2D) are complete; the 3D work is tracked in [ROADMAP3D.md](ROADMAP3D.md), where 13 of 24 milestones are complete. See [roadmap.md](roadmap.md) for the 2D detail.
+Milestones 6–46 (language, runtime, 2D) are implemented, with compatibility defects tracked separately. The 3D work is tracked in [ROADMAP3D.md](ROADMAP3D.md); several milestones contain both implemented and missing commands. See [roadmap.md](roadmap.md) for the 2D detail.
 
 Where the 3D engine is heading — one modern material model, per-pixel lighting, shadows, render passes, `Vec2`/`Vec3`/`Vec4` vectors in the language and shaders written in Blitz syntax — is laid out in the design document [ENGINE_DESIGN.md](ENGINE_DESIGN.md) (German, draft, nothing of it implemented yet).
 
@@ -324,8 +346,11 @@ Where the 3D engine is heading — one modern material model, per-pixel lighting
 | K — 2D Graphics | Window, buffer, color, shapes, text, fonts, images, pixel buffer | ✓ Done |
 | L — 3D Foundation | GL context, UpdateWorld/RenderWorld, entity system, camera (3D-01–06) | ✓ Done |
 | 3D-07 – 3D-12 | Shaders, geometry buffers, primitives, appearance, textures, lighting | ✓ Done |
-| 3D-13, 3D-15 | Mesh loading (`.x`, `.3ds`), brushes, surfaces | In Progress |
-| 3D-14, 3D-16 – 3D-23 | OBJ loader, sprites, fog, picking, collision, animation, 3D maths, terrain, MD2/BSP | Planned |
+| 3D-13, 3D-15 | `.x`/`.3ds` mesh loading, brushes and surfaces available; remaining loader work in the roadmap | Partial / implemented subsets |
+| 3D-16 | Sprites and mirrors available; `CreatePlane` missing | Partial |
+| 3D-17 | Line/entity picking available; camera picking, projection and fog missing | Partial |
+| 3D-18 | Collision methods, responses and result queries | Implemented, reference-tested |
+| 3D-14, 3D-19 – 3D-23 | OBJ loader, animation, remaining 3D maths, terrain, MD2/BSP | Remaining roadmap work |
 
 ---
 
@@ -349,7 +374,15 @@ depends on the Windows API and the bundled MinGW toolchain, so a Linux build doe
 bash tests/run_tests.sh
 ```
 
-Compiles all `tests/test_*.bb` files and compares output against `tests/*.expected`. Negative tests (`tests/neg_*.bb`) verify that malformed programs are rejected with exit code 1 and, where a `.expected_err` exists, that the message matches word for word. The suite currently has 224 tests. Where a test says its expected values were measured against the original, they come from a running Blitz3D 11.8.
+The suite contains **258 tests: 163 positive and 95 negative**. Positive tests with an
+`.expected` file are executed and their stdout is compared; the others are compile-only.
+Negative tests require a nonzero compiler exit status and, where an `.expected_err` exists,
+an exact diagnostic match. The current runner does not enforce exit code 1 specifically,
+check the executed program's exit status, or impose timeouts.
+
+Where expected values are identified as reference measurements, they come from Blitz3D 11.8.
+The primary game test supplements this suite; it does not replace coverage of features absent
+from blox-n-balls.
 
 ---
 

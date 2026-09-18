@@ -89,3 +89,4 @@ src/libs/content.txt
 # site/           — Projektwebsite
 # CMakeLists.txt
 # build_windows.bat / build_linux.sh
+/OPUS_NOTES.md
