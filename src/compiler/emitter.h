@@ -540,15 +540,26 @@ public:
   }
 
   void visit(SelectStmt *node) override {
+    // Erst den passenden Case bestimmen, dann seinen Rumpf ausfuehren - wie
+    // SelectNode::translate: der Ausdruck wird einmal ausgewertet, die Cases
+    // der Reihe nach verglichen, bis einer passt. Der Zwischenwert lebt nur im
+    // inneren Block; danach bleibt nur die Nummer des Case in einem int ohne
+    // Initialisierer. Ueber den darf ein Goto oder ein Gosub-Ruecksprung in
+    // einen Rumpf hinein springen, ueber "auto _sel_ = ..." verbietet C++ das
+    // (BUG-158).
+    output << ind() << "{\n";
+    indentLevel++;
+    output << ind() << "int _selc_;\n";
     output << ind() << "{\n";
     indentLevel++;
     output << ind() << "auto _sel_ = ";
     emitExpr(node->expr.get());
     output << ";\n";
 
-    bool first = true;
+    int num = 0;
     for (auto &c : node->cases) {
-      output << ind() << (first ? "if" : "else if") << " (";
+      ++num;
+      output << ind() << (num == 1 ? "if" : "else if") << " (";
       bool prev = inExprCtx; inExprCtx = true;
       for (size_t i = 0; i < c.expressions.size(); ++i) {
         // Nicht "_sel_ == ...": ein Case wandelt seinen Wert auf den Typ des
@@ -560,13 +571,22 @@ public:
         if (i + 1 < c.expressions.size()) output << " || ";
       }
       inExprCtx = prev;
-      output << ") {\n";
+      output << ") _selc_ = " << num << ";\n";
+    }
+    output << ind() << (num == 0 ? "" : "else ") << "_selc_ = 0;\n";
+    indentLevel--;
+    output << ind() << "}\n";
+
+    num = 0;
+    for (auto &c : node->cases) {
+      ++num;
+      output << ind() << (num == 1 ? "if" : "else if") << " (_selc_ == " << num << ") {\n";
       indentLevel++;
       for (auto &n : c.block) emitStmt(n.get());
       indentLevel--;
       output << ind() << "}\n";
-      first = false;
     }
+    const bool first = (num == 0);
 
     if (!node->defaultBlock.empty()) {
       // Without a single Case there is no 'if' for an 'else' to attach to,

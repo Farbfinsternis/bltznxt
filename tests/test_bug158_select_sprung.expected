@@ -1,0 +1,19 @@
+  im gosub
+ausdruck 3 nach gosub
+ausdruck 5
+ausdruck default 3
+  im gosub
+string b nach gosub
+  im gosub
+feld 2.5 nach gosub
+  im gosub
+feldname b nach gosub
+  im gosub
+aufruf 6 nach gosub
+  im gosub
+vergleich wahr nach gosub
+text
+f: case 7
+f: drin 1
+f: drin 2
+rueckgabe 7
