@@ -11,7 +11,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-09-18 — 43 open bugs.*
+*Last updated: 2026-09-18 — 42 open bugs.*
 
 If your program behaves differently from Blitz3D and the cause is not listed here, please
 open an issue with a minimal `.bb` file and the output of both.
@@ -89,9 +89,6 @@ are the most likely reason for an old program to behave strangely.
 - **Constant float expressions are calculated with double precision.**
   `(16777216.0 + 1.0) - 16777216.0` is `0.0` in Blitz3D and `1` here. Only noticeable with
   very large or very precise values. (BUG-97)
-- **Printing a float that has no fraction drops the `.0`.** `Print 2.0` prints `2`,
-  Blitz3D prints `2.0`; large and small values also use a different exponent format.
-  (BUG-68)
 - **`WriteString` and `ReadString` use a different file format.** Blitz3D writes a 4-byte
   length followed by the characters; BlitzNext writes the characters followed by a zero
   byte. Files written by Blitz3D programs — save games, level data — are read incorrectly.

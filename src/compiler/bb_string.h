@@ -8,6 +8,7 @@
 #include <cstdio>   // snprintf
 #include <cstdlib>  // atoi, atof (String -> Zahl wie in der Referenz)
 #include <cmath>
+#include <cstring>  // strchr
 #include <limits>
 
 // ============================================================
@@ -21,11 +22,70 @@ typedef std::string bbString;
 // ---- String conversion ----
 
 inline bbString bb_Str(int n)    { return std::to_string(n); }
-inline bbString bb_Str(double f) {
+
+// Kommazahl -> Zeichenkette wie ftoa() in stdutil/stdutil.cpp der Referenz
+// (BUG-68). Sechs signifikante Stellen wie _ecvt. Liegt der Dezimalpunkt bei
+// dec <= -3 oder dec > 8 (Wert unter 0.001 bzw. ab 10^9), schreibt das
+// Original ueber MSVCs _gcvt: e-Schreibweise, ueberzaehlige Nullen weg, der
+// Punkt bleibt stehen, Exponent mindestens dreistellig ("1.e+008",
+// "1.23e-004"). Sonst Festkomma mit mindestens einer Nachkommastelle
+// ("2.0", "1234570.0"). Am Original gemessen (build/str20260918): auch
+// "NaN", "Infinity", "-Infinity", und -0.0 ergibt "0.0".
+inline bbString bb_FloatToStr_(float n) {
+    const int digits = 6;
+    if (std::isnan(n)) return "NaN";
+    if (std::isinf(n)) return n > 0 ? "Infinity" : "-Infinity";
+
+    // _ecvt(n, 6): die sechs Ziffern und die Lage des Dezimalpunkts. MSVC
+    // rundet dabei einen exakten Gleichstand vom Nullpunkt weg (38854.25 ->
+    // "38854.3", 826052.5 -> "826053.0"), printf zur geraden Ziffer. Darum 30
+    // exakte Stellen holen und selbst nach der siebten entscheiden - ein float
+    // hat hoechstens 24 Bit, die siebte Ziffer ist damit sicher.
     char buf[64];
-    std::snprintf(buf, sizeof(buf), "%g", f);
-    return buf;
+    std::snprintf(buf, sizeof(buf), "%.29e", std::fabs((double)n));
+    std::string t;
+    for (const char *c = buf; *c && *c != 'e'; ++c)
+        if (*c != '.') t += *c;
+    int dec = std::atoi(std::strchr(buf, 'e') + 1) + 1;
+    const bool up = t[digits] >= '5';
+    t.resize(digits);
+    if (up) {
+        int k = digits - 1;
+        while (k >= 0 && t[k] == '9') t[k--] = '0';
+        if (k >= 0) ++t[k];
+        else { t = "1" + t.substr(0, digits - 1); ++dec; }
+    }
+    const bool neg = n < 0;  // -0.0 hat im Original kein Vorzeichen
+    if (n == 0) dec = 0;     // _ecvt(0) meldet den Punkt vor der ersten Ziffer
+
+    if (dec <= -3 || dec > 8) {
+        // _gcvt(n, 6) in e-Schreibweise.
+        std::string m = t.substr(0, 1) + "." + t.substr(1);
+        while (m.back() == '0') m.pop_back();
+        int e = dec - 1;
+        char ex[16];
+        std::snprintf(ex, sizeof(ex), "e%c%03d", e < 0 ? '-' : '+', e < 0 ? -e : e);
+        return (neg ? "-" : "") + m + ex;
+    }
+
+    if (dec <= 0) {
+        t = "0." + std::string(-dec, '0') + t;
+        dec = 1;
+    } else if (dec < digits) {
+        t = t.substr(0, dec) + "." + t.substr(dec);
+    } else {
+        t = t + std::string(dec - digits, '0') + ".0";
+        dec += dec - digits;
+    }
+    // Ueberzaehlige Nullen hinten abschneiden, eine Nachkommastelle bleibt.
+    int dp1 = dec + 1, p = (int)t.length();
+    while (--p > dp1 && t[p] == '0') {}
+    t = t.substr(0, p + 1);
+    return neg ? "-" + t : t;
 }
+
+// Blitz3D rechnet mit float; ein double (etwa aus "^") wird vorher gewandelt.
+inline bbString bb_Str(double f) { return bb_FloatToStr_(static_cast<float>(f)); }
 
 // In Blitz3D a "+" with a string on either side makes the whole expression a
 // string and casts the other side to string (compiler/exprnode.cpp,

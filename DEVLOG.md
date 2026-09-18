@@ -1,5 +1,23 @@
 # BlitzNext Developer Log
 
+## 2026-09-18 — Floats print like Blitz3D (BUG-68)
+
+A float turned into text now looks exactly as in Blitz3D: `2.0` instead of `2`, `1234570.0`
+instead of `1.23457e+06`, `1.e+008`, `1.23e-004`, `NaN`, `Infinity`. The runtime rebuilds
+`ftoa()` from the Blitz3D source: six significant digits, at least one decimal, and below
+0.001 or from 10^9 on the exponent format of Microsoft's `_gcvt` with its three-digit exponent.
+One detail only showed up in a sweep over 3013 random float bit patterns: Microsoft's `_ecvt`
+rounds an exact tie away from zero (38854.25 becomes `38854.3`), `printf` rounds it to even. We
+now round ourselves. All 3013 values and 69 hand-picked ones match the original. `Print` and
+`Write` of a float and `Read` of a float into a string use the same path; before, they still
+wrote C++'s own format.
+
+Thirteen tests had our old format in their expected output; each was checked against the
+original and updated. The correct format makes one older deviation visible: `Abs(-3)` now
+prints `3.0` because our `Abs` always returns a float (BUG-96, next). Suite 262/262.
+
+---
+
 ## 2026-09-18 — `Read` into declared variables, and "Out of data" (BUG-85)
 
 A plain `Read x` took its type from the tag written at the `Read`, and without one that was
