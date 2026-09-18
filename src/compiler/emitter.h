@@ -855,12 +855,19 @@ public:
   }
 
   void visit(ReadStmt *node) override {
-    // Determine C++ type for the variable from the type hint.
-    auto [type, defVal] = hintToType(node->typeHint);
-
     std::string lo = node->name;
     std::transform(lo.begin(), lo.end(), lo.begin(),
                [](unsigned char c){ return (char)std::tolower(c); });
+
+    // Der Zieltyp steht in der Deklaration, nicht am Tag dieses Read - wie bei
+    // einer Zuweisung (BUG-53). "Local x# : Read x" liest im Original eine
+    // Kommazahl, "Local s$ : Read s" eine Zeichenkette (BUG-85).
+    std::string hint = node->typeHint;
+    if (hint.empty() && declaredVars.count(lo)) {
+      auto ith = varHints_.find(lo);
+      if (ith != varHints_.end()) hint = ith->second;
+    }
+    auto [type, defVal] = hintToType(hint);
 
     if (declaredVars.count(lo) == 0) {
       // Auto-declare the variable (Blitz3D allows implicit declaration)

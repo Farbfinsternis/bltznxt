@@ -134,8 +134,10 @@ inline std::vector<bb_DataVal> bb_data_pool_;
 inline size_t                  bb_data_idx_ = 0;
 
 inline bb_DataVal bb_DataRead() {
+  // Das Original bricht hier ab (RTEX("Out of data") in _bbReadInt/Float/Str,
+  // bbruntime/basic.cpp) statt mit einem erfundenen Wert weiterzulaufen.
   if (bb_data_idx_ >= bb_data_pool_.size()) {
-    std::cerr << "[runtime] Read: past end of Data\n";
+    bb_RuntimeError("Out of data");
     return bb_DataVal(0);
   }
   return bb_data_pool_[bb_data_idx_++];

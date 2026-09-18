@@ -1,0 +1,14 @@
+localf 15
+locals ABC
+global 25
+globals 7
+localint 3
+strfromstr 9.5
+param 45 2.5
+localfn 35
+globalfn 0
+strfromnum 5.5
+implicit 65
+neu 8
+liste 120 1.5
+ende

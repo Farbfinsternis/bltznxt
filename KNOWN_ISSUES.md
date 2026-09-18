@@ -11,7 +11,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-09-18 — 44 open bugs.*
+*Last updated: 2026-09-18 — 43 open bugs.*
 
 If your program behaves differently from Blitz3D and the cause is not listed here, please
 open an issue with a minimal `.bb` file and the output of both.
@@ -110,11 +110,6 @@ are the most likely reason for an old program to behave strangely.
   `q = Null` is false here and true in Blitz3D; accessing `q` afterwards is undefined.
   *Workaround:* set the other references to `Null` yourself. (BUG-104)
 - **`Delete p\child` does not delete the object**, it only clears the field. (BUG-105)
-- **`Read` ignores the type of an already declared variable.** After `Local x#`,
-  `Read x` stores an integer; after `Local s$`, `Read s` does not read the string.
-  *Workaround:* repeat the tag in the `Read`: `Read x#`, `Read s$`. (BUG-85)
-- **Reading past the last `Data` value continues** instead of stopping with an
-  "Out of data" error. (BUG-85)
 - **String functions accept invalid positions and lengths.** `Mid(s, 0)`, `Instr(s, t, 0)`
   and a negative length in `Left`, `Right`, `LSet` or `RSet` stop a Blitz3D program with
   "parameter must be positive" / "greater than 0". BlitzNext continues with a guessed

@@ -1,5 +1,18 @@
 # BlitzNext Developer Log
 
+## 2026-09-18 — `Read` into declared variables, and "Out of data" (BUG-85)
+
+A plain `Read x` took its type from the tag written at the `Read`, and without one that was
+an integer: after `Local x#` it read 1 instead of 1.5, after `Local s$` it stored a control
+character instead of the string. It now uses the declared type, the same way an assignment
+does, for locals, globals, parameters and lists alike. Reading past the last `Data` value now
+stops the program with "Out of data", as Blitz3D does; before, it printed a warning and went
+on with 0. Blitz3D shows the message in a dialog; here it goes to stderr, like every other
+runtime error so far (the dialog question is BUG-125). 14 cases measured, all equal. Suite
+261/261.
+
+---
+
 ## 2026-09-18 — Float to int rounds everywhere (BUG-95, BUG-109)
 
 Converting a float to an integer now rounds the way Blitz3D does, to the nearest integer and
