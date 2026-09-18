@@ -24,6 +24,7 @@ import re
 import sys
 
 RET_MAP = {"void": "", "int": "%", "bool": "%", "float": "#", "double": "#",
+           "bb_Ext": "#",
            "bbString": "$"}
 PARAM_MAP = {"int": "%", "bool": "%", "float": "#", "double": "#",
              "bbString": "$", "const bbString &": "$", "const bbString&": "$"}
@@ -36,7 +37,7 @@ PARAM_MAP = {"int": "%", "bool": "%", "float": "#", "double": "#",
 # dazugekommen.
 SKIP = {"Main", "IntegerContext", "ToInt", "ToFloat", "ToNum", "CaseEq"}
 
-SIG_RE = re.compile(r"^inline\s+(void|int|float|double|bool|bbString)\s+"
+SIG_RE = re.compile(r"^inline\s+(void|int|float|double|bool|bbString|bb_Ext)\s+"
                     r"bb_([A-Z][A-Za-z0-9_]*)\s*\(", re.MULTILINE)
 
 # Print, Write, Min und Max nehmen in der Runtime jeden Typ (Templates). Der

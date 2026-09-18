@@ -82,8 +82,10 @@ are the most likely reason for an old program to behave strangely.
   and 1.5 here. *Workaround:* tag the constant (`Const c# = 1.5`). (BUG-99)
 - **Numbers with a leading zero are read as octal.** `Print 010` prints `8`; `08` does not
   compile at all. *Workaround:* remove leading zeros. (BUG-98)
-- **`ATan`, `ATan2`, `ASin`, `ACos` and `Exp` can differ in the last digit**, and `Sin(30)` is
-  exactly `0.5` here but not in Blitz3D. Blitz3D computes these in double precision. (BUG-163)
+- **`ASin`, `ACos` and `Exp` can differ in the last digit.** Blitz3D's old C runtime computes
+  them with reduced intermediate precision; `Exp` is off by up to three units there. All other
+  math functions match bit for bit, including how their unrounded results feed into the next
+  calculation. (BUG-163)
 - **`WriteString` and `ReadString` use a different file format.** Blitz3D writes a 4-byte
   length followed by the characters; BlitzNext writes the characters followed by a zero
   byte. Files written by Blitz3D programs — save games, level data — are read incorrectly.

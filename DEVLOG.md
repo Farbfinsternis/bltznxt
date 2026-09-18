@@ -1,5 +1,23 @@
 # BlitzNext Developer Log
 
+## 2026-09-18 — Math functions as the x87 computes them (BUG-163)
+
+`Sin(30) - 0.5` is `1.26184e-008` in Blitz3D, and `Sin(30) = 0.5` is false. The reason is the
+FPU: Blitz3D runs it in 24-bit precision mode, so every arithmetic step rounds to a float, but
+the transcendental instructions compute in full precision and their result stays unrounded in
+the register, even across the return from `bbSin`. The runtime now models exactly that: `Sin`,
+`Cos`, `Tan`, `Log`, `Log10` and `Exp` return a register value (`long double`, which is the
+80-bit x87 format with MinGW). Any calculation with it yields a float, comparisons and integer
+rounding use the full value, and assignment rounds. `ATan`, `ATan2`, `ASin`, `ACos` and `Sqr`
+round, because their last step already rounds in Blitz3D.
+
+A prototype that just returned doubles fixed the single values but made chains like
+`Sqr(r) * Sqr(r) - r` worse, so it was not taken. Of 1360 measured values 598 differed before
+and 23 do now; those are `ASin`, `ACos` and `Exp` in the last digit, which the old C runtime
+computes with reduced precision itself (left open by decision). Suite 270/270.
+
+---
+
 ## 2026-09-18 — Runtime exceptions end with a message (BUG-164)
 
 An integer division by zero crashed the program without a word, and output that was still

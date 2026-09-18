@@ -21,19 +21,87 @@ constexpr float bb_Pi = 3.14159265358979323846f;
 inline float _bb_d2r(float deg) { return deg * (bb_Pi / 180.0f); }
 inline float _bb_r2d(float rad) { return rad * (180.0f / bb_Pi); }
 
-// ---- Trigonometry: degrees in, degrees/unitless out ----
+// ---- Das x87-Register des Originals (BUG-163) ----
+//
+// Die FPU des Originals laeuft im 24-Bit-Genauigkeitsmodus: jede Rechnung
+// rundet ihr Ergebnis auf eine float-Mantisse (darum rechnet seit BUG-97
+// alles in float). Die transzendenten Befehle (fsin, fcos, fptan, fyl2x ...)
+// rechnen aber in voller Genauigkeit, und ihr Ergebnis bleibt ungerundet im
+// Register - auch ueber die Rueckgabe von bbSin hinweg, der (float)-Cast in
+// bbruntime/bbmath.cpp faellt dort weg. Gemessen: "Sin(30) - 0.5" ist
+// 1.26184e-008, "Sin(30) = 0.5" ist falsch, "Sin(a) = Sin(a) * 1.0" auch.
+//
+// bb_Ext ist so ein Registerwert (long double ist bei MinGW das 80-Bit-
+// x87-Format selbst, sonst runden Quotienten wie "Cos(a) / 3" doppelt): eine Rechnung damit liefert wieder float
+// (der naechste Schritt rundet), ein Vergleich nimmt den vollen Wert, eine
+// Zuweisung an eine float-Variable oder ein Parameter rundet ueber operator
+// float. 1360 Werte aus build/trig20260918 gegen das Original: vorher 598
+// abweichend, jetzt 29 (ASin, Tan, Exp in der letzten Stelle - die rechnet
+// die alte CRT selbst im 24-Bit-Modus, das bauen wir nicht nach).
+struct bb_Ext {
+  long double v;
+  constexpr operator float() const { return static_cast<float>(v); }
+};
+template <class T> constexpr long double bb_ext_d_(const T &x) { return static_cast<long double>(x); }
+constexpr long double bb_ext_d_(const bb_Ext &x) { return x.v; }
+template <class A, class B>
+using bb_ext_op_ = std::enable_if_t<
+    (std::is_same_v<A, bb_Ext> || std::is_same_v<B, bb_Ext>) &&
+    (std::is_arithmetic_v<A> || std::is_same_v<A, bb_Ext>) &&
+    (std::is_arithmetic_v<B> || std::is_same_v<B, bb_Ext>)>;
+#define BB_EXT_ARITH_(OP)                                                   \
+  template <class A, class B, class = bb_ext_op_<A, B>>                     \
+  inline float operator OP(const A &a, const B &b) {                        \
+    return static_cast<float>(bb_ext_d_(a) OP bb_ext_d_(b));                \
+  }
+#define BB_EXT_CMP_(OP)                                                     \
+  template <class A, class B, class = bb_ext_op_<A, B>>                     \
+  inline bool operator OP(const A &a, const B &b) {                         \
+    return bb_ext_d_(a) OP bb_ext_d_(b);                                    \
+  }
+BB_EXT_ARITH_(+) BB_EXT_ARITH_(-) BB_EXT_ARITH_(*) BB_EXT_ARITH_(/)
+BB_EXT_CMP_(==) BB_EXT_CMP_(!=) BB_EXT_CMP_(<) BB_EXT_CMP_(>)
+BB_EXT_CMP_(<=) BB_EXT_CMP_(>=)
+#undef BB_EXT_ARITH_
+#undef BB_EXT_CMP_
+inline bb_Ext operator-(const bb_Ext &a) { return {-a.v}; }
+inline bb_Ext operator+(const bb_Ext &a) { return a; }
 
-inline float bb_Sin(float deg)            { return std::sin(_bb_d2r(deg)); }
-inline float bb_Cos(float deg)            { return std::cos(_bb_d2r(deg)); }
-inline float bb_Tan(float deg)            { return std::tan(_bb_d2r(deg)); }
-inline float bb_ASin(float x)            { return _bb_r2d(std::asin(x)); }
-inline float bb_ACos(float x)            { return _bb_r2d(std::acos(x)); }
-inline float bb_ATan(float x)            { return _bb_r2d(std::atan(x)); }
-inline float bb_ATan2(float y, float x)  { return _bb_r2d(std::atan2(y, x)); }
+// Zur Ganzzahl rundet fistp den Registerwert selbst, nicht erst einen float:
+// "Sin(30) And 1" ist im Original 1 (0.50000001... -> 1), ueber float waere
+// es 0.5 -> 0. Gleichstand zur geraden Zahl, ausserhalb des int-Bereichs
+// der x87-Wert "integer indefinite" wie in bb_FloatToInt_.
+inline int bb_ext_to_int_(const bb_Ext &x) {
+  const long double r = std::nearbyint(x.v);
+  if (!std::isfinite(r) || r < -2147483648.0L || r > 2147483647.0L)
+    return std::numeric_limits<int>::min();
+  return static_cast<int>(r);
+}
+inline int bb_ToInt(const bb_Ext &x)          { return bb_ext_to_int_(x); }
+inline int bb_IntegerContext(const bb_Ext &x) { return bb_ext_to_int_(x); }
+inline int bb_Int(const bb_Ext &x)            { return bb_ext_to_int_(x); }
+
+// ---- Trigonometry: degrees in, degrees/unitless out ----
+//
+// Wie bbruntime/bbmath.cpp: dtor/rtod als float-Konstanten, das Produkt mit
+// dtor ist ein gewoehnlicher (gerundeter) Rechenschritt. Bei den
+// Umkehrfunktionen rechnet die Multiplikation mit rtod noch in Blitz-Code und
+// rundet deshalb; Sqr ebenso, fsqrt haelt sich an den 24-Bit-Modus.
+constexpr float bb_dtor_ = 0.0174532925199432957692369076848861f;
+constexpr float bb_rtod_ = 57.2957795130823208767981548141052f;
+inline bb_Ext bb_Sin(float deg) { return {std::sin(static_cast<long double>(deg * bb_dtor_))}; }
+inline bb_Ext bb_Cos(float deg) { return {std::cos(static_cast<long double>(deg * bb_dtor_))}; }
+inline bb_Ext bb_Tan(float deg) { return {std::tan(static_cast<long double>(deg * bb_dtor_))}; }
+inline float bb_ASin(float x) { return static_cast<float>(std::asin(static_cast<double>(x)) * bb_rtod_); }
+inline float bb_ACos(float x) { return static_cast<float>(std::acos(static_cast<double>(x)) * bb_rtod_); }
+inline float bb_ATan(float x) { return static_cast<float>(std::atan(static_cast<double>(x)) * bb_rtod_); }
+inline float bb_ATan2(float y, float x) {
+  return static_cast<float>(std::atan2(static_cast<double>(y), static_cast<double>(x)) * bb_rtod_);
+}
 
 // ---- General math ----
 
-inline float bb_Sqr(float x)   { return std::sqrt(x); }
+inline float bb_Sqr(float x)   { return static_cast<float>(std::sqrt(static_cast<double>(x))); }
 // Abs und Sgn sind Operatoren, keine Befehle: UniExprNode (compiler/
 // exprnode.cpp) gibt ihnen den Typ des Operanden und ruft __bbAbs/__bbSgn fuer
 // int, __bbFAbs/__bbFSgn fuer float. Am Original gemessen (BUG-96): Abs(3)/2
@@ -42,7 +110,7 @@ inline float bb_Sqr(float x)   { return std::sqrt(x); }
 inline int   bb_Abs(int x)     { return x >= 0 ? x : static_cast<int>(0u - static_cast<unsigned>(x)); }
 inline float bb_Abs(float x)   { return std::fabs(x); }
 inline float bb_Abs(double x)  { return std::fabs(static_cast<float>(x)); }
-inline float bb_Log(float x)   { return std::log(x); }
+inline bb_Ext bb_Log(float x)  { return {std::log(static_cast<long double>(x))}; }
 // Ganzzahl durch eine konstante Zweierpotenz: das Original erzeugt dafuer
 // "sar" statt "idiv" (munchArith in codegen_x86.cpp; 1<<k fuer k = 0..31, also
 // auch $80000000). Fuer negative Zahlen rundet das ab: -33/16 = -3, -1/2 = -1.
@@ -75,8 +143,8 @@ inline auto bb_IDivC_(L l, R r) {
 constexpr float bb_Pow(float x, float y) {
   return static_cast<float>(__builtin_pow(static_cast<double>(x), static_cast<double>(y)));
 }
-inline float bb_Log10(float x) { return std::log10(x); }
-inline float bb_Exp(float x)   { return std::exp(x); }
+inline bb_Ext bb_Log10(float x) { return {std::log10(static_cast<long double>(x))}; }
+inline bb_Ext bb_Exp(float x)   { return {std::exp(static_cast<long double>(x))}; }
 
 // Floor/Ceil liefern float. Der Kommentar hier behauptete das Gegenteil
 // ("matches Blitz3D's integer-output semantics") - gemessen am Original meldet
