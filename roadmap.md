@@ -792,7 +792,7 @@ Each milestone is scoped to fit within a single AI-session context window:
 ## Command Parity Progress
 Based on [kippykip.com Docs](https://kippykip.com/b3ddocs/commands/index.htm)
 
-*Checked against `blitzcc -k` on 2026-09-16. A ticked line means every command in it exists;
+*Checked against `blitzcc -k` on 2026-09-18. A ticked line means every command in it exists;
 behaviour can still differ from Blitz3D — see [KNOWN_ISSUES.md](KNOWN_ISSUES.md). Names that
 Blitz3D itself does not have (e.g. `FreeSurface`, `VectorDistance`) are not counted.*
 
@@ -834,6 +834,10 @@ Blitz3D itself does not have (e.g. `FreeSurface`, `VectorDistance`) are not coun
     - [x] ReadDir, CloseDir, NextFile, CurrentDir, ChangeDir, CreateDir, DeleteDir, FileType, FileSize, CopyFile, DeleteFile *(M27)*
     - [x] ReadByte, ReadShort, ReadInt, ReadFloat, ReadString, ReadLine, ReadBytes(stub) *(M25)*
     - [x] WriteByte, WriteShort, WriteInt, WriteFloat, WriteString, WriteLine, WriteBytes(stub) *(M26)*
+- [ ] **Network**
+    - [x] OpenTCPStream, CloseTCPStream, CreateTCPServer, CloseTCPServer, AcceptTCPStream, TCPStreamIP, TCPStreamPort, TCPTimeouts, DottedIP, CountHostIPs, HostIP
+    - [ ] CreateUDPStream, CloseUDPStream, SendUDPMsg, RecvUDPMsg, UDPStreamIP, UDPStreamPort, UDPMsgIP, UDPMsgPort, UDPTimeouts, CopyStream
+    - [ ] StartNetGame, HostNetGame, JoinNetGame, StopNetGame, CreateNetPlayer, DeleteNetPlayer, NetPlayerName, NetPlayerLocal, SendNetMsg, RecvNetMsg, NetMsgType, NetMsgFrom, NetMsgTo, NetMsgData
 - [x] **Time / System** *(M21–M23)*
     - [x] Delay, MilliSecs, CurrentDate, CurrentTime *(M21)*
     - [x] CreateTimer, FreeTimer, WaitTimer *(M22)*
@@ -841,8 +845,8 @@ Blitz3D itself does not have (e.g. `FreeSurface`, `VectorDistance`) are not coun
     - [x] End *(already emitted as bbEnd())*
 
 ### 3D Module
-- [ ] **Global / Scene** *(M47–M48)*
-    - [ ] Graphics3D, Dither, WBuffer, AntiAlias, Wireframe, HWMultiTex, AmbientLight, ClearCollisions, Collisions — *missing: ClearCollisions, Collisions*
+- [x] **Global / Scene** *(M47–M48)*
+    - [x] Graphics3D, Dither, WBuffer, AntiAlias, Wireframe, HWMultiTex, AmbientLight, ClearCollisions, Collisions
     - [x] UpdateWorld, CaptureWorld, RenderWorld, ClearWorld, LoaderMatrix, TrisRendered
 - [x] **Texture** *(M49–M50)*
     - [x] CreateTexture, LoadTexture, LoadAnimTexture, FreeTexture, TextureBlend, TextureCoords, ScaleTexture, PositionTexture, RotateTexture, TextureWidth, TextureHeight, TextureBuffer, TextureName, SetCubeFace, SetCubeMode
@@ -855,15 +859,15 @@ Blitz3D itself does not have (e.g. `FreeSurface`, `VectorDistance`) are not coun
     - [ ] CreateTerrain, LoadTerrain, TerrainSize, TerrainDetail, TerrainShading, TerrainHeight, ModifyTerrain, TerrainX, TerrainY, TerrainZ
     - [ ] LoadMD2, AnimateMD2, MD2AnimTime, MD2AnimLength, MD2Animating, LoadBSP, BSPAmbientLight, BSPLighting
 - [ ] **Entities (Camera/Light/Pivot/Sprite/Plane/Mirror)** *(M58–M65)*
-    - [ ] CreateCamera, CameraProjMode, CameraFogMode, CameraFogRange, CameraFogColor, CameraViewport, CameraClsMode, CameraClsColor, CameraRange, CameraZoom, CameraPick, PickedX/Y/Z, PickedNX/NY/NZ, PickedTime, PickedEntity, PickedSurface, PickedTriangle, CameraProject, ProjectedX/Y/Z, EntityInView — *missing: CameraFogMode, CameraFogRange, CameraFogColor, CameraPick, PickedX, PickedY, PickedZ, PickedNX, PickedNY, PickedNZ, PickedTime, PickedEntity, PickedSurface, PickedTriangle, CameraProject, ProjectedX, ProjectedY, ProjectedZ, EntityInView*
+    - [ ] CreateCamera, CameraProjMode, CameraFogMode, CameraFogRange, CameraFogColor, CameraViewport, CameraClsMode, CameraClsColor, CameraRange, CameraZoom, CameraPick, PickedX/Y/Z, PickedNX/NY/NZ, PickedTime, PickedEntity, PickedSurface, PickedTriangle, CameraProject, ProjectedX/Y/Z, EntityInView — *missing: CameraFogMode, CameraFogRange, CameraFogColor, CameraPick, CameraProject, ProjectedX, ProjectedY, ProjectedZ, EntityInView*
     - [x] CreateLight, LightColor, LightRange
-    - [ ] CreatePivot, CreateSprite, LoadSprite, RotateSprite, ScaleSprite, HandleSprite, SpriteViewMode — *missing: CreateSprite, LoadSprite, RotateSprite, ScaleSprite, HandleSprite, SpriteViewMode*
-    - [ ] CreatePlane, CreateMirror
+    - [x] CreatePivot, CreateSprite, LoadSprite, RotateSprite, ScaleSprite, HandleSprite, SpriteViewMode
+    - [ ] CreatePlane, CreateMirror — *missing: CreatePlane*
 - [ ] **Logic (Movement/Collision/Animation/State/3D Maths)** *(M58–M70)*
     - [x] ScaleEntity, PositionEntity, MoveEntity, TranslateEntity, RotateEntity, TurnEntity, PointEntity, AlignToVector
-    - [ ] ResetEntity, EntityRadius, EntityBox, EntityType, EntityPickMode, EntityCollided, CountCollisions, CollisionX/Y/Z, CollisionNX/NY/NZ, CollisionTime, CollisionEntity, CollisionSurface, CollisionTriangle, GetEntityType — *missing: EntityRadius, EntityBox, EntityType, EntityPickMode, EntityCollided, CountCollisions, CollisionX, CollisionY, CollisionZ, CollisionNX, CollisionNY, CollisionNZ, CollisionTime, CollisionEntity, CollisionSurface, CollisionTriangle, GetEntityType*
+    - [x] ResetEntity, EntityRadius, EntityBox, EntityType, EntityPickMode, EntityCollided, CountCollisions, CollisionX/Y/Z, CollisionNX/NY/NZ, CollisionTime, CollisionEntity, CollisionSurface, CollisionTriangle, GetEntityType, LinePick, EntityPick
     - [ ] LoadAnimSeq, SetAnimKey, AddAnimSeq, ExtractAnimSeq, Animate, SetAnimTime, AnimSeq, AnimLength, AnimTime, Animating
-    - [ ] EntityX/Y/Z, EntityRoll/Yaw/Pitch, EntityName, EntityClass, EntityDistance, EntityVisible, GetParent, FindChild — *missing: EntityVisible*
+    - [x] EntityX/Y/Z, EntityRoll/Yaw/Pitch, EntityName, EntityClass, EntityDistance, EntityVisible, GetParent, FindChild
     - [x] HideEntity, ShowEntity, EntityParent, EntityOrder, EntityAlpha, EntityColor, EntityShininess, EntityTexture, EntityBlend, EntityFX, EntityAutoFade, PaintEntity, FreeEntity
     - [ ] VectorDistance, VectorYaw, VectorPitch, TFormPoint, TFormVector, TFormNormal, TFormedX/Y/Z, GetMatElement — *missing: VectorYaw, VectorPitch, GetMatElement*
 - [x] **2D Graphics** *(M38–M46)*

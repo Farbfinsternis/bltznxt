@@ -6,11 +6,15 @@
 #include <vector>
 #include <array>     // feste Arrays: "Local a[3]" wird std::array (BUG-59)
 #include <type_traits>  // bb_DataVal: ein Konversionsoperator statt vier
+#ifdef _WIN32
+#include <winsock2.h>  // vor jedem windows.h, sonst bricht bb_socket.h (TCP)
+#endif
 #include "bb_string.h"  // bbString typedef + string functions
 #include "bb_math.h"    // math functions + Pi constant
 #include "bb_system.h"  // MilliSecs, CurrentDate, CurrentTime, Delay
 #include "bb_file.h"    // OpenFile, ReadFile, WriteFile, CloseFile, Seek, Eof
 #include "bb_bank.h"    // CreateBank, FreeBank, BankSize, Peek/Poke, ReadBytes/WriteBytes
+#include "bb_socket.h"  // TCP-Streams, DottedIP, HostIP
 #include "bb_sdl.h"     // SDL3 init/quit, PollEvents, WaitKey, key state arrays
 #include "bb_input.h"   // Keyboard + Mouse + Joystick input API
 #include "bb_sound.h"   // Sound loading, playback, looping, channel control
@@ -36,6 +40,7 @@ inline void bbEnd() {
 #ifdef _WIN32
   timeEndPeriod(1);
 #endif
+  bb_socket_quit_(); // close open TCP streams and servers
   bb_file_quit_();  // close open file + dir handles
   bb_bank_quit_();  // free remaining bank handles
   bb_snd_quit_();   // close audio device + free sounds/channels

@@ -22,6 +22,39 @@ inline FILE* bb_file_get_(int handle) {
   return (it != bb_file_handles_.end()) ? it->second : nullptr;
 }
 
+// ---- Haken fuer TCP-Streams (bb_socket.h) ----
+//
+// Im Original ist ein TCP-Stream derselbe `bbStream` wie eine Datei, und
+// ReadLine, WriteLine, ReadAvail und Eof arbeiten ohne Unterschied darauf.
+// Bei uns liegen beide Arten in einem Handle-Raum; die vier Haken hier
+// melden -1 (bzw. -1000), wenn das Handle kein Socket ist, und dann
+// uebernimmt die Datei.
+inline int (*bb_sock_read_hook_)(int, void*, int)        = nullptr;
+inline int (*bb_sock_write_hook_)(int, const void*, int) = nullptr;
+inline int (*bb_sock_avail_hook_)(int)                   = nullptr;
+inline int (*bb_sock_eof_hook_)(int)                     = nullptr;
+
+// Bis zu n Bytes lesen; liefert, wieviele es wurden.
+inline int bb_stream_read_(int handle, void* buf, int n) {
+  if (bb_sock_read_hook_) {
+    const int r = bb_sock_read_hook_(handle, buf, n);
+    if (r >= 0) return r;
+  }
+  FILE* f = bb_file_get_(handle);
+  if (!f) return 0;
+  return static_cast<int>(std::fread(buf, 1, static_cast<size_t>(n), f));
+}
+
+inline int bb_stream_write_(int handle, const void* buf, int n) {
+  if (bb_sock_write_hook_) {
+    const int r = bb_sock_write_hook_(handle, buf, n);
+    if (r >= 0) return r;
+  }
+  FILE* f = bb_file_get_(handle);
+  if (!f) return 0;
+  return static_cast<int>(std::fwrite(buf, 1, static_cast<size_t>(n), f));
+}
+
 // Internal helper — opens a file, stores it, returns handle (0 on failure).
 inline int bb_file_open_(const bbString &path, const char *mode) {
   FILE *f = std::fopen(path.c_str(), mode);
@@ -92,6 +125,10 @@ inline long bb_file_remaining_(FILE *f) {
 // Uses fgetc+ungetc (peek) — correct for both binary and text mode,
 // and avoids the two-fseek overhead on every call.
 inline bool bb_Eof(int handle) {
+  if (bb_sock_eof_hook_) {
+    const int e = bb_sock_eof_hook_(handle);
+    if (e != -1000) return e != 0;
+  }
   FILE *f = bb_file_get_(handle);
   if (!f) return true;
   int c = std::fgetc(f);
@@ -102,6 +139,10 @@ inline bool bb_Eof(int handle) {
 
 // Returns the number of bytes remaining from current position to end.
 inline int bb_ReadAvail(int handle) {
+  if (bb_sock_avail_hook_) {
+    const int a = bb_sock_avail_hook_(handle);
+    if (a >= 0) return a;
+  }
   FILE *f = bb_file_get_(handle);
   if (!f) return 0;
   return static_cast<int>(bb_file_remaining_(f));
@@ -110,36 +151,26 @@ inline int bb_ReadAvail(int handle) {
 // ---- Write Primitives (M26) ----
 
 inline void bb_WriteByte(int handle, int val) {
-  FILE *f = bb_file_get_(handle);
-  if (!f) return;
   uint8_t b = static_cast<uint8_t>(val & 0xFF);
-  std::fwrite(&b, 1, 1, f);
+  bb_stream_write_(handle, &b, 1);
 }
 
 inline void bb_WriteShort(int handle, int val) {
-  FILE *f = bb_file_get_(handle);
-  if (!f) return;
   uint16_t s = static_cast<uint16_t>(val & 0xFFFF);
-  std::fwrite(&s, 2, 1, f);
+  bb_stream_write_(handle, &s, 2);
 }
 
 inline void bb_WriteInt(int handle, int val) {
-  FILE *f = bb_file_get_(handle);
-  if (!f) return;
-  std::fwrite(&val, 4, 1, f);
+  bb_stream_write_(handle, &val, 4);
 }
 
 inline void bb_WriteFloat(int handle, float val) {
-  FILE *f = bb_file_get_(handle);
-  if (!f) return;
-  std::fwrite(&val, 4, 1, f);
+  bb_stream_write_(handle, &val, 4);
 }
 
 // Writes a null-terminated string (no trailing newline).
 inline void bb_WriteString(int handle, const bbString &s) {
-  FILE *f = bb_file_get_(handle);
-  if (!f) return;
-  std::fwrite(s.c_str(), 1, s.size() + 1, f); // +1 for null terminator
+  bb_stream_write_(handle, s.c_str(), static_cast<int>(s.size()) + 1); // mit Nullbyte
 }
 
 // Writes a string followed by a newline character.
@@ -154,10 +185,8 @@ inline void bb_WriteString(int handle, const bbString &s) {
 // '\n' ab, genau wie bbReadLine. Zwischen zwei Blitz3D-Programmen faellt der
 // Unterschied deshalb nicht auf - nach aussen schon (BUG-77).
 inline void bb_WriteLine(int handle, const bbString &s) {
-  FILE *f = bb_file_get_(handle);
-  if (!f) return;
-  std::fwrite(s.c_str(), 1, s.size(), f);
-  std::fwrite("\r\n", 1, 2, f);
+  bb_stream_write_(handle, s.c_str(), static_cast<int>(s.size()));
+  bb_stream_write_(handle, "\r\n", 2);
 }
 
 // WriteBytes / ReadBytes are implemented in bb_bank.h (requires bank handles).
@@ -165,56 +194,44 @@ inline void bb_WriteLine(int handle, const bbString &s) {
 // ---- Read Primitives (M25) ----
 
 inline int bb_ReadByte(int handle) {
-  FILE *f = bb_file_get_(handle);
-  if (!f) return 0;
   uint8_t b = 0;
-  std::fread(&b, 1, 1, f);
+  bb_stream_read_(handle, &b, 1);
   return static_cast<int>(b);
 }
 
 inline int bb_ReadShort(int handle) {
-  FILE *f = bb_file_get_(handle);
-  if (!f) return 0;
   uint16_t s = 0;
-  std::fread(&s, 2, 1, f);
+  bb_stream_read_(handle, &s, 2);
   return static_cast<int>(s);
 }
 
 inline int bb_ReadInt(int handle) {
-  FILE *f = bb_file_get_(handle);
-  if (!f) return 0;
   int val = 0;
-  std::fread(&val, 4, 1, f);
+  bb_stream_read_(handle, &val, 4);
   return val;
 }
 
 inline float bb_ReadFloat(int handle) {
-  FILE *f = bb_file_get_(handle);
-  if (!f) return 0.0f;
   float val = 0.0f;
-  std::fread(&val, 4, 1, f);
+  bb_stream_read_(handle, &val, 4);
   return val;
 }
 
 // Reads a null-terminated string.
 inline bbString bb_ReadString(int handle) {
-  FILE *f = bb_file_get_(handle);
-  if (!f) return "";
   bbString result;
-  int c;
-  while ((c = std::fgetc(f)) != EOF && c != '\0')
-    result += static_cast<char>(c);
+  char c = 0;
+  while (bb_stream_read_(handle, &c, 1) == 1 && c != '\0')
+    result += c;
   return result;
 }
 
 // Reads a newline-terminated string, stripping \r\n.
 inline bbString bb_ReadLine(int handle) {
-  FILE *f = bb_file_get_(handle);
-  if (!f) return "";
   bbString result;
-  int c;
-  while ((c = std::fgetc(f)) != EOF && c != '\n')
-    if (c != '\r') result += static_cast<char>(c);
+  char c = 0;
+  while (bb_stream_read_(handle, &c, 1) == 1 && c != '\n')
+    if (c != '\r') result += c;
   return result;
 }
 
