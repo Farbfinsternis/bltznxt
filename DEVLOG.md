@@ -1,5 +1,20 @@
 # BlitzNext Developer Log
 
+## 2026-09-18 — Float literals are floats (BUG-97)
+
+A float literal like `0.1` went into the generated C++ as a double, and so every calculation
+involving a literal ran in double precision. The visible result: `a# = 0.1 : Print (a = 0.1)`
+printed 0, because a float was compared with a double. `^` had the same problem through
+`std::pow`. Literals are now written as floats, rounded the way Blitz3D rounds them, and `^`
+returns a float like Blitz3D's `__bbFPow`. 2000 random expressions compared bit by bit with
+the original: 139 differed before, now one does, and that one is a Blitz3D quirk of its own.
+Integer division of a variable by a constant power of two is compiled as a bit shift there,
+so `-33 / 16` becomes `-3` (BUG-162). Also noted: `ATan`, `ASin` and `Exp` differ in the last
+bit because Blitz3D computes them in double (BUG-163), and an integer division by zero at run
+time crashes here without a message (BUG-164). Suite 265/265.
+
+---
+
 ## 2026-09-18 — `Abs` and `Sgn` keep their operand's type (BUG-96)
 
 `Abs` and `Sgn` are operators in Blitz3D, not functions: the result has the type of the

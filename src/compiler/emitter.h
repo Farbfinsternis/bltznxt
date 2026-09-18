@@ -196,11 +196,28 @@ public:
 
   // ------------------------------------------------------------------ visitors
 
+  // Ein Float-Literal ist in Blitz3D ein float: der Parser liest es mit
+  // atof und legt es als FloatConstNode(float) ab. Ohne Suffix waere es in C++
+  // ein double, und jede Rechnung damit liefe in double - "a# = 0.1 : a = 0.1"
+  // war bei uns falsch, "(16777216.0 + 1.0) - 16777216.0" ergab 1 (BUG-97).
+  // Der Wert wird wie im Original ueber double auf float gerundet und mit neun
+  // Stellen geschrieben; das trifft den float genau.
+  static std::string floatLiteral(const std::string &text) {
+    float v = static_cast<float>(std::atof(text.c_str()));
+    char buf[40];
+    std::snprintf(buf, sizeof(buf), "%.9g", static_cast<double>(v));
+    std::string s = buf;
+    if (s.find_first_of(".eEn") == std::string::npos) s += ".0";
+    return s + "f";
+  }
+
   void visit(LiteralExpr *node) override {
     // Wrapped in bbString: a bare C++ literal is a const char*, so
     // "text" + n would be pointer arithmetic instead of concatenation.
     if (node->token.type == TokenType::STRING_LIT)
       output << "bbString(\"" << escapeCppString(node->token.value) << "\")";
+    else if (node->token.type == TokenType::FLOAT_LIT)
+      output << floatLiteral(node->token.value);
     else
       output << node->token.value;
   }
@@ -210,8 +227,8 @@ public:
     inExprCtx  = true;
 
     if (node->op == "^") {
-      // Blitz3D ^ is power, not XOR
-      output << "std::pow(";
+      // Blitz3D ^ is power, not XOR - always a float (__bbFPow, BUG-97)
+      output << "bb_Pow(";
       emitOperand(node->left.get());
       output << ", ";
       emitOperand(node->right.get());
@@ -1688,7 +1705,7 @@ private:
             output << "bb_DataVal(bbString(\"" << escapeCppString(tok.value)
                    << "\"))";
           } else if (tok.type == TokenType::FLOAT_LIT) {
-            output << "bb_DataVal(" << tok.value << "f)";
+            output << "bb_DataVal(" << floatLiteral(tok.value) << ")";
           } else { // INT_LIT (or signed numeric)
             output << "bb_DataVal(" << tok.value << ")";
           }

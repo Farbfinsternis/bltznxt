@@ -43,6 +43,13 @@ inline int   bb_Abs(int x)     { return x >= 0 ? x : static_cast<int>(0u - stati
 inline float bb_Abs(float x)   { return std::fabs(x); }
 inline float bb_Abs(double x)  { return std::fabs(static_cast<float>(x)); }
 inline float bb_Log(float x)   { return std::log(x); }
+// "^" ist im Original immer float: ArithExprNode wandelt beide Seiten auf
+// float und ruft __bbFPow = (float)pow(x,y) (bbruntime/basic.cpp). Vorher
+// stand hier std::pow, das double liefert - "2^24 + 1 - 2^24" ergab 1 statt 0
+// (BUG-97). constexpr, weil "^" auch in Const steht; GCC faltet den Builtin.
+constexpr float bb_Pow(float x, float y) {
+  return static_cast<float>(__builtin_pow(static_cast<double>(x), static_cast<double>(y)));
+}
 inline float bb_Log10(float x) { return std::log10(x); }
 inline float bb_Exp(float x)   { return std::exp(x); }
 
