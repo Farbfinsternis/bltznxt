@@ -558,6 +558,14 @@ inline void bb_Graphics3D(int w, int h, int depth = 32, int mode = 0) {
   }
   SDL_GL_MakeCurrent(bb_window_, bb_gl_ctx_);
 
+  // Im Vollbild ist das Fenster so gross wie der Bildschirm; das Bild des
+  // Programms wird darauf skaliert, nicht in die Ecke gelegt (BUG-159). Fuer
+  // die 2D-Befehle macht das der Renderer, fuer RenderWorld der Viewport.
+  if (bb_renderer_ && fullscreen)
+    SDL_SetRenderLogicalPresentation(bb_renderer_, w, h,
+                                     SDL_LOGICAL_PRESENTATION_LETTERBOX);
+  bb_present_update_(w, h);
+
   bb_gl_active_    = true;
   bb_scene_open_   = true;       // BUG-120, siehe bb_close_scene_
   bb_gl_quit_hook_ = bb_gl_quit_;

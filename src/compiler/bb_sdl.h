@@ -53,14 +53,72 @@ inline int           bb_key_queue_tail_                  = 0;
 //
 // bb_mouse_x_ / bb_mouse_y_   : last known cursor position (pixels).
 // bb_mouse_z_                  : scroll-wheel accumulator (ticks, up = +).
-// bb_mouse_xrel_ / _yrel_ / _zrel_ : delta accumulators; reset on each read.
+// bb_mouse_zrel_               : wheel delta accumulator; reset on each read.
 // bb_mouse_down_[1..3]         : 1 = held; indices: 1=left,2=right,3=middle.
 // bb_mouse_hit_[1..3]          : edge-triggered press flag, cleared on read.
 // bb_mouse_queue_buf_          : FIFO of button numbers for WaitMouse().
 
 inline float bb_mouse_x_    = 0.0f, bb_mouse_y_    = 0.0f;
 inline float bb_mouse_z_    = 0.0f;
-inline float bb_mouse_xrel_ = 0.0f, bb_mouse_yrel_ = 0.0f, bb_mouse_zrel_ = 0.0f;
+inline float bb_mouse_zrel_ = 0.0f;
+inline int   bb_mouse_speed_x_ = 0, bb_mouse_speed_y_ = 0;   // MouseXSpeed/YSpeed
+
+// ---- Abbildung Spielbild -> Fenster (BUG-159) ----
+//
+// Im Vollbild ist das Fenster so gross wie der Bildschirm, das Programm rechnet
+// aber in der Aufloesung, die es bei Graphics/Graphics3D angegeben hat. Bild
+// und Maus muessen deshalb umgerechnet werden. Im Fenstermodus steht der
+// Massstab auf 1 und der Rand auf 0, dann faellt die Rechnung weg.
+inline float bb_present_scale_ = 1.0f;
+inline float bb_present_ox_    = 0.0f;
+inline float bb_present_oy_    = 0.0f;
+inline int   bb_present_pw_    = 0;   // Fenstergroesse in Pixeln
+inline int   bb_present_ph_    = 0;
+// Fensterpixel je Fensterkoordinate. Mausereignisse und SDL_WarpMouseInWindow
+// rechnen in Fensterkoordinaten, Massstab und Rand in Pixeln; bei einer
+// Windows-Skalierung ueber 100 % ist das nicht dasselbe.
+inline float bb_present_density_ = 1.0f;
+
+inline float bb_present_to_game_x_(float x) { return (x * bb_present_density_ - bb_present_ox_) / bb_present_scale_; }
+inline float bb_present_to_game_y_(float y) { return (y * bb_present_density_ - bb_present_oy_) / bb_present_scale_; }
+inline float bb_present_to_window_x_(float x) { return (bb_present_ox_ + x * bb_present_scale_) / bb_present_density_; }
+inline float bb_present_to_window_y_(float y) { return (bb_present_oy_ + y * bb_present_scale_) / bb_present_density_; }
+
+// Massstab und Rand aus Fenstergroesse und Spielaufloesung bestimmen. Passt
+// das Seitenverhaeltnis nicht, bleibt oben/unten bzw. links/rechts ein Rand -
+// das Bild wird nie beschnitten.
+inline void bb_present_update_(int gw, int gh) {
+  // Nach einem Moduswechsel steht die Maus im Original auf 0,0, bis sie sich
+  // bewegt. Das Ereignis, mit dem SDL beim Anlegen des Fensters die Lage des
+  // Cursors meldet, wird deshalb verworfen.
+  bb_mouse_x_ = bb_mouse_y_ = 0.0f;
+  bb_mouse_speed_x_ = bb_mouse_speed_y_ = 0;
+  if (bb_window_) {
+    SDL_PumpEvents();
+    SDL_FlushEvent(SDL_EVENT_MOUSE_MOTION);
+  }
+  bb_present_scale_ = 1.0f;
+  bb_present_density_ = 1.0f;
+  bb_present_ox_ = bb_present_oy_ = 0.0f;
+  bb_present_pw_ = gw;
+  bb_present_ph_ = gh;
+  if (!bb_window_ || gw <= 0 || gh <= 0) return;
+  int pw = 0, ph = 0;
+  SDL_GetWindowSizeInPixels(bb_window_, &pw, &ph);
+  if (pw <= 0 || ph <= 0) return;
+  int ww = 0, wh = 0;
+  SDL_GetWindowSize(bb_window_, &ww, &wh);
+  if (ww > 0) bb_present_density_ = (float)pw / (float)ww;
+  bb_present_pw_ = pw;
+  bb_present_ph_ = ph;
+  const float sx = (float)pw / (float)gw;
+  const float sy = (float)ph / (float)gh;
+  const float sc = sx < sy ? sx : sy;
+  bb_present_scale_ = sc;
+  bb_present_ox_ = (pw - gw * sc) * 0.5f;
+  bb_present_oy_ = (ph - gh * sc) * 0.5f;
+}
+
 inline bool  bb_mouse_down_[4] = {};  // [1]=left  [2]=right  [3]=middle
 inline bool  bb_mouse_hit_[4]  = {};
 inline constexpr int BB_MOUSE_QUEUE_CAP                  = 16;
@@ -219,10 +277,10 @@ inline void bb_sdl_process_event_(const SDL_Event &ev) {
       bb_sdl_key_down_[sc] = false;
   }
   if (ev.type == SDL_EVENT_MOUSE_MOTION) {
-    bb_mouse_x_    = ev.motion.x;
-    bb_mouse_y_    = ev.motion.y;
-    bb_mouse_xrel_ += ev.motion.xrel;
-    bb_mouse_yrel_ += ev.motion.yrel;
+    // Die Maus meldet Fensterkoordinaten; das Programm erwartet die seiner
+    // eigenen Aufloesung (BUG-159).
+    bb_mouse_x_    = bb_present_to_game_x_(ev.motion.x);
+    bb_mouse_y_    = bb_present_to_game_y_(ev.motion.y);
   }
   if (ev.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
     int btn = bb_sdl_btn_to_blitz_(ev.button.button);

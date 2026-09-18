@@ -130,6 +130,7 @@ inline void bb_Graphics(int width, int height, int depth = 32, int mode = 0) {
     SDL_SetRenderLogicalPresentation(bb_renderer_, width, height,
                                      SDL_LOGICAL_PRESENTATION_LETTERBOX);
   }
+  bb_present_update_(width, height);
 
   // Query the refresh rate from the display the window landed on.
   SDL_DisplayID disp = SDL_GetDisplayForWindow(bb_window_);

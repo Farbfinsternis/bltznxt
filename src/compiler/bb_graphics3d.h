@@ -194,12 +194,19 @@ inline void bb_RenderWorld(float tween = 1.0f) {
     // Viewport — Blitz3D y=0 is top-left; GL y=0 is bottom-left, so flip.
     int vw = (cam->vpW > 0) ? cam->vpW : bb_gfx_width_;
     int vh = (cam->vpH > 0) ? cam->vpH : bb_gfx_height_;
-    int gl_y = bb_gfx_height_ - cam->vpY - vh;
-    glViewport(cam->vpX, gl_y, vw, vh);
+    // Der Viewport steht in der Aufloesung des Programms; im Vollbild ist das
+    // Fenster groesser und alles wird skaliert (BUG-159).
+    const float sc = bb_present_scale_;
+    const int px = (int)(bb_present_ox_ + cam->vpX * sc + 0.5f);
+    const int pw = (int)(vw * sc + 0.5f);
+    const int phh = (int)(vh * sc + 0.5f);
+    const int py_top = (int)(bb_present_oy_ + cam->vpY * sc + 0.5f);
+    int gl_y = bb_present_ph_ - py_top - phh;
+    glViewport(px, gl_y, pw, phh);
     // glClear beachtet den Viewport nicht, die Schere schon. Im Original
     // loescht jede Kamera nur ihren Viewport; ausserhalb bleibt stehen, was
     // vorher dort war (BUG-129).
-    glScissor(cam->vpX, gl_y, vw, vh);
+    glScissor(px, gl_y, pw, phh);
 
     // Clear according to per-camera settings.
     GLbitfield bits = 0;
@@ -233,8 +240,8 @@ inline void bb_RenderWorld(float tween = 1.0f) {
     // Treibers unter (NVIDIA: 8 Bit). Bei groeberer Rasterung koennen solche
     // Grenzfaelle wieder kippen.
     {
-      const float dx = 1.0f / (float)vw;
-      const float dy = -(1.0f - 1.0f / 128.0f) / (float)vh;   // 1/2 - 1/256 Pixel
+      const float dx = 1.0f / (float)pw;
+      const float dy = -(1.0f - 1.0f / 128.0f) / (float)phh;  // 1/2 - 1/256 Pixel
       if (cam->projMode == 2) { cam->proj[12] += dx; cam->proj[13] += dy; }
       else                    { cam->proj[8]  -= dx; cam->proj[9]  -= dy; }
     }

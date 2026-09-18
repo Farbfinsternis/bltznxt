@@ -173,18 +173,21 @@ inline int bb_MouseZ() {
   return (int)bb_mouse_z_;
 }
 
-// Delta since last call (accumulator is reset to zero on each read).
+// Wie bbinput.cpp: die Geschwindigkeit ist der Abstand der Position zum
+// letzten Aufruf bzw. zum letzten MoveMouse, nicht die Summe der
+// Bewegungsereignisse. Sonst zaehlte der Sprung von MoveMouse selbst als
+// Bewegung (BUG-159). Ausgangspunkt: bb_mouse_speed_x_/y_ in bb_sdl.h.
 inline int bb_MouseXSpeed() {
-  if (bb_sdl_initialized_) bb_PollEvents();
-  int v = (int)bb_mouse_xrel_;
-  bb_mouse_xrel_ = 0.0f;
-  return v;
+  const int x = bb_MouseX();
+  const int dx = x - bb_mouse_speed_x_;
+  bb_mouse_speed_x_ = x;
+  return dx;
 }
 inline int bb_MouseYSpeed() {
-  if (bb_sdl_initialized_) bb_PollEvents();
-  int v = (int)bb_mouse_yrel_;
-  bb_mouse_yrel_ = 0.0f;
-  return v;
+  const int y = bb_MouseY();
+  const int dy = y - bb_mouse_speed_y_;
+  bb_mouse_speed_y_ = y;
+  return dy;
 }
 inline int bb_MouseZSpeed() {
   if (bb_sdl_initialized_) bb_PollEvents();
@@ -235,18 +238,26 @@ inline void bb_FlushMouse() {
     bb_mouse_down_[i] = false;
     bb_mouse_hit_[i]  = false;
   }
-  bb_mouse_xrel_ = bb_mouse_yrel_ = bb_mouse_zrel_ = 0.0f;
+  bb_mouse_zrel_ = 0.0f;
   bb_mouse_queue_head_ = bb_mouse_queue_tail_ = 0;
   if (bb_sdl_initialized_)
     SDL_FlushEvents(SDL_EVENT_MOUSE_MOTION, SDL_EVENT_MOUSE_WHEEL);
 }
 
-// Warps the cursor to (x, y) within the window; global warp if no window yet.
+// Setzt die Maus auf (x, y) in Spielkoordinaten. Wie im Original gilt die neue
+// Position sofort und ist zugleich Ausgangspunkt fuer MouseXSpeed/YSpeed. Im
+// skalierten Vollbild wird in Fensterkoordinaten umgerechnet (BUG-159).
 inline void bb_MoveMouse(int x, int y) {
   bb_sdl_ensure_();
   if (!bb_sdl_initialized_) return;
+  bb_PollEvents();   // aeltere Bewegungen duerfen die neue Lage nicht ueberschreiben
+  bb_mouse_x_ = (float)x;
+  bb_mouse_y_ = (float)y;
+  bb_mouse_speed_x_ = x;
+  bb_mouse_speed_y_ = y;
   if (bb_window_)
-    SDL_WarpMouseInWindow(bb_window_, (float)x, (float)y);
+    SDL_WarpMouseInWindow(bb_window_, bb_present_to_window_x_((float)x),
+                                      bb_present_to_window_y_((float)y));
   else
     SDL_WarpMouseGlobal((float)x, (float)y);
 }
