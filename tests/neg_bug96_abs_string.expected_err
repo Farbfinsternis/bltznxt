@@ -1,0 +1,1 @@
+tests/neg_bug96_abs_string.bb:4:7: error: 'Abs' cannot be applied to string - only to an int or a float (Blitz3D: "Illegal operator for type")

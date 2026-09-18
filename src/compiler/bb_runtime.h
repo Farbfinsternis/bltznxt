@@ -56,8 +56,8 @@ inline void bb_Print(const T &val) {
 }
 // Print nimmt im Original einen String; eine Kommazahl geht also durch
 // ftoa wie bei Str() - "Print 2.0" schreibt "2.0" (BUG-68).
-inline void bb_Print(float f)  { std::cout << bb_Str((double)f) << "\n"; }
-inline void bb_Print(double f) { std::cout << bb_Str(f) << "\n"; }
+inline void bb_Print(float val)  { std::cout << bb_Str((double)val) << "\n"; }
+inline void bb_Print(double val) { std::cout << bb_Str(val) << "\n"; }
 
 // `Print` ohne Argument gibt eine Leerzeile aus - im Original `Print
 // [string$]`, eine der haeufigsten Formen ueberhaupt. Wir haben sie bis

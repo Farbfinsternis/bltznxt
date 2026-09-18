@@ -1,7 +1,4 @@
 ; Milestone 17 — Math Completeness: Trig Inverse, Sgn, Log10, Pi, Int(float)
-; Hinweis (2026-09-18): Abs/Sgn liefern hier noch nicht den Typ ihres
-; Arguments (BUG-96); seit BUG-68 zeigt die .expected das sichtbar ("3.0"
-; statt "3", "-1" statt "-1.0"). Mit BUG-96 wird sie korrigiert.
 
 ; ----- Pi constant -----
 Print "=== Pi ==="

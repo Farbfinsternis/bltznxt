@@ -776,8 +776,8 @@ inline void bb_Write(const T& val) {
     std::cout << val << std::flush;
 }
 // Wie Print: eine Kommazahl wird wie mit Str() geschrieben (BUG-68).
-inline void bb_Write(float f)  { std::cout << bb_Str((double)f) << std::flush; }
-inline void bb_Write(double f) { std::cout << bb_Str(f) << std::flush; }
+inline void bb_Write(float val)  { std::cout << bb_Str((double)val) << std::flush; }
+inline void bb_Write(double val) { std::cout << bb_Str(val) << std::flush; }
 
 // ---- Locate(x, y) ----
 //

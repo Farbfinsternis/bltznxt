@@ -963,6 +963,22 @@ private:
       return uf->second.ret;
     }
 
+    // Abs und Sgn sind Operatoren (UniExprNode::semant): das Ergebnis hat den
+    // Typ des Operanden, und nur int und float sind erlaubt - "Abs(\"3\")"
+    // meldet das Original als "Illegal operator for type" (BUG-96).
+    const std::string lo = toLower(ce->name);
+    if ((lo == "abs" || lo == "sgn") && args.size() == 1) {
+      const Ty &t = args[0];
+      if (t.object() || t.k == Ty::STR || t.vec) {
+        error(ce->line, ce->col,
+              "'" + ce->name + "' cannot be applied to " + t.name() +
+                  " - only to an int or a float (Blitz3D: \"Illegal operator "
+                  "for type\")");
+        return Ty();
+      }
+      return t.numeric() ? t : Ty();
+    }
+
     // Built-in commands: kCommands[] is generated from the runtime headers
     // (tools/gen_commands.py), so what is checked here is exactly what the
     // emitted C++ will call — a rejection can never be a false positive

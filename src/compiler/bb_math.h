@@ -34,7 +34,14 @@ inline float bb_ATan2(float y, float x)  { return _bb_r2d(std::atan2(y, x)); }
 // ---- General math ----
 
 inline float bb_Sqr(float x)   { return std::sqrt(x); }
+// Abs und Sgn sind Operatoren, keine Befehle: UniExprNode (compiler/
+// exprnode.cpp) gibt ihnen den Typ des Operanden und ruft __bbAbs/__bbSgn fuer
+// int, __bbFAbs/__bbFSgn fuer float. Am Original gemessen (BUG-96): Abs(3)/2
+// ist 1, Sgn(2.0)/2 ist 0.5, Abs(-2147483648) bleibt -2147483648 (int).
+// Ein double (Literal-Arithmetik in C++) ist in Blitz ein float.
+inline int   bb_Abs(int x)     { return x >= 0 ? x : static_cast<int>(0u - static_cast<unsigned>(x)); }
 inline float bb_Abs(float x)   { return std::fabs(x); }
+inline float bb_Abs(double x)  { return std::fabs(static_cast<float>(x)); }
 inline float bb_Log(float x)   { return std::log(x); }
 inline float bb_Log10(float x) { return std::log10(x); }
 inline float bb_Exp(float x)   { return std::exp(x); }
@@ -54,8 +61,10 @@ inline float bb_Ceil(float x)  { return std::ceil(x); }
 inline int   bb_Int(double x)  { return bb_FloatToInt_(x); }
 inline int   bb_Int(int x)     { return x; }
 
-// Sgn — returns sign of x as -1, 0, or 1
-inline int   bb_Sgn(float x)   { return (x > 0.0f) - (x < 0.0f); }
+// Sgn — -1, 0 oder 1 im Typ des Operanden (siehe Abs).
+inline int   bb_Sgn(int x)     { return (x > 0) - (x < 0); }
+inline float bb_Sgn(float x)   { return x > 0.0f ? 1.0f : (x < 0.0f ? -1.0f : 0.0f); }
+inline float bb_Sgn(double x)  { return bb_Sgn(static_cast<float>(x)); }
 
 // Mod — Blitz3D's remainder operator, which C++ "%" only covers for integers.
 //

@@ -29,7 +29,7 @@ struct CmdInfo {
 };
 
 inline constexpr CmdInfo kCommands[] = {
-  { "Abs",                 "#", "x#" },
+  { "Abs",                 ".", "x" },
   { "AcceptTCPStream",     "%", "tcp_server%" },
   { "ACos",                "#", "x#" },
   { "ActiveTextures",      "%", "" },
@@ -403,7 +403,7 @@ inline constexpr CmdInfo kCommands[] = {
   { "SetEnv",              "",  "key$,val$" },
   { "SetFont",             "",  "handle%" },
   { "SetGfxDriver",        "",  "driver%" },
-  { "Sgn",                 "%", "x#" },
+  { "Sgn",                 ".", "x" },
   { "ShowEntity",          "",  "h%" },
   { "ShowPointer",         "",  "" },
   { "Sin",                 "#", "deg#" },

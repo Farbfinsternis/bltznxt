@@ -1,5 +1,16 @@
 # BlitzNext Developer Log
 
+## 2026-09-18 — `Abs` and `Sgn` keep their operand's type (BUG-96)
+
+`Abs` and `Sgn` are operators in Blitz3D, not functions: the result has the type of the
+operand. `Abs(3)/2` is `1` and `Sgn(2.0)/2` is `0.5`; here `Abs` always returned a float and
+`Sgn` always an integer. The runtime now has both versions and the type check gives the call
+the operand's type. A string operand is rejected as in Blitz3D instead of being converted.
+29 cases measured, all equal, and the two tests that showed the deviation after the float
+format fix now match the original completely. Suite 264/264.
+
+---
+
 ## 2026-09-18 — Floats print like Blitz3D (BUG-68)
 
 A float turned into text now looks exactly as in Blitz3D: `2.0` instead of `2`, `1234570.0`

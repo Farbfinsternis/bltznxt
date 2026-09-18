@@ -11,7 +11,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-09-18 — 42 open bugs.*
+*Last updated: 2026-09-18 — 41 open bugs.*
 
 If your program behaves differently from Blitz3D and the cause is not listed here, please
 open an issue with a minimal `.bb` file and the output of both.
@@ -80,10 +80,6 @@ are the most likely reason for an old program to behave strangely.
 
 - **An untagged `Const` keeps a float value.** `Const c = 1.5` is the integer 2 in Blitz3D
   and 1.5 here. *Workaround:* tag the constant (`Const c# = 1.5`). (BUG-99)
-- **`Abs` always returns a float and `Sgn` always an integer.** In Blitz3D the result has
-  the type of the argument: `Abs(3)/2` is `1`, `Sgn(2.0)/2` is `0.5`. BlitzNext gives
-  `1.5` and `0`.
-  *Workaround:* wrap the call: `Int(Abs(n))`, `Float(Sgn(f#))`. (BUG-96)
 - **Numbers with a leading zero are read as octal.** `Print 010` prints `8`; `08` does not
   compile at all. *Workaround:* remove leading zeros. (BUG-98)
 - **Constant float expressions are calculated with double precision.**
