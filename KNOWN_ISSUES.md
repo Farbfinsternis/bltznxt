@@ -11,7 +11,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-09-18 — 42 open bugs.*
+*Last updated: 2026-09-18 — 41 open bugs.*
 
 If your program behaves differently from Blitz3D and the cause is not listed here, please
 open an issue with a minimal `.bb` file and the output of both.
@@ -188,8 +188,6 @@ are the most likely reason for an old program to behave strangely.
 
 ## Runtime library
 
-- **Integer division by zero at run time** crashes without a message and loses output
-  that was not yet written; Blitz3D stops with "Integer divide by zero". (BUG-164)
 - **`SystemProperty`** always returns an empty string (Blitz3D returns e.g. `"Intel"` for
   `"cpu"`). (BUG-122)
 - **`CallDLL`** does nothing and returns 0. BlitzNext produces 64-bit programs, so 32-bit

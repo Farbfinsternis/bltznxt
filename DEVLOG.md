@@ -1,5 +1,18 @@
 # BlitzNext Developer Log
 
+## 2026-09-18 — Runtime exceptions end with a message (BUG-164)
+
+An integer division by zero crashed the program without a word, and output that was still
+buffered was lost with it. Hardware exceptions now end the program the way Blitz3D's
+`seTranslator` does, with "Integer divide by zero", "Memory access violation" (for example a
+field of a `Null` object), "Illegal instruction", "Stack overflow!" or "Unknown runtime
+exception", written to stderr after the output has been flushed. Blitz3D shows the same texts in
+a dialog. The two integer exceptions need a handler that runs first: otherwise the MinGW
+runtime handles them itself, and `-2147483648 / -1` even retried the instruction forever, so
+the program hung. Suite 268/268.
+
+---
+
 ## 2026-09-18 — Dividing by a constant power of two (BUG-162)
 
 Blitz3D's code generator turns an integer division by a constant power of two into an

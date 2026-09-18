@@ -26,9 +26,47 @@
 
 // ---- Lifecycle ----
 
+#ifdef _WIN32
+// Hardware-Ausnahmen enden wie im Original mit einer Laufzeitmeldung statt
+// mit einem stummen Absturz: seTranslator in bbruntime_dll/bbruntime_dll.cpp
+// ordnet dieselben vier Codes zu, alles andere wird "Unknown runtime
+// exception". Vorher verlor "Print 7 / z" mit z = 0 sogar die schon
+// geschriebene, noch gepufferte Ausgabe (BUG-164); bb_RuntimeError endet
+// ueber exit(), das die Puffer leert.
+inline const char *bb_seh_message_(DWORD code) {
+  switch (code) {
+    case EXCEPTION_INT_DIVIDE_BY_ZERO:  return "Integer divide by zero";
+    case EXCEPTION_ACCESS_VIOLATION:    return "Memory access violation";
+    case EXCEPTION_ILLEGAL_INSTRUCTION: return "Illegal instruction";
+    case EXCEPTION_STACK_OVERFLOW:      return "Stack overflow!";
+  }
+  return "Unknown runtime exception";
+}
+inline LONG WINAPI bb_seh_filter_(EXCEPTION_POINTERS *p) {
+  bb_RuntimeError(bb_seh_message_(p->ExceptionRecord->ExceptionCode));
+  return EXCEPTION_EXECUTE_HANDLER;
+}
+// Die beiden Ganzzahl-Ausnahmen muessen vorne abgefangen werden: die
+// MinGW-Laufzeit behandelt sie sonst selbst - Division durch 0 als SIGFPE mit
+// stummem Abbruch, "-2147483648 / -1" (EXCEPTION_INT_OVERFLOW) sogar mit
+// endloser Wiederholung der Anweisung. Beide loest kein Code absichtlich
+// aus; Zugriffsfehler dagegen fangen manche Grafiktreiber intern selbst ab,
+// die bleiben beim Filter fuer unbehandelte Ausnahmen.
+inline LONG WINAPI bb_seh_vectored_(EXCEPTION_POINTERS *p) {
+  const DWORD code = p->ExceptionRecord->ExceptionCode;
+  if (code == EXCEPTION_INT_DIVIDE_BY_ZERO || code == EXCEPTION_INT_OVERFLOW)
+    bb_RuntimeError(bb_seh_message_(code));
+  return EXCEPTION_CONTINUE_SEARCH;
+}
+#endif
+
 inline void bbInit(int argc = 0, char** argv = nullptr) {
   bb_argc_ = argc;
   bb_argv_ = argv;
+#ifdef _WIN32
+  AddVectoredExceptionHandler(1, bb_seh_vectored_);
+  SetUnhandledExceptionFilter(bb_seh_filter_);
+#endif
   // SDL is initialised lazily by bb_sdl_ensure_() when a window is first needed.
 #ifdef _WIN32
   // Set Windows timer resolution to 1ms so WaitTimer / sleep_until are accurate.
