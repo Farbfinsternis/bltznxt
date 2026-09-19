@@ -41,6 +41,9 @@ These are not bugs but decisions, and they will stay:
   itself is being rebuilt to be computed per pixel with modern formulas. Old scenes can look
   darker, brighter or smoother than they did. If a scene is too dark or too bright, adjust
   `AmbientLight`, the light colours or `LightRange` in the program.
+  Where BlitzNext lights a model correctly and Blitz3D did not, BlitzNext stays correct. One
+  example: an object scaled unevenly with `ScaleEntity` (say `1.5,0.5,1`) is shaded
+  differently, because Direct3D 7 stretched its normals along with the object. (BUG-177)
 - **Colours read back from the rendered 3D image are not guaranteed.** `ReadPixel` or
   `CopyRect` after `RenderWorld` return BlitzNext's shading, not Direct3D 7's. What is in the
   image — geometry, visibility, texture contents — does match.

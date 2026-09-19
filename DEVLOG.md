@@ -1,11 +1,12 @@
 # BlitzNext Developer Log
 
-## v0.5.5 - "blox-n-balls plays" (2026-09-19)
+## v0.5.5 - "MD2 models, transparent bitmaps, more samples running" (2026-09-19)
 
-Three days after v0.5.0. The game blox-n-balls, unmodified, now loads, runs its menus and can
-be played; every problem found on the way was measured against a running Blitz3D 11.8 and
-fixed in BlitzNext, not in the game. The entries below this one describe each step; this is the
-overview.
+Three days after v0.5.0. More of the samples that ship with Blitz3D now compile unmodified and
+look the same as in Blitz3D: AGore/BirdDemo, mak/dragon and the GCUK `animation.bb` tutorial
+through the new MD2 support, and birdie/Mirror, mak/flag, mak/primitives, mak/multicam,
+birdie/lodBalls and si/matrix through the rendering fixes. Every fix was measured against a
+running Blitz3D 11.8. The entries below this one describe each step; this is the overview.
 
 **3D**
 - New: sprites (3D-16), mirrors, collisions and line/entity picking (3D-17, 3D-18), MD2 models
