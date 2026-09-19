@@ -1,5 +1,19 @@
 # BlitzNext Developer Log
 
+## 2026-09-19 — Loaded images are masked with black (BUG-172)
+
+At the end of a level, blox-n-balls showed its "next stage" banner on a black box. The game loads
+the banner with `LoadImage` and never calls `MaskImage`. In Blitz3D a loaded image is masked
+with black right away: all 9040 black pixels of the banner stay transparent, in 16-bit as in
+32-bit mode, while nearly black pixels are drawn. We only masked after an explicit `MaskImage`.
+Loading now masks black. Measuring the details showed that a mask in Blitz3D is a colour key
+and nothing more, so three smaller things changed with it: a second `MaskImage` with another
+colour makes the old one visible again, `ReadPixelFast` on a masked pixel returns `FF000000`,
+and black written with `WritePixelFast` becomes transparent. The banner now looks as it does
+in the original.
+
+---
+
 ## 2026-09-19 — See-through surfaces no longer hide what comes after (BUG-169)
 
 The sparks in the blox-n-balls main menu were missing. A single spark measured exactly like

@@ -167,6 +167,16 @@ inline unsigned char* bb_load_rgba_(const char* path, int* w, int* h, int* ch) {
     return bb_load_bmp_rle_(path, w, h, ch);
 }
 
+// Ein geladenes Image ist im Original sofort mit Schwarz maskiert, auch ohne
+// MaskImage: gemessen 2026-09-19 an nextstage.bmp aus blox-n-balls (24 Bit,
+// 9040 Pixel 0,0,0) - DrawImage laesst sie aus, bei 16 und 32 Bit Farbtiefe;
+// fast schwarze Pixel bleiben. Wie bb_canvas_put_ steht das im Alphakanal
+// (BUG-172).
+inline void bb_img_mask_black_(unsigned char* p, int w, int h) {
+    for (size_t i = 0, n = static_cast<size_t>(w) * h; i < n; ++i, p += 4)
+        if (p[0] == 0 && p[1] == 0 && p[2] == 0) p[3] = 0;
+}
+
 
 // ==========================================================================
 // MILESTONE 44/45/46/46b — Image System
@@ -303,6 +313,7 @@ inline int bb_LoadImage(const bbString& file) {
         std::cerr << "[runtime] LoadImage: cannot load '" << file << "'\n";
         return 0;
     }
+    bb_img_mask_black_(data, w, h);
 
     bb_Image_ img;
     img.width  = w;
@@ -548,12 +559,12 @@ inline void bb_MaskImage(int handle, int r, int g, int b) {
     for (auto& fd : img.frames) {
         if (fd.pixels.empty()) continue;
         uint8_t* p = fd.pixels.data();
+        // Es gilt nur die neue Maskenfarbe: Pixel der alten (seit BUG-172
+        // auch des vorgegebenen Schwarz) werden wieder sichtbar.
         for (int i = 0; i < n; ++i, p += 4) {
-            if (p[0] == static_cast<uint8_t>(r) &&
-                p[1] == static_cast<uint8_t>(g) &&
-                p[2] == static_cast<uint8_t>(b)) {
-                p[3] = 0;
-            }
+            p[3] = (p[0] == static_cast<uint8_t>(r) &&
+                    p[1] == static_cast<uint8_t>(g) &&
+                    p[2] == static_cast<uint8_t>(b)) ? 0 : 255;
         }
         bb_img_reupload_frame_(handle, &fd);
     }
@@ -847,7 +858,12 @@ inline void bb_LockBuffer(int buf = bb_active_buffer_) {
         const int n     = img.width * img.height * 4;
 
         if (!fd.pixels.empty()) {
+            // Ein Image hat im Original keinen Alphakanal, die Maske ist ein
+            // Farbschluessel: ReadPixelFast liefert auch fuer maskierte Pixel
+            // Alpha FF (gemessen, BUG-172). Beim Entsperren entsteht das
+            // Alpha wieder aus der Maskenfarbe.
             lock.pixels = fd.pixels;
+            for (size_t i = 3; i < lock.pixels.size(); i += 4) lock.pixels[i] = 255;
             lock.locked = true;
         } else if (bb_renderer_ && fd.tex) {
             if (SDL_SetRenderTarget(bb_renderer_, fd.tex)) {
@@ -908,11 +924,15 @@ inline void bb_UnlockBuffer(int buf = bb_active_buffer_) {
             if (f < 0 || f >= static_cast<int>(img.frames.size())) f = 0;
             auto& fd  = img.frames[f];
             fd.pixels = lock.pixels;
+            for (size_t i = 0; i + 3 < fd.pixels.size(); i += 4) {
+                const int rgb = (fd.pixels[i] << 16) | (fd.pixels[i + 1] << 8) | fd.pixels[i + 2];
+                fd.pixels[i + 3] = (rgb == img.mask) ? 0 : 255;
+            }
             if (bb_renderer_) {
                 if (fd.tex) { SDL_DestroyTexture(fd.tex); fd.tex = nullptr; }
                 SDL_Surface* surf = SDL_CreateSurfaceFrom(
                     lock.width, lock.height, SDL_PIXELFORMAT_RGBA32,
-                    lock.pixels.data(), lock.width * 4);
+                    fd.pixels.data(), lock.width * 4);
                 if (surf) {
                     SDL_SetSurfaceBlendMode(surf, SDL_BLENDMODE_NONE);
                     fd.tex = SDL_CreateTextureFromSurface(bb_renderer_, surf);
@@ -1125,6 +1145,7 @@ inline int bb_LoadAnimImage(const bbString& file,
     int sw = 0, sh = 0, ch = 0;
     unsigned char* src = bb_load_rgba_(file.c_str(), &sw, &sh, &ch);
     if (!src) return 0;
+    bb_img_mask_black_(src, sw, sh);
 
     const int cols = sw / fw;
     if (cols < 1) { stbi_image_free(src); return 0; }
