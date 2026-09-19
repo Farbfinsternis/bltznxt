@@ -1,0 +1,11 @@
+A voll dann leer mitte=007F7F7F ecke=00FF0000 unten=00FF0000 tris=12
+A leer bei 100,100 h50 mitte=007F7F7F ecke=00FF0000 unten=00FF0000 tris=12
+B leer dann voll mitte=007F7F7F ecke=00FF0000 unten=00FF0000 tris=12
+C nur leer mitte=00000000 ecke=00000000 unten=00000000 tris=0
+D leer zuerst per order mitte=007F7F7F ecke=00FF0000 unten=00FF0000 tris=12
+E leer zuletzt per order mitte=007F7F7F ecke=00FF0000 unten=00FF0000 tris=12
+F leer zuletzt ohne cls mitte=007F7F7F ecke=00FF0000 unten=00FF0000 tris=12
+innen 00FF0000
+aussen 000000FF
+rechts 000000FF
+zweite ohne viewport 0000FF00

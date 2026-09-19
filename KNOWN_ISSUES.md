@@ -11,7 +11,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-09-18 — 40 open bugs.*
+*Last updated: 2026-09-19 — 42 open bugs.*
 
 If your program behaves differently from Blitz3D and the cause is not listed here, please
 open an issue with a minimal `.bb` file and the output of both.
@@ -205,6 +205,9 @@ are the most likely reason for an old program to behave strangely.
 - **Font heights differ.** The default font is 8 pixels high instead of 13, and a font loaded
   with `LoadFont(name, 40)` reports `FontHeight` 45 instead of 40. Text laid out with
   `FontHeight` or `StringWidth` ends up spaced differently. (BUG-139)
+- **`SaveBuffer` only works on a locked buffer and always writes PNG.** Without
+  `LockBuffer` it silently saves nothing, and a `.bmp` file name still gets PNG data.
+  *Workaround:* lock the buffer around `SaveBuffer`. (BUG-167)
 
 ---
 
@@ -236,6 +239,8 @@ visibly wrong results because of the points below.
 - **Texture paths inside `.x` models** are resolved relative to the model file. For paths
   with a directory part (`Textures\Rock.bmp`) Blitz3D apparently does not load the
   texture, so a model can end up with a different number of surfaces here. (BUG-76)
+- **Sprites do not appear in mirrors.** A sprite above a `CreateMirror` plane has a
+  reflection in Blitz3D and none here. (BUG-168)
 
 ---
 

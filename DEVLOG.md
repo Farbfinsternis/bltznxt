@@ -1,5 +1,17 @@
 # BlitzNext Developer Log
 
+## 2026-09-19 — A camera with an empty viewport draws nothing (BUG-166)
+
+In the blox-n-balls main menu we rendered twice as many triangles as Blitz3D. The game hides
+its game camera in the menu with `CameraViewport cam,0,0,0,0`. We treated a viewport of width
+or height 0 as "the whole window", so that camera cleared the screen and drew the whole level
+behind the menu. In Blitz3D such a camera neither clears nor draws, whatever its order among
+the other cameras. While measuring this, a second difference showed up: `CreateCamera` takes
+the current 2D `Viewport` as its viewport, and the full graphics size only when none is set.
+Both now match the original, measured pixel by pixel and with `TrisRendered`. Suite 272/272.
+
+---
+
 ## 2026-09-18 — Mouse movement that arrived too late (BUG-165)
 
 The paddle in blox-n-balls did not move with the mouse. A log inside the game showed

@@ -23,7 +23,9 @@ struct bb_CameraEntity_ : bb_Entity_ {
   float far_     = 1000.0f;  // far clip plane
   float zoom     = 1.0f;     // zoom factor: 1.0 = 90° horizontal FOV
 
-  // Viewport in pixels (0,0,0,0 = full window)
+  // Viewport in Pixeln des Programms. Wird bei CreateCamera gesetzt; eine
+  // Breite oder Hoehe von 0 heisst wirklich leer, nicht "ganzes Fenster"
+  // (BUG-166).
   int vpX = 0, vpY = 0, vpW = 0, vpH = 0;
 
   // Per-camera clear settings
@@ -53,8 +55,21 @@ static inline bb_CameraEntity_* bb_cam_(int h) {
 // CreateCamera
 // ============================================================
 
+// Wie bbCreateCamera: die neue Kamera uebernimmt den aktuellen Viewport des
+// Zeichenpuffers (gx_canvas->getViewport) - ohne Viewport-Befehl ist das die
+// volle Grafikgroesse (BUG-166).
 inline int bb_CreateCamera(int parent = 0) {
-  return bb_entity_register_(std::make_unique<bb_CameraEntity_>(), parent);
+  auto cam = std::make_unique<bb_CameraEntity_>();
+  if (bb_viewport_active_) {
+    cam->vpX = bb_viewport_rect_.x;
+    cam->vpY = bb_viewport_rect_.y;
+    cam->vpW = bb_viewport_rect_.w;
+    cam->vpH = bb_viewport_rect_.h;
+  } else {
+    cam->vpW = bb_gfx_width_;
+    cam->vpH = bb_gfx_height_;
+  }
+  return bb_entity_register_(std::move(cam), parent);
 }
 
 // ============================================================

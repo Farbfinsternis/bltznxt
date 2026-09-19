@@ -192,8 +192,13 @@ inline void bb_RenderWorld(float tween = 1.0f) {
 
   for (auto* cam : cams) {
     // Viewport — Blitz3D y=0 is top-left; GL y=0 is bottom-left, so flip.
-    int vw = (cam->vpW > 0) ? cam->vpW : bb_gfx_width_;
-    int vh = (cam->vpH > 0) ? cam->vpH : bb_gfx_height_;
+    // Eine Kamera mit leerem Viewport loescht nicht und zeichnet nicht - am
+    // Original gemessen: kein Hintergrund, TrisRendered unveraendert (BUG-166).
+    // Vorher galt 0 als "ganzes Fenster"; blox-n-balls blendet im Menue so
+    // seine Spielkamera aus, und wir malten die ganze Spielszene darueber.
+    const int vw = cam->vpW;
+    const int vh = cam->vpH;
+    if (vw <= 0 || vh <= 0) continue;
     // Der Viewport steht in der Aufloesung des Programms; im Vollbild ist das
     // Fenster groesser und alles wird skaliert (BUG-159).
     const float sc = bb_present_scale_;
