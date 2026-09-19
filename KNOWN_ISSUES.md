@@ -11,7 +11,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-09-19 — 42 open bugs.*
+*Last updated: 2026-09-19 — 44 open bugs.*
 
 If your program behaves differently from Blitz3D and the cause is not listed here, please
 open an issue with a minimal `.bb` file and the output of both.
@@ -82,6 +82,8 @@ are the most likely reason for an old program to behave strangely.
   and 1.5 here. *Workaround:* tag the constant (`Const c# = 1.5`). (BUG-99)
 - **Numbers with a leading zero are read as octal.** `Print 010` prints `8`; `08` does not
   compile at all. *Workaround:* remove leading zeros. (BUG-98)
+- **Entity commands with an invalid handle return 0.** `EntityX(0)` ends the program in
+  Blitz3D; here it quietly returns 0, so a missing `Global` goes unnoticed. (BUG-170)
 - **`ASin`, `ACos` and `Exp` can differ in the last digit.** Blitz3D's old C runtime computes
   them with reduced intermediate precision; `Exp` is off by up to three units there. All other
   math functions match bit for bit, including how their unrounded results feed into the next
@@ -251,3 +253,6 @@ visibly wrong results because of the points below.
 - **The IDE smoke test** (`ide/test/smoke.js`) reports two failures because its test file
   for the C++-error path is now caught earlier by the compiler. The IDE itself is not
   affected. (BUG-121)
+- **Screenshots of a fullscreen program can show an old frame.** The Windows screenshot tool
+  (Win+Shift+S) captured the loading screen of a game that was already in its menu.
+  *Workaround:* run the program in a window. (BUG-171)

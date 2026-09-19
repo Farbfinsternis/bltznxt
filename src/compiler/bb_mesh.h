@@ -922,10 +922,69 @@ static inline void bb_render_meshes_(bb_Shader_* shader,
     return false;
   });
 
+  // Durchscheinende Flaechen der Ordnung 0 wie World::flushTransparent: die
+  // Modelle kommen in Aufzaehlungsreihenfolge (Wurzeln nach Erzeugung, je
+  // Entity erst es selbst, dann die Kinder) in eine priority_queue nach
+  // Abstand, der weiteste zuerst. Bei gleichem Abstand entscheidet die
+  // Heap-Mechanik der STL des Originals - dieselbe wie bei den Kameras
+  // (bb_collect_cameras_, BUG-129). Am Original gemessen: Funke vor grossem
+  // Sprite in gleicher Tiefe, der zuerst erzeugte wird zuerst gezeichnet
+  // (BUG-169).
+  {
+    auto lo = std::find_if(items.begin(), items.end(), [](const Item& it) {
+      return it.e->order == 0 && it.translucent; });
+    auto hi = std::find_if(lo, items.end(), [](const Item& it) {
+      return !(it.e->order == 0 && it.translucent); });
+    if (hi - lo > 1) {
+      std::unordered_map<const bb_Entity_*, int> rank;
+      std::vector<bb_Entity_*> roots;
+      for (auto& [h, e] : bb_entities_)
+        if (e->parent == 0) roots.push_back(e.get());
+      std::sort(roots.begin(), roots.end(),
+                [](bb_Entity_* a, bb_Entity_* b) { return a->seq < b->seq; });
+      std::vector<bb_Entity_*> stack(roots.rbegin(), roots.rend());
+      while (!stack.empty()) {
+        bb_Entity_* e = stack.back();
+        stack.pop_back();
+        rank.emplace(e, (int)rank.size());
+        for (auto k = e->children.rbegin(); k != e->children.rend(); ++k)
+          if (bb_Entity_* c = bb_entity_get_(*k)) stack.push_back(c);
+      }
+      std::vector<Item> found(lo, hi);
+      std::sort(found.begin(), found.end(), [&rank](const Item& a, const Item& b) {
+        return rank[a.e] < rank[b.e]; });
+      std::vector<Item> heap;
+      for (const Item& it : found) {
+        heap.push_back(it);
+        for (size_t i = heap.size() - 1; i > 0;) {
+          size_t j = (i - 1) / 2;
+          if (!(heap[j].dist < heap[i].dist)) break;
+          std::swap(heap[i], heap[j]);
+          i = j;
+        }
+      }
+      auto out = lo;
+      while (!heap.empty()) {
+        *out++ = heap[0];
+        heap[0] = heap.back();
+        heap.pop_back();
+        const size_t z = heap.size();
+        for (size_t i = 0; 2 * i + 1 < z;) {
+          size_t j = 2 * i + 1;
+          if (j + 1 < z && !(heap[j + 1].dist < heap[j].dist)) ++j;
+          if (heap[j].dist < heap[i].dist) break;
+          std::swap(heap[i], heap[j]);
+          i = j;
+        }
+      }
+    }
+  }
+
   bool  blend_on   = false;
   int   blend_mode = 0;
   bool  cull_on    = true;
   bool  depth_on   = true;
+  bool  zwrite_on  = true;
   float vm[16];
   mat4_mul_(vm, proj, view);
 
@@ -995,6 +1054,18 @@ static inline void bb_render_meshes_(bb_Shader_* shader,
                          br.g / 255.0f,
                          br.b / 255.0f,
                          br.alpha * it.fade };
+
+      // Durchscheinende Flaechen pruefen den Z-Puffer, schreiben aber nicht
+      // hinein: im Original landet jede Flaeche, deren Brush nicht "ersetzen"
+      // mischt, im durchsichtigen Durchgang mit ZMODE_CMPONLY (world.cpp,
+      // model.cpp). Sonst verdeckt ein fast unsichtbares Sprite alles, was
+      // danach in gleicher Tiefe kommt - die Funken im Menue von
+      // blox-n-balls hinter den Sprites mit Alpha 0.05 (BUG-169).
+      const bool want_zwrite = !(bb_brush_translucent_(br) || color[3] < 1.0f);
+      if (want_zwrite != zwrite_on) {
+        zwrite_on = want_zwrite;
+        glDepthMask(want_zwrite ? GL_TRUE : GL_FALSE);
+      }
       bb_shader_uniform_f(shader, "u_shininess", br.shininess);
       bb_texture_bind_(shader, br.tex);
       bb_mesh_draw_(&surf, shader, mvp, model, color, nullptr);
@@ -1003,6 +1074,7 @@ static inline void bb_render_meshes_(bb_Shader_* shader,
   }
 
   if (blend_on)  glDisable(GL_BLEND);
+  if (!zwrite_on) glDepthMask(GL_TRUE);  // sonst loescht glClear den Z-Puffer nicht
   if (!cull_on)  glEnable(GL_CULL_FACE);
   if (!depth_on) glEnable(GL_DEPTH_TEST);
 }

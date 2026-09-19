@@ -1,5 +1,22 @@
 # BlitzNext Developer Log
 
+## 2026-09-19 — See-through surfaces no longer hide what comes after (BUG-169)
+
+The sparks in the blox-n-balls main menu were missing. A single spark measured exactly like
+Blitz3D, so the game itself had to be measured. We rendered each menu frame once with and once
+without the sparks: in Blitz3D they changed about 4500 pixels, here none, although all 84 sparks
+were in the right place. Next to them, at exactly the same depth, the menu has two large sprites
+with `EntityAlpha 0.05`. Blitz3D draws every surface that does not blend with "replace" in a
+separate pass that tests the depth buffer but does not write to it. We did write to it, so when
+the nearly invisible sprite came first, every spark behind it failed the depth test. Surfaces that
+blend now leave the depth buffer alone. While measuring this, the order of see-through objects at
+the same distance turned out to be arbitrary here. Blitz3D keeps them in a priority queue, and
+the order in which it resolves a tie is now reproduced, the same one we already use for cameras.
+The mixed colour of two to seven overlapping sprites, and of a parent/child chain, now matches
+Blitz3D. The sparks look as they do in the original.
+
+---
+
 ## 2026-09-19 — A camera with an empty viewport draws nothing (BUG-166)
 
 In the blox-n-balls main menu we rendered twice as many triangles as Blitz3D. The game hides
