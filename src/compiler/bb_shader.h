@@ -387,13 +387,12 @@ void main() {
     vec4 base = u_color;
     if ((u_fx & 2)  != 0) base.rgb = v_color.rgb;
     if ((u_fx & 32) != 0) base.a  *= v_color.a;
-    base = bb_tex_apply(base);
 
     // EntityFX 1 (full-bright): weder Lichter noch Umgebungslicht. Gemessen:
     // die Flaeche zeigt genau die Entityfarbe, auch bei gesetztem
     // AmbientLight.
     if ((u_fx & 1) != 0) {
-        frag_color = clamp(base, 0.0, 1.0);
+        frag_color = clamp(bb_tex_apply(base), 0.0, 1.0);
         return;
     }
 
@@ -414,13 +413,21 @@ void main() {
     // ueber 128 hinaus. Mit der umgekehrten Reihenfolge waere es 128
     // geblieben.
     //
+    // Die Texturen kommen erst **danach**, wie in der festen Pipeline: dort
+    // ist das beleuchtete Ergebnis die Vertexfarbe, schon auf 1 begrenzt, und
+    // die Texturstufen verrechnen sie mit der Textur. Am Original gemessen
+    // (BUG-173): Textur 100,150,200 unter Umgebungslicht 128 plus vollem
+    // Richtungslicht bleibt 100,150,200; bei uns wurde sie 150,225,255, weil
+    // die Textur vor dem Begrenzen mit dem Licht multipliziert wurde. In der
+    // BirdDemo waren besonnte Flaechen so 13 % zu hell.
+    //
     // Das Glanzlicht kommt aus dem Vertex-Shader und wird danach addiert, wie
     // die feste Pipeline es nach den Texturstufen tut (BUG-66). Bis dahin
     // rechnete dieses Fragment es selbst, je Bildpunkt und mit der Entityfarbe
     // multipliziert: Wuerfel 64,64,64 bei Shininess 1 gab 128 statt 75.
-    vec3 spec  = ((u_fx & 4) != 0) ? v_spec_flat : v_spec;
-    frag_color = vec4(clamp(clamp(result * base.rgb, 0.0, 1.0) + spec, 0.0, 1.0),
-                      base.a);
+    vec4 lit  = bb_tex_apply(vec4(clamp(result * base.rgb, 0.0, 1.0), base.a));
+    vec3 spec = ((u_fx & 4) != 0) ? v_spec_flat : v_spec;
+    frag_color = vec4(clamp(lit.rgb + spec, 0.0, 1.0), lit.a);
 }
 )glsl";
 

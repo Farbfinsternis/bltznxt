@@ -1,5 +1,20 @@
 # BlitzNext Developer Log
 
+## 2026-09-19 — Light is limited before the texture, BirdDemo now matches (BUG-173)
+
+The BirdDemo from the Blitz3D samples still needs `LoadMD2`, which we do not have yet, so it
+was measured with the two birds replaced by cubes. It renders fixed steps of its camera flight
+and averages every 8×8 block of the picture. The camera matched Blitz3D at every step, but
+sunlit rock and grass were about 13 % too bright in red and green, while blue was the same. The
+demo's ambient light plus its yellowish sun adds up to more than 1 in red and green. Direct3D's
+fixed pipeline limits the lit colour to 1 first and multiplies the texture into it afterwards;
+we multiplied the texture in before limiting. With the order changed, the average block differs
+by less than half a colour step, and no block differs by more than 12. Two new open items came
+out of the comparison: objects outside the view are still drawn and counted by `TrisRendered`
+(BUG-174), and compiled programs open a console window (BUG-175).
+
+---
+
 ## 2026-09-19 — Loaded images are masked with black (BUG-172)
 
 At the end of a level, blox-n-balls showed its "next stage" banner on a black box. The game loads

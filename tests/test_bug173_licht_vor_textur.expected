@@ -1,0 +1,7 @@
+ohne textur, licht 1 255,255,255
+ohne textur, licht 1.5 255,255,255
+textur, licht 1 100,150,200
+textur, licht 1.5 100,150,200
+textur, farbe .5, licht 1.5 75,113,151
+textur, farbe 255,128,0, amb 64,32,16 100,85,0
+textur, licht .59 59,88,118
