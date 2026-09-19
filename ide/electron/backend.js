@@ -146,7 +146,7 @@ async function getInfo() {
 		return { ...found, version: null };
 	}
 
-	// -v gibt "BlitzNext v0.5.0" aus.
+	// -v gibt "BlitzNext v0.5.5" aus.
 	const res = await runCompiler(found.path, ['-v'], path.dirname(found.path));
 	const m = /v?(\d+\.\d+\.\d+)/.exec(res.stdout);
 	return { ...found, version: m ? m[1] : null };

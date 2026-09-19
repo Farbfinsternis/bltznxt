@@ -1,5 +1,42 @@
 # BlitzNext Developer Log
 
+## v0.5.5 - "blox-n-balls plays" (2026-09-19)
+
+Three days after v0.5.0. The game blox-n-balls, unmodified, now loads, runs its menus and can
+be played; every problem found on the way was measured against a running Blitz3D 11.8 and
+fixed in BlitzNext, not in the game. The entries below this one describe each step; this is the
+overview.
+
+**3D**
+- New: sprites (3D-16), mirrors, collisions and line/entity picking (3D-17, 3D-18), MD2 models
+  with animation (3D-23).
+- Rendering as in Blitz3D: triangle winding for all meshes, sphere/cylinder/cone vertex tables,
+  several cameras with viewports and render order, cameras with an empty viewport, the half-pixel
+  offset, hidden parents, copies of hidden entities, translucency and the depth buffer,
+  drawing order of see-through objects, and lighting limited before the texture is applied.
+- Entities: `TurnEntity`, `TranslateEntity`, world rotation under scaled parents, `EntityParent`
+  keeping the world position, `ClearWorld` flags.
+
+**2D and runtime**
+- Drawing into image and texture buffers, `CopyRect` between all buffers, loaded images masked
+  with black, a graphics mode change resets the drawing state.
+- The same random numbers as Blitz3D, floats printed like Blitz3D, math functions as the x87
+  computes them, runtime errors end with Blitz3D's message.
+- Fullscreen scales the program's resolution, mouse movement is not lost around `MoveMouse`.
+- TCP streams and hostname lookup, `DebugLog`.
+
+**Compiler**
+- Float-to-int conversion rounds everywhere, float literals are floats, `Abs`/`Sgn` keep their
+  type, division by a constant power of two, field assignments convert to the field type.
+- `Gosub` keeps a return stack, jumps into `Case` branches work, `Read` uses the declared type
+  and stops with "Out of data", `Include` paths are relative to the main file.
+
+**Documentation**
+- `KNOWN_ISSUES.md` lists 47 open deviations, each reproduced against Blitz3D. 104 of
+  Blitz3D's commands are still missing; the command table has 463 entries.
+
+---
+
 ## 2026-09-19 — MD2 models (3D-23)
 
 `LoadMD2`, `AnimateMD2`, `MD2AnimTime`, `MD2AnimLength` and `MD2Animating` are available. The

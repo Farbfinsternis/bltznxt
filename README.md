@@ -6,7 +6,7 @@
 
 **BlitzNext** is a modern compiler that converts Blitz3D (`.bb`) source files directly into native Windows executables via a C++17 transpilation pipeline. It targets 100% command parity with the original Blitz3D engine, using a bundled MinGW toolchain and SDL3 for audio and graphics.
 
-> **Status: active development — v0.5.0.** BlitzNext compiles the unmodified game **blox-n-balls**. The runtime now includes sprites, mirrors, collisions and line/entity picking; full gameplay compatibility is still being verified.
+> **Status: active development — v0.5.5.** BlitzNext compiles and runs the unmodified game **blox-n-balls**: it loads, its menus work, and levels can be played. The runtime now includes sprites, mirrors, MD2 models, collisions and line/entity picking; full gameplay compatibility is still being verified.
 > **[KNOWN_ISSUES.md](KNOWN_ISSUES.md) lists everything that does not yet behave like Blitz3D** — please check it before reporting a bug.
 > See [roadmap.md](roadmap.md) and [ROADMAP3D.md](ROADMAP3D.md) for the milestones and [DEVLOG.md](DEVLOG.md) for the changelog.
 
@@ -32,14 +32,14 @@ Mark passed away in 2024. BlitzNext exists to carry his idea forward — the bel
 
 ## Compatibility Progress
 
-| Area | State (2026-09-18) |
+| Area | State (2026-09-19) |
 |------|--------------------|
 | **Language** | All constructs except `Handle` and `Object` |
-| **Built-in commands** | 458 entries in `src/compiler/commands.h`, including extensions; this counts signatures, not verified behaviour |
+| **Built-in commands** | 463 entries in `src/compiler/commands.h`, including extensions; this counts signatures, not verified behaviour |
 | **2D milestones** | Milestones 6–46 complete ([roadmap.md](roadmap.md)) |
-| **3D runtime** | Meshes, surfaces, brushes, sprites, mirrors, collisions and line/entity picking available; remaining work in [ROADMAP3D.md](ROADMAP3D.md) |
-| **Known deviations** | 46 open bugs, all reproduced against Blitz3D 11.8 ([KNOWN_ISSUES.md](KNOWN_ISSUES.md)) |
-| **Primary integration test** | blox-n-balls: all 26 source files unchanged, full executable build verified; complete gameplay not yet verified |
+| **3D runtime** | Meshes, surfaces, brushes, sprites, mirrors, MD2 models, collisions and line/entity picking available; remaining work in [ROADMAP3D.md](ROADMAP3D.md) |
+| **Known deviations** | 47 open bugs, all reproduced against Blitz3D 11.8 ([KNOWN_ISSUES.md](KNOWN_ISSUES.md)) |
+| **Primary integration test** | blox-n-balls: all 26 source files unchanged; loads, menus work, levels can be played; complete gameplay not yet verified |
 
 Compatibility is measured, not estimated: questions about the language are answered from the
 [original source](https://github.com/blitz-research/blitz3d), and results are compared with a
@@ -49,16 +49,17 @@ That corpus has not been fully remeasured after the latest additions; these are 
 baseline figures, not current coverage percentages.
 
 **Language.** Every construct except `Handle` and `Object` is implemented, but several still
-differ from Blitz3D in detail — most importantly float-to-integer conversion (truncates instead
-of rounding), `Include` on a line with other statements, and nested `Gosub`. See
+differ from Blitz3D in detail — most importantly untagged `Const` values, the scope of `Local`
+inside blocks, and `Include` on a line with other statements. See
 [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 
 **Runtime.** Math, strings, files, banks, input, audio and 2D graphics are available. A few
 commands remain incomplete, including pixel-accurate `ImagesCollide`, `SystemProperty` and
 `CallDLL`. `CopyRect`, image/texture buffer drawing and multi-camera rendering have received
 compatibility fixes. In 3D, entities, cameras, lights, textures, brushes, primitive meshes,
-`.x`/`.3ds` loading, the surface API, sprites, mirrors, collisions and line/entity picking
-are available. Camera picking/projection, animation, terrain, fog and planes remain missing.
+`.x`/`.3ds` loading, the surface API, sprites, mirrors, MD2 models with animation, collisions
+and line/entity picking are available. Camera picking/projection, skeletal and keyframe
+animation, terrain, fog and planes remain missing.
 TCP streams and hostname lookup are available; UDP and DirectPlay remain missing.
 
 **Blitz2D compatibility** is a practical secondary target. The 2D runtime is available, with
@@ -133,7 +134,7 @@ bin\blitzcc.exe hello.bb
 
 ¹ Works, with known deviations from Blitz3D — see [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 
-### Built-in Commands (458 table entries)
+### Built-in Commands (463 table entries)
 
 The groups below are an overview. `blitzcc -k` prints the complete list, `blitzcc +k` the signatures. Commands that exist but do not
 yet work like Blitz3D are listed in [KNOWN_ISSUES.md](KNOWN_ISSUES.md).

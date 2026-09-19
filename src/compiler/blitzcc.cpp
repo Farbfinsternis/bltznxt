@@ -26,7 +26,7 @@ namespace fs = std::filesystem;
 // ---- Version ---------------------------------------------------------------
 // Single source of truth for -h and -v output (Buglist BUG-02 / REFACTOR R12).
 
-static constexpr const char *kVersion = "0.5.0";
+static constexpr const char *kVersion = "0.5.5";
 
 // ---- Config ----------------------------------------------------------------
 
@@ -215,7 +215,7 @@ static int checkCalls(const Program *prog, const SourceMap &map) {
       std::string hint = didYouMean(ce->name, knownNames);
       std::cerr << map.format(ce->line, std::max(1, ce->col))
                 << ": error: unknown function or command '" << ce->name
-                << "'" << hint << "\n";
+                << "'" << hint << "\n";
       ++errors;
     }
   }
