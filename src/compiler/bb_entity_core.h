@@ -22,7 +22,7 @@
 // ============================================================
 
 enum class bb_EntityKind_ {
-  Pivot, Mesh, Camera, Light, Sprite, Mirror
+  Pivot, Mesh, Camera, Light, Sprite, Mirror, Md2
 };
 
 // ============================================================
@@ -1250,6 +1250,7 @@ inline bbString bb_EntityClass(int h) {
     case bb_EntityKind_::Light:  return "Light";
     case bb_EntityKind_::Sprite: return "Sprite";
     case bb_EntityKind_::Mirror: return "Mirror";
+    case bb_EntityKind_::Md2:    return "MD2";   // bbblitz3d.cpp: p="MD2"
   }
   return "";
 }

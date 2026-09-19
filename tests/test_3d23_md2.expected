@@ -1,0 +1,15 @@
+klasse=MD2 len=3 t=0.0 an=0
+fehlt=0
+frame0 fx1 kante=52-129 tris=1
+frame0 fx17 kante=52-129 tris=1
+loop: 0.25 0.5 0.75 1.0 1.25 1.5 1.75 0.0 0.25 0.5
+t=0.5 kante=62-139 tris=1
+pingpong: 0.75 1.5 1.75 1.0 0.25 0.5
+t=0.5 kante=62-139 tris=1
+oneshot: 0.6/1 1.0/0 1.0/0 1.0/0 1.0/0 1.0/0 1.0/0 1.0/0
+ende t=1.0 kante=71-148 tris=1
+uebergang halb kante=62-139 tris=1
+uebergang fertig t=0.0 kante=52-129 tris=1
+versteckt t=0.0
+kopie klasse=MD2 t=0.0 an=0
+hinter kamera kante=-1--1 tris=0

@@ -642,9 +642,9 @@ Each milestone is scoped to fit within a single AI-session context window:
 
 ### Milestone 57: MD2 & BSP Loaders
 *Touch: `bb_loader.h` (new file)*
-- [ ] `bb_LoadMD2(file, parent)` → entity handle
-- [ ] `bb_AnimateMD2(entity, mode, speed, first, last, transition)`
-- [ ] `bb_MD2AnimTime(entity)`, `bb_MD2AnimLength(entity)`, `bb_MD2Animating(entity)`
+- [x] `bb_LoadMD2(file, parent)` → entity handle (2026-09-19, siehe ROADMAP3D 3D-23)
+- [x] `bb_AnimateMD2(entity, mode, speed, first, last, transition)`
+- [x] `bb_MD2AnimTime(entity)`, `bb_MD2AnimLength(entity)`, `bb_MD2Animating(entity)`
 - [ ] `bb_LoadBSP(file, grav, light_gamma, ambient)`
 - [ ] `bb_BSPAmbientLight(r, g, b)`, `bb_BSPLighting(entity, on)`
 - **Test:** `Local md2 = LoadMD2("soldier.md2")`

@@ -900,7 +900,7 @@ Sprachobjekt.
 ---
 
 ### 3D-14 · OBJ-Loader (Fallback)
-*Dateien: `bb_loader.h`*
+*Dateien: `bb_md2.h` (MD2, 2026-09-19), `bb_loader.h`*
 
 - [ ] Minimaler `.obj` + `.mtl`-Parser (Positionen, Normals, UVs, Materialien)
 - [ ] `bb_LoadMesh` erkennt `.obj`-Extension automatisch
@@ -1128,11 +1128,11 @@ am Original gemessen (2026-09-17, `build/coll20260917/`, 55 Faelle).
 ---
 
 ### 3D-23 · MD2 & BSP Loaders
-*Dateien: `bb_loader.h`*
+*Dateien: `bb_md2.h` (MD2, 2026-09-19), `bb_loader.h`*
 
-- [ ] MD2-Format-Parser (`bb_LoadMD2`): Vertex-Keyframes, UV-Mapping, Triangle-List
-- [ ] `bb_AnimateMD2(entity, mode, speed, first, last, transition)`
-- [ ] `bb_MD2AnimTime(entity)`, `bb_MD2AnimLength(entity)`, `bb_MD2Animating(entity)`
+- [x] MD2-Format-Parser (`bb_LoadMD2`): Vertex-Keyframes, UV-Mapping, Triangle-List - nach `md2rep.cpp`, am Original gemessen
+- [x] `bb_AnimateMD2(entity, mode, speed, first, last, transition)`
+- [x] `bb_MD2AnimTime(entity)`, `bb_MD2AnimLength(entity)`, `bb_MD2Animating(entity)`
 - [ ] BSP-Loader: Quake-III-Format (da Blitz3D BSP auf Q3 basiert)
 - [ ] `bb_LoadBSP(path$, grav=0, light_gamma=1, ambient=0)` → entity handle
 - [ ] `bb_BSPAmbientLight(r, g, b)`, `bb_BSPLighting(entity, on)`

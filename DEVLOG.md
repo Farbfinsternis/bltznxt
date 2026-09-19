@@ -1,5 +1,26 @@
 # BlitzNext Developer Log
 
+## 2026-09-19 — MD2 models (3D-23)
+
+`LoadMD2`, `AnimateMD2`, `MD2AnimTime`, `MD2AnimLength` and `MD2Animating` are available. The
+format is old, but Blitz3D programs use it: six models ship with Blitz3D alone, among them the
+birds of the BirdDemo. The implementation follows Blitz3D's own MD2 code: the axes are swapped
+the same way, vertices that share an index and a texture coordinate are merged in the same
+order, and frames are blended linearly, positions and normals alike. Animation time advances in
+`UpdateWorld` by speed × elapsed, only for visible models, with the same loop, ping-pong and
+one-shot rules. Transitions freeze the current pose and blend towards the new animation. A copy
+shares the model but starts unanimated, and a model outside the view is neither drawn nor
+counted. Measured against Blitz3D: the animation time in 30 situations is identical, the
+Gargoyle rendered unlit matches to a hundredth of a colour step, and the unmodified BirdDemo
+now runs with both birds, with the same `TrisRendered` at every step and the picture differing
+by less than one colour step on average. Two smaller findings came out of it: a pixel whose
+centre lies exactly on a right edge is drawn here and not in Blitz3D (BUG-176), and objects
+scaled unevenly are lit differently (BUG-177, to be decided under the lighting guideline).
+Blitz3D itself crashes when a one-shot animation ends on the last frame of the file; BlitzNext
+stays on that frame instead.
+
+---
+
 ## 2026-09-19 — Light is limited before the texture, BirdDemo now matches (BUG-173)
 
 The BirdDemo from the Blitz3D samples still needs `LoadMD2`, which we do not have yet, so it

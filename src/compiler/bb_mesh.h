@@ -15,6 +15,7 @@
 #include "bb_mesh_core.h"
 #include "bb_texture.h"
 #include "bb_sprite.h"
+#include "bb_md2.h"
 #include <algorithm>
 #include <cmath>
 #include <cfloat>
@@ -346,9 +347,11 @@ inline int bb_CreateCone(int segs = 8, int solid = 1, int parent = 0) {
 // 0-7 und dient dem Multitexturing (siehe TextureBlend). Ein Texturhandle
 // von 0 raeumt die Lage wieder ab.
 inline void bb_EntityTexture(int entity, int texture, int frame = 0, int index = 0) {
-  // Im Original ein Model: Netze und Sprites (3D-16), keine Pivots.
+  // Im Original ein Model: Netze, Sprites (3D-16) und MD2 (3D-23), keine
+  // Pivots.
   bb_Entity_* me = bb_mesh_ent_(entity);
   if (!me) me = bb_sprite_ent_(entity);
+  if (!me) me = bb_md2_ent_(entity);
   if (!me) return;
   if (index < 0 || index >= BB_TEX_SLOTS) return;
   // Seit 3D-15 landet sie im Brush der **Entity** und nicht mehr in dem
@@ -876,14 +879,16 @@ static inline void bb_render_meshes_(bb_Shader_* shader,
   // erst je Flaeche aus dem verrechneten Brush. Ein Sprite (3D-16) hat
   // keine Flaechen, nur seinen Brush und das je Kamera gebaute Quadrat.
   struct Item { bb_Entity_* e; bb_MeshEntity_* me; bb_SpriteEntity_* sp;
-                float fade; float dist; bool translucent; };
+                float fade; float dist; bool translucent;
+                bb_Md2Entity_* md = nullptr; };   // MD2 (3D-23): ein Netz, Brush der Entity
   std::vector<Item> items;
   items.reserve(bb_entities_.size());
 
   for (auto& [h, ent] : bb_entities_) {
     const bool is_mesh   = ent->kind() == bb_EntityKind_::Mesh;
     const bool is_sprite = ent->kind() == bb_EntityKind_::Sprite;
-    if (!is_mesh && !is_sprite) continue;
+    const bool is_md2    = ent->kind() == bb_EntityKind_::Md2;
+    if (!is_mesh && !is_sprite && !is_md2) continue;
     if (!bb_entity_shown_(ent.get())) continue;
     bb_Entity_* me = ent.get();
 
@@ -908,6 +913,10 @@ static inline void bb_render_meshes_(bb_Shader_* shader,
       auto* mm = static_cast<bb_MeshEntity_*>(me);
       items.push_back({ me, mm, nullptr, fade, dist,
                         bb_ent_translucent_(mm) || ent_alpha < 1.0f });
+    } else if (is_md2) {
+      auto* md = static_cast<bb_Md2Entity_*>(me);
+      items.push_back({ me, nullptr, nullptr, fade, dist,
+                        bb_brush_translucent_(md->brush) || ent_alpha < 1.0f, md });
     } else {
       auto* sp = static_cast<bb_SpriteEntity_*>(me);
       items.push_back({ me, nullptr, sp, fade, dist,
@@ -999,6 +1008,13 @@ static inline void bb_render_meshes_(bb_Shader_* shader,
     float mvp[16];
     mat4_mul_(mvp, vm, model);
 
+    // MD2Model::render: ausserhalb des Sichtkegels weder gezeichnet noch
+    // gezaehlt; sonst das Netz fuer den aktuellen Animationsstand fuellen.
+    if (it.md) {
+      if (!bb_md2_box_visible_(*it.md->rep, mvp)) continue;
+      bb_md2_build_(it.md);
+    }
+
     // ---- Blending ----
     // Am Original gemessen: 1 = Alpha (Vorgabe), 2 = Multiply, 3 = Add. Der
     // eigene Roadmap-Entwurf hatte 2 und 3 vertauscht. Der Modus selbst
@@ -1026,11 +1042,13 @@ static inline void bb_render_meshes_(bb_Shader_* shader,
     // Entity verrechnet - Farbe und Deckkraft mal, Glanz plus, FX oder,
     // Texturen von der Entity ueberschrieben. Die Formel steht in
     // bb_brush.h und stammt aus blitz3d/brush.cpp.
-    const size_t nsurf = it.sp ? 1 : it.me->surfaces().size();
+    const size_t nsurf = (it.sp || it.md) ? 1 : it.me->surfaces().size();
     for (size_t si = 0; si < nsurf; ++si) {
-      bb_MeshData_& surf = it.sp ? it.sp->quad : it.me->surfaces()[si];
-      const bb_Brush_ br = it.sp ? me->brush
-                                 : bb_brush_combine_(surf.brush, me->brush);
+      bb_MeshData_& surf = it.sp ? it.sp->quad
+                         : it.md ? it.md->mesh
+                                 : it.me->surfaces()[si];
+      const bb_Brush_ br = (it.sp || it.md) ? me->brush
+                                            : bb_brush_combine_(surf.brush, me->brush);
 
       if (want_blend && br.blend != blend_mode) {
         blend_mode = br.blend;

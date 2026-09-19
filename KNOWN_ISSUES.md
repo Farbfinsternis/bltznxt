@@ -11,7 +11,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-09-19 — 46 open bugs.*
+*Last updated: 2026-09-19 — 47 open bugs.*
 
 If your program behaves differently from Blitz3D and the cause is not listed here, please
 open an issue with a minimal `.bb` file and the output of both.
@@ -52,7 +52,7 @@ The full reasoning is in [ROADMAP3D.md](ROADMAP3D.md), section
 
 ## Missing commands
 
-109 of Blitz3D's commands (not counting language keywords) are not available yet. A
+104 of Blitz3D's commands (not counting language keywords) are not available yet. A
 program that uses one of them is rejected with `unknown function or command`. `blitzcc -k` lists
 everything that is available.
 
@@ -61,7 +61,7 @@ everything that is available.
 | Networking | all UDP and DirectPlay commands (`CreateUDPStream`, `SendUDPMsg`, `HostNetGame`, `SendNetMsg`, …) and `CopyStream`; TCP is available |
 | Picking and projection | `CameraPick`, `CameraProject`, `ProjectedX/Y/Z`, `EntityInView` |
 | Animation | `Animate`, `SetAnimTime`, `AnimTime`, `Animating`, `AnimSeq`, `AnimLength`, `LoadAnimSeq`, `AddAnimSeq`, `ExtractAnimSeq`, `SetAnimKey` |
-| Terrain, MD2, BSP | `CreateTerrain`, `LoadTerrain`, `ModifyTerrain`, `TerrainHeight`, …, `LoadMD2`, `AnimateMD2`, `LoadBSP`, … |
+| Terrain, BSP | `CreateTerrain`, `LoadTerrain`, `ModifyTerrain`, `TerrainHeight`, …, `LoadBSP`, `BSPAmbientLight`, `BSPLighting` |
 | Planes | `CreatePlane` |
 | Camera fog | `CameraFogMode`, `CameraFogRange`, `CameraFogColor` |
 | 3D maths | `VectorYaw`, `VectorPitch`, `DeltaYaw`, `DeltaPitch`, `GetMatElement`, `TFormFilter` |
@@ -245,6 +245,9 @@ visibly wrong results because of the points below.
   reflection in Blitz3D and none here. (BUG-168)
 - **Objects outside the camera's view are still drawn.** The picture is the same, but
   `TrisRendered` counts them, and Blitz3D skips them. (BUG-174)
+- **A pixel whose centre lies exactly on the right edge of a triangle is drawn.** Blitz3D
+  leaves it out, so such an edge can end one pixel further right here. It only happens when
+  an edge runs exactly through pixel centres. (BUG-176)
 
 ---
 

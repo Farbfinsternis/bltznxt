@@ -38,8 +38,10 @@ inline int bb_tris_rendered_ = 0;
 // Der Zeitschritt ist optional und wird noch nicht ausgewertet - im Original
 // `UpdateWorld [elapsed_time#]` (BUG-44).
 inline void bb_UpdateWorld(float elapsed_time = 1.0f) {
-  (void)elapsed_time;
   bb_entity_update_all_();
+  // Object::beginUpdate ruft animate(elapsed) vor der Kollision, fuer jedes
+  // nicht versteckte Objekt; bisher gibt es davon nur MD2 (3D-23).
+  bb_md2_animate_all_(elapsed_time);
   // Kollisionen (3D-18): jedes Entity mit Typ wird von seiner Lage beim
   // vorigen UpdateWorld zur neuen bewegt, Treffer werden eingetragen.
   bb_world_update_collisions_();
