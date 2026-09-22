@@ -1,8 +1,11 @@
 #include <algorithm>
+#include <cctype>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "commands.h"
@@ -189,6 +192,59 @@ static void collectCallsBlock(const std::vector<std::unique_ptr<ASTNode>> &blk,
   for (auto &s : blk) collectCallsNode(s.get(), out);
 }
 
+// ---- Userlibs: deklariert, aber nicht unterstuetzt -------------------------
+//
+// Blitz3D erweitert seinen Befehlssatz ueber 32-Bit-Windows-DLLs, die in
+// userlibs/*.decls deklariert werden. BlitzNext unterstuetzt das nicht und
+// wird es nicht: Begruendung und der Plan fuer einen Ersatz stehen in
+// VISION.md, der Eintrag fuer Nutzer in KNOWN_ISSUES.md. Ohne diese Pruefung
+// scheitert so ein Programm an einem gewoehnlichen "unknown function or
+// command" - richtig, aber nichtssagend. Deshalb werden die Deklarationen
+// gelesen (nur ihre Namen) und ein passender Aufruf bekommt gesagt, was
+// wirklich los ist.
+//
+// Format laut userlibs/UserLibs.txt: eine Zeile '.lib "name.dll"' eroeffnet
+// die Datei, jede weitere deklariert eine Funktion wie in Blitz, optional
+// gefolgt von :"dekorierter Name". Hier zaehlt nur der Name vor der Klammer,
+// ohne sein Typkuerzel.
+
+static const std::unordered_map<std::string, std::string> &userlibDeclNames() {
+  static const std::unordered_map<std::string, std::string> names = [] {
+    std::unordered_map<std::string, std::string> m;
+    std::error_code ec;
+    fs::path dir = resolvePath("userlibs");
+    if (!fs::is_directory(dir, ec)) return m;
+    for (const auto &entry : fs::directory_iterator(dir, ec)) {
+      if (ec) break;
+      if (!entry.is_regular_file(ec)) continue;
+      std::string ext = entry.path().extension().string();
+      std::transform(ext.begin(), ext.end(), ext.begin(),
+                     [](unsigned char c) { return (char)std::tolower(c); });
+      if (ext != ".decls") continue;
+      std::ifstream in(entry.path());
+      std::string   line;
+      while (std::getline(in, line)) {
+        size_t i = line.find_first_not_of(" \t\r");
+        if (i == std::string::npos) continue;
+        if (line[i] == ';' || line[i] == '.') continue;   // Kommentar, .lib
+        size_t j = i;
+        while (j < line.size() &&
+               (std::isalnum((unsigned char)line[j]) || line[j] == '_')) ++j;
+        if (j == i) continue;
+        std::string name = line.substr(i, j - i);
+        // Ein Typkuerzel (% # $) steht zwischen Name und Klammer.
+        while (j < line.size() && (line[j] == '%' || line[j] == '#' ||
+                                   line[j] == '$')) ++j;
+        while (j < line.size() && (line[j] == ' ' || line[j] == '\t')) ++j;
+        if (j >= line.size() || line[j] != '(') continue;
+        m.emplace(toUpper(name), entry.path().filename().string());
+      }
+    }
+    return m;
+  }();
+  return names;
+}
+
 // Returns number of errors emitted (0 = clean).
 static int checkCalls(const Program *prog, const SourceMap &map) {
   // Build known-name set: all built-in commands + user-defined functions.
@@ -212,6 +268,16 @@ static int checkCalls(const Program *prog, const SourceMap &map) {
   int errors = 0;
   for (const auto *ce : calls) {
     if (known.count(toUpper(ce->name)) == 0) {
+      const auto &ul = userlibDeclNames();
+      auto       it = ul.find(toUpper(ce->name));
+      if (it != ul.end()) {
+        std::cerr << map.format(ce->line, std::max(1, ce->col))
+                  << ": error: '" << ce->name << "' is declared in userlibs/"
+                  << it->second
+                  << " - userlibs are not supported, see KNOWN_ISSUES.md\n";
+        ++errors;
+        continue;
+      }
       std::string hint = didYouMean(ce->name, knownNames);
       std::cerr << map.format(ce->line, std::max(1, ce->col))
                 << ": error: unknown function or command '" << ce->name

@@ -62,7 +62,8 @@ These are not bugs but decisions, and they will stay:
   Most of what people used it for was teaching Blitz3D what it could not do — up to whole rendering
   engines — and that is work BlitzNext does itself. A replacement that runs on Windows, Linux and
   macOS is planned for later; it will not be compatible with `.decls`, so programs that rely on a
-  userlib need changes. The reasoning is in [VISION.md](VISION.md).
+  userlib need changes. A program that calls such a function is told which `.decls` file declares
+  it, rather than that the command is unknown. The reasoning is in [VISION.md](VISION.md).
 
 The full reasoning is in [ROADMAP3D.md](ROADMAP3D.md), section
 "Richtlinie: Was exakt stimmen muss und was besser werden darf".

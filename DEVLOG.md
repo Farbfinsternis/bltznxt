@@ -38,6 +38,33 @@ running Blitz3D 11.8. The entries below this one describe each step; this is the
 
 ---
 
+## 2026-09-22 — Userlibs are out of scope, and the compiler says so
+
+Blitz3D extends its command set with 32-bit Windows DLLs declared in `userlibs/*.decls`. The
+interface prescribes `_stdcall` and hands the DLL raw addresses of banks and objects with no size
+and no type. BlitzNext will not support it.
+
+The reason is the purpose, not the difficulty. Userlibs were mostly used to teach Blitz3D what it
+could not do — whole rendering engines were bolted on that way — and those capabilities are what
+BlitzNext builds itself. With the use case gone, a Windows-only 32-bit interface has no place in an
+engine meant to run on three platforms. A replacement is planned for the phase after compatibility:
+one loader over `.dll`/`.so`/`.dylib`, a stable C ABI, checked arguments instead of bare pointers,
+and plugins that announce themselves with a version. It will not be compatible with `.decls`.
+
+Until now such a program failed with a plain `unknown function or command` — true, and useless. The
+compiler now reads the declared names out of `userlibs/*.decls` and names the file instead:
+
+```
+game.bb:12:5: error: 'MessageBoxTest' is declared in userlibs/testlib.decls - userlibs are not supported, see KNOWN_ISSUES.md
+```
+
+Only the names are read, and only when a call matches nothing else; the ordinary "did you mean"
+path is untouched. The declarations are parsed as `UserLibs.txt` describes them: `.lib` lines and
+comments are skipped, a type tag (`%`, `#`, `$`) between the name and the bracket is ignored, and a
+decorated name after the colon does not matter here.
+
+---
+
 ## 2026-09-22 — A pixel centred exactly on a right edge is left out (BUG-176)
 
 Direct3D 7 leaves out a pixel whose centre lies exactly on the right edge of a triangle;
