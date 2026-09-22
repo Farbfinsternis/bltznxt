@@ -32,6 +32,14 @@ inline int bb_gfx_height_ = 0;
 inline int bb_gfx_depth_  = 32;
 inline int bb_gfx_rate_   = 0;
 
+// Nur im Vollbild wartet Flip auf den Bildaufbau - im Fenster nie (BUG-178).
+inline bool bb_gfx_fullscreen_ = false;
+
+// Zuletzt an SDL uebergebenes Swap-Intervall; -1 = unbekannt. Jedes neue
+// Fenster faengt wieder bei -1 an, sonst bliebe ein neuer Renderer ohne vsync,
+// weil der gemerkte Wert schon passt.
+inline int bb_vsync_mode_ = -1;
+
 // ---- Graphics() ----
 //
 // Opens an SDL3 window and hardware renderer.
@@ -73,6 +81,8 @@ inline void bb_Graphics(int width, int height, int depth = 32, int mode = 0) {
   bb_gfx_height_ = height;
   bb_gfx_depth_  = depth;
   bb_gfx_rate_   = 0;
+  bb_gfx_fullscreen_ = (mode == 1 || mode == 6);   // BUG-178
+  bb_vsync_mode_ = -1;
   bb_close_scene_();
   bb_gfx_reset_draw_state_(2);   // FrontBuffer
 
@@ -154,6 +164,8 @@ inline void bb_EndGraphics() {
   if (bb_renderer_) { SDL_DestroyRenderer(bb_renderer_); bb_renderer_ = nullptr; }
   if (bb_window_)   { SDL_DestroyWindow(bb_window_);     bb_window_   = nullptr; }
   bb_gfx_width_ = bb_gfx_height_ = bb_gfx_depth_ = bb_gfx_rate_ = 0;
+  bb_gfx_fullscreen_ = false;
+  bb_vsync_mode_ = -1;
   bb_gfx_reset_draw_state_(2);   // FrontBuffer
 }
 
@@ -213,7 +225,6 @@ inline void bb_canvas_line_(int x0, int y0, int x1, int y1);
 inline void bb_canvas_rect_(int x, int y, int w, int h, bool solid);
 inline void bb_canvas_oval_(int x, int y, int w, int h, bool solid);
 inline void bb_canvas_text_(int x, int y, const bbString& s, int centerX, int centerY);
-inline int bb_vsync_mode_    = -1;                // -1 = not set yet
 
 // Clear colour used by Cls() — defaults to black (0,0,0).
 // bb_ClsColor() (M40) updates these three bytes.
@@ -308,14 +319,22 @@ inline void bb_Cls() {
 // ---- Flip() ----
 //
 // Presents the back buffer to the screen.
-//  vblank : 1 = sync to vertical blank (default, smooth); 0 = no wait.
+//  vblank : 1 = warte im Vollbild auf den Bildaufbau (Standard); 0 = nie warten.
+//
+// Im Original wartet nur das Vollbild. Gemessen am 2026-09-22 auf einem
+// 60-Hz-Monitor (Programme in build/flip_20260922, 300 Bilder je Phase):
+// Vollbild 640x480 `Flip 1` 60,6 fps, `Flip 0` 2679 fps - Fenster 320x240
+// dagegen `Flip 1` 164 fps (2D) und 149 fps (3D), also weit ueber der
+// Bildwiederholrate. Blitz3Ds DirectDraw-Blit im Fenster synchronisiert unter
+// dem heutigen Windows/DWM nicht; Programme timen ihre Bildrate selbst
+// (BUG-178). Deshalb gilt das Argument nur im Vollbild.
 // SDL_SetRenderVSync is called only when the mode changes, so repeated
 // Flip() calls with the same argument have no per-frame overhead.
 // Events are pumped after every present so the game loop stays responsive
 // even when the program does not call PollEvent() explicitly.
 
 inline void bb_Flip(int vblank = 1) {
-  int want = vblank ? 1 : 0;
+  const int want = (vblank && bb_gfx_fullscreen_) ? 1 : 0;   // BUG-178
   if (bb_gl_active_) {
     // 3D mode: flush pending 2D draws, then swap the GL backbuffer. Der
     // 2D-Renderer zeichnet in denselben Backbuffer, laesst aber seinen eigenen

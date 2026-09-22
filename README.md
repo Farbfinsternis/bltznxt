@@ -38,7 +38,7 @@ Mark passed away in 2024. BlitzNext exists to carry his idea forward — the bel
 | **Built-in commands** | 463 entries in `src/compiler/commands.h`, including extensions; this counts signatures, not verified behaviour |
 | **2D milestones** | Milestones 6–46 complete ([roadmap.md](roadmap.md)) |
 | **3D runtime** | Meshes, surfaces, brushes, sprites, mirrors, MD2 models, collisions and line/entity picking available; remaining work in [ROADMAP3D.md](ROADMAP3D.md) |
-| **Known deviations** | 48 open bugs, all reproduced against Blitz3D 11.8 ([KNOWN_ISSUES.md](KNOWN_ISSUES.md)) |
+| **Known deviations** | 47 open bugs, all reproduced against Blitz3D 11.8 ([KNOWN_ISSUES.md](KNOWN_ISSUES.md)) |
 | **Primary integration test** | blox-n-balls: all 26 source files unchanged; loads, menus work, levels can be played; complete gameplay not yet verified |
 
 Compatibility is measured, not estimated: questions about the language are answered from the
@@ -211,7 +211,7 @@ yet work like Blitz3D are listed in [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 | Mode | Behaviour |
 |------|-----------|
 | `5` | **Windowed, scaled, resizable.** Physical window opens at `width×2 / height×2`. All drawing uses the logical `width × height` grid — game coordinates need no changes. Drag or maximise the window and SDL3 scales the content automatically, letterboxing to preserve the aspect ratio. |
-| `6` | Fullscreen + vsync. Same logical-presentation scaling as mode 1, with vsync enabled. |
+| `6` | Fullscreen + vsync. Same logical-presentation scaling as mode 1, with vsync enabled at once. From the first `Flip` on it behaves like mode 1, because in fullscreen `Flip`/`Flip 1` wait for the display and `Flip 0` does not — as in Blitz3D. In a window `Flip` never waits, whatever the argument (BUG-178). |
 
 ---
 

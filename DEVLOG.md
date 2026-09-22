@@ -38,6 +38,44 @@ running Blitz3D 11.8. The entries below this one describe each step; this is the
 
 ---
 
+## 2026-09-22 — `Flip` waits for the display only in fullscreen (BUG-178)
+
+A program in a window ran at the monitor's refresh rate here and much faster in Blitz3D. Before
+changing anything, Blitz3D was measured again, 300 frames per run on a 60 Hz monitor:
+
+| | `Flip 1` | `Flip` | `Flip 0` |
+|---|---:|---:|---:|
+| 2D window 320×240 | 164 fps | 149 fps | 8824 fps |
+| 3D window 320×240 | 149 fps | 138 fps | 9677 fps |
+| 2D fullscreen 640×480 | 60.6 fps | 60.7 fps | 2679 fps |
+| 3D fullscreen 640×480 | 60.6 fps | 60.7 fps | 2679 fps |
+
+So Blitz3D's `Flip` never waits in a window, not even with `Flip 1` — its DirectDraw blit does
+not sync on today's Windows — while in fullscreen it waits exactly as documented. `Flip` now
+follows that: the swap interval is 0 in a window whatever the argument says, and in fullscreen
+`Flip`/`Flip 1` sync while `Flip 0` does not. The same four programs measured here afterwards:
+window 12000 fps (2D) and 6250 fps (3D), fullscreen 60.0 and 60.9 fps with `Flip 1`, 4348 and
+2083 fps with `Flip 0`.
+
+In a window BlitzNext is now *faster* than Blitz3D rather than equal to it: Blitz3D still pays
+about 6.5 ms a frame for its blit, which is what caps it near 150 fps, and that cap is a
+property of its renderer, not of the language. Programs that move a fixed step per frame have
+to time themselves with `MilliSecs()` — which is what Blitz3D programs have always done. The
+case that started this, `tutorials/GCUK_Tuts/animation.bb`, now runs at 662 frames per second
+instead of 57 and ends in the same place.
+
+While fixing it, a second defect surfaced: the remembered swap interval survived a new window,
+so a freshly created renderer — which starts without vsync — could keep it, because the
+remembered value already matched and setting it was skipped. It is reset in `Graphics`,
+`Graphics3D` and `EndGraphics` now.
+
+Test: `tests/test_bug178_flip_fenster.bb`, in a 2D and a 3D window: `Flip 1` must not take longer
+than `Flip 0`, and both must stay under the time the refresh rate would impose. Fullscreen stays
+out of the suite because it would switch the screen during a run; it was measured by hand
+against Blitz3D.
+
+---
+
 ## 2026-09-19 — MD2 models (3D-23)
 
 `LoadMD2`, `AnimateMD2`, `MD2AnimTime`, `MD2AnimLength` and `MD2Animating` are available. The

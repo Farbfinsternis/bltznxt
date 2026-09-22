@@ -11,7 +11,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-09-19 — 48 open bugs.*
+*Last updated: 2026-09-22 — 47 open bugs.*
 
 If your program behaves differently from Blitz3D and the cause is not listed here, please
 open an issue with a minimal `.bb` file and the output of both.
@@ -47,6 +47,14 @@ These are not bugs but decisions, and they will stay:
 - **Colours read back from the rendered 3D image are not guaranteed.** `ReadPixel` or
   `CopyRect` after `RenderWorld` return BlitzNext's shading, not Direct3D 7's. What is in the
   image — geometry, visibility, texture contents — does match.
+
+- **In a window, a loop with `Flip` can run faster than in Blitz3D.** Neither waits for the
+  display there — Blitz3D's `Flip` does not sync in windowed mode on today's Windows — but
+  Blitz3D still pays for its DirectDraw blit (about 6.5 ms a frame, measured: 164 frames per
+  second on a 60 Hz monitor), while BlitzNext presents almost for free. Programs that move a
+  fixed step per frame therefore run faster here; time them with `MilliSecs()`. In
+  fullscreen both wait for the display with `Flip`/`Flip 1` and neither waits with `Flip 0`.
+  (BUG-178)
 
 The full reasoning is in [ROADMAP3D.md](ROADMAP3D.md), section
 "Richtlinie: Was exakt stimmen muss und was besser werden darf".
@@ -251,10 +259,6 @@ visibly wrong results because of the points below.
 - **A pixel whose centre lies exactly on the right edge of a triangle is drawn.** Blitz3D
   leaves it out, so such an edge can end one pixel further right here. It only happens when
   an edge runs exactly through pixel centres. (BUG-176)
-- **In a window, programs run at the monitor's refresh rate; in Blitz3D they often run
-  faster.** On today's Windows, Blitz3D's `Flip` does not wait for the display in windowed
-  mode (130 frames per second on a 60 Hz monitor, measured), so programs that move things a
-  fixed step per frame run about twice as fast there. (BUG-178)
 
 ---
 

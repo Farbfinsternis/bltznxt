@@ -2,6 +2,10 @@
 # BlitzNext Test Runner
 # Kompiliert alle test_*.bb und neg_*.bb; Exit-Code 0 = alle erwartet PASS.
 # Verwendung: bash tests/run_tests.sh   (aus Projektroot ausführen)
+#
+# Eine .expected-Datei muss CRLF-Zeilenenden haben: die Programme geben CRLF aus,
+# und verglichen wird Zeichen fuer Zeichen. Eine mit LF geschriebene Datei faellt
+# durch, obwohl das Protokoll erwartet und tatsaechlich gleich anzeigt.
 
 PASS=0; FAIL=0; SKIP=0
 
