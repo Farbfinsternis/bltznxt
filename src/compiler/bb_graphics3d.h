@@ -238,16 +238,21 @@ inline void bb_RenderWorld(float tween = 1.0f) {
     // die nicht auf einer Pixelgrenze liegt, faellt dort einen halben Pixel
     // weiter rechts und weiter unten. Deshalb das ganze Bild um einen halben
     // Pixel nach rechts und unten schieben - im Bildraum, damit Tiefe und
-    // Clipping unberuehrt bleiben. Senkrecht knapp weniger: eine Kante auf
-    // ganzer Zeile laege sonst genau auf der Pixelmitte, und dort entscheidet
-    // die Fuellregel - in GL mit dem Ursprung unten andersherum als in D3D
-    // (die obere Zeile gehoert im Original dazu, die untere nicht).
+    // Clipping unberuehrt bleiben. In beiden Richtungen knapp weniger als ein
+    // halber Pixel: eine Kante laege sonst genau auf einer Pixelmitte, und
+    // dort entscheidet die Fuellregel - in GL mit dem Ursprung unten
+    // andersherum als in D3D. Senkrecht: die obere Zeile gehoert im Original
+    // dazu, die untere nicht (BUG-152). Waagerecht: ein Pixel, dessen Mitte
+    // genau auf einer rechten Kante liegt, gehoert im Original nicht dazu.
+    // Hier stand bis 2026-09-22 genau 1/2, dadurch lag eine 45-Grad-Diagonale
+    // durch die Pixelmitten in jeder Zeile einen Pixel zu weit rechts
+    // (BUG-176).
     // Der Abstand ist gemessen: 1/64 Pixel verfehlt eine fast genau auf der
     // Mitte liegende Kante, 1/1024 geht in der Subpixel-Rasterung des
     // Treibers unter (NVIDIA: 8 Bit). Bei groeberer Rasterung koennen solche
     // Grenzfaelle wieder kippen.
     {
-      const float dx = 1.0f / (float)pw;
+      const float dx = (1.0f - 1.0f / 128.0f) / (float)pw;   // 1/2 - 1/256 Pixel
       const float dy = -(1.0f - 1.0f / 128.0f) / (float)phh;  // 1/2 - 1/256 Pixel
       if (cam->projMode == 2) { cam->proj[12] += dx; cam->proj[13] += dy; }
       else                    { cam->proj[8]  -= dx; cam->proj[9]  -= dy; }

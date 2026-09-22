@@ -38,6 +38,31 @@ running Blitz3D 11.8. The entries below this one describe each step; this is the
 
 ---
 
+## 2026-09-22 — A pixel centred exactly on a right edge is left out (BUG-176)
+
+Direct3D 7 leaves out a pixel whose centre lies exactly on the right edge of a triangle;
+OpenGL, with its origin at the bottom, decides the other way. Since BUG-152 the picture is
+shifted half a pixel right and down to put pixel centres where Direct3D has them, and
+vertically that shift is deliberately 1/256 of a pixel short so that no edge can land exactly
+on a centre. Horizontally it was exactly half a pixel, so edges did land there.
+
+The case needs an edge running through pixel centres, which is why squares and diagonals
+aligned to pixel *boundaries* showed nothing. Reconstructed from the MD2 test, whose camera
+carries a small offset to avoid it: a right triangle at (-5,-5) (5,-5) (-5,5), camera at
+(0,0,-10), 200×200 window, its hypotenuse a 45° diagonal through the pixel centres. Blitz3D
+draws row 60 as 50-59, BlitzNext drew 50-60 — every row from 52 to 148, and the topmost row
+belonged here entirely while Blitz3D left it out.
+
+Horizontally the shift is now 1/2 − 1/256 of a pixel as well. The reconstructed case matches
+Blitz3D afterwards and `test_bug152_raster.bb` stays green. Sweeping the same triangle through
+91 rotations moves closer to Blitz3D too: 60 of 91 angles differed, now 44, and the summed
+difference of the row ends falls from 729 to 405 pixels. What remains is ordinary subpixel
+rasterisation on slanted edges (NVIDIA resolves 8 bits), not edges on pixel centres.
+
+Test: `tests/test_bug176_fuellregel.bb`, 54 rows measured in Blitz3D, 50 of them wrong before.
+
+---
+
 ## 2026-09-22 — `Flip` waits for the display only in fullscreen (BUG-178)
 
 A program in a window ran at the monitor's refresh rate here and much faster in Blitz3D. Before
