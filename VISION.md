@@ -30,12 +30,41 @@ Besser ein Korpus: *diese* Installationsdemos und *diese* fünf Community-Spiele
 pixelvergleichbar durch. Das ist Phase 1, fertig, eingefroren. Alles danach ist Pflege, nicht
 Projektziel.
 
-Zwei Lücken stehen dem Anspruch „jeder existierende Blitz3D-Code" heute im Weg:
+Eine Lücke steht dem Anspruch „jeder existierende Blitz3D-Code" noch im Weg, eine zweite ist
+bewusst herausgeschnitten:
 
-| Lücke | Stand | Warum sie den Anspruch blockiert |
+| Punkt | Stand | Entscheidung |
 |---|---|---|
-| Userlibs (`.decls`) | `userlibs/` ist leer, `.decls` wird nirgends verarbeitet, steht in keinem offenen Punkt | Sehr viele reale Programme binden DLLs so ein. Technisch unangenehm, weil diese DLLs 32-Bit sind |
-| Zielplattformen | Der Compiler hängt an der Windows-API (WEAK-24), `build_linux.sh` baut nicht | Wenn „aktuelle Systeme" Linux, macOS oder den Browser einschließt, ist das Phase 1 und nicht NEXT |
+| Zielplattformen | Der Compiler hängt an der Windows-API (WEAK-24), `build_linux.sh` baut nicht | Offen: wenn „aktuelle Systeme" Linux, macOS oder den Browser einschließt, ist das Phase 1 und nicht NEXT |
+| Userlibs (`.decls`) | Nicht unterstützt, `userlibs/` bleibt leer | Entschieden am 2026-09-22: harter Schnitt, Ersatz im NEXT — siehe unten |
+
+## Userlibs: Schnitt jetzt, Neubau im NEXT
+
+Das alte Userlib-System wird nicht nachgebaut. Blitz3D erweitert seinen Befehlssatz über
+32-Bit-Windows-DLLs, die in `userlibs/*.decls` deklariert werden; die Schnittstelle schreibt
+`_stdcall` vor und übergibt rohe Adressen von Banks und Objects, ohne Größe und ohne Typ.
+
+Der Grund für den Schnitt ist inhaltlich, nicht technisch. Userlibs dienten vor allem dazu,
+Blitz3D beizubringen, was es nicht konnte — bis hin zu einer kompletten Ogre3D-Anbindung. Genau
+diese Fähigkeiten baut NEXT selbst ein. Der Anwendungsfall entfällt damit, und mit ihm der Grund,
+eine Windows-only-32-Bit-Schnittstelle in eine Engine zu tragen, die auf drei Plattformen laufen
+soll.
+
+Machbar wäre es gewesen: ein 32-Bit-Helferprozess mit einer Arena, die beide Prozesse an derselben
+Adresse einblenden, hätte den Zeigervertrag erfüllt, ohne BLTZNXT selbst auf 32-Bit umzustellen.
+Der Preis wäre eine Windows-Sonderkonstruktion mit Restfällen gewesen — prozesslokale
+GDI-Kontexte, Fenster-Subclassing — für einen Zweck, der wegfällt.
+
+Programme, die `.decls` benutzen, laufen also nicht. Das ist bewusst in Kauf genommen.
+
+Der Ersatz im NEXT hat andere Anforderungen:
+
+- Läuft auf Windows, Linux und macOS: `.dll`, `.so`, `.dylib` hinter einem gemeinsamen Lader.
+- Stabiles **C-ABI** statt Aufrufkonventions-Folklore. Auf 64-Bit gibt es je Plattform genau eine
+  Konvention — `_stdcall` und dekorierte Namen verschwinden damit ersatzlos.
+- Geprüfte Übergaben statt roher Adressen: Banks mit Länge, keine Object-Zeiger.
+- Das Plugin meldet sich selbst an, mit Versionskennung, statt in einer Textdatei daneben deklariert
+  zu werden — eine veraltete Erweiterung wird erkannt, statt abzustürzen.
 
 ## Die Naht zwischen alt und neu
 
@@ -67,20 +96,22 @@ Die Liste GLTF/PBR/Shader ist richtig, aber in dieser Reihenfolge falsch sortier
 | 2 | Materialmodell und IBL | Das eigentliche PBR. Mit vorhandenen Meshes testbar, ohne neues Dateiformat |
 | 3 | glTF | Der Behälter, der genau diese Materialien transportiert. Vorher gebaut lädt man Modelle, die man nicht korrekt schattieren kann |
 | 4 | Eigene Shader | Permanente API-Festlegung — zuletzt, mit Bedacht |
+| 5 | Neues Userlib-System | Plattformübergreifend statt Windows-only. Nach den Shadern, weil eine Erweiterung dieselben Materialien ansprechen können soll wie die Engine |
 
 GLSL als API freizugeben legt BLTZNXT auf OpenGL fest, solange es das Projekt gibt: kein Vulkan,
 kein WebGPU, kein Metal. Das darf eine Entscheidung sein, aber eine bewusste.
 
 ## Offene Entscheidungen
 
-Fünf Fragen stehen vor dem ersten Schritt. Keine davon ist technisch schwer, alle färben auf Jahre
+Vier Fragen stehen vor dem ersten Schritt. Keine davon ist technisch schwer, alle färben auf Jahre
 ab.
 
 - [ ] Welcher Korpus definiert „Phase 1 fertig"? Welche Demos, welche Spiele?
-- [ ] Gehören Userlibs (`.decls`) zum Anspruch — und wenn ja, wie mit 32-Bit-DLLs?
 - [ ] Was heißt „aktuelle Systeme": Windows allein, oder auch Linux, macOS, Browser?
 - [ ] Wo liegt der Schalter zwischen altem und modernem Pfad — pro Programm oder pro Kamera?
 - [ ] Wird GLSL die Shader-API, mit der Festlegung auf OpenGL?
+
+Eine fünfte ist entschieden: Userlibs gehören nicht zum Anspruch (2026-09-22, siehe oben).
 
 Ein Gedanke zum Schluss, weil er in der Liste fehlt: Wäre es meine Engine, stünde **vor** PBR der
 Browser. BLTZNXT ist ein Transpiler nach C++, Emscripten ist damit näher, als es aussieht — und

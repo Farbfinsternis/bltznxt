@@ -56,6 +56,14 @@ These are not bugs but decisions, and they will stay:
   fullscreen both wait for the display with `Flip`/`Flip 1` and neither waits with `Flip 0`.
   (BUG-178)
 
+- **Userlibs (`.decls`) are not supported, and will not be.** Blitz3D extends its command set with
+  32-bit Windows DLLs declared in `userlibs/*.decls`; the interface prescribes `_stdcall` and hands
+  the DLL raw addresses of banks and objects with no size and no type. BlitzNext leaves that out.
+  Most of what people used it for was teaching Blitz3D what it could not do — up to whole rendering
+  engines — and that is work BlitzNext does itself. A replacement that runs on Windows, Linux and
+  macOS is planned for later; it will not be compatible with `.decls`, so programs that rely on a
+  userlib need changes. The reasoning is in [VISION.md](VISION.md).
+
 The full reasoning is in [ROADMAP3D.md](ROADMAP3D.md), section
 "Richtlinie: Was exakt stimmen muss und was besser werden darf".
 
