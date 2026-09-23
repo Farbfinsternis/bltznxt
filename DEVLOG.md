@@ -38,6 +38,34 @@ running Blitz3D 11.8. The entries below this one describe each step; this is the
 
 ---
 
+## 2026-09-23 — Objects outside the camera's view are skipped (BUG-174)
+
+Blitz3D tests every model against the camera's view before drawing it and skips what lies
+outside: a mesh by its bounding box, a sprite by its four corners, an MD2 model by its box.
+BlitzNext did this only for MD2 and drew everything else. The picture was the same, but
+`TrisRendered` counted the hidden objects too — in the BirdDemo 4064 triangles where Blitz3D
+reports 4040 and 4052 — and the work was done for nothing.
+
+The rule comes from `frustum.cpp`: an object is dropped only when all its points lie outside
+the *same* plane of the view; a point exactly on a plane counts as inside, so a box just off a
+corner of the view still counts. The view is the one `Camera::getFrustum` builds — near and far
+from `CameraRange`, half width `near/zoom`, half height scaled by the viewport's aspect — and it
+does not depend on the projection: an orthographic camera culls with the perspective view.
+Something next to the camera that the orthographic picture would show is therefore dropped
+in Blitz3D, and now here as well.
+
+The bounding box lives with the mesh data that copies share and is recomputed whenever the
+geometry changes. `ClearSurface` and `AddMesh` did not mark a change until now, so the collision
+tree also stayed stale after them; both do now.
+
+Measured in Blitz3D with 249 values (edges, a corner, near and far plane, rotated and scaled
+objects, a turned camera, zoom, a narrow viewport, a child of a pivot, orthographic projection,
+geometry edited after drawing, sprites): all equal, 45 of them differed before. The BirdDemo
+now reports Blitz3D's counts at all nine measuring points.
+Test: `tests/test_bug174_sichtkegel.bb`, 99 lines generated in Blitz3D.
+
+---
+
 ## 2026-09-22 — Userlibs are out of scope, and the compiler says so
 
 Blitz3D extends its command set with 32-bit Windows DLLs declared in `userlibs/*.decls`. The

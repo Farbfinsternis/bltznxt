@@ -140,6 +140,7 @@ inline void bb_ClearSurface(int surface, int clear_vertices = 1,
   if (clear_triangles) s->indices.clear();
   s->triCount = static_cast<int>(s->indices.size()) / 3;
   s->dirty    = true;
+  ++bb_mesh_geom_version_;
 }
 
 // ============================================================

@@ -537,29 +537,6 @@ inline void bb_md2_animate_all_(float e) {
 
 // ---- Zeichnen (MD2Model::render / MD2Rep::render) ----
 
-// Liegt die Huellbox (Modellraum) ganz ausserhalb einer Ebene des
-// Sichtkegels? Dann zeichnet das Original das Modell nicht.
-inline bool bb_md2_box_visible_(const bb_Md2Rep_& r, const float* mvp) {
-  int out[6] = { 0, 0, 0, 0, 0, 0 };
-  for (int c = 0; c < 8; ++c) {
-    const float p[3] = { (c & 1) ? r.boxB[0] : r.boxA[0],
-                         (c & 2) ? r.boxB[1] : r.boxA[1],
-                         (c & 4) ? r.boxB[2] : r.boxA[2] };
-    float q[4];
-    for (int i = 0; i < 4; ++i)
-      q[i] = mvp[i] * p[0] + mvp[4 + i] * p[1] + mvp[8 + i] * p[2] + mvp[12 + i];
-    if (q[0] < -q[3]) ++out[0];
-    if (q[0] >  q[3]) ++out[1];
-    if (q[1] < -q[3]) ++out[2];
-    if (q[1] >  q[3]) ++out[3];
-    if (q[2] < -q[3]) ++out[4];
-    if (q[2] >  q[3]) ++out[5];
-  }
-  for (int i = 0; i < 6; ++i)
-    if (out[i] == 8) return false;
-  return true;
-}
-
 // Die Vertices fuer den aktuellen Stand in das Netz schreiben.
 inline void bb_md2_build_(bb_Md2Entity_* m) {
   const bb_Md2Rep_& r = *m->rep;

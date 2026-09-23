@@ -41,6 +41,12 @@ struct bb_MeshRep_ {
   std::shared_ptr<void>  collider;
   unsigned long long     collider_stamp = 0;
 
+  // Huellbox fuer den Sichtkegel-Test (MeshModel::getBox), nach demselben
+  // Stand der Geometrie neu gerechnet wie der Dreiecksbaum.
+  float                  box[6] = { 0, 0, 0, 0, 0, 0 };  // min x,y,z, max x,y,z
+  bool                   box_empty = true;
+  unsigned long long     box_stamp = 0;
+
   ~bb_MeshRep_() {
     for (auto& s : surfaces) bb_mesh_free_gpu_(&s);
   }
@@ -704,6 +710,7 @@ inline void bb_AddMesh(int source_mesh, int dest_mesh) {
     for (unsigned idx : s.indices) into.indices.push_back(base + idx);
   }
   into.dirty = true;
+  ++bb_mesh_geom_version_;
 }
 
 // Laut Doku "identical to performing new_mesh=CreateMesh() : AddMesh mesh,new_mesh".
@@ -870,10 +877,65 @@ static inline bool bb_ent_translucent_(const bb_MeshEntity_* me) {
   return false;
 }
 
+// ---- Sichtkegel (BUG-174) ----
+// Das Original zeichnet ein Modell nur, wenn seine Huelle im Sichtkegel der
+// Kamera liegt: MeshModel::render prueft die Huellbox, Sprite::render die
+// vier Ecken, MD2Model::render die Box des Modells. Frustum::cull verwirft
+// genau dann, wenn alle Punkte auf der Aussenseite **derselben** Ebene
+// liegen; ein Punkt auf einer Ebene zaehlt als innen. Verworfenes wird
+// weder gezeichnet noch von TrisRendered gezaehlt.
+//
+// Der Kegel ist Camera::getFrustum: Spitze im Auge, nahe Ebene bei near,
+// ferne bei far, halbe Breite near/zoom, halbe Hoehe near/zoom * vpH/vpW.
+// Er haengt nicht von CameraProjMode ab - auch die orthografische Kamera
+// verwirft mit dem perspektivischen Kegel.
+struct bb_CullFrustum_ {
+  float nr, fr;   // CameraRange
+  float sx, sy;   // halbe Breite/Hoehe je Einheit Tiefe: 1/zoom, (vpH/vpW)/zoom
+};
+
+// `pts` sind n Punkte im Raum von `model`; `view` ist die GL-Sichtmatrix
+// (Kamera schaut nach -z).
+static inline bool bb_frustum_visible_(const bb_CullFrustum_& f,
+                                       const float* view, const float* model,
+                                       const float (*pts)[3], int n) {
+  float vm[16];
+  mat4_mul_(vm, view, model);
+  int out[6] = { 0, 0, 0, 0, 0, 0 };
+  for (int k = 0; k < n; ++k) {
+    const float* p = pts[k];
+    const float x =   vm[0] * p[0] + vm[4] * p[1] + vm[8]  * p[2] + vm[12];
+    const float y =   vm[1] * p[0] + vm[5] * p[1] + vm[9]  * p[2] + vm[13];
+    const float z = -(vm[2] * p[0] + vm[6] * p[1] + vm[10] * p[2] + vm[14]);
+    if (z < f.nr)         ++out[0];
+    if (z > f.fr)         ++out[1];
+    if (x < -z * f.sx)    ++out[2];
+    if (x >  z * f.sx)    ++out[3];
+    if (y < -z * f.sy)    ++out[4];
+    if (y >  z * f.sy)    ++out[5];
+  }
+  for (int i = 0; i < 6; ++i)
+    if (out[i] == n) return false;
+  return true;
+}
+
+static inline bool bb_frustum_box_visible_(const bb_CullFrustum_& f,
+                                           const float* view, const float* model,
+                                           const float* a, const float* b) {
+  float c[8][3];
+  for (int k = 0; k < 8; ++k) {
+    c[k][0] = (k & 1) ? b[0] : a[0];
+    c[k][1] = (k & 2) ? b[1] : a[1];
+    c[k][2] = (k & 4) ? b[2] : a[2];
+  }
+  return bb_frustum_visible_(f, view, model, c, 8);
+}
+
 static inline void bb_render_meshes_(bb_Shader_* shader,
                                       const float* view,
                                       const float* proj,
-                                      const float* cam_world) {
+                                      const float* cam_world,
+                                      const bb_CullFrustum_& frustum) {
   const float cam_pos[3] = { cam_world[12], cam_world[13], cam_world[14] };
   // "fade" ist nur der Faktor aus EntityAutoFade; die Deckkraft entsteht
   // erst je Flaeche aus dem verrechneten Brush. Ein Sprite (3D-16) hat
@@ -1005,15 +1067,33 @@ static inline void bb_render_meshes_(bb_Shader_* shader,
     // Ein Sprite liegt schon in Weltkoordinaten.
     if (it.sp) bb_sprite_build_(it.sp, cam_world);
     const float* model = it.sp ? identity : me->world;
+
+    // Ausserhalb des Sichtkegels weder gezeichnet noch gezaehlt (BUG-174).
+    if (it.sp) {
+      const std::vector<float>& v = it.sp->quad.vertices;
+      float c[4][3];
+      for (int k = 0; k < 4; ++k)
+        for (int n = 0; n < 3; ++n) c[k][n] = v[k * BB_VF + n];
+      if (!bb_frustum_visible_(frustum, view, model, c, 4)) continue;
+    } else if (it.md) {
+      // MD2Model::render: sonst das Netz fuer den aktuellen Stand fuellen.
+      if (!bb_frustum_box_visible_(frustum, view, model,
+                                   it.md->rep->boxA, it.md->rep->boxB)) continue;
+      bb_md2_build_(it.md);
+    } else {
+      bb_MeshRep_& rep = *it.me->rep;
+      if (rep.box_stamp != bb_mesh_geom_version_) {
+        float* b = rep.box;
+        bb_mesh_aabb_(it.me, b[0], b[3], b[1], b[4], b[2], b[5]);
+        rep.box_empty = b[0] > b[3];
+        rep.box_stamp = bb_mesh_geom_version_;
+      }
+      if (rep.box_empty) continue;
+      if (!bb_frustum_box_visible_(frustum, view, model, rep.box, rep.box + 3)) continue;
+    }
+
     float mvp[16];
     mat4_mul_(mvp, vm, model);
-
-    // MD2Model::render: ausserhalb des Sichtkegels weder gezeichnet noch
-    // gezaehlt; sonst das Netz fuer den aktuellen Animationsstand fuellen.
-    if (it.md) {
-      if (!bb_md2_box_visible_(*it.md->rep, mvp)) continue;
-      bb_md2_build_(it.md);
-    }
 
     // ---- Blending ----
     // Am Original gemessen: 1 = Alpha (Vorgabe), 2 = Multiply, 3 = Add. Der

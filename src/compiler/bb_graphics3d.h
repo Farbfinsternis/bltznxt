@@ -232,6 +232,10 @@ inline void bb_RenderWorld(float tween = 1.0f) {
       bb_cam_proj_ortho_(cam, aspect);
     else
       bb_cam_proj_persp_(cam, aspect);
+    // Sichtkegel wie Camera::getFrustum, fuer beide Projektionen (BUG-174).
+    const bb_CullFrustum_ frustum = { cam->near_, cam->far_,
+                                      1.0f / cam->zoom,
+                                      (float)vh / (float)vw / cam->zoom };
 
     // Pixelmitte wie Direct3D 7: dort liegt sie auf ganzen Koordinaten, in
     // OpenGL auf .5. Am Original gemessen (BUG-152, 2026-09-17): jede Kante,
@@ -286,11 +290,11 @@ inline void bb_RenderWorld(float tween = 1.0f) {
         mview[10] = -mview[10];
         mview[14] = -mview[14];
         glFrontFace(GL_CCW);
-        bb_render_meshes_(sh, mview, cam->proj, mcam);
+        bb_render_meshes_(sh, mview, cam->proj, mcam, frustum);
         glFrontFace(GL_CW);
       }
 
-      bb_render_meshes_(sh, cam->view, cam->proj, cam->world);
+      bb_render_meshes_(sh, cam->view, cam->proj, cam->world, frustum);
     }
   }
   glDisable(GL_SCISSOR_TEST);
