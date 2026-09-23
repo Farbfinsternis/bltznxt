@@ -4,7 +4,7 @@
 ;   - LockBuffer on screen/image buffers creates a zeroed pixel array
 ;   - WritePixel/ReadPixel operate on in-memory RGBA data
 ;   - CopyPixel copies between two independently locked buffers
-;   - SaveBuffer writes a PNG via stb_image_write (no renderer needed)
+;   - SaveBuffer writes a 24-bit BMP like Blitz3D, whatever the name (BUG-167)
 ;   - UnlockBuffer is a no-op without a renderer (headless)
 ;
 ; NOTE: "Print (expr) And val" is ambiguous because the parser treats the

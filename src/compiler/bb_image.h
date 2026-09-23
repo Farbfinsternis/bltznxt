@@ -21,13 +21,6 @@
 #define STBI_FAILURE_USERMSG       // human-readable error messages
 #include "../thirdparty/stb/stb_image.h"
 
-// ---- stb_image_write (single-header, public domain) ----
-//
-// Used by bb_SaveImage to write PNG files.
-
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "../thirdparty/stb/stb_image_write.h"
-
 // ==========================================================================
 // BUG-67 — BMP mit Lauflaengenkodierung (BI_RLE8 / BI_RLE4)
 // ==========================================================================
@@ -648,38 +641,7 @@ inline void bb_DrawImageEllipse(int handle, int x, int y, int rx, int ry,
     SDL_SetRenderClipRect(bb_renderer_, nullptr);
 }
 
-// ---- SaveImage(handle, file [,frame=0]) → 1 / 0 ----
-
-inline int bb_SaveImage(int handle, const bbString& file, int frame = 0) {
-    if (!bb_img_ok_(handle)) return 0;
-    const bb_FrameData_* fd = bb_img_frame_(handle, frame);
-    if (!fd) return 0;
-    const auto& img = bb_images_[handle];
-
-    if (!fd->pixels.empty()) {
-        return stbi_write_png(file.c_str(),
-                              img.width, img.height, 4,
-                              fd->pixels.data(), img.width * 4) ? 1 : 0;
-    }
-
-    if (bb_renderer_ && fd->tex) {
-        if (!SDL_SetRenderTarget(bb_renderer_,
-                const_cast<SDL_Texture*>(fd->tex))) return 0;
-        SDL_Surface* surf = SDL_RenderReadPixels(bb_renderer_, nullptr);
-        SDL_SetRenderTarget(bb_renderer_, nullptr);
-        if (!surf) return 0;
-        SDL_Surface* rgba = SDL_ConvertSurface(surf, SDL_PIXELFORMAT_RGBA32);
-        SDL_DestroySurface(surf);
-        if (!rgba) return 0;
-        int ok = stbi_write_png(file.c_str(),
-                                rgba->w, rgba->h, 4,
-                                rgba->pixels, rgba->pitch);
-        SDL_DestroySurface(rgba);
-        return ok ? 1 : 0;
-    }
-
-    return 0;
-}
+// SaveImage steht bei SaveBuffer (M46), weil es dessen BMP schreibt.
 
 // ==========================================================================
 // M45: Collision / Overlap  (bounding-box)
@@ -1091,14 +1053,83 @@ inline int bb_LoadBuffer(int buf, const bbString& file) {
     return 1;
 }
 
-inline int bb_SaveBuffer(int buf, const bbString& file) {
+// ---- SaveBuffer / SaveImage (BUG-167) ----
+//
+// Beide schreiben im Original ueber saveCanvas (bbgraphics.cpp): immer eine
+// unkomprimierte 24-Bit-BMP, egal welche Endung der Name hat, Zeilen von
+// unten nach oben, je Zeile auf 4 Byte aufgefuellt; im Kopf sind nur Typ,
+// Groessen, Offset, Breite, Hoehe, Ebenen und Bittiefe gesetzt, der Rest 0.
+// Der Puffer muss nicht gesperrt sein - saveCanvas sperrt selbst. Am
+// Original gemessen (2026-09-23, build/save20260923): Back-, Front-, Bild-
+// und Texturpuffer, gesperrt und ungesperrt, ".png" - alle Dateien
+// byteweise wie hier.
+
+// Den Inhalt eines Puffers als RGBA holen, ohne eine bestehende Sperre zu
+// beruehren: gesperrt aus der Sperre (mit allem, was WritePixelFast seither
+// geschrieben hat), sonst ueber eine kurze eigene Sperre.
+inline bool bb_buf_snapshot_(int buf, std::vector<uint8_t>& px, int& w, int& h) {
     auto it = bb_buf_locks_.find(buf);
-    if (it == bb_buf_locks_.end() || !it->second.locked) return 0;
-    const bb_BufLock_& lock = it->second;
-    if (lock.pixels.empty() || lock.width <= 0 || lock.height <= 0) return 0;
-    return stbi_write_png(file.c_str(),
-                          lock.width, lock.height, 4,
-                          lock.pixels.data(), lock.width * 4) ? 1 : 0;
+    if (it != bb_buf_locks_.end() && it->second.locked) {
+        px = it->second.pixels; w = it->second.width; h = it->second.height;
+    } else {
+        const bool had = (it != bb_buf_locks_.end());
+        const bb_BufLock_ saved = had ? it->second : bb_BufLock_{};
+        bb_LockBuffer(buf);
+        bb_BufLock_& lock = bb_buf_locks_[buf];
+        const bool ok = lock.locked;
+        px = std::move(lock.pixels); w = lock.width; h = lock.height;
+        if (had) bb_buf_locks_[buf] = saved; else bb_buf_locks_.erase(buf);
+        if (!ok) return false;
+    }
+    return w > 0 && h > 0 && px.size() >= static_cast<size_t>(w) * h * 4;
+}
+
+inline bool bb_save_bmp_(const bbString& file, const std::vector<uint8_t>& px,
+                         int w, int h) {
+    FILE* f = std::fopen(file.c_str(), "wb");
+    if (!f) return false;
+    const uint32_t stride = (static_cast<uint32_t>(w) * 3 + 3) & ~3u;
+    const uint32_t off    = 14 + 40;
+    const uint32_t size   = off + stride * static_cast<uint32_t>(h);
+    uint8_t hd[54] = { 0 };
+    auto put16 = [&](int o, uint32_t v) { hd[o] = v & 0xFF; hd[o + 1] = (v >> 8) & 0xFF; };
+    auto put32 = [&](int o, uint32_t v) { put16(o, v & 0xFFFF); put16(o + 2, v >> 16); };
+    hd[0] = 'B'; hd[1] = 'M';
+    put32(2, size);
+    put32(10, off);
+    put32(14, 40);
+    put32(18, static_cast<uint32_t>(w));
+    put32(22, static_cast<uint32_t>(h));
+    put16(26, 1);
+    put16(28, 24);
+    bool ok = std::fwrite(hd, 1, sizeof(hd), f) == sizeof(hd);
+    std::vector<uint8_t> row(stride, 0);
+    for (int y = h - 1; ok && y >= 0; --y) {
+        const uint8_t* s = px.data() + static_cast<size_t>(y) * w * 4;
+        for (int x = 0; x < w; ++x) {
+            row[x * 3 + 0] = s[x * 4 + 2];
+            row[x * 3 + 1] = s[x * 4 + 1];
+            row[x * 3 + 2] = s[x * 4 + 0];
+        }
+        ok = std::fwrite(row.data(), 1, stride, f) == stride;
+    }
+    return (std::fclose(f) == 0) && ok;
+}
+
+inline int bb_SaveBuffer(int buf, const bbString& file) {
+    std::vector<uint8_t> px;
+    int w = 0, h = 0;
+    if (!bb_buf_snapshot_(buf, px, w, h)) return 0;
+    return bb_save_bmp_(file, px, w, h) ? 1 : 0;
+}
+
+// ---- SaveImage(handle, file [,frame=0]) → 1 / 0 ----
+// Im Original saveCanvas auf das Frame - dieselbe BMP wie SaveBuffer.
+// Bis 2026-09-23 schrieb es hier PNG.
+inline int bb_SaveImage(int handle, const bbString& file, int frame = 0) {
+    if (!bb_img_ok_(handle)) return 0;
+    if (!bb_img_frame_(handle, frame)) return 0;
+    return bb_SaveBuffer(bb_ImageBuffer(handle, frame), file);
 }
 
 inline int bb_canvas_size_(int buf, bool width);

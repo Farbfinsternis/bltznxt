@@ -5,7 +5,7 @@
 ;   - Scale/Rotation are stored but not rendered
 ;   - Overlap/Collision tests are pure integer arithmetic
 ;   - Draw/Tile/Ellipse calls are silent no-ops in headless mode
-;   - SaveImage returns 0 headlessly (no renderer)
+;   - SaveImage writes a 24-bit BMP like Blitz3D, whatever the name (BUG-167)
 
 Graphics 800, 600, 32, 0
 

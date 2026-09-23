@@ -38,6 +38,33 @@ running Blitz3D 11.8. The entries below this one describe each step; this is the
 
 ---
 
+## 2026-09-23 — SaveBuffer and SaveImage write Blitz3D's BMP (BUG-167)
+
+Pressing F12 in blox-n-balls saved no screenshot. `SaveBuffer` worked only on a buffer that was
+locked with `LockBuffer`, and then wrote PNG even when the name ended in `.bmp`; `SaveImage` wrote
+PNG as well.
+
+In Blitz3D both go through one function, `saveCanvas` in `bbgraphics.cpp`: it locks the buffer
+itself and always writes an uncompressed 24-bit BMP — a 54-byte header with only type, sizes,
+offset, width, height, planes and bit depth set, rows from the bottom up, each padded to four
+bytes — whatever the file is called. BlitzNext now writes exactly that. The contents come from
+the existing lock if there is one, so pixels written with `WritePixelFast` are included, or else
+from a short lock of its own that leaves the buffer as it was.
+
+Measured with the back buffer unlocked, under a `.png` name and locked, the front buffer after
+`Flip`, a 37×21 image (row padding), `SaveImage` on frame 2 of an animation, a texture buffer and
+a folder that does not exist: all nine files are byte-identical to Blitz3D's, and the return
+values match. Before, three files were written, all PNG. `stb_image_write` is no longer needed.
+
+Reading Blitz3D's `LoadBuffer` next to it shows the same kind of problem there: it needs no lock
+and scales the file to the buffer, while ours needs a lock and takes over the file's size. That is
+BUG-179, not fixed yet.
+
+Test: `tests/test_bug167_savebuffer.bb` reads the files back (size, header fields, a sum over
+every byte), expected output generated in Blitz3D.
+
+---
+
 ## 2026-09-23 — Entity commands check their handles (BUG-170)
 
 `EntityX(0)` returned 0 here, and so did every other entity command given a handle that was

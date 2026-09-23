@@ -233,9 +233,11 @@ are the most likely reason for an old program to behave strangely.
 - **Font heights differ.** The default font is 8 pixels high instead of 13, and a font loaded
   with `LoadFont(name, 40)` reports `FontHeight` 45 instead of 40. Text laid out with
   `FontHeight` or `StringWidth` ends up spaced differently. (BUG-139)
-- **`SaveBuffer` only works on a locked buffer and always writes PNG.** Without
-  `LockBuffer` it silently saves nothing, and a `.bmp` file name still gets PNG data.
-  *Workaround:* lock the buffer around `SaveBuffer`. (BUG-167)
+- **`LoadBuffer` only works on a locked buffer and takes over the file's size.** Without
+  `LockBuffer` it silently loads nothing; with it, the buffer — even an image — takes on the
+  width and height of the file, where Blitz3D scales the file to the buffer.
+  *Workaround:* load a file of the buffer's size and lock the buffer around `LoadBuffer`.
+  (BUG-179)
 
 ---
 
