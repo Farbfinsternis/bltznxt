@@ -11,7 +11,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-09-23 — 44 open bugs.*
+*Last updated: 2026-09-23 — 43 open bugs.*
 
 If your program behaves differently from Blitz3D and the cause is not listed here, please
 open an issue with a minimal `.bb` file and the output of both.
@@ -233,11 +233,6 @@ are the most likely reason for an old program to behave strangely.
 - **Font heights differ.** The default font is 8 pixels high instead of 13, and a font loaded
   with `LoadFont(name, 40)` reports `FontHeight` 45 instead of 40. Text laid out with
   `FontHeight` or `StringWidth` ends up spaced differently. (BUG-139)
-- **`LoadBuffer` only works on a locked buffer and takes over the file's size.** Without
-  `LockBuffer` it silently loads nothing; with it, the buffer — even an image — takes on the
-  width and height of the file, where Blitz3D scales the file to the buffer.
-  *Workaround:* load a file of the buffer's size and lock the buffer around `LoadBuffer`.
-  (BUG-179)
 
 ---
 

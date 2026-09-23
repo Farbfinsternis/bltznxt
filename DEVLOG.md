@@ -38,6 +38,36 @@ running Blitz3D 11.8. The entries below this one describe each step; this is the
 
 ---
 
+## 2026-09-23 — LoadBuffer scales the file to the buffer (BUG-179)
+
+`LoadBuffer` worked only on a locked buffer, and then replaced its contents *and size* with the
+file — an image even changed its `ImageWidth`. Blitz3D's `bbLoadBuffer` needs no lock: it loads
+the file, scales it to the buffer with `tformCanvas` and copies it in opaquely at 0,0.
+
+The scaling follows `tformCanvas` with `TFormFilter` on: the centre of every target pixel is
+mapped back into the file and mixed bilinearly from four neighbours. Measured in Blitz3D, a
+neighbour outside the file counts as black — clamping to the edge instead gets 371 of 777 pixels
+wrong in a 4×3 → 37×21 case. Three more rules came out of the measurement: the buffer's origin
+is set to 0,0 and stays there, its viewport clips the copy, and on a *locked* buffer `LoadBuffer`
+returns 1 but changes nothing, not even after `UnlockBuffer`.
+
+Results were compared through `SaveBuffer`, which since BUG-167 writes byte-identical files:
+the same size into the back buffer, 4×3 into an image of 37×21, 64×64 into a 16×16 texture,
+origin, viewport, mask colour and a missing file all match byte for byte. A 10×10 → 37×37 case
+matches except for 2 of 1369 channel values that fall exactly on .5, where Blitz3D rounds once
+down and once up; none of 256 rounding variants — float, double or 64-bit at each step,
+computed exactly — reproduces both, so it is left there.
+
+Two older faults surfaced on the way. `LockBuffer` on the screen read only the active viewport,
+because SDL reads the viewport it is given, and `UnlockBuffer` wrote back into it; both now
+cover the whole buffer. And a freshly locked `CreateImage` or a never-drawn back buffer read
+as `$00000000`, where Blitz3D, which has no alpha channel there, gives `$FF000000`.
+
+Test: `tests/test_bug179_loadbuffer.bb` with `tests/assets/farben4x3.bmp`, expected output
+generated in Blitz3D.
+
+---
+
 ## 2026-09-23 — SaveBuffer and SaveImage write Blitz3D's BMP (BUG-167)
 
 Pressing F12 in blox-n-balls saved no screenshot. `SaveBuffer` worked only on a buffer that was
@@ -58,7 +88,7 @@ values match. Before, three files were written, all PNG. `stb_image_write` is no
 
 Reading Blitz3D's `LoadBuffer` next to it shows the same kind of problem there: it needs no lock
 and scales the file to the buffer, while ours needs a lock and takes over the file's size. That is
-BUG-179, not fixed yet.
+BUG-179, fixed in the entry above.
 
 Test: `tests/test_bug167_savebuffer.bb` reads the files back (size, header fields, a sum over
 every byte), expected output generated in Blitz3D.

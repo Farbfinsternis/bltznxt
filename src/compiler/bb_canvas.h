@@ -576,4 +576,121 @@ inline int bb_canvas_size_(int buf, bool width) {
   return width ? c.w : c.h;
 }
 
+// ---- LoadBuffer (BUG-179) ----
+//
+// Wie bbLoadBuffer (bbgraphics.cpp): die Datei laden, mit tformCanvas auf
+// die Groesse des Puffers skalieren und deckend bei 0,0 hineinkopieren.
+// Keine Sperre noetig; die Groesse des Puffers bleibt. Der Origin des
+// Puffers wird dabei auf 0,0 gesetzt und **nicht** zurueckgestellt, und
+// die Kopie wird von seinem Viewport beschnitten - beides gemessen
+// (2026-09-23, build/load20260923).
+//
+// tformCanvas mit TFormFilter an (Vorgabe): je Zielpixel die Mitte
+// zurueckrechnen und bilinear aus vier Nachbarn mischen; Nachbarn ausserhalb
+// der Datei zaehlen als Schwarz (gemessen). Gerechnet wird in float wie das
+// Original, nur die Summe der vier Anteile genauer; so treffen alle
+// gemessenen Bilder bis auf 2 von 1369 Kanalwerten eines 10->37-Falls, die
+// genau auf .5 liegen (Rest der x87-Rechnung, nicht weiter aufgeklaert).
+inline std::vector<int> bb_tform_scale_(const unsigned char* src, int sw, int sh,
+                                        int dw, int dh, int& iw, int& ih) {
+  const float m0 = static_cast<float>(dw) / static_cast<float>(sw);
+  const float m1 = static_cast<float>(dh) / static_cast<float>(sh);
+  const float dt = 1.0f / (m0 * m1);
+  const float i0 = dt * m1, i1 = dt * m0;
+  iw = static_cast<int>(std::ceil(m0 * static_cast<float>(sw)));
+  ih = static_cast<int>(std::ceil(m1 * static_cast<float>(sh)));
+  auto get = [&](int x, int y, int k) -> int {
+    if (x < 0 || y < 0 || x >= sw || y >= sh) return 0;
+    return src[(static_cast<size_t>(y) * sw + x) * 4 + k];
+  };
+  std::vector<int> out(static_cast<size_t>(iw) * ih);
+  float vy = 0.5f;
+  for (int y = 0; y < ih; ++y, vy += 1.0f) {
+    float vx = 0.5f;
+    for (int x = 0; x < iw; ++x, vx += 1.0f) {
+      const float qx = i0 * vx - 0.5f, qy = i1 * vy - 0.5f;
+      const float flx = std::floor(qx), fly = std::floor(qy);
+      const int ix = static_cast<int>(flx), iy = static_cast<int>(fly);
+      const float fx = qx - flx, fy = qy - fly;
+      const float w1 = (1 - fx) * (1 - fy), w2 = fx * (1 - fy);
+      const float w3 = (1 - fx) * fy,       w4 = fx * fy;
+      int rgb = 0;
+      for (int k = 0; k < 3; ++k) {
+        const float p1 = get(ix, iy, k) * w1,     p2 = get(ix + 1, iy, k) * w2;
+        const float p3 = get(ix, iy + 1, k) * w3, p4 = get(ix + 1, iy + 1, k) * w4;
+        const float v = static_cast<float>(static_cast<double>(p1) + p2 + p3 + p4);
+        rgb = (rgb << 8) | static_cast<int>(v + 0.5f);
+      }
+      out[static_cast<size_t>(y) * iw + x] = rgb;
+    }
+  }
+  return out;
+}
+
+inline int bb_LoadBuffer(int buf, const bbString& file) {
+  int sw = 0, sh = 0, ch = 0;
+  unsigned char* data = bb_load_rgba_(file.c_str(), &sw, &sh, &ch);
+  if (!data) return 0;
+  const int dw = bb_BufferWidth(buf), dh = bb_BufferHeight(buf);
+  if (dw <= 0 || dh <= 0 || sw <= 0 || sh <= 0) { stbi_image_free(data); return 0; }
+  int iw = 0, ih = 0;
+  const std::vector<int> t = bb_tform_scale_(data, sw, sh, dw, dh, iw, ih);
+  stbi_image_free(data);
+
+  const bool screen = (buf == BB_BACK_BUFFER_H || buf == BB_FRONT_BUFFER_H);
+  auto lit = bb_buf_locks_.find(buf);
+  const bool locked = (lit != bb_buf_locks_.end() && lit->second.locked);
+
+  // Zielbereich: der Puffer, beschnitten vom Viewport; der Origin wird 0.
+  bb_CRect_ vp = { 0, 0, dw, dh };
+  bb_Canvas_ c;
+  const bool canvas = !screen && bb_canvas_open_(buf, c);
+  if (canvas) {
+    vp = c.st->vp;
+    c.st->ox = c.st->oy = 0;
+  } else if (screen && bb_buf_is_screen_(bb_active_buffer_)) {
+    // Origin und Viewport des Bildschirms sind global und gelten nur,
+    // solange er der aktive Puffer ist - SetBuffer setzt beide zurueck.
+    if (bb_viewport_active_)
+      vp = bb_crect_(bb_viewport_rect_.x, bb_viewport_rect_.y,
+                     bb_viewport_rect_.w, bb_viewport_rect_.h);
+    bb_origin_x_ = bb_origin_y_ = 0;
+    bb_apply_viewport_();
+  }
+  const int x0 = std::max(vp.l, 0), y0 = std::max(vp.t, 0);
+  const int x1 = std::min({ vp.r, dw, iw }), y1 = std::min({ vp.b, dh, ih });
+
+  // Auf einen gesperrten Puffer schlaegt der Blit im Original fehl: 1 zurueck,
+  // aber kein Pixel aendert sich, auch nicht nach UnlockBuffer (gemessen).
+  if (locked) return 1;
+
+  if (canvas) {
+    for (int y = y0; y < y1; ++y)
+      for (int x = x0; x < x1; ++x)
+        bb_canvas_put_(c, x, y, t[static_cast<size_t>(y) * iw + x]);
+    bb_canvas_done_(c);
+    return 1;
+  }
+
+  // Bildschirm: ueber eine kurze eigene Sperre, danach der alte Zustand.
+  const bool had = (lit != bb_buf_locks_.end());
+  const bb_BufLock_ saved = had ? lit->second : bb_BufLock_{};
+  bb_LockBuffer(buf);
+  bb_BufLock_& lock = bb_buf_locks_[buf];
+  if (!lock.locked) {
+    if (had) bb_buf_locks_[buf] = saved; else bb_buf_locks_.erase(buf);
+    return 0;
+  }
+  for (int y = y0; y < std::min(y1, lock.height); ++y)
+    for (int x = x0; x < std::min(x1, lock.width); ++x) {
+      const int rgb = t[static_cast<size_t>(y) * iw + x];
+      uint8_t* p = lock.pixels.data() + (static_cast<size_t>(y) * lock.width + x) * 4;
+      p[0] = (rgb >> 16) & 0xFF; p[1] = (rgb >> 8) & 0xFF; p[2] = rgb & 0xFF; p[3] = 255;
+    }
+  lock.dirty = true;
+  bb_UnlockBuffer(buf);
+  if (had) bb_buf_locks_[buf] = saved; else bb_buf_locks_.erase(buf);
+  return 1;
+}
+
 #endif // BLITZNEXT_BB_CANVAS_H

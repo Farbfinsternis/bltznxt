@@ -1,0 +1,12 @@
+laden: 1
+groesse: 37x21
+ecke: FF510000 mitte: FF7FFFFF
+summe: 4305991
+textur: 1
+textur summe: 2893864
+bildschirm: 1
+origin: FFFFFFFF FF000000
+viewport: FF000000 FF920000 FFC13E1E FF000000
+gesperrt: 1 FF000000
+danach: FF000000
+fehlt: 0

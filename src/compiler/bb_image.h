@@ -782,7 +782,12 @@ inline void bb_LockBuffer(int buf = bb_active_buffer_) {
         if (n <= 0) { lock.locked = false; return; }
 
         if (bb_renderer_) {
+            // Gesperrt wird immer der ganze Puffer; SDL liest sonst nur den
+            // aktiven Viewport (BUG-179: nach `Viewport` war die Sperre so
+            // gross wie der Ausschnitt).
+            SDL_SetRenderViewport(bb_renderer_, nullptr);
             SDL_Surface* surf = SDL_RenderReadPixels(bb_renderer_, nullptr);
+            bb_apply_viewport_();
             if (surf) {
                 SDL_Surface* rgba = SDL_ConvertSurface(surf, SDL_PIXELFORMAT_RGBA32);
                 SDL_DestroySurface(surf);
@@ -793,12 +798,17 @@ inline void bb_LockBuffer(int buf = bb_active_buffer_) {
                     lock.width  = rgba->w;
                     lock.height = rgba->h;
                     SDL_DestroySurface(rgba);
+                    // Der Bildschirm hat im Original keinen Alphakanal: auch
+                    // ein nie bemalter Pixel liest sich $FF000000 (gemessen
+                    // 2026-09-23, BUG-179). Unser geloeschter GL-Puffer hat 0.
+                    for (int i = 3; i < sz; i += 4) lock.pixels[i] = 255;
                     lock.locked = true;
                     return;
                 }
             }
         }
         lock.pixels.assign(n, 0);
+        for (int i = 3; i < n; i += 4) lock.pixels[i] = 255;
         lock.locked = true;
 
     } else if (buf >= BB_TEX_BUF_BASE_) {
@@ -828,6 +838,7 @@ inline void bb_LockBuffer(int buf = bb_active_buffer_) {
             for (size_t i = 3; i < lock.pixels.size(); i += 4) lock.pixels[i] = 255;
             lock.locked = true;
         } else if (bb_renderer_ && fd.tex) {
+            bool read = false;
             if (SDL_SetRenderTarget(bb_renderer_, fd.tex)) {
                 SDL_Surface* surf = SDL_RenderReadPixels(bb_renderer_, nullptr);
                 SDL_SetRenderTarget(bb_renderer_, nullptr);
@@ -838,20 +849,20 @@ inline void bb_LockBuffer(int buf = bb_active_buffer_) {
                         lock.pixels.resize(rgba->w * rgba->h * 4);
                         std::memcpy(lock.pixels.data(), rgba->pixels, lock.pixels.size());
                         SDL_DestroySurface(rgba);
-                        lock.locked = true;
-                        return;
+                        read = true;
                     }
                 }
-                SDL_SetRenderTarget(bb_renderer_, nullptr);
-            } else {
-                SDL_SetRenderTarget(bb_renderer_, nullptr);
             }
-            lock.pixels.assign(n, 0);
+            SDL_SetRenderTarget(bb_renderer_, nullptr);
+            if (!read) lock.pixels.assign(n, 0);
             lock.locked = true;
         } else {
             if (n > 0) lock.pixels.assign(n, 0);
             lock.locked = (n > 0);
         }
+        // Auch ein frisches CreateImage liefert gesperrt Alpha FF: ReadPixelFast
+        // ergibt im Original $FF000000, nicht 0 (gemessen 2026-09-23, BUG-179).
+        for (size_t i = 3; i < lock.pixels.size(); i += 4) lock.pixels[i] = 255;
     }
 }
 
@@ -873,7 +884,10 @@ inline void bb_UnlockBuffer(int buf = bb_active_buffer_) {
                     SDL_DestroySurface(surf);
                     if (tex) {
                         SDL_SetRenderTarget(bb_renderer_, nullptr);
+                        SDL_SetRenderViewport(bb_renderer_, nullptr);  // ganzer Puffer
+                        SDL_SetTextureBlendMode(tex, SDL_BLENDMODE_NONE);
                         SDL_RenderTexture(bb_renderer_, tex, nullptr, nullptr);
+                        bb_apply_viewport_();
                         SDL_DestroyTexture(tex);
                     }
                 }
@@ -962,6 +976,7 @@ inline int bb_ReadPixel(int x, int y, int buf = bb_active_buffer_) {
             Uint8 px[4] = { 0, 0, 0, 255 };
             SDL_ReadSurfacePixel(surf, 0, 0, &px[0], &px[1], &px[2], &px[3]);
             SDL_DestroySurface(surf);
+            px[3] = 255;   // kein Alphakanal auf dem Bildschirm (BUG-179)
             return bb_pixel_read_(px);
         }
         return bb_canvas_read_pixel_(buf, x, y);
@@ -1031,27 +1046,8 @@ inline void bb_CopyPixelFast(int sx, int sy, int sbuf,
     dit->second.dirty = true;
 }
 
-inline int bb_LoadBuffer(int buf, const bbString& file) {
-    auto it = bb_buf_locks_.find(buf);
-    if (it == bb_buf_locks_.end() || !it->second.locked) return 0;
-    bb_BufLock_& lock = it->second;
-
-    int w = 0, h = 0, ch = 0;
-    unsigned char* data = bb_load_rgba_(file.c_str(), &w, &h, &ch);
-    if (!data) return 0;
-
-    lock.width  = w;
-    lock.height = h;
-    lock.pixels.assign(data, data + w * h * 4);
-    lock.dirty  = true;
-    stbi_image_free(data);
-
-    if (lock.img_h > 0 && bb_img_ok_(lock.img_h)) {
-        bb_images_[lock.img_h].width  = w;
-        bb_images_[lock.img_h].height = h;
-    }
-    return 1;
-}
+// LoadBuffer steht in bb_canvas.h (BUG-179): es braucht Origin und Viewport
+// der Bild- und Texturpuffer.
 
 // ---- SaveBuffer / SaveImage (BUG-167) ----
 //
