@@ -95,8 +95,9 @@ If EntityX(c3) = 0 And EntityX(c3, 1) = 10 Then Print "nullpunkt beim parent" El
 c4 = CopyEntity(c)
 If EntityClass$(c4) = "Mesh" And CountChildren(c4) = 1 Then Print "kopie der kopie" Else Print "FEHLER kopie der kopie"
 
-; --- 6) Ein ungueltiges Handle gibt 0 und stuerzt nicht ab ---
-If CopyEntity(0) = 0 Then Print "ungueltiges handle" Else Print "FEHLER ungueltiges handle"
+; --- 6) entfallen: CopyEntity(0) war hier bis 2026-09-23 als folgenlos
+; festgehalten - nie am Original gemessen. Seit BUG-170 beendet es das
+; Programm mit "Entity does not exist" (Tests test_bug170_*).
 
 ; --- 7) FreeEntity auf die Kopie laesst das Original stehen ---
 ;

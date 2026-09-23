@@ -56,19 +56,26 @@ inline bb_LightEntity_ *bb_light_get_(int h) {
   return static_cast<bb_LightEntity_ *>(e);
 }
 
+// debugLight (BUG-170)
+inline bb_LightEntity_ *bb_light_chk_(int h) {
+  if (bb_ent_chk_(h)->kind() != bb_EntityKind_::Light)
+    bb_RuntimeError("Entity is not a light");
+  return bb_light_get_(h);
+}
+
 // 0-255 laut Doku, negative Werte verdunkeln ausdruecklich ("negative
 // lighting", fuer Schatteneffekte). Deshalb wird hier nicht geklemmt - der
 // Shader begrenzt erst das Endergebnis.
 inline void bb_LightColor(int light, float r, float g, float b) {
-  if (auto *l = bb_light_get_(light)) { l->colR = r; l->colG = g; l->colB = b; }
+  if (auto *l = bb_light_chk_(light)) { l->colR = r; l->colG = g; l->colB = b; }
 }
 
 inline void bb_LightRange(int light, float range) {
-  if (auto *l = bb_light_get_(light)) l->range = range;
+  if (auto *l = bb_light_chk_(light)) l->range = range;
 }
 
 inline void bb_LightConeAngles(int light, float inner_angle, float outer_angle) {
-  if (auto *l = bb_light_get_(light)) {
+  if (auto *l = bb_light_chk_(light)) {
     l->inner = inner_angle;
     l->outer = outer_angle;
   }

@@ -24,7 +24,4 @@ flipmesh ausmasse
 updatenormals
 lightmesh
 paintmesh
-copymesh ungueltig
-countsurfaces ungueltig
-intersect ungueltig
 fertig

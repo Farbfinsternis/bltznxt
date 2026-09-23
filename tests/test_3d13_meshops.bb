@@ -133,13 +133,8 @@ PaintMesh m, 0
 If MeshWidth(m) = 2 Then Print "paintmesh" Else Print "FEHLER paintmesh"
 FreeEntity m
 
-; --- 10) ungueltige Handles sind folgenlos
-ScaleMesh 0, 2, 2, 2
-FlipMesh 0
-UpdateNormals 0
-AddMesh 0, 0
-If CopyMesh(0) = 0 Then Print "copymesh ungueltig" Else Print "FEHLER copymesh ungueltig"
-If CountSurfaces(0) = 0 Then Print "countsurfaces ungueltig" Else Print "FEHLER countsurfaces ungueltig"
-If MeshesIntersect(0, 0) = 0 Then Print "intersect ungueltig" Else Print "FEHLER intersect ungueltig"
+; Ungueltige Handles waren hier bis 2026-09-23 als folgenlos festgehalten -
+; nie am Original gemessen. Seit BUG-170 beenden sie das Programm mit der
+; Meldung des Debug-Modus; das pruefen die Tests test_bug170_*.
 
 Print "fertig"

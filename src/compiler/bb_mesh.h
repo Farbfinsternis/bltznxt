@@ -77,6 +77,13 @@ static inline bb_MeshEntity_* bb_mesh_ent_(int h) {
   return static_cast<bb_MeshEntity_*>(e);
 }
 
+// debugMesh (BUG-170): Sprite und MD2 sind Models, aber keine Meshes.
+static inline bb_MeshEntity_* bb_mesh_chk_(int h) {
+  if (bb_ent_chk_(h)->kind() != bb_EntityKind_::Mesh)
+    bb_RuntimeError("Entity is not a mesh");
+  return bb_mesh_ent_(h);
+}
+
 // ============================================================
 // Helper: push a single triangle's worth of vertex data.
 // Appends 3 vertices (each BB_VF floats) and 3 indices.
@@ -355,10 +362,7 @@ inline int bb_CreateCone(int segs = 8, int solid = 1, int parent = 0) {
 inline void bb_EntityTexture(int entity, int texture, int frame = 0, int index = 0) {
   // Im Original ein Model: Netze, Sprites (3D-16) und MD2 (3D-23), keine
   // Pivots.
-  bb_Entity_* me = bb_mesh_ent_(entity);
-  if (!me) me = bb_sprite_ent_(entity);
-  if (!me) me = bb_md2_ent_(entity);
-  if (!me) return;
+  bb_Entity_* me = bb_model_chk_(entity);
   if (index < 0 || index >= BB_TEX_SLOTS) return;
   // Seit 3D-15 landet sie im Brush der **Entity** und nicht mehr in dem
   // jeder Flaeche. Im Bild ist das dasselbe - beim Verrechnen ueberschreibt
@@ -382,7 +386,7 @@ inline void bb_EntityTexture(int entity, int texture, int frame = 0, int index =
 // setzt das Aussehen jeder einzelnen Flaeche neu und macht damit
 // unterschiedliche Flaechen gleich.
 inline void bb_PaintMesh(int mesh, int brush) {
-  auto*      me = bb_mesh_ent_(mesh);
+  auto*      me = bb_mesh_chk_(mesh);
   bb_Brush_* b  = bb_brush_get_(brush);
   if (!me || !b) return;
   for (auto& s : me->surfaces()) s.brush = *b;
@@ -412,7 +416,7 @@ static inline void bb_mesh_aabb_(const bb_MeshEntity_* me,
 }
 
 inline float bb_MeshWidth(int h) {
-  auto* me = bb_mesh_ent_(h);
+  auto* me = bb_mesh_chk_(h);
   if (!me) return 0.0f;
   float x0,x1,y0,y1,z0,z1;
   bb_mesh_aabb_(me, x0,x1,y0,y1,z0,z1);
@@ -420,7 +424,7 @@ inline float bb_MeshWidth(int h) {
 }
 
 inline float bb_MeshHeight(int h) {
-  auto* me = bb_mesh_ent_(h);
+  auto* me = bb_mesh_chk_(h);
   if (!me) return 0.0f;
   float x0,x1,y0,y1,z0,z1;
   bb_mesh_aabb_(me, x0,x1,y0,y1,z0,z1);
@@ -428,7 +432,7 @@ inline float bb_MeshHeight(int h) {
 }
 
 inline float bb_MeshDepth(int h) {
-  auto* me = bb_mesh_ent_(h);
+  auto* me = bb_mesh_chk_(h);
   if (!me) return 0.0f;
   float x0,x1,y0,y1,z0,z1;
   bb_mesh_aabb_(me, x0,x1,y0,y1,z0,z1);
@@ -483,14 +487,14 @@ inline int bb_CreateMesh(int parent = 0) {
 }
 
 inline int bb_CountSurfaces(int h) {
-  auto* me = bb_mesh_ent_(h);
+  auto* me = bb_mesh_chk_(h);
   return me ? static_cast<int>(me->surfaces().size()) : 0;
 }
 
 // ---- ScaleMesh / PositionMesh / RotateMesh ----
 
 inline void bb_ScaleMesh(int h, float x_scale, float y_scale, float z_scale) {
-  auto* me = bb_mesh_ent_(h);
+  auto* me = bb_mesh_chk_(h);
   if (!me) return;
   for (auto& s : me->surfaces())
     for (size_t i = 0; i + BB_VF - 1 < s.vertices.size(); i += BB_VF) {
@@ -502,7 +506,7 @@ inline void bb_ScaleMesh(int h, float x_scale, float y_scale, float z_scale) {
 }
 
 inline void bb_PositionMesh(int h, float x, float y, float z) {
-  auto* me = bb_mesh_ent_(h);
+  auto* me = bb_mesh_chk_(h);
   if (!me) return;
   for (auto& s : me->surfaces())
     for (size_t i = 0; i + BB_VF - 1 < s.vertices.size(); i += BB_VF) {
@@ -518,7 +522,7 @@ inline void bb_PositionMesh(int h, float x, float y, float z) {
 // ein gedrehtes Netz von der falschen Seite beleuchtet, und davor warnt die
 // Doku im Gegensatz zu ScaleMesh nicht.
 inline void bb_RotateMesh(int h, float pitch, float yaw, float roll) {
-  auto* me = bb_mesh_ent_(h);
+  auto* me = bb_mesh_chk_(h);
   if (!me) return;
   float R[16];
   mat4_make_euler_YXZ_(R, pitch, yaw, roll);
@@ -541,7 +545,7 @@ inline void bb_RotateMesh(int h, float pitch, float yaw, float roll) {
 inline void bb_FitMesh(int h, float x, float y, float z,
                        float width, float height, float depth,
                        int uniform = 0) {
-  auto* me = bb_mesh_ent_(h);
+  auto* me = bb_mesh_chk_(h);
   if (!me || me->surfaces().empty()) return;
 
   float x0, x1, y0, y1, z0, z1;
@@ -574,7 +578,7 @@ inline void bb_FitMesh(int h, float x, float y, float z,
 // abgeschalteter Rueckseitenentfernung wird die vorher beleuchtete Flaeche
 // danach schwarz - das geht nur, wenn auch die Normale kippt.
 inline void bb_FlipMesh(int h) {
-  auto* me = bb_mesh_ent_(h);
+  auto* me = bb_mesh_chk_(h);
   if (!me) return;
   for (auto& s : me->surfaces()) {
     for (size_t i = 0; i + 2 < s.indices.size(); i += 3)
@@ -595,7 +599,7 @@ inline void bb_FlipMesh(int h) {
 // ein Wuerfel bleibt dadurch kantig - gemessen aendert UpdateNormals auch im
 // Original am Wuerfelbild nichts.
 inline void bb_UpdateNormals(int h) {
-  auto* me = bb_mesh_ent_(h);
+  auto* me = bb_mesh_chk_(h);
   if (!me) return;
   for (auto& s : me->surfaces()) {
     const size_t n = s.vertices.size() / BB_VF;
@@ -661,7 +665,7 @@ inline void bb_LightMesh(int h, float red, float green, float blue,
                          float range = 0.0f,
                          float light_x = 0.0f, float light_y = 0.0f,
                          float light_z = 0.0f) {
-  auto* me = bb_mesh_ent_(h);
+  auto* me = bb_mesh_chk_(h);
   if (!me) return;
   const float r = red / 255.0f, g = green / 255.0f, b = blue / 255.0f;
 
@@ -698,8 +702,8 @@ inline void bb_LightMesh(int h, float red, float green, float blue,
 // (3D-15); sobald es das gibt, darf nur bei gleichem Brush zusammengefasst
 // werden.
 inline void bb_AddMesh(int source_mesh, int dest_mesh) {
-  auto* src = bb_mesh_ent_(source_mesh);
-  auto* dst = bb_mesh_ent_(dest_mesh);
+  auto* src = bb_mesh_chk_(source_mesh);
+  auto* dst = bb_mesh_chk_(dest_mesh);
   if (!src || !dst || src == dst) return;
   if (dst->surfaces().empty()) dst->surfaces().emplace_back();
   bb_MeshData_& into = dst->surfaces()[0];
@@ -715,7 +719,7 @@ inline void bb_AddMesh(int source_mesh, int dest_mesh) {
 
 // Laut Doku "identical to performing new_mesh=CreateMesh() : AddMesh mesh,new_mesh".
 inline int bb_CopyMesh(int mesh, int parent = 0) {
-  if (!bb_mesh_ent_(mesh)) return 0;
+  if (!bb_mesh_chk_(mesh)) return 0;
   int h = bb_CreateMesh(parent);
   bb_AddMesh(mesh, h);
   return h;
@@ -729,8 +733,8 @@ static inline bool bb_tri_tri_hit_(const float* a0, const float* a1, const float
                                     const float* b0, const float* b1, const float* b2);
 
 inline int bb_MeshesIntersect(int mesh_a, int mesh_b) {
-  auto* A = bb_mesh_ent_(mesh_a);
-  auto* B = bb_mesh_ent_(mesh_b);
+  auto* A = bb_mesh_chk_(mesh_a);
+  auto* B = bb_mesh_chk_(mesh_b);
   if (!A || !B) return 0;
 
   float ax0, ax1, ay0, ay1, az0, az1, bx0, bx1, by0, by1, bz0, bz1;

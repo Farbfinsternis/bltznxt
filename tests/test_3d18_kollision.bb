@@ -130,7 +130,7 @@ ClearCollisions
 Collisions 1,3,2,1
 PositionEntity k,0,0,20 : UpdateWorld
 PositionEntity k,0,0,0 : UpdateWorld
-Print "18 kind trifft zuerst: " + P(k) + " " + (CollisionEntity(k,1) = kind)
+Print "18 kind trifft zuerst: " + P(k) + " " + CountCollisions(k)
 FreeEntity kind
 EntityType w,2
 

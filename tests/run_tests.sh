@@ -26,9 +26,22 @@ for f in tests/test_*.bb; do
     if bin/blitzcc.exe "$f" -o bin/"$name" -q 2>/dev/null; then
         # Optionaler Output-Vergleich wenn .expected existiert
         if [ -f "tests/${name}.expected" ]; then
-            actual=$(bin/"${name}".exe </dev/null 2>/dev/null)
+            actual=$(bin/"${name}".exe </dev/null 2>bin/"${name}".stderr)
             expected=$(cat "tests/${name}.expected")
-            if [ "$actual" = "$expected" ]; then
+            # Optional auch die Laufzeitmeldung: .expected_stderr haelt fest,
+            # was auf stderr steht, ohne die [GL]-/[shader]-Diagnosezeilen
+            # (BUG-170). Zeilenenden zaehlen hier nicht.
+            stderr_ok=1
+            if [ -f "tests/${name}.expected_stderr" ]; then
+                actual_err=$(grep -v '^\[' bin/"${name}".stderr | tr -d '\r')
+                [ "$actual_err" = "$(tr -d '\r' < "tests/${name}.expected_stderr")" ] || stderr_ok=0
+            fi
+            if [ $stderr_ok -eq 0 ]; then
+                echo "FAIL (stderr mismatch): $f"
+                echo "  expected: $(cat "tests/${name}.expected_stderr" | head -3)"
+                echo "  actual:   $(echo "$actual_err" | head -3)"
+                ((FAIL++))
+            elif [ "$actual" = "$expected" ]; then
                 echo "PASS: $f"
                 ((PASS++))
             else

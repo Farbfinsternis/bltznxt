@@ -51,6 +51,13 @@ static inline bb_CameraEntity_* bb_cam_(int h) {
   return static_cast<bb_CameraEntity_*>(e);
 }
 
+// debugCamera (BUG-170)
+static inline bb_CameraEntity_* bb_cam_chk_(int h) {
+  if (bb_ent_chk_(h)->kind() != bb_EntityKind_::Camera)
+    bb_RuntimeError("Entity is not a camera");
+  return bb_cam_(h);
+}
+
 // ============================================================
 // CreateCamera
 // ============================================================
@@ -77,27 +84,27 @@ inline int bb_CreateCamera(int parent = 0) {
 // ============================================================
 
 inline void bb_CameraRange(int h, float near_clip, float far_clip) {
-  if (auto* c = bb_cam_(h)) { c->near_ = near_clip; c->far_ = far_clip; }
+  if (auto* c = bb_cam_chk_(h)) { c->near_ = near_clip; c->far_ = far_clip; }
 }
 
 // zoom=1 → 90° HFOV.  zoom=2 → ~53° HFOV.  Standard Blitz3D convention.
 inline void bb_CameraZoom(int h, float zoom) {
-  if (auto* c = bb_cam_(h); c && zoom > 0.0f) c->zoom = zoom;
+  if (auto* c = bb_cam_chk_(h); c && zoom > 0.0f) c->zoom = zoom;
 }
 
 inline void bb_CameraProjMode(int h, int mode) {
-  if (auto* c = bb_cam_(h)) c->projMode = mode;
+  if (auto* c = bb_cam_chk_(h)) c->projMode = mode;
 }
 
 // Viewport in Blitz3D pixel coords (y=0 is top-left).
 inline void bb_CameraViewport(int h, int x, int y, int w, int hh) {
-  if (auto* c = bb_cam_(h)) { c->vpX = x; c->vpY = y; c->vpW = w; c->vpH = hh; }
+  if (auto* c = bb_cam_chk_(h)) { c->vpX = x; c->vpY = y; c->vpW = w; c->vpH = hh; }
 }
 
 // Per-camera cls mode. Ohne gueltige Kamera wirkungslos (BUG-137: der
 // fruehere Ersatzzustand fuer RenderWorld ohne Kamera ist entfallen).
 inline void bb_CameraClsMode(int h, int cls_color, int cls_zbuf) {
-  if (auto* c = bb_cam_(h)) {
+  if (auto* c = bb_cam_chk_(h)) {
     c->clsColor = (cls_color != 0);
     c->clsZbuf  = (cls_zbuf  != 0);
   }
@@ -107,7 +114,7 @@ inline void bb_CameraClsMode(int h, int cls_color, int cls_zbuf) {
 // bbCameraClsColor rechnet r*ctof (1/255). Bis BUG-62 stand hier int, und
 // ein "127.5" verlor still seinen Nachkommateil.
 inline void bb_CameraClsColor(int h, float r, float g, float b) {
-  if (auto* c = bb_cam_(h)) {
+  if (auto* c = bb_cam_chk_(h)) {
     c->clsR = r; c->clsG = g; c->clsB = b;
   }
 }

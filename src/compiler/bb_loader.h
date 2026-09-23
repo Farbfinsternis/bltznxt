@@ -937,6 +937,7 @@ inline int bb_load_x_(const bbString& file, int parent) {
 // ============================================================
 
 inline int bb_LoadMesh(const bbString& file, int parent = 0) {
+  bb_parent_chk_(parent);   // vor dem Laden, wie bbLoadMesh (BUG-170)
   const bbString ext = bb_file_ext_lower_(file);
   if (ext == ".3ds") return bb_load_3ds_(file, parent);
   if (ext == ".x")   return bb_load_x_(file, parent);
@@ -952,6 +953,7 @@ inline int bb_LoadMesh(const bbString& file, int parent = 0) {
 // hier dasselbe wie LoadMesh - einmal gemeldet, damit niemand eine Animation
 // erwartet, die nicht kommt.
 inline int bb_LoadAnimMesh(const bbString& file, int parent = 0) {
+  bb_parent_chk_(parent);
   static bool warned = false;
   if (!warned) {
     warned = true;

@@ -16,6 +16,7 @@
 #include <vector>
 #include "bb_string.h"
 #include "bb_brush.h"   // bb_Brush_ - das Aussehen als Wert (3D-15)
+#include "bb_system.h"  // bb_RuntimeError
 
 // ============================================================
 // Entity kind tag
@@ -171,12 +172,44 @@ inline bb_Entity_* bb_entity_get_(int h) {
   return (it != bb_entities_.end()) ? it->second.get() : nullptr;
 }
 
+// ---- Handle-Pruefung der Befehle (BUG-170) ----
+// Wie der Debug-Modus des Originals (debugEntity, debugModel, debugParent in
+// bbblitz3d.cpp), aber immer: ein ungueltiges Handle beendet das Programm
+// mit dessen Meldung. Im Release-Modus prueft das Original nichts - dort
+// stuerzt Handle 0 mit "Memory access violation" ab, ein freigegebenes
+// Entity liefert still seinen alten Wert, und CameraZoom auf einen Wuerfel
+// schreibt in fremden Speicher (gemessen 2026-09-23). Das ist Zufall und
+// wird nicht nachgebaut. Die Helfer ohne _chk_ bleiben fuer interne Wege,
+// in denen ein fehlendes Entity erlaubt ist.
+inline bb_Entity_* bb_ent_chk_(int h) {
+  bb_Entity_* e = bb_entity_get_(h);
+  if (!e) bb_RuntimeError("Entity does not exist");
+  return e;
+}
+
+// Parent 0 heisst "keiner" und ist erlaubt.
+inline void bb_parent_chk_(int p) {
+  if (p && !bb_entity_get_(p)) bb_RuntimeError("Parent entity does not exist");
+}
+
+// Model im Original: Mesh, Sprite, MD2 (auch Plane, Terrain, BSP, die es
+// hier noch nicht gibt). Kamera, Licht, Pivot und Spiegel sind keine.
+inline bb_Entity_* bb_model_chk_(int h) {
+  bb_Entity_* e = bb_ent_chk_(h);
+  const bb_EntityKind_ k = e->kind();
+  if (k != bb_EntityKind_::Mesh && k != bb_EntityKind_::Sprite &&
+      k != bb_EntityKind_::Md2)
+    bb_RuntimeError("Entity is not a model");
+  return e;
+}
+
 // ============================================================
 // Internal: register a freshly-created entity with an optional parent.
 // Returns the assigned handle.
 // ============================================================
 
 inline int bb_entity_register_(std::unique_ptr<bb_Entity_> ent, int parent) {
+  bb_parent_chk_(parent);   // debugParent in jedem Create/Load des Originals
   int h = bb_entity_next_id_++;
   ent->handle = h;
   ent->parent = parent;
@@ -193,13 +226,13 @@ inline int bb_entity_register_(std::unique_ptr<bb_Entity_> ent, int parent) {
 // FreeEntity — recursively destroys an entity and all its descendants.
 // ============================================================
 
-inline void bb_FreeEntity(int h) {
+inline void bb_free_entity_(int h) {
   bb_Entity_* e = bb_entity_get_(h);
   if (!e) return;
 
   // Recurse into children first (copy vector — it gets modified during recursion)
   std::vector<int> kids = e->children;
-  for (int c : kids) bb_FreeEntity(c);
+  for (int c : kids) bb_free_entity_(c);
 
   // Detach from parent's child list
   if (e->parent) {
@@ -211,6 +244,11 @@ inline void bb_FreeEntity(int h) {
   }
 
   bb_entities_.erase(h);
+}
+
+inline void bb_FreeEntity(int h) {
+  bb_ent_chk_(h);
+  bb_free_entity_(h);
 }
 
 // ============================================================
@@ -226,12 +264,12 @@ inline int bb_CreatePivot(int parent = 0) {
 // ============================================================
 
 inline void bb_HideEntity(int h) {
-  bb_Entity_* e = bb_entity_get_(h);
+  bb_Entity_* e = bb_ent_chk_(h);
   if (e) e->visible = false;
 }
 
 inline void bb_ShowEntity(int h) {
-  bb_Entity_* e = bb_entity_get_(h);
+  bb_Entity_* e = bb_ent_chk_(h);
   if (e) e->visible = true;
 }
 
@@ -254,12 +292,12 @@ inline bool bb_entity_shown_(const bb_Entity_* e) {
 // ============================================================
 
 inline void bb_NameEntity(int h, const bbString& name) {
-  bb_Entity_* e = bb_entity_get_(h);
+  bb_Entity_* e = bb_ent_chk_(h);
   if (e) e->name = name;
 }
 
 inline bbString bb_EntityName(int h) {
-  bb_Entity_* e = bb_entity_get_(h);
+  bb_Entity_* e = bb_ent_chk_(h);
   return e ? e->name : bbString{};
 }
 
@@ -562,10 +600,11 @@ static inline const float* bb_entity_world_(bb_Entity_* e) {
 
 // Dasselbe ueber ein Handle. Gibt nullptr fuer Handle 0 - das ist im Original
 // der Weltraum, und dort geschieht nichts.
+// 0 ist der Weltraum; jedes andere Handle muss existieren (bbTFormPoint:
+// `if( src ) debugEntity(src)`).
 static inline const float* bb_tform_world_(int h) {
-  bb_Entity_* e = bb_entity_get_(h);
-  if (!e) return nullptr;
-  return bb_entity_world_(e);
+  if (!h) return nullptr;
+  return bb_entity_world_(bb_ent_chk_(h));
 }
 
 // Weltdrehung wie Entity::getWorldRotation im Original: das Produkt der
@@ -696,6 +735,8 @@ inline int bb_copy_entity_tree_(int h, int parent) {
 // Fall, dass das Original lokal auf 0,0,0 sitzt. Die Sichtbarkeit wandert
 // nicht mit: jede Kopie ist sichtbar (BUG-128, siehe bb_copy_entity_tree_).
 inline int bb_CopyEntity(int h, int parent = 0) {
+  bb_ent_chk_(h);
+  bb_parent_chk_(parent);
   int nh = bb_copy_entity_tree_(h, parent);
   if (!nh) return 0;
 
@@ -711,7 +752,7 @@ inline int bb_CopyEntity(int h, int parent = 0) {
 
 // Set local (glob=0) or world (glob=1) position.
 inline void bb_PositionEntity(int h, float x, float y, float z, int glob = 0) {
-  bb_Entity_* e = bb_entity_get_(h);
+  bb_Entity_* e = bb_ent_chk_(h);
   if (!e) return;
   if (!glob || e->parent == 0) {
     e->px = x; e->py = y; e->pz = z;
@@ -732,7 +773,7 @@ inline void bb_PositionEntity(int h, float x, float y, float z, int glob = 0) {
 
 // Move in entity-local orientation (forward/up/right relative to entity).
 inline void bb_MoveEntity(int h, float dx, float dy, float dz) {
-  bb_Entity_* e = bb_entity_get_(h);
+  bb_Entity_* e = bb_ent_chk_(h);
   if (!e) return;
   float R[16];
   mat4_make_euler_YXZ_(R, e->rx, e->ry, e->rz);
@@ -747,7 +788,7 @@ inline void bb_MoveEntity(int h, float dx, float dy, float dz) {
 // gemessen 2026-09-17): der lokale Zweig addiert das Delta unveraendert zur
 // Position im Raum des Elternteils.
 inline void bb_TranslateEntity(int h, float dx, float dy, float dz, int glob = 0) {
-  bb_Entity_* e = bb_entity_get_(h);
+  bb_Entity_* e = bb_ent_chk_(h);
   if (!e) return;
   if (glob == 0) {
     e->px += dx; e->py += dy; e->pz += dz;
@@ -779,7 +820,7 @@ inline void bb_TranslateEntity(int h, float dx, float dy, float dz, int glob = 0
 
 // Set absolute rotation.  glob=0 → set local; glob=1 → set world rotation.
 inline void bb_RotateEntity(int h, float rx, float ry, float rz, int glob = 0) {
-  bb_Entity_* e = bb_entity_get_(h);
+  bb_Entity_* e = bb_ent_chk_(h);
   if (!e) return;
   if (!glob || e->parent == 0) {
     e->rx = rx; e->ry = ry; e->rz = rz;
@@ -801,7 +842,7 @@ inline void bb_RotateEntity(int h, float rx, float ry, float rz, int glob = 0) {
 // Weltdrehung ist wie Entity::getWorldRotation reine Drehung, Skalierungen der
 // Eltern wirken nicht.
 inline void bb_TurnEntity(int h, float drx, float dry, float drz, int glob = 0) {
-  bb_Entity_* e = bb_entity_get_(h);
+  bb_Entity_* e = bb_ent_chk_(h);
   if (!e) return;
   float L[16], D[16], N[16];
   mat4_make_euler_YXZ_(L, e->rx, e->ry, e->rz);
@@ -824,7 +865,7 @@ inline void bb_TurnEntity(int h, float drx, float dry, float drz, int glob = 0) 
 // ============================================================
 
 inline void bb_ScaleEntity(int h, float sx, float sy, float sz, int /*glob*/ = 0) {
-  bb_Entity_* e = bb_entity_get_(h);
+  bb_Entity_* e = bb_ent_chk_(h);
   if (e) { e->sx = sx; e->sy = sy; e->sz = sz; }
 }
 
@@ -833,8 +874,8 @@ inline void bb_ScaleEntity(int h, float sx, float sy, float sz, int /*glob*/ = 0
 // ============================================================
 
 inline void bb_PointEntity(int h, int target, float roll = 0.0f) {
-  bb_Entity_* e  = bb_entity_get_(h);
-  bb_Entity_* tg = bb_entity_get_(target);
+  bb_Entity_* e  = bb_ent_chk_(h);
+  bb_Entity_* tg = bb_ent_chk_(target);
   if (!e || !tg) return;
   const float* wt = bb_entity_world_(tg);
   const float* we = bb_entity_world_(e);
@@ -879,7 +920,7 @@ inline void bb_PointEntity(int h, int target, float roll = 0.0f) {
 // Unterschied).
 inline void bb_AlignToVector(int h, float nx, float ny, float nz,
                               int axis, float rate = 1.0f) {
-  bb_Entity_* e = bb_entity_get_(h);
+  bb_Entity_* e = bb_ent_chk_(h);
   if (!e) return;
 
   // EPSILON ist im Original .000001f (geom.h).
@@ -959,7 +1000,7 @@ inline void bb_AlignToVector(int h, float nx, float ny, float nz,
 // und die vorige Weltlage auf die aktuelle setzen. Die Lage des Entity
 // selbst bleibt unangetastet (BUG-154).
 inline void bb_ResetEntity(int h) {
-  bb_Entity_* e = bb_entity_get_(h);
+  bb_Entity_* e = bb_ent_chk_(h);
   if (!e) return;
   e->colls.clear();
   memcpy(e->prev, bb_entity_world_(e), sizeof(e->prev));
@@ -970,17 +1011,17 @@ inline void bb_ResetEntity(int h) {
 // ============================================================
 
 inline float bb_EntityX(int h, int glob = 0) {
-  bb_Entity_* e = bb_entity_get_(h);
+  bb_Entity_* e = bb_ent_chk_(h);
   if (!e) return 0;
   return glob ? bb_entity_world_(e)[12] : e->px;
 }
 inline float bb_EntityY(int h, int glob = 0) {
-  bb_Entity_* e = bb_entity_get_(h);
+  bb_Entity_* e = bb_ent_chk_(h);
   if (!e) return 0;
   return glob ? bb_entity_world_(e)[13] : e->py;
 }
 inline float bb_EntityZ(int h, int glob = 0) {
-  bb_Entity_* e = bb_entity_get_(h);
+  bb_Entity_* e = bb_ent_chk_(h);
   if (!e) return 0;
   return glob ? bb_entity_world_(e)[14] : e->pz;
 }
@@ -1023,7 +1064,7 @@ static inline void bb_entity_world_euler_(const bb_Entity_* e,
 }
 
 inline float bb_EntityPitch(int h, int glob = 0) {
-  bb_Entity_* e = bb_entity_get_(h);
+  bb_Entity_* e = bb_ent_chk_(h);
   if (!e) return 0;
   float rx, ry, rz;
   if (glob) bb_entity_world_euler_(e, rx, ry, rz);
@@ -1031,7 +1072,7 @@ inline float bb_EntityPitch(int h, int glob = 0) {
   return rx;
 }
 inline float bb_EntityYaw(int h, int glob = 0) {
-  bb_Entity_* e = bb_entity_get_(h);
+  bb_Entity_* e = bb_ent_chk_(h);
   if (!e) return 0;
   float rx, ry, rz;
   if (glob) bb_entity_world_euler_(e, rx, ry, rz);
@@ -1039,7 +1080,7 @@ inline float bb_EntityYaw(int h, int glob = 0) {
   return ry;
 }
 inline float bb_EntityRoll(int h, int glob = 0) {
-  bb_Entity_* e = bb_entity_get_(h);
+  bb_Entity_* e = bb_ent_chk_(h);
   if (!e) return 0;
   float rx, ry, rz;
   if (glob) bb_entity_world_euler_(e, rx, ry, rz);
@@ -1048,8 +1089,8 @@ inline float bb_EntityRoll(int h, int glob = 0) {
 }
 
 inline float bb_EntityDistance(int h1, int h2) {
-  bb_Entity_* a = bb_entity_get_(h1);
-  bb_Entity_* b = bb_entity_get_(h2);
+  bb_Entity_* a = bb_ent_chk_(h1);
+  bb_Entity_* b = bb_ent_chk_(h2);
   if (!a || !b) return 0;
   const float* wa = bb_entity_world_(a);
   const float* wb = bb_entity_world_(b);
@@ -1068,8 +1109,9 @@ inline float bb_EntityDistance(int h1, int h2) {
 // Weltlage fest (gemessen 2026-09-17, BUG-155). Mit `False` bleibt die
 // lokale Lage stehen und das Entity springt mit dem Elternteil mit.
 inline void bb_EntityParent(int h, int new_parent, int glob = 1) {
-  bb_Entity_* e = bb_entity_get_(h);
-  if (!e || e->handle == new_parent) return;
+  bb_Entity_* e = bb_ent_chk_(h);
+  bb_parent_chk_(new_parent);
+  if (e->handle == new_parent) return;
 
   // If preserving world coords, snapshot world matrix before any change.
   float saved_world[16];
@@ -1123,7 +1165,7 @@ inline void bb_EntityParent(int h, int new_parent, int glob = 1) {
 }
 
 inline int bb_GetParent(int h) {
-  bb_Entity_* e = bb_entity_get_(h);
+  bb_Entity_* e = bb_ent_chk_(h);
   return e ? e->parent : 0;
 }
 
@@ -1142,23 +1184,24 @@ static inline int bb_find_child_rec_(int h, const bbString& name) {
 }
 
 inline int bb_FindChild(int h, const bbString& name) {
+  bb_ent_chk_(h);
   return bb_find_child_rec_(h, name);
 }
 
 inline int bb_CountChildren(int h) {
-  bb_Entity_* e = bb_entity_get_(h);
+  bb_Entity_* e = bb_ent_chk_(h);
   return e ? static_cast<int>(e->children.size()) : 0;
 }
 
 // 1-based child index.
 inline int bb_GetChild(int h, int index) {
-  bb_Entity_* e = bb_entity_get_(h);
+  bb_Entity_* e = bb_ent_chk_(h);
   if (!e || index < 1 || index > static_cast<int>(e->children.size())) return 0;
   return e->children[index - 1];
 }
 
 inline void bb_EntityOrder(int h, int order) {
-  bb_Entity_* e = bb_entity_get_(h);
+  bb_Entity_* e = bb_ent_chk_(h);
   if (e) e->order = order;
 }
 
@@ -1175,7 +1218,7 @@ inline void bb_EntityOrder(int h, int order) {
 // aber im Gegensatz zu HideEntity fuer Kollisionen vorhanden - gemessen:
 // der Hintergrund steht unveraendert da.
 inline void bb_EntityAlpha(int h, float alpha) {
-  bb_Entity_* e = bb_entity_get_(h);
+  bb_Entity_* e = bb_model_chk_(h);
   if (!e) return;
   e->brush.alpha = (alpha < 0.0f) ? 0.0f : (alpha > 1.0f ? 1.0f : alpha);
 }
@@ -1183,13 +1226,13 @@ inline void bb_EntityAlpha(int h, float alpha) {
 // 0-255, Vorgabe 255,255,255. Die Farbe wird mit dem Beleuchtungsergebnis
 // und der Textur multipliziert; geklemmt wird erst danach.
 inline void bb_EntityColor(int h, float r, float g, float b) {
-  bb_Entity_* e = bb_entity_get_(h);
+  bb_Entity_* e = bb_model_chk_(h);
   if (!e) return;
   e->brush.r = r; e->brush.g = g; e->brush.b = b;
 }
 
 inline void bb_EntityShininess(int h, float shininess) {
-  bb_Entity_* e = bb_entity_get_(h);
+  bb_Entity_* e = bb_model_chk_(h);
   if (e) e->brush.shininess = shininess;
 }
 
@@ -1197,12 +1240,12 @@ inline void bb_EntityShininess(int h, float shininess) {
 // das Original leitet daraus "deckend" ab, solange weder die Deckkraft noch
 // eine Textur etwas anderes verlangt.
 inline void bb_EntityBlend(int h, int blend) {
-  bb_Entity_* e = bb_entity_get_(h);
+  bb_Entity_* e = bb_model_chk_(h);
   if (e) e->brush.blend = blend;
 }
 
 inline void bb_EntityFX(int h, int fx) {
-  bb_Entity_* e = bb_entity_get_(h);
+  bb_Entity_* e = bb_model_chk_(h);
   if (e) e->brush.fx = fx;
 }
 
@@ -1216,7 +1259,7 @@ inline void bb_EntityFX(int h, int fx) {
 // PaintEntity auch Deckkraft, Glanz, Blend, FX und Texturen neu - ein
 // vorher gesetztes EntityColor ist danach weg.
 inline void bb_PaintEntity(int entity, int brush) {
-  bb_Entity_* e = bb_entity_get_(entity);
+  bb_Entity_* e = bb_model_chk_(entity);
   bb_Brush_*  b = bb_brush_get_(brush);
   if (!e || !b) return;
   e->brush = *b;
@@ -1225,7 +1268,7 @@ inline void bb_PaintEntity(int entity, int brush) {
 // Eine Kopie, kein Handle auf das Original - deshalb sagt die Doku, man
 // solle sie mit FreeBrush wieder loswerden.
 inline int bb_GetEntityBrush(int entity) {
-  bb_Entity_* e = bb_entity_get_(entity);
+  bb_Entity_* e = bb_model_chk_(entity);
   if (!e) return 0;
   return bb_brush_register_(e->brush);
 }
@@ -1234,14 +1277,14 @@ inline int bb_GetEntityBrush(int entity) {
 // der Abstand von der Kamera zum **Ursprung** des Entity zaehlt. Bei near
 // und naeher ist es deckend, bei far und weiter unsichtbar.
 inline void bb_EntityAutoFade(int h, float near_dist, float far_dist) {
-  bb_Entity_* e = bb_entity_get_(h);
+  bb_Entity_* e = bb_model_chk_(h);
   if (!e) return;
   e->fadeNear = near_dist;
   e->fadeFar  = far_dist;
 }
 
 inline bbString bb_EntityClass(int h) {
-  bb_Entity_* e = bb_entity_get_(h);
+  bb_Entity_* e = bb_ent_chk_(h);
   if (!e) return "";
   switch (e->kind()) {
     case bb_EntityKind_::Pivot:  return "Pivot";

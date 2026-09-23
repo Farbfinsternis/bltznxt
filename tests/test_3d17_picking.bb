@@ -26,7 +26,6 @@ w = CreateCube()
 PositionEntity w,0,0,10
 UpdateWorld
 ; --- 21) Picking
-FreeEntity k
 EntityPickMode w,2
 PositionEntity w,0,0,10 : UpdateWorld
 p = LinePick(0,0,0,0,0,20)

@@ -58,6 +58,14 @@ static inline bb_SpriteEntity_* bb_sprite_ent_(int h) {
   return static_cast<bb_SpriteEntity_*>(e);
 }
 
+// debugSprite (BUG-170): erst debugModel, eine Kamera meldet also
+// "Entity is not a model", ein Wuerfel "Entity is not a sprite".
+static inline bb_SpriteEntity_* bb_sprite_chk_(int h) {
+  if (bb_model_chk_(h)->kind() != bb_EntityKind_::Sprite)
+    bb_RuntimeError("Entity is not a sprite");
+  return bb_sprite_ent_(h);
+}
+
 inline int bb_CreateSprite(int parent = 0) {
   auto s = std::make_unique<bb_SpriteEntity_>();
   s->brush.fx = 1;               // setFX( FX_FULLBRIGHT )
@@ -65,6 +73,7 @@ inline int bb_CreateSprite(int parent = 0) {
 }
 
 inline int bb_LoadSprite(const bbString& file, int texture_flags = 1, int parent = 0) {
+  bb_parent_chk_(parent);   // vor dem Laden (BUG-170)
   int th = bb_LoadTexture(file, texture_flags);
   if (!th) return 0;
   bb_TexRef_ tex = bb_texture_ref_(th);
@@ -82,19 +91,19 @@ inline int bb_LoadSprite(const bbString& file, int texture_flags = 1, int parent
 }
 
 inline void bb_RotateSprite(int sprite, float angle) {
-  if (auto* s = bb_sprite_ent_(sprite)) s->rot = angle * BB_D2R_;
+  if (auto* s = bb_sprite_chk_(sprite)) s->rot = angle * BB_D2R_;
 }
 
 inline void bb_ScaleSprite(int sprite, float x_scale, float y_scale) {
-  if (auto* s = bb_sprite_ent_(sprite)) { s->xscale = x_scale; s->yscale = y_scale; }
+  if (auto* s = bb_sprite_chk_(sprite)) { s->xscale = x_scale; s->yscale = y_scale; }
 }
 
 inline void bb_HandleSprite(int sprite, float x_handle, float y_handle) {
-  if (auto* s = bb_sprite_ent_(sprite)) { s->xhandle = x_handle; s->yhandle = y_handle; }
+  if (auto* s = bb_sprite_chk_(sprite)) { s->xhandle = x_handle; s->yhandle = y_handle; }
 }
 
 inline void bb_SpriteViewMode(int sprite, int view_mode) {
-  if (auto* s = bb_sprite_ent_(sprite)) s->viewMode = view_mode;
+  if (auto* s = bb_sprite_chk_(sprite)) s->viewMode = view_mode;
 }
 
 // ============================================================

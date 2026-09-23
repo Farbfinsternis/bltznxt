@@ -11,7 +11,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-09-23 — 45 open bugs.*
+*Last updated: 2026-09-23 — 44 open bugs.*
 
 If your program behaves differently from Blitz3D and the cause is not listed here, please
 open an issue with a minimal `.bb` file and the output of both.
@@ -65,6 +65,14 @@ These are not bugs but decisions, and they will stay:
   userlib need changes. A program that calls such a function is told which `.decls` file declares
   it, rather than that the command is unknown. The reasoning is in [VISION.md](VISION.md).
 
+- **Entity commands always check their handles, as Blitz3D's debug mode does.** A freed or
+  never-created entity, or one of the wrong kind, ends the program with Blitz3D's debug
+  message — `Entity does not exist`, `Entity is not a camera`, `Parent entity does not exist`,
+  `Collision index out of range` — on stderr. Blitz3D checks only in debug mode; a release
+  build there crashes on handle 0 ("Memory access violation"), reads a freed entity's old
+  values and lets `CameraZoom` on a cube write into foreign memory. A program that only ran
+  by that accident stops here with the message. (BUG-170)
+
 The full reasoning is in [ROADMAP3D.md](ROADMAP3D.md), section
 "Richtlinie: Was exakt stimmen muss und was besser werden darf".
 
@@ -102,8 +110,6 @@ are the most likely reason for an old program to behave strangely.
   and 1.5 here. *Workaround:* tag the constant (`Const c# = 1.5`). (BUG-99)
 - **Numbers with a leading zero are read as octal.** `Print 010` prints `8`; `08` does not
   compile at all. *Workaround:* remove leading zeros. (BUG-98)
-- **Entity commands with an invalid handle return 0.** `EntityX(0)` ends the program in
-  Blitz3D; here it quietly returns 0, so a missing `Global` goes unnoticed. (BUG-170)
 - **`ASin`, `ACos` and `Exp` can differ in the last digit.** Blitz3D's old C runtime computes
   them with reduced intermediate precision; `Exp` is off by up to three units there. All other
   math functions match bit for bit, including how their unrounded results feed into the next

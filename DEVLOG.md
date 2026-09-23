@@ -38,6 +38,38 @@ running Blitz3D 11.8. The entries below this one describe each step; this is the
 
 ---
 
+## 2026-09-23 — Entity commands check their handles (BUG-170)
+
+`EntityX(0)` returned 0 here, and so did every other entity command given a handle that was
+never created, already freed, or of the wrong kind — a missing `Global` in a function went
+unnoticed. Blitz3D behaves in two ways, measured with both builds:
+
+| Case | Blitz3D release | Blitz3D debug | BlitzNext before |
+|---|---|---|---|
+| `EntityX(0)` | "Memory access violation" | `Entity does not exist` | 0 |
+| `EntityX` of a freed cube | its old value, 5.0 | `Entity does not exist` | 0 |
+| `CameraZoom` on a cube | nothing visible, writes into the cube | `Entity is not a camera` | ignored |
+
+The release column is whatever the memory happens to hold, and not something to copy. Entity
+commands now always check the way Blitz3D's debug mode does (`debugEntity`, `debugModel`,
+`debugMesh`, `debugCamera`, `debugLight`, `debugSprite`, `debugMD2`, `debugParent`,
+`debugColl` in `bbblitz3d.cpp`) and stop with its message on stderr:
+
+```
+Runtime Error: Entity is not a camera
+```
+
+All 111 of the 145 checked commands that BlitzNext has are covered. Handle 0 stays allowed where
+Blitz3D allows it: as "no parent" and as world space in `TFormPoint`, `TFormVector` and
+`TFormNormal`. A matrix of 24 calls — every kind of check, 0 allowed and not — gives the same
+message at the same point as Blitz3D's debug mode in all 24.
+
+The test runner can now compare a test's stderr too: a `.expected_stderr` file next to the test
+holds the message, without the `[GL]`/`[shader]` diagnostic lines. Tests:
+`test_bug170_entity_frei.bb`, `test_bug170_kein_model.bb`, `test_bug170_parent.bb`.
+
+---
+
 ## 2026-09-23 — Objects outside the camera's view are skipped (BUG-174)
 
 Blitz3D tests every model against the camera's view before drawing it and skips what lies

@@ -523,7 +523,7 @@ static inline void bb_entity_type_rec_(bb_Entity_* e, int type) {
 }
 
 inline void bb_EntityType(int entity, int type, int recursive = 0) {
-  bb_Entity_* e = bb_entity_get_(entity);
+  bb_Entity_* e = bb_ent_chk_(entity);
   if (!e || type < 0 || type > 999) return;
   if (recursive) { bb_entity_type_rec_(e, type); return; }
   e->collType = type;
@@ -531,13 +531,13 @@ inline void bb_EntityType(int entity, int type, int recursive = 0) {
 }
 
 inline int bb_GetEntityType(int entity) {
-  bb_Entity_* e = bb_entity_get_(entity);
+  bb_Entity_* e = bb_ent_chk_(entity);
   return e ? e->collType : 0;
 }
 
 // Der Obscurer ist im Original vorbelegt: EntityPickMode%...%obscurer=1.
 inline void bb_EntityPickMode(int entity, int mode, int obscurer = 1) {
-  bb_Entity_* e = bb_entity_get_(entity);
+  bb_Entity_* e = bb_ent_chk_(entity);
   if (!e) return;
   e->pickMode = mode;
   e->obscurer = obscurer != 0;
@@ -545,14 +545,14 @@ inline void bb_EntityPickMode(int entity, int mode, int obscurer = 1) {
 
 // EntityRadius y=0 bedeutet "wie x" (bbEntityRadius).
 inline void bb_EntityRadius(int entity, float x_radius, float y_radius = 0) {
-  bb_Entity_* e = bb_entity_get_(entity);
+  bb_Entity_* e = bb_ent_chk_(entity);
   if (!e) return;
   e->collRadX = x_radius;
   e->collRadY = y_radius ? y_radius : x_radius;
 }
 
 inline void bb_EntityBox(int entity, float x, float y, float z, float w, float h, float d) {
-  bb_Entity_* e = bb_entity_get_(entity);
+  bb_Entity_* e = bb_ent_chk_(entity);
   if (!e) return;
   const float ax = x, ay = y, az = z, bx = x + w, by = y + h, bz = z + d;
   e->collBoxA[0] = ax < bx ? ax : bx;
@@ -568,18 +568,20 @@ inline void bb_EntityBox(int entity, float x, float y, float z, float w, float h
 // ============================================================
 
 inline int bb_CountCollisions(int entity) {
-  bb_Entity_* e = bb_entity_get_(entity);
+  bb_Entity_* e = bb_ent_chk_(entity);
   return e ? static_cast<int>(e->colls.size()) : 0;
 }
 
+// debugColl (BUG-170): Entity und Index werden geprueft.
 static inline const bb_ObjColl_* bb_coll_at_(int entity, int index) {
-  bb_Entity_* e = bb_entity_get_(entity);
-  if (!e || index < 1 || index > static_cast<int>(e->colls.size())) return nullptr;
+  bb_Entity_* e = bb_ent_chk_(entity);
+  if (index < 1 || index > static_cast<int>(e->colls.size()))
+    bb_RuntimeError("Collision index out of range");
   return &e->colls[index - 1];
 }
 
 inline int bb_EntityCollided(int entity, int type) {
-  bb_Entity_* e = bb_entity_get_(entity);
+  bb_Entity_* e = bb_ent_chk_(entity);
   if (!e) return 0;
   for (const auto& c : e->colls) {
     bb_Entity_* w = bb_entity_get_(c.with);
@@ -826,7 +828,7 @@ inline int bb_LinePick(float x, float y, float z, float dx, float dy, float dz,
 }
 
 inline int bb_EntityPick(int entity, float range) {
-  bb_Entity_* e = bb_entity_get_(entity);
+  bb_Entity_* e = bb_ent_chk_(entity);
   if (!e) return 0;
   const float* w = bb_entity_world_(e);
   const bb_Line_ l{ { w[12], w[13], w[14] },
@@ -848,8 +850,8 @@ inline int   bb_PickedSurface() { return bb_picked_.surface; }
 // EntityVisible: freie Sichtlinie zwischen zwei Entities (World::checkLOS).
 // Nur Entities mit Pickmodus **und** Obscurer-Flag stehen im Weg.
 inline int bb_EntityVisible(int src, int dest) {
-  bb_Entity_* a = bb_entity_get_(src);
-  bb_Entity_* b = bb_entity_get_(dest);
+  bb_Entity_* a = bb_ent_chk_(src);
+  bb_Entity_* b = bb_ent_chk_(dest);
   if (!a || !b) return 0;
   const float* wa = bb_entity_world_(a);
   const float* wb = bb_entity_world_(b);

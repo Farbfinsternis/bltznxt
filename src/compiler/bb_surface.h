@@ -78,7 +78,7 @@ inline void bb_surface_touch_(int h) {
 
 // 1-basiert. Ausserhalb des Bereichs 0 - siehe die Anmerkung oben.
 inline int bb_GetSurface(int mesh, int surface_index) {
-  auto* me = bb_mesh_ent_(mesh);
+  auto* me = bb_mesh_chk_(mesh);
   if (!me) return 0;
   if (surface_index < 1 ||
       surface_index > static_cast<int>(me->surfaces().size())) return 0;
@@ -86,7 +86,7 @@ inline int bb_GetSurface(int mesh, int surface_index) {
 }
 
 inline int bb_CreateSurface(int mesh, int brush = 0) {
-  auto* me = bb_mesh_ent_(mesh);
+  auto* me = bb_mesh_chk_(mesh);
   if (!me) return 0;
   me->surfaces().emplace_back();
   if (auto* b = bb_brush_get_(brush)) me->surfaces().back().brush = *b;
@@ -109,7 +109,7 @@ inline bool bb_brush_same_(const bb_Brush_& a, const bb_Brush_& b) {
 }
 
 inline int bb_FindSurface(int mesh, int brush) {
-  auto* me = bb_mesh_ent_(mesh);
+  auto* me = bb_mesh_chk_(mesh);
   auto* b  = bb_brush_get_(brush);
   if (!me || !b) return 0;
   for (size_t i = 0; i < me->surfaces().size(); ++i)

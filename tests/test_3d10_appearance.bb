@@ -128,10 +128,8 @@ For b = 1 To 3
 Next
 If TrisRendered() = beide Then Print "blendmodi" Else Print "FEHLER blendmodi"
 
-; --- 10) die Befehle auf einem ungueltigen Handle sind folgenlos
-EntityAlpha 0, 0.5
-EntityColor 0, 1, 2, 3
-EntityFX 0, 1
-Print "ungueltiges handle"
+; Ungueltige Handles waren hier bis 2026-09-23 als folgenlos festgehalten -
+; nie am Original gemessen. Seit BUG-170 beenden sie das Programm mit der
+; Meldung des Debug-Modus; das pruefen die Tests test_bug170_*.
 
 Print "fertig"

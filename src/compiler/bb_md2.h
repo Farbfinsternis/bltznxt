@@ -373,6 +373,13 @@ static inline bb_Md2Entity_* bb_md2_ent_(int h) {
   return static_cast<bb_Md2Entity_*>(e);
 }
 
+// debugMD2 (BUG-170): erst debugModel wie bei den Sprites.
+static inline bb_Md2Entity_* bb_md2_chk_(int h) {
+  if (bb_model_chk_(h)->kind() != bb_EntityKind_::Md2)
+    bb_RuntimeError("Entity is not an MD2 Model");
+  return bb_md2_ent_(h);
+}
+
 // MD2Rep::render(Vert*, frame_a, frame_b, t): den gezeigten Stand festhalten.
 inline void bb_md2_capture_(bb_Md2Entity_* m, int a, int b, float t) {
   const bb_Md2Rep_& r = *m->rep;
@@ -411,6 +418,7 @@ inline void bb_md2_capture_toward_(bb_Md2Entity_* m, int frame, float t) {
 // ---- LoadMD2 ----
 
 inline int bb_LoadMD2(const bbString& file, int parent = 0) {
+  bb_parent_chk_(parent);   // vor dem Laden (BUG-170)
   auto rep = bb_md2_load_(file.c_str());
   if (!rep) return 0;
   auto m = std::make_unique<bb_Md2Entity_>();
@@ -422,7 +430,7 @@ inline int bb_LoadMD2(const bbString& file, int parent = 0) {
 
 inline void bb_AnimateMD2(int md2, int mode = 1, float speed = 1.0f,
                           int first = 0, int last = 9999, float trans = 0.0f) {
-  bb_Md2Entity_* m = bb_md2_ent_(md2);
+  bb_Md2Entity_* m = bb_md2_chk_(md2);
   if (!m) return;
   const int nf = m->rep->n_frames;
 
@@ -459,17 +467,17 @@ inline void bb_AnimateMD2(int md2, int mode = 1, float speed = 1.0f,
 }
 
 inline float bb_MD2AnimTime(int md2) {
-  bb_Md2Entity_* m = bb_md2_ent_(md2);
+  bb_Md2Entity_* m = bb_md2_chk_(md2);
   return m ? m->anim_time : 0.0f;
 }
 
 inline int bb_MD2AnimLength(int md2) {
-  bb_Md2Entity_* m = bb_md2_ent_(md2);
+  bb_Md2Entity_* m = bb_md2_chk_(md2);
   return m ? m->rep->n_frames : 0;
 }
 
 inline int bb_MD2Animating(int md2) {
-  bb_Md2Entity_* m = bb_md2_ent_(md2);
+  bb_Md2Entity_* m = bb_md2_chk_(md2);
   return (m && m->anim_mode) ? 1 : 0;
 }
 
