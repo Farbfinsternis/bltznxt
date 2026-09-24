@@ -92,10 +92,16 @@ public:
     // konstant sein.
     collectConsts(prog->nodes);
 
-    // Emit type struct definitions + linked-list helpers (before functions)
+    // Erst alle Structs, dann alle Listenfunktionen: ein Feld darf einen
+    // spaeter erklaerten Typ halten, und die Freigabe eines Objekts gibt
+    // seine Objektfelder frei - dafuer muss jeder Typ vollstaendig sein
+    // (BUG-104).
     for (auto &n : prog->nodes)
       if (auto *td = dynamic_cast<TypeDecl *>(n.get()))
         emitTypeDecl(td);
+    for (auto &n : prog->nodes)
+      if (auto *td = dynamic_cast<TypeDecl *>(n.get()))
+        emitTypeFunctions(td);
 
     // Emit global variable declarations at file scope (visible to all functions)
     collectGlobals(prog->nodes);
@@ -976,15 +982,12 @@ public:
     output << "bb_" << toLower(node->typeName) << "_New()";
   }
 
-  // Delete obj → bb_TypeName_Delete(expr); [var = nullptr if simple var]
+  // Delete obj → bb_TypeName_Delete(expr). Die Variable behaelt das geloeschte
+  // Objekt wie im Original; jeder Vergleich sieht es trotzdem als Null
+  // (BUG-104, bb_object.h).
   void visit(DeleteStmt *node) override {
-    // "Delete Each <Typ>" — die ganze Liste leeren. bb_T_Delete haengt den
-    // Knoten aus der Liste aus, der Kopf ruckt also nach; die Schleife braucht
-    // deshalb keinen eigenen Zeiger auf das naechste Element.
     if (!node->eachTypeName.empty()) {
-      const std::string t = toLower(node->eachTypeName);
-      output << ind() << "while (bb_" << t << "_head_) bb_" << t
-             << "_Delete(bb_" << t << "_head_);\n";
+      output << ind() << "bb_" << toLower(node->eachTypeName) << "_DeleteEach();\n";
       return;
     }
 
@@ -1001,9 +1004,6 @@ public:
       output << ind() << "bb_" << toLower(typeName) << "_Delete(";
       emitExpr(node->object.get());
       output << ");\n";
-      // Null out the local variable to prevent use-after-free
-      if (auto *ve = dynamic_cast<VarExpr *>(node->object.get()))
-        output << ind() << "var_" << toLower(ve->name) << " = nullptr;\n";
     } else {
       // Type indeterminate at compile time — warn and best-effort null
       std::cerr << "[warning] Delete: type indeterminate at compile time"
@@ -1014,28 +1014,25 @@ public:
     }
   }
 
-  // First TypeName → bb_TypeName_head_
+  // First/Last/Before/After ueberspringen geloeschte Objekte (BUG-104).
   void visit(FirstExpr *node) override {
-    output << "bb_" << toLower(node->typeName) << "_head_";
+    output << "bb_" << toLower(node->typeName) << "_First()";
   }
 
-  // Last TypeName → bb_TypeName_tail_
   void visit(LastExpr *node) override {
-    output << "bb_" << toLower(node->typeName) << "_tail_";
+    output << "bb_" << toLower(node->typeName) << "_Last()";
   }
 
-  // Before(obj) → (obj)->__prev__
   void visit(BeforeExpr *node) override {
-    output << "(";
+    output << "bb_obj_before_(";
     emitExpr(node->object.get());
-    output << ")->__prev__";
+    output << ")";
   }
 
-  // After(obj) → (obj)->__next__
   void visit(AfterExpr *node) override {
-    output << "(";
+    output << "bb_obj_after_(";
     emitExpr(node->object.get());
-    output << ")->__next__";
+    output << ")";
   }
 
   // Insert obj Before/After target → bb_TypeName_InsertBefore/After(obj, target)
@@ -1057,50 +1054,37 @@ public:
   }
 
   // For Each p.TypeName ... Next
-  // Emits a deletion-safe while loop that caches __next__ before each body run.
+  // Wie ForEachNode::translate mit _bbObjEachFirst/_bbObjEachNext: der
+  // Nachfolger wird NACH dem Rumpf aus dem aktuellen Inhalt der Variable
+  // bestimmt. Setzt der Rumpf die Variable um, geht es von dort weiter
+  // (BUG-103); ein im Rumpf geloeschtes Objekt bleibt dafuer in der Liste,
+  // solange die Variable es haelt (BUG-104). Nach dem letzten Durchlauf haelt
+  // sie Null, nach Exit das Objekt, bei dem abgebrochen wurde.
   void visit(ForEachStmt *node) override {
     const std::string v = toLower(node->varName);
     const std::string t = toLower(node->typeName);
     // Register the iteration variable in varObjectTypes for nested field access
     varObjectTypes[v] = t;
 
-    if (declaredVars.count(v)) {
-      // Der Zaehler ist schon eine Variable des Rumpfs - vorab deklariert
-      // (hoistLocals), ein Global oder ein Parameter - und die Schleife
-      // schreibt in genau diese (BUG-90). Wie _bbObjEachNext in
-      // bbruntime/basic.cpp: nach dem letzten Durchlauf haelt er Null, nach
-      // Exit das Objekt, bei dem abgebrochen wurde. Der Nachfolger wird vor
-      // dem Rumpf gemerkt, damit "Delete q" darin sicher bleibt.
+    // Der Zaehler ist schon eine Variable des Rumpfs - vorab deklariert
+    // (hoistLocals), ein Global oder ein Parameter - und die Schleife
+    // schreibt in genau diese (BUG-90). Sonst gilt er nur in der Schleife.
+    const bool own = !declaredVars.count(v);
+    if (own) {
       output << ind() << "{\n";
       indentLevel++;
-      output << ind() << "struct bb_" << t << " *bb_fe_" << v << "_ = nullptr;\n";
-      output << ind() << "for (var_" << v << " = bb_" << t << "_head_; var_" << v
-             << "; var_" << v << " = bb_fe_" << v << "_) {\n";
-      indentLevel++;
-      output << ind() << "bb_fe_" << v << "_ = var_" << v << "->__next__;\n";
-      for (auto &n : node->block) emitStmt(n.get());
-      indentLevel--;
-      output << ind() << "}\n";
-      indentLevel--;
-      output << ind() << "}\n";
-      return;
+      output << ind() << "bb_ref<struct bb_" << t << "> var_" << v << ";\n";
     }
-
-    output << ind() << "{\n";
+    output << ind() << "for (var_" << v << " = bb_" << t << "_First(); var_" << v
+           << ".get(); var_" << v << " = bb_obj_next_(var_" << v << ".get())) {\n";
     indentLevel++;
-    output << ind() << "auto *bb_fe_" << v << "_ = bb_"
-           << t << "_head_;\n";
-    output << ind() << "while (bb_fe_" << v << "_) {\n";
-    indentLevel++;
-    output << ind() << "auto *var_" << v << " = bb_fe_"
-           << v << "_;\n";
-    output << ind() << "bb_fe_" << v << "_ = bb_fe_"
-           << v << "_->__next__;\n";
     for (auto &n : node->block) emitStmt(n.get());
     indentLevel--;
     output << ind() << "}\n";
-    indentLevel--;
-    output << ind() << "}\n";
+    if (own) {
+      indentLevel--;
+      output << ind() << "}\n";
+    }
   }
 
   // obj\field — emits as pointer member access: obj->var_field
@@ -1621,62 +1605,96 @@ private:
     }
     output << "    " << spname << "__next__ = nullptr;\n";
     output << "    " << spname << "__prev__ = nullptr;\n";
+    // Referenzen und Zustand wie BBObj (BUG-104, bb_object.h): die Liste
+    // selbst haelt eine Referenz, "Delete" macht __alive__ falsch.
+    output << "    int __rc__ = 1;\n";
+    output << "    bool __alive__ = true;\n";
+    output << "    static void bb_free_(" << spname << "p);\n";
     output << "};\n";
-
-    // Global linked-list head/tail
     output << "inline " << spname << "bb_" << tname << "_head_ = nullptr;\n";
-    output << "inline " << spname << "bb_" << tname << "_tail_ = nullptr;\n";
+    output << "inline " << spname << "bb_" << tname << "_tail_ = nullptr;\n\n";
+  }
 
-    // bb_TypeName_New() — allocate + append to tail of list
-    output << "inline " << spname << "bb_" << tname << "_New() {\n";
-    output << "    struct " << sname << " *p = new struct " << sname << ";\n";
-    output << "    p->__prev__ = bb_" << tname << "_tail_;\n";
-    output << "    p->__next__ = nullptr;\n";
-    output << "    if (bb_" << tname << "_tail_) bb_" << tname << "_tail_->__next__ = p;\n";
-    output << "    else bb_" << tname << "_head_ = p;\n";
-    output << "    bb_" << tname << "_tail_ = p;\n";
-    output << "    return p;\n";
-    output << "}\n";
+  // Die Listenfunktionen eines Typs, nach allen Structs (siehe Aufrufer).
+  // Nachgebaut nach bbruntime/basic.cpp: ein geloeschtes Objekt bleibt in
+  // der Liste, bis seine letzte Referenz verschwindet (bb_free_), und alle
+  // Wege durch die Liste ueberspringen es (BUG-104).
+  void emitTypeFunctions(TypeDecl *td) {
+    const std::string t = toLower(td->name);
+    const std::string sp = "struct bb_" + t + " *";
+    const std::string ref = "bb_ref<struct bb_" + t + ">";
+    const std::string head = "bb_" + t + "_head_", tail = "bb_" + t + "_tail_";
 
-    // bb_TypeName_Delete(p) — unlink from list + free
-    output << "inline void bb_" << tname << "_Delete(" << spname << "p) {\n";
-    output << "    if (!p) return;\n";
+    // Aus der Liste nehmen, ohne freizugeben (Insert, bb_free_).
+    output << "inline void bb_" << t << "_Unlink(" << sp << "p) {\n";
     output << "    if (p->__prev__) p->__prev__->__next__ = p->__next__;\n";
-    output << "    else bb_" << tname << "_head_ = p->__next__;\n";
+    output << "    else " << head << " = p->__next__;\n";
     output << "    if (p->__next__) p->__next__->__prev__ = p->__prev__;\n";
-    output << "    else bb_" << tname << "_tail_ = p->__prev__;\n";
-    output << "    delete p;\n";
-    output << "}\n";
-
-    // Helper: unlink p from wherever it currently sits in the list
-    // (shared logic used by InsertBefore / InsertAfter)
-    output << "inline void bb_" << tname << "_Unlink(" << spname << "p) {\n";
-    output << "    if (p->__prev__) p->__prev__->__next__ = p->__next__;\n";
-    output << "    else bb_" << tname << "_head_ = p->__next__;\n";
-    output << "    if (p->__next__) p->__next__->__prev__ = p->__prev__;\n";
-    output << "    else bb_" << tname << "_tail_ = p->__prev__;\n";
+    output << "    else " << tail << " = p->__prev__;\n";
     output << "    p->__prev__ = p->__next__ = nullptr;\n";
     output << "}\n";
 
-    // bb_TypeName_InsertBefore(obj, target) — place obj immediately before target
-    output << "inline void bb_" << tname << "_InsertBefore(" << spname << "obj, " << spname << "target) {\n";
+    // Die letzte Referenz ist weg (_bbObjRelease).
+    output << "inline void bb_" << t << "::bb_free_(" << sp << "p) {\n";
+    output << "    bb_" << t << "_Unlink(p);\n";
+    output << "    delete p;\n";
+    output << "}\n";
+
+    output << "inline " << sp << "bb_" << t << "_New() {\n";
+    output << "    " << sp << "p = new struct bb_" << t << ";\n";
+    output << "    p->__prev__ = " << tail << ";\n";
+    output << "    if (" << tail << ") " << tail << "->__next__ = p;\n";
+    output << "    else " << head << " = p;\n";
+    output << "    " << tail << " = p;\n";
+    output << "    return p;\n";
+    output << "}\n";
+
+    // _bbObjDelete: Felder freigeben, als geloescht markieren, die
+    // Referenz der Liste abgeben. Null und ein schon geloeschtes Objekt
+    // tun nichts.
+    output << "inline void bb_" << t << "_Delete(const " << ref << " &r) {\n";
+    output << "    " << sp << "p = r.get();\n";
+    output << "    if (!p || !p->__alive__) return;\n";
+    output << "    p->__alive__ = false;\n";
+    for (auto &f : td->fields) {
+      const std::string fv = "p->var_" + toLower(f.name);
+      output << "    " << fv << " = decltype(" << fv << ")();\n";
+    }
+    output << "    bb_obj_release_(p);\n";
+    output << "}\n";
+
+    // Delete Each: die lebenden Objekte erst einsammeln - das Loeschen eines
+    // Objekts kann ueber seine Felder andere freigeben.
+    output << "inline void bb_" << t << "_DeleteEach() {\n";
+    output << "    std::vector<" << ref << "> all;\n";
+    output << "    for (" << sp << "p = " << head << "; p; p = p->__next__)\n";
+    output << "        if (p->__alive__) all.push_back(p);\n";
+    output << "    for (auto &r : all) bb_" << t << "_Delete(r);\n";
+    output << "}\n";
+
+    output << "inline " << sp << "bb_" << t << "_First() { return bb_obj_first_(" << head << "); }\n";
+    output << "inline " << sp << "bb_" << t << "_Last() { return bb_obj_last_(" << tail << "); }\n";
+
+    // Insert: auch ein geloeschtes Objekt wird umgehaengt und bleibt dabei
+    // unsichtbar (gemessen, Fall I).
+    output << "inline void bb_" << t << "_InsertBefore(const " << ref << " &o, const " << ref << " &g) {\n";
+    output << "    " << sp << "obj = o.get(); " << sp << "target = g.get();\n";
     output << "    if (!obj || !target || obj == target) return;\n";
-    output << "    bb_" << tname << "_Unlink(obj);\n";
+    output << "    bb_" << t << "_Unlink(obj);\n";
     output << "    obj->__next__ = target;\n";
     output << "    obj->__prev__ = target->__prev__;\n";
     output << "    if (target->__prev__) target->__prev__->__next__ = obj;\n";
-    output << "    else bb_" << tname << "_head_ = obj;\n";
+    output << "    else " << head << " = obj;\n";
     output << "    target->__prev__ = obj;\n";
     output << "}\n";
-
-    // bb_TypeName_InsertAfter(obj, target) — place obj immediately after target
-    output << "inline void bb_" << tname << "_InsertAfter(" << spname << "obj, " << spname << "target) {\n";
+    output << "inline void bb_" << t << "_InsertAfter(const " << ref << " &o, const " << ref << " &g) {\n";
+    output << "    " << sp << "obj = o.get(); " << sp << "target = g.get();\n";
     output << "    if (!obj || !target || obj == target) return;\n";
-    output << "    bb_" << tname << "_Unlink(obj);\n";
+    output << "    bb_" << t << "_Unlink(obj);\n";
     output << "    obj->__prev__ = target;\n";
     output << "    obj->__next__ = target->__next__;\n";
     output << "    if (target->__next__) target->__next__->__prev__ = obj;\n";
-    output << "    else bb_" << tname << "_tail_ = obj;\n";
+    output << "    else " << tail << " = obj;\n";
     output << "    target->__next__ = obj;\n";
     output << "}\n\n";
   }
@@ -2184,7 +2202,7 @@ private:
 
   // Returns {cppType, defaultValue} for a Blitz3D type hint.
   // "$" → {"bbString", "\"\""}, "#" → {"float", "0.0f"},
-  // ".Vec" → {"bb_Vec *", "nullptr"}, "%"/empty → {"int", "0"}
+  // ".Vec" → {"bb_ref<struct bb_vec>", "nullptr"}, "%"/empty → {"int", "0"}
   static std::pair<std::string, std::string>
   hintToType(const std::string &hint) {
     if (hint == "$")
@@ -2192,7 +2210,7 @@ private:
     if (hint == "#")
       return {"float", "0.0f"};
     if (!hint.empty() && hint[0] == '.')
-      return {"struct bb_" + toLower(hint.substr(1)) + " *", "nullptr"};
+      return {"bb_ref<struct bb_" + toLower(hint.substr(1)) + ">", "nullptr"};  // BUG-104
     return {"int", "0"}; // "%" or empty → int
   }
 

@@ -38,6 +38,42 @@ running Blitz3D 11.8. The entries below this one describe each step; this is the
 
 ---
 
+## 2026-09-24 — Deleted objects behave as in Blitz3D (BUG-104, BUG-103)
+
+`Delete p` used to free the object at once and set only `p` to `Null`. Every other reference —
+`q = p` beforehand, a field, a list — kept pointing at freed memory: `q = Null` was false, and
+reading `q\x` read garbage or crashed. Common in games, where one object remembers another as a
+target.
+
+Blitz3D counts references (`bbruntime/basic.cpp`). Every variable, field and array element
+holding an object counts, and so does the type's list. `Delete` releases the fields, marks the
+object as deleted and gives up the list's reference; the object itself stays, still linked
+into the list, until the last reference is gone. A deleted object compares equal to `Null`, and
+`For Each`, `First`, `Last`, `After` and `Before` skip it.
+
+BlitzNext now does the same. Object variables, fields, arrays, parameters and return values
+are a small counted reference type (`bb_ref`, in `bb_object.h`) instead of raw pointers; the
+generated list functions skip deleted objects and free an object with its last reference.
+Accessing a field of `Null` or of a deleted object stops with `Object does not exist`, as in
+Blitz3D's debug mode — a release build there crashes (see "Intentional differences").
+
+This also fixes BUG-103: `For Each` now finds the next object *after* the loop body, from
+whatever the loop variable holds then, just as `_bbObjEachNext` does. Changing the variable in
+the body continues from there, and deleting the current object in the body is safe because the
+variable still holds it.
+
+Measured against Blitz3D: aliases, two deleted objects compared, lists with deleted objects,
+`First`/`Last`/`After`/`Before`, deleting twice, deleting inside `For Each` (the current object
+and its successor), `Insert` of a deleted object and `Delete` of a parameter — all ten cases
+match, where the old code crashed from the third case on. The three error messages match
+Blitz3D's debug mode. Tests `test_bug104_objekt_geloescht` and `test_bug104_feld_geloescht`.
+
+While measuring, BUG-180 turned up: the left-to-right evaluation promised since BUG-29 does not
+see a call that deletes or changes an object, so in `F(w) + (w = Null)` the comparison can run
+first. Listed in KNOWN_ISSUES with a workaround.
+
+---
+
 ## 2026-09-24 — Screenshots and screen recording see the 3D fullscreen (BUG-171)
 
 In 3D fullscreen, the Windows screenshot tool captured an old frame (in blox-n-balls the loading

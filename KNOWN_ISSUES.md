@@ -11,7 +11,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-09-24 — 41 open bugs.*
+*Last updated: 2026-09-24 — 40 open bugs.*
 
 If your program behaves differently from Blitz3D and the cause is not listed here, please
 open an issue with a minimal `.bb` file and the output of both.
@@ -72,6 +72,9 @@ These are not bugs but decisions, and they will stay:
   build there crashes on handle 0 ("Memory access violation"), reads a freed entity's old
   values and lets `CameraZoom` on a cube write into foreign memory. A program that only ran
   by that accident stops here with the message. (BUG-170)
+- **Fields of `Null` or a deleted object are always checked, as in Blitz3D's debug mode.**
+  `p\x` on such a reference ends the program with `Object does not exist` on stderr, and so
+  do `After Null` and `Before Null`. A Blitz3D release build crashes there. (BUG-104)
 
 The full reasoning is in [ROADMAP3D.md](ROADMAP3D.md), section
 "Richtlinie: Was exakt stimmen muss und was besser werden darf".
@@ -125,13 +128,11 @@ are the most likely reason for an old program to behave strangely.
   global's value here. If the local has a different type than the global, the program is
   rejected.
   *Workaround:* give locals names that differ from globals. (BUG-100)
-- **Changing the loop variable inside `For … Each` does not affect the iteration.**
-  Setting it to another object continues with the object that came next before the
-  change. (BUG-103)
-- **Other references to a deleted object are not `Null`.** After `q = p : Delete p`,
-  `q = Null` is false here and true in Blitz3D; accessing `q` afterwards is undefined.
-  *Workaround:* set the other references to `Null` yourself. (BUG-104)
 - **`Delete p\child` does not delete the object**, it only clears the field. (BUG-105)
+- **A call that deletes or changes an object may be evaluated after the rest of the
+  expression.** In `F(w) + (w = Null)`, where `F` deletes `w`, the comparison can see `w`
+  before the call.
+  *Workaround:* put such a call into its own statement. (BUG-180)
 - **String functions accept invalid positions and lengths.** `Mid(s, 0)`, `Instr(s, t, 0)`
   and a negative length in `Left`, `Right`, `LSet` or `RSet` stop a Blitz3D program with
   "parameter must be positive" / "greater than 0". BlitzNext continues with a guessed
@@ -197,8 +198,8 @@ are the most likely reason for an old program to behave strangely.
 - **A field as the loop variable of `For … Each`** (`For p\child = Each T`) is rejected.
   (BUG-102)
 - **`Delete New T`** fails in the C++ compiler. (BUG-105)
-- Deleted objects and `For … Each`: see
-  [Silently different results](#silently-different-results) (BUG-103, BUG-104, BUG-105).
+- `Delete` on a field: see
+  [Silently different results](#silently-different-results) (BUG-105).
 
 ---
 

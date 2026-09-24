@@ -12,6 +12,7 @@
 #include "bb_string.h"  // bbString typedef + string functions
 #include "bb_math.h"    // math functions + Pi constant
 #include "bb_system.h"  // MilliSecs, CurrentDate, CurrentTime, Delay
+#include "bb_object.h"  // Referenzen auf Type-Objekte (BUG-104)
 #include "bb_file.h"    // OpenFile, ReadFile, WriteFile, CloseFile, Seek, Eof
 #include "bb_bank.h"    // CreateBank, FreeBank, BankSize, Peek/Poke, ReadBytes/WriteBytes
 #include "bb_socket.h"  // TCP-Streams, DottedIP, HostIP

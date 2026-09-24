@@ -1,0 +1,11 @@
+A p=Null 1 q=Null 1 p=q 1
+B a=b 1 a<>b 0
+C each n=2 10,30,
+C after(z)=30 before(z)=10 after(t1)=30 before(t3)=10
+D first=Null 1 last=Null 1
+E ok
+F n=3 1,2,4,
+G e=Null 1
+H 1,2,4,5,
+I 1,
+J 1 w=Null 1
