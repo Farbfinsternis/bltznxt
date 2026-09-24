@@ -11,7 +11,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-09-23 — 43 open bugs.*
+*Last updated: 2026-09-24 — 42 open bugs.*
 
 If your program behaves differently from Blitz3D and the cause is not listed here, please
 open an issue with a minimal `.bb` file and the output of both.
@@ -264,8 +264,6 @@ visibly wrong results because of the points below.
 - **Texture paths inside `.x` models** are resolved relative to the model file. For paths
   with a directory part (`Textures\Rock.bmp`) Blitz3D apparently does not load the
   texture, so a model can end up with a different number of surfaces here. (BUG-76)
-- **Sprites do not appear in mirrors.** A sprite above a `CreateMirror` plane has a
-  reflection in Blitz3D and none here. (BUG-168)
 
 ---
 

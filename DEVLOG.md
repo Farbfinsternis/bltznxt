@@ -38,6 +38,23 @@ running Blitz3D 11.8. The entries below this one describe each step; this is the
 
 ---
 
+## 2026-09-24 — Sprites appear in mirrors (BUG-168)
+
+A sprite above a `CreateMirror` plane had no reflection. The mirror pass draws the scene with a
+camera reflected at the mirror plane and flips back-face culling. A sprite that faces the camera
+takes its axes from that reflected camera, so its quad comes out with the *normal* winding in
+the picture again and fell victim to the flipped culling. Blitz3D's `Sprite::render` handles
+this by building the two triangles the other way round when the render context is reflected
+(`0,2,1` and `0,3,2`); `bb_sprite_build_` now does the same, for every view mode, as the original.
+
+The old code was wrong in both directions: camera-facing sprites had no reflection, while fixed
+sprites (`SpriteViewMode 2`) turned away from the camera showed one they should not have.
+Measured against Blitz3D with all four view modes, turned and rolled sprites, alpha and a
+hidden mirror: pixel counts match, apart from 1–2 edge pixels on slanted edges. Test
+`tests/test_bug168_sprite_spiegel.bb`, `.expected` produced in Blitz3D.
+
+---
+
 ## 2026-09-23 — LoadBuffer scales the file to the buffer (BUG-179)
 
 `LoadBuffer` worked only on a locked buffer, and then replaced its contents *and size* with the

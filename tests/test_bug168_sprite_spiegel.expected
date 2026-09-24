@@ -1,0 +1,9 @@
+ohne spiegel oben=2025 unten=0 tris=2
+mit spiegel oben=2025 unten=1260 tris=4
+modus 2 oben=1859 unten=0 tris=4
+modus 2 gedreht oben=0 unten=936 tris=4
+modus 2 schraeg oben=1 unten=1
+modus 3 oben=2025 unten=0 tris=4
+modus 3 gedreht oben=2025 unten=0 tris=4
+modus 3 schraeg oben=1 unten=0
+spiegel versteckt oben=2025 unten=0 tris=2

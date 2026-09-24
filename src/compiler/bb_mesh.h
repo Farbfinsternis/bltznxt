@@ -939,7 +939,8 @@ static inline void bb_render_meshes_(bb_Shader_* shader,
                                       const float* view,
                                       const float* proj,
                                       const float* cam_world,
-                                      const bb_CullFrustum_& frustum) {
+                                      const bb_CullFrustum_& frustum,
+                                      bool reflected = false) {
   const float cam_pos[3] = { cam_world[12], cam_world[13], cam_world[14] };
   // "fade" ist nur der Faktor aus EntityAutoFade; die Deckkraft entsteht
   // erst je Flaeche aus dem verrechneten Brush. Ein Sprite (3D-16) hat
@@ -1069,7 +1070,7 @@ static inline void bb_render_meshes_(bb_Shader_* shader,
     bb_Entity_* me = it.e;
 
     // Ein Sprite liegt schon in Weltkoordinaten.
-    if (it.sp) bb_sprite_build_(it.sp, cam_world);
+    if (it.sp) bb_sprite_build_(it.sp, cam_world, reflected);
     const float* model = it.sp ? identity : me->world;
 
     // Ausserhalb des Sichtkegels weder gezeichnet noch gezaehlt (BUG-174).

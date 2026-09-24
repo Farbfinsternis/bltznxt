@@ -290,7 +290,7 @@ inline void bb_RenderWorld(float tween = 1.0f) {
         mview[10] = -mview[10];
         mview[14] = -mview[14];
         glFrontFace(GL_CCW);
-        bb_render_meshes_(sh, mview, cam->proj, mcam, frustum);
+        bb_render_meshes_(sh, mview, cam->proj, mcam, frustum, true);
         glFrontFace(GL_CW);
       }
 

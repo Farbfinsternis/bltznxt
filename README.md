@@ -38,7 +38,7 @@ Mark passed away in 2024. BlitzNext exists to carry his idea forward — the bel
 | **Built-in commands** | 463 entries in `src/compiler/commands.h`, including extensions; this counts signatures, not verified behaviour |
 | **2D milestones** | Milestones 6–46 complete ([roadmap.md](roadmap.md)) |
 | **3D runtime** | Meshes, surfaces, brushes, sprites, mirrors, MD2 models, collisions and line/entity picking available; remaining work in [ROADMAP3D.md](ROADMAP3D.md) |
-| **Known deviations** | 43 open bugs, all reproduced against Blitz3D 11.8 ([KNOWN_ISSUES.md](KNOWN_ISSUES.md)) |
+| **Known deviations** | 42 open bugs, all reproduced against Blitz3D 11.8 ([KNOWN_ISSUES.md](KNOWN_ISSUES.md)) |
 | **Primary integration test** | blox-n-balls: all 26 source files unchanged; loads, menus work, levels can be played; complete gameplay not yet verified |
 
 Compatibility is measured, not estimated: questions about the language are answered from the

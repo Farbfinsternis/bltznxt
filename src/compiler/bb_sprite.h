@@ -122,8 +122,13 @@ static inline void bb_v3_normalize_(float* v) {
   if (l > 0) { v[0] /= l; v[1] /= l; v[2] /= l; }
 }
 
-// cam_world: Weltmatrix der Kamera (Spalten i, j, k, Position)
-static inline void bb_sprite_build_(bb_SpriteEntity_* sp, const float* cam_world) {
+// cam_world: Weltmatrix der Kamera (Spalten i, j, k, Position).
+// reflected: gespiegelter Durchgang (CreateMirror). Die gespiegelte Kamera
+// dreht die Achsen des Quadrats mit um, deshalb kehrt das Original dort die
+// Dreiecke um (Sprite::render, rc.isReflected(): 0,2,1 und 0,3,2) - sonst
+// fiele das Quadrat unter die umgedrehte Rueckseitenpruefung (BUG-168).
+static inline void bb_sprite_build_(bb_SpriteEntity_* sp, const float* cam_world,
+                                    bool reflected = false) {
   const float* w  = sp->world;
   const float* cw = cam_world;
   float i[3], j[3], k[3];
@@ -181,7 +186,8 @@ static inline void bb_sprite_build_(bb_SpriteEntity_* sp, const float* cam_world
                   I[2]*x + J[2]*y + w[14],
                   nrm[0], nrm[1], nrm[2], uv[v][0], uv[v][1]);
   }
-  if (m.indices.empty()) m.indices = { 0, 1, 2, 0, 2, 3 };
+  if (reflected) m.indices = { 0, 2, 1, 0, 3, 2 };
+  else           m.indices = { 0, 1, 2, 0, 2, 3 };
   m.dirty = true;
 }
 
