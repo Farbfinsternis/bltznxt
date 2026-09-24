@@ -4,7 +4,7 @@
 
 # BlitzNext
 
-**BlitzNext** is a modern compiler that converts Blitz3D (`.bb`) source files directly into native Windows executables via a C++17 transpilation pipeline. It targets 100% command parity with the original Blitz3D engine, using a bundled MinGW toolchain and SDL3 for audio and graphics.
+**BlitzNext** is the successor to Blitz3D: a modern compiler that turns Blitz3D (`.bb`) source files into native Windows executables via a C++17 transpilation pipeline, using a bundled MinGW toolchain and SDL3 for audio and graphics. It aims to do everything the original could — and to run the programs written for it, unchanged.
 
 > **Status: active development — v0.5.5.** BlitzNext compiles and runs the unmodified game **blox-n-balls**: it loads, its menus work, and levels can be played. The runtime now includes sprites, mirrors, MD2 models, collisions and line/entity picking; full gameplay compatibility is still being verified.
 > **[KNOWN_ISSUES.md](KNOWN_ISSUES.md) lists everything that does not yet behave like Blitz3D** — please check it before reporting a bug.
@@ -30,6 +30,25 @@ Mark passed away in 2024. BlitzNext exists to carry his idea forward — the bel
 
 ---
 
+## The Promise
+
+BlitzNext is meant to replace Blitz3D, not to be a museum copy of it. For old programs that means:
+
+- **They run.** A program that ran in Blitz3D compiles unchanged and does not crash or stop
+  halfway through.
+- **They stay playable.** Game logic, controls, menus, files and saved data work as their
+  authors intended.
+- **They may look a little different.** Lighting is computed with modern methods, and small
+  differences in rendering, rounding or timing are accepted — a camera may follow the ball a
+  hair differently, a bird may fly a slightly different curve. What is on screen and what the
+  program does stay the same.
+
+Where BlitzNext deliberately does things differently, it says so in
+[KNOWN_ISSUES.md](KNOWN_ISSUES.md) under "Intentional differences". Anything that breaks an
+old program is a bug.
+
+---
+
 ## Compatibility Progress
 
 | Area | State (2026-09-19) |
@@ -42,8 +61,9 @@ Mark passed away in 2024. BlitzNext exists to carry his idea forward — the bel
 | **Primary integration test** | blox-n-balls: all 26 source files unchanged; loads, menus work, levels can be played; complete gameplay not yet verified |
 
 Compatibility is measured, not estimated: questions about the language are answered from the
-[original source](https://github.com/blitz-research/blitz3d), and results are compared with a
-running Blitz3D 11.8. In the 2026-09-15/16 baseline, 67 of 156 example sources were accepted
+[original source](https://github.com/blitz-research/blitz3d), and behaviour is compared with a
+running Blitz3D 11.8 — to find out what a command does, not to reproduce every last digit. In
+the 2026-09-15/16 baseline, 67 of 156 example sources were accepted
 and all 67 built; of the 70 accepted only by Blitz3D, 58 failed solely on missing commands.
 That corpus has not been fully remeasured after the latest additions; these are historical
 baseline figures, not current coverage percentages.
@@ -375,7 +395,7 @@ depends on the Windows API and the bundled MinGW toolchain, so a Linux build doe
 bash tests/run_tests.sh
 ```
 
-The suite contains **258 tests: 163 positive and 95 negative**. Positive tests with an
+The suite contains **287 tests, 97 of them negative**. Positive tests with an
 `.expected` file are executed and their stdout is compared; the others are compile-only.
 Negative tests require a nonzero compiler exit status and, where an `.expected_err` exists,
 an exact diagnostic match. The current runner does not enforce exit code 1 specifically,
@@ -445,10 +465,11 @@ window rather than writing to stdout.
 ### Where the reference ends: rendering
 
 BlitzNext does not rebuild Blitz3D's picture; it implements what the 3D commands **mean**. The
-original is the reference for everything a program can **observe or rely on** — geometry, vertex
-and triangle counts, normals, winding, transforms, hierarchy, picks, collisions, which entities and
-cameras are drawn, what a texture contains, and every value a command returns. Those must match
-exactly and are measured against a running Blitz3D.
+original is the reference for everything a program **relies on** — geometry, transforms,
+hierarchy, picks, collisions, which entities and cameras are drawn, what a texture contains, and
+what a command returns. These are measured against a running Blitz3D, and they must be close
+enough that a program works as intended; exactness down to the last digit or pixel is not the
+goal. Where BlitzNext already matches exactly, it stays that way.
 
 The *shading* is not bound to Direct3D 7. Gouraud shading, per-vertex specular and unbounded
 `range/distance` attenuation were the limits of a 1999 fixed pipeline, not choices the authors of
