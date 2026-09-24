@@ -999,19 +999,13 @@ public:
       return;
     }
 
-    std::string typeName = getExprTypeName(node->object.get());
-    if (!typeName.empty()) {
-      output << ind() << "bb_" << toLower(typeName) << "_Delete(";
-      emitExpr(node->object.get());
-      output << ");\n";
-    } else {
-      // Type indeterminate at compile time — warn and best-effort null
-      std::cerr << "[warning] Delete: type indeterminate at compile time"
-                << " (line " << node->line << ")\n";
-      output << ind();
-      emitExpr(node->object.get());
-      output << " = nullptr; // Delete (type unknown)\n";
-    }
+    // Ohne Typnamen: bb_obj_delete_ nimmt jede Referenz und jeden Zeiger.
+    // Bis BUG-105 brauchte der Emitter den Typ und kannte ihn fuer
+    // "Delete p\feld" und "Delete New T" nicht - dann wurde nur das Feld
+    // genullt, das Objekt blieb in der Liste.
+    output << ind() << "bb_obj_delete_(";
+    emitExpr(node->object.get());
+    output << ");\n";
   }
 
   // First/Last/Before/After ueberspringen geloeschte Objekte (BUG-104).
@@ -1035,18 +1029,25 @@ public:
     output << ")";
   }
 
+  // Handle/Object (BUG-101, bb_object.h).
+  void visit(HandleExpr *node) override {
+    output << "bb_obj_handle_(";
+    emitExpr(node->object.get());
+    output << ")";
+  }
+
+  void visit(ObjectCastExpr *node) override {
+    output << "bb_obj_from_handle_<struct bb_" << toLower(node->typeName) << ">(";
+    emitIntegerContext(node->handle.get());
+    output << ")";
+  }
+
   // Insert obj Before/After target → bb_TypeName_InsertBefore/After(obj, target)
+  // Insert: ohne Typnamen wie Delete. Bis BUG-105 tat "Insert" still
+  // nichts, wenn der Emitter den Typ nicht kannte (Feld, Aufruf).
   void visit(InsertStmt *node) override {
-    std::string typeName = getExprTypeName(node->object.get());
-    if (typeName.empty()) typeName = getExprTypeName(node->target.get());
-    if (typeName.empty()) {
-      output << ind() << "// Insert: could not determine type\n";
-      return;
-    }
-    std::string fn = (node->mode == InsertStmt::BEFORE)
-                     ? "bb_" + typeName + "_InsertBefore"
-                     : "bb_" + typeName + "_InsertAfter";
-    output << ind() << fn << "(";
+    output << ind() << (node->mode == InsertStmt::BEFORE ? "bb_obj_insert_before_("
+                                                         : "bb_obj_insert_after_(");
     emitExpr(node->object.get());
     output << ", ";
     emitExpr(node->target.get());
@@ -1064,19 +1065,34 @@ public:
     const std::string v = toLower(node->varName);
     const std::string t = toLower(node->typeName);
     // Register the iteration variable in varObjectTypes for nested field access
-    varObjectTypes[v] = t;
+    if (!node->target) varObjectTypes[v] = t;
+
+    // Der Zaehler: die Variable oder, wie beim zaehlenden For, der Ausdruck
+    // fuer ein Feld oder Array-Element (BUG-102). Der wird wie im Original
+    // bei jedem Schritt neu ausgewertet (ForEachNode::translate).
+    auto counter = [&]() {
+      if (node->target) emitExpr(node->target.get());
+      else              output << "var_" << v;
+    };
 
     // Der Zaehler ist schon eine Variable des Rumpfs - vorab deklariert
     // (hoistLocals), ein Global oder ein Parameter - und die Schleife
     // schreibt in genau diese (BUG-90). Sonst gilt er nur in der Schleife.
-    const bool own = !declaredVars.count(v);
+    const bool own = !node->target && !declaredVars.count(v);
     if (own) {
       output << ind() << "{\n";
       indentLevel++;
       output << ind() << "bb_ref<struct bb_" << t << "> var_" << v << ";\n";
     }
-    output << ind() << "for (var_" << v << " = bb_" << t << "_First(); var_" << v
-           << ".get(); var_" << v << " = bb_obj_next_(var_" << v << ".get())) {\n";
+    output << ind() << "for (";
+    counter();
+    output << " = bb_" << t << "_First(); (";
+    counter();
+    output << ").get(); ";
+    counter();
+    output << " = bb_obj_next_((";
+    counter();
+    output << ").get())) {\n";
     indentLevel++;
     for (auto &n : node->block) emitStmt(n.get());
     indentLevel--;
@@ -1335,6 +1351,10 @@ private:
       out.push_back(be2->object.get());
     } else if (auto *ae = dynamic_cast<AfterExpr *>(e)) {
       out.push_back(ae->object.get());
+    } else if (auto *he = dynamic_cast<HandleExpr *>(e)) {
+      out.push_back(he->object.get());
+    } else if (auto *oc = dynamic_cast<ObjectCastExpr *>(e)) {
+      out.push_back(oc->handle.get());
     }
     return out;
   }
@@ -1450,6 +1470,7 @@ private:
     if (dynamic_cast<LastExpr *>(e))     return true;
     if (dynamic_cast<BeforeExpr *>(e))   return true;
     if (dynamic_cast<AfterExpr *>(e))    return true;
+    if (dynamic_cast<ObjectCastExpr *>(e)) return true;
     if (dynamic_cast<CallExpr *>(e))     return true;   // built-ins too
     if (dynamic_cast<NewExpr *>(e))      return true;
     for (auto *c : operandsOf(e)) if (readsMutableState(c)) return true;
@@ -1610,6 +1631,10 @@ private:
     output << "    int __rc__ = 1;\n";
     output << "    bool __alive__ = true;\n";
     output << "    static void bb_free_(" << spname << "p);\n";
+    output << "    static void bb_clear_(" << spname << "p);\n";
+    output << "    static void bb_insert_before_(" << spname << "obj, " << spname << "target);\n";
+    output << "    static void bb_insert_after_(" << spname << "obj, " << spname << "target);\n";
+    output << "    static bbString bb_tostr_(" << spname << "p);\n";
     output << "};\n";
     output << "inline " << spname << "bb_" << tname << "_head_ = nullptr;\n";
     output << "inline " << spname << "bb_" << tname << "_tail_ = nullptr;\n\n";
@@ -1649,18 +1674,26 @@ private:
     output << "    return p;\n";
     output << "}\n";
 
-    // _bbObjDelete: Felder freigeben, als geloescht markieren, die
-    // Referenz der Liste abgeben. Null und ein schon geloeschtes Objekt
-    // tun nichts.
-    output << "inline void bb_" << t << "_Delete(const " << ref << " &r) {\n";
-    output << "    " << sp << "p = r.get();\n";
-    output << "    if (!p || !p->__alive__) return;\n";
-    output << "    p->__alive__ = false;\n";
+    // Str(obj), Teil des Typs: die Felder durch Kommas getrennt
+    // (_bbObjToStr, der Rahmen steht in bb_obj_to_str_).
+    output << "inline bbString bb_" << t << "::bb_tostr_(" << sp << "p) {\n";
+    output << "    bbString s;\n";
+    for (size_t i = 0; i < td->fields.size(); ++i) {
+      if (i) output << "    s += \",\";\n";
+      output << "    s += bb_obj_field_str_(p->var_" << toLower(td->fields[i].name) << ");\n";
+    }
+    output << "    return s;\n";
+    output << "}\n";
+
+    // _bbObjDelete, Teil des Typs: die Felder freigeben. Den Rest (Null,
+    // schon geloescht, Referenz der Liste) macht bb_obj_delete_ fuer jeden
+    // Typ gleich - so braucht "Delete" keinen Typnamen und geht mit jedem
+    // Ausdruck: Feld, Array-Element, New, Aufruf (BUG-105).
+    output << "inline void bb_" << t << "::bb_clear_(" << sp << "p) {\n";
     for (auto &f : td->fields) {
       const std::string fv = "p->var_" + toLower(f.name);
       output << "    " << fv << " = decltype(" << fv << ")();\n";
     }
-    output << "    bb_obj_release_(p);\n";
     output << "}\n";
 
     // Delete Each: die lebenden Objekte erst einsammeln - das Loeschen eines
@@ -1669,17 +1702,15 @@ private:
     output << "    std::vector<" << ref << "> all;\n";
     output << "    for (" << sp << "p = " << head << "; p; p = p->__next__)\n";
     output << "        if (p->__alive__) all.push_back(p);\n";
-    output << "    for (auto &r : all) bb_" << t << "_Delete(r);\n";
+    output << "    for (auto &r : all) bb_obj_delete_(r);\n";
     output << "}\n";
 
     output << "inline " << sp << "bb_" << t << "_First() { return bb_obj_first_(" << head << "); }\n";
     output << "inline " << sp << "bb_" << t << "_Last() { return bb_obj_last_(" << tail << "); }\n";
 
-    // Insert: auch ein geloeschtes Objekt wird umgehaengt und bleibt dabei
-    // unsichtbar (gemessen, Fall I).
-    output << "inline void bb_" << t << "_InsertBefore(const " << ref << " &o, const " << ref << " &g) {\n";
-    output << "    " << sp << "obj = o.get(); " << sp << "target = g.get();\n";
-    output << "    if (!obj || !target || obj == target) return;\n";
+    // Insert, Teil des Typs: umhaengen. Auch ein geloeschtes Objekt wird
+    // umgehaengt und bleibt dabei unsichtbar (gemessen, Fall I).
+    output << "inline void bb_" << t << "::bb_insert_before_(" << sp << "obj, " << sp << "target) {\n";
     output << "    bb_" << t << "_Unlink(obj);\n";
     output << "    obj->__next__ = target;\n";
     output << "    obj->__prev__ = target->__prev__;\n";
@@ -1687,9 +1718,7 @@ private:
     output << "    else " << head << " = obj;\n";
     output << "    target->__prev__ = obj;\n";
     output << "}\n";
-    output << "inline void bb_" << t << "_InsertAfter(const " << ref << " &o, const " << ref << " &g) {\n";
-    output << "    " << sp << "obj = o.get(); " << sp << "target = g.get();\n";
-    output << "    if (!obj || !target || obj == target) return;\n";
+    output << "inline void bb_" << t << "::bb_insert_after_(" << sp << "obj, " << sp << "target) {\n";
     output << "    bb_" << t << "_Unlink(obj);\n";
     output << "    obj->__prev__ = target;\n";
     output << "    obj->__next__ = target->__next__;\n";
@@ -1948,7 +1977,8 @@ private:
         // C++-Schleife - eine spaetere Zuweisung ohne Tag legte dann ein int
         // desselben Namens an, und g++ scheiterte; ein Global oder Parameter
         // wurde von der inneren Deklaration verdeckt.
-        addLocal(out, fe->varName, "." + fe->typeName);
+        if (!fe->target) addLocal(out, fe->varName, "." + fe->typeName);
+        else             collectExprLocals(fe->target.get(), out);
         collectLocals(fe->block, out);
       } else if (auto *ds = dynamic_cast<DimStmt *>(n.get())) {
         for (auto &d : ds->dims) collectExprLocals(d.get(), out);
@@ -2017,6 +2047,10 @@ private:
       collectExprLocals(bx->object.get(), out);
     } else if (auto *ax = dynamic_cast<const AfterExpr *>(e)) {
       collectExprLocals(ax->object.get(), out);
+    } else if (auto *hx = dynamic_cast<const HandleExpr *>(e)) {
+      collectExprLocals(hx->object.get(), out);
+    } else if (auto *ox = dynamic_cast<const ObjectCastExpr *>(e)) {
+      collectExprLocals(ox->handle.get(), out);
     }
   }
 
@@ -2101,6 +2135,7 @@ private:
     // Before(p) / After(p) have the same type as p — recurse
     if (auto *be = dynamic_cast<BeforeExpr *>(expr)) return getExprTypeName(be->object.get());
     if (auto *ae = dynamic_cast<AfterExpr *>(expr))  return getExprTypeName(ae->object.get());
+    if (auto *oc = dynamic_cast<ObjectCastExpr *>(expr)) return oc->typeName;
     return "";
   }
 

@@ -54,11 +54,11 @@ an old program is a bug.
 
 | Area | State (2026-09-19) |
 |------|--------------------|
-| **Language** | All constructs except `Handle` and `Object` |
+| **Language** | All constructs |
 | **Built-in commands** | 463 entries in `src/compiler/commands.h`, including extensions; this counts signatures, not verified behaviour |
 | **2D milestones** | Milestones 6–46 complete ([roadmap.md](roadmap.md)) |
 | **3D runtime** | Meshes, surfaces, brushes, sprites, mirrors, MD2 models, collisions and line/entity picking available; remaining work in [ROADMAP3D.md](ROADMAP3D.md) |
-| **Known deviations** | 24 open bugs that can break an old program, all reproduced against Blitz3D 11.8; accepted differences listed separately ([KNOWN_ISSUES.md](KNOWN_ISSUES.md)) |
+| **Known deviations** | 21 open bugs that can break an old program, all reproduced against Blitz3D 11.8; accepted differences listed separately ([KNOWN_ISSUES.md](KNOWN_ISSUES.md)) |
 | **Primary integration test** | blox-n-balls: all 26 source files unchanged; loads, menus work, levels can be played; complete gameplay not yet verified |
 
 Compatibility is measured, not estimated: questions about the language are answered from the
@@ -69,7 +69,7 @@ and all 67 built; of the 70 accepted only by Blitz3D, 58 failed solely on missin
 That corpus has not been fully remeasured after the latest additions; these are historical
 baseline figures, not current coverage percentages.
 
-**Language.** Every construct except `Handle` and `Object` is implemented, but several still
+**Language.** Every construct is implemented, but several still
 differ from Blitz3D in detail — most importantly untagged `Const` values, the scope of `Local`
 inside blocks, and `Include` on a line with other statements. See
 [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
@@ -151,7 +151,7 @@ bin\blitzcc.exe hello.bb
 | `True`, `False`, `Null` | ✓ |
 | `Include` / `#Include` with circular dependency protection | ✓ ¹ |
 | Operators: `And`, `Or`, `Xor`, `Not`, `Mod`, `Shl`, `Shr`, `Sar`, `^` | ✓ |
-| `Handle`, `Object` | — |
+| `Handle`, `Object` | ✓ |
 
 ¹ Works, with known deviations from Blitz3D — see [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 

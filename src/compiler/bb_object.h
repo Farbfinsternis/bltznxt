@@ -24,6 +24,9 @@
 // und die statische Funktion bb_free_ (aus der Liste nehmen, freigeben).
 
 #include <cstddef>
+#include <type_traits>
+#include <array>
+#include <unordered_map>
 
 template <class T>
 inline void bb_obj_release_(T *p) {
@@ -116,6 +119,122 @@ inline T *bb_obj_last_(T *tail) {
   while (tail && !tail->__alive__) tail = tail->__prev__;
   return tail;
 }
+
+// Der rohe Zeiger hinter einer Referenz oder einem Zeiger aus New/First/...
+template <class T> inline T *bb_obj_ptr_(T *p) { return p; }
+template <class T> inline T *bb_obj_ptr_(const bb_ref<T> &r) { return r.get(); }
+
+// Handle/Object wie _bbObjToHandle/_bbObjFromHandle (BUG-101): ein Objekt
+// bekommt beim ersten Handle die naechste Nummer (ab 1) und behaelt sie;
+// Null und geloeschte Objekte haben 0. Object.T liefert das Objekt nur,
+// wenn die Nummer bekannt ist und zu einem T gehoert, sonst Null. Delete
+// streicht die Nummer (_bbObjDelete).
+struct bb_obj_handle_entry_ { const void *obj; const void *type; };
+inline std::unordered_map<int, bb_obj_handle_entry_> bb_handle_map_;
+inline std::unordered_map<const void *, int> bb_object_map_;
+inline int bb_next_handle_ = 0;
+template <class T> inline const char bb_obj_type_tag_ = 0;
+
+inline void bb_obj_forget_handle_(const void *p) {
+  auto it = bb_object_map_.find(p);
+  if (it == bb_object_map_.end()) return;
+  bb_handle_map_.erase(it->second);
+  bb_object_map_.erase(it);
+}
+
+// Handle Null: der Emitter schreibt Null als 0.
+inline int bb_obj_handle_(int) { return 0; }
+
+template <class X>
+inline int bb_obj_handle_(const X &x) {
+  auto *p = bb_obj_ptr_(x);
+  if (!p || !p->__alive__) return 0;
+  using T = std::remove_pointer_t<decltype(p)>;
+  auto it = bb_object_map_.find(p);
+  if (it != bb_object_map_.end()) return it->second;
+  ++bb_next_handle_;
+  bb_object_map_[p] = bb_next_handle_;
+  bb_handle_map_[bb_next_handle_] = { p, &bb_obj_type_tag_<T> };
+  return bb_next_handle_;
+}
+
+template <class T>
+inline T *bb_obj_from_handle_(int h) {
+  auto it = bb_handle_map_.find(h);
+  if (it == bb_handle_map_.end()) return nullptr;
+  if (it->second.type != &bb_obj_type_tag_<T>) return nullptr;
+  return static_cast<T *>(const_cast<void *>(it->second.obj));
+}
+
+// _bbObjDelete fuer jeden Typ: Null und ein schon geloeschtes Objekt tun
+// nichts; sonst Felder freigeben (T::bb_clear_), als geloescht markieren und
+// die Referenz der Liste abgeben. Ohne Typnamen im Emitter, damit "Delete"
+// mit jedem Ausdruck geht - Feld, Array-Element, New, Aufruf (BUG-105).
+// Wer eine Referenz uebergibt, haelt das Objekt waehrend des Aufrufs am Leben.
+template <class X>
+inline void bb_obj_delete_(const X &x) {
+  auto *p = bb_obj_ptr_(x);
+  if (!p || !p->__alive__) return;
+  using T = std::remove_pointer_t<decltype(p)>;
+  bb_ref<T> hold(p);        // Felder duerfen p nicht vorzeitig freigeben
+  p->__alive__ = false;
+  bb_obj_forget_handle_(p);
+  T::bb_clear_(p);
+  bb_obj_release_(p);       // die Referenz der Liste
+}
+
+// Insert: umhaengen, auch ein geloeschtes Objekt (_bbObjInsBefore/After).
+template <class A, class B>
+inline void bb_obj_insert_before_(const A &a, const B &b) {
+  auto *o = bb_obj_ptr_(a);
+  auto *t = bb_obj_ptr_(b);
+  if (!o || !t || o == t) return;
+  std::remove_pointer_t<decltype(o)>::bb_insert_before_(o, t);
+}
+
+template <class A, class B>
+inline void bb_obj_insert_after_(const A &a, const B &b) {
+  auto *o = bb_obj_ptr_(a);
+  auto *t = bb_obj_ptr_(b);
+  if (!o || !t || o == t) return;
+  std::remove_pointer_t<decltype(o)>::bb_insert_after_(o, t);
+}
+
+// Str(obj) wie _bbObjToStr: die Felder in eckigen Klammern, Kommazahlen wie
+// bei Str, Zeichenketten in Anfuehrungszeichen, Objektfelder rekursiv, Null
+// und geloeschte Objekte als [NULL], der Ausgangspunkt als [ROOT], ab Tiefe 8
+// "....", Array-Felder als "???" (gemessen 2026-09-24, str_formen).
+inline const void *bb_obj_str_root_ = nullptr;
+inline int bb_obj_str_depth_ = 0;
+
+template <class T> bbString bb_obj_to_str_(T *p);
+
+inline bbString bb_obj_field_str_(int v) { return bb_Str(v); }
+inline bbString bb_obj_field_str_(float v) { return bb_Str((double)v); }
+inline bbString bb_obj_field_str_(const bbString &s) { return "\"" + s + "\""; }
+template <class U>
+inline bbString bb_obj_field_str_(const bb_ref<U> &r) { return bb_obj_to_str_(r.get()); }
+template <class U, std::size_t N>
+inline bbString bb_obj_field_str_(const std::array<U, N> &) { return "???"; }
+
+template <class T>
+bbString bb_obj_to_str_(T *p) {
+  if (!p || !p->__alive__) return "[NULL]";
+  if (p == bb_obj_str_root_) return "[ROOT]";
+  if (bb_obj_str_depth_ == 8) return "....";
+  ++bb_obj_str_depth_;
+  const void *old = bb_obj_str_root_;
+  if (!bb_obj_str_root_) bb_obj_str_root_ = p;
+  bbString s = "[" + T::bb_tostr_(p) + "]";
+  bb_obj_str_root_ = old;
+  --bb_obj_str_depth_;
+  return s;
+}
+
+template <class T>
+inline bbString bb_Str(const bb_ref<T> &r) { return bb_obj_to_str_(r.get()); }
+template <class T, class = decltype(&T::bb_tostr_)>
+inline bbString bb_Str(T *p) { return bb_obj_to_str_(p); }
 
 // After/Before: Null ist "Object does not exist" (Debug-Modus des Originals),
 // ein geloeschtes Objekt geht (AfterNode::translate prueft nur den Zeiger).

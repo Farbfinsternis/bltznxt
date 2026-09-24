@@ -645,6 +645,21 @@ private:
       block(fs->block);
     } else if (auto *fes = dynamic_cast<ForEachStmt *>(n)) {
       knownType(fes->typeName, fes->line, fes->col);
+      if (fes->target) {
+        // Feld oder Array-Element als Zaehler (BUG-102): dieselben zwei
+        // Schranken wie fuer eine Variable, wenn der Typ bekannt ist.
+        Ty t = expr(fes->target.get());
+        if (t.known() && t.k != Ty::OBJ)
+          error(fes->line, fes->col,
+                "the index variable has type " + t.name() + ", but 'Each " +
+                    fes->typeName + "' walks a list of objects");
+        else if (t.known() && toLower(t.obj) != toLower(fes->typeName))
+          error(fes->line, fes->col,
+                "the index variable holds a '." + t.obj +
+                    "', but the loop walks '" + fes->typeName + "'");
+        block(fes->block);
+        return;
+      }
       // ForEachNode::semant resolves the index variable like any other and
       // then insists on two things: it holds an object ("Index variable is
       // not a NewType") and that object is the very Type being walked
@@ -819,6 +834,21 @@ private:
       return neighbour("Before", be->object.get(), be->line, be->col);
     if (auto *ae = dynamic_cast<AfterExpr *>(e))
       return neighbour("After", ae->object.get(), ae->line, ae->col);
+    // Handle braucht ein Objekt und ergibt int (ObjectHandleNode::semant),
+    // Object.T wandelt nach int und ergibt ein T (ObjectCastNode::semant).
+    if (auto *he = dynamic_cast<HandleExpr *>(e)) {
+      Ty t = expr(he->object.get());
+      if (t.known() && !t.object())   // Null geht und ergibt 0
+        error(he->line, he->col, "'Handle' must be used with an object, not " + t.name());
+      return mk(Ty::INT);
+    }
+    if (auto *oc = dynamic_cast<ObjectCastExpr *>(e)) {
+      Ty t = expr(oc->handle.get());
+      if (t.known() && (t.vec || t.object()))
+        error(oc->line, oc->col, "'Object' needs a handle number, not " + t.name());
+      knownType(oc->typeName, oc->line, oc->col);
+      return mk(Ty::OBJ, oc->typeName);
+    }
     if (auto *ce = dynamic_cast<CallExpr *>(e))   return call(ce);
     if (auto *ue = dynamic_cast<UnaryExpr *>(e)) {
       Ty t = expr(ue->expr.get());

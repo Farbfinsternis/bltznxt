@@ -44,6 +44,8 @@ class FirstExpr;
 class LastExpr;
 class BeforeExpr;
 class AfterExpr;
+class HandleExpr;
+class ObjectCastExpr;
 class InsertStmt;
 class ForEachStmt;
 class VectorAccess;
@@ -91,6 +93,8 @@ public:
   virtual void visit(LastExpr      *node) = 0;
   virtual void visit(BeforeExpr    *node) = 0;
   virtual void visit(AfterExpr     *node) = 0;
+  virtual void visit(HandleExpr    *node) = 0;
+  virtual void visit(ObjectCastExpr *node) = 0;
   virtual void visit(InsertStmt    *node) = 0;
   virtual void visit(ForEachStmt   *node) = 0;
   virtual void visit(VectorAccess  *node) = 0;
@@ -497,6 +501,24 @@ public:
   void accept(ASTVisitor *v) override { v->visit(this); }
 };
 
+// Handle obj - die Nummer eines Objekts (ObjectHandleNode, BUG-101)
+class HandleExpr : public ExprNode {
+public:
+  std::unique_ptr<ExprNode> object;
+  explicit HandleExpr(std::unique_ptr<ExprNode> obj) : object(std::move(obj)) {}
+  void accept(ASTVisitor *v) override { v->visit(this); }
+};
+
+// Object.Typ h - das Objekt zu einer Nummer (ObjectCastNode, BUG-101)
+class ObjectCastExpr : public ExprNode {
+public:
+  std::string typeName;
+  std::unique_ptr<ExprNode> handle;
+  ObjectCastExpr(std::string tn, std::unique_ptr<ExprNode> h)
+      : typeName(std::move(tn)), handle(std::move(h)) {}
+  void accept(ASTVisitor *v) override { v->visit(this); }
+};
+
 // Insert obj Before/After target
 class InsertStmt : public StmtNode {
 public:
@@ -519,6 +541,9 @@ public:
   // vorherige Deklaration legt Blitz3D den Zaehler als int an - und genau
   // daran scheitert dort "Index variable is not a NewType" (BUG-38).
   std::string typeTag;
+  // Ein Feld oder Array-Element als Zaehler ("For p\c = Each T"), sonst leer.
+  // Das Original liest den Zaehler mit parseVar() wie jedes Ziel (BUG-102).
+  std::unique_ptr<ExprNode> target;
   std::vector<std::unique_ptr<ASTNode>> block;
   ForEachStmt(std::string vn, std::string tn)
       : varName(std::move(vn)), typeName(std::move(tn)) {}

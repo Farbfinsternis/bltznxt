@@ -38,6 +38,35 @@ running Blitz3D 11.8. The entries below this one describe each step; this is the
 
 ---
 
+## 2026-09-24 — The type system, checked against Blitz3D (BUG-105, BUG-102, BUG-101, BUG-181)
+
+After BUG-104, the whole type system was put through 39 small programs, each run in Blitz3D
+and in BlitzNext: field defaults and field arrays, chains like `a\n\n\x`, objects as parameters
+and return values, `Dim` and fixed arrays of objects, globals, `First`/`Last`/`Before`/`After`,
+`Insert`, `Delete` in every form, nested and interrupted `For Each`, a recursive tree, 100,000
+objects created and deleted, a type named like its variable (`player.player = New player`),
+tagged field access (`p\name$`), a type declared after its use, `Str`, `Handle` and `Object`.
+Most already matched. What did not, now does — all 39 cases give the same output:
+
+- **`Delete` and `Insert` with any object expression (BUG-105).** The emitter needed the
+  type's name and did not know it for a field, an element of a local fixed array or `New T`:
+  `Delete p\child` only cleared the field and left the object in the list, `Delete New T` and
+  `Delete b[0]` failed, and `Insert` with a field silently did nothing. Each type now carries its
+  delete and insert helpers as static members, and generic `bb_obj_delete_` /
+  `bb_obj_insert_*_` take any reference.
+- **A field or array element as the `For Each` counter (BUG-102)**, as in
+  `For p\child = Each T` — read the same way as the counter of a counting `For`.
+- **`Handle` and `Object` (BUG-101).** `Handle p` gives an object a number (from 1, the same
+  each time), `Object.T h` gives it back, or `Null` for an unknown number, a deleted object or
+  the wrong type. `Delete` retires the number. Both are reserved words, as in Blitz3D.
+- **`Str` of an object (BUG-181)** did not compile. It now prints the fields like Blitz3D:
+  `[1,2.5,"hi",[NULL],???]`, with `[ROOT]` for a reference back to the start.
+
+Tests `test_bug105_delete_ausdruck`, `test_bug102_each_feld`, `test_bug101_handle` and
+`test_bug181_str_objekt`, each with output recorded in Blitz3D.
+
+---
+
 ## 2026-09-24 — Deleted objects behave as in Blitz3D (BUG-104, BUG-103)
 
 `Delete p` used to free the object at once and set only `p` to `Null`. Every other reference —

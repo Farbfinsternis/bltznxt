@@ -12,7 +12,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-09-24 — 24 open bugs.*
+*Last updated: 2026-09-24 — 21 open bugs.*
 
 If an old program breaks and the cause is not listed here, please open an issue with a
 minimal `.bb` file and a description of what happens in both.
@@ -24,7 +24,6 @@ minimal `.bb` file and a description of what happens in both.
 - [Missing commands](#missing-commands)
 - [Silently different results](#silently-different-results) — read this first
 - [Language and compiler](#language-and-compiler)
-- [Types and objects](#types-and-objects)
 - [Data, Read and Restore](#data-read-and-restore)
 - [Runtime library](#runtime-library)
 - [2D graphics](#2d-graphics)
@@ -134,9 +133,6 @@ everything that is available.
 | Movies | `OpenMovie`, `DrawMovie`, `CloseMovie`, `MovieWidth`, `MovieHeight`, `MoviePlaying` |
 | Other | `RectsOverlap`, `ResizeImage`, `TFormImage`, `VWait`, `ScanLine`, `GraphicsBuffer`, `BufferDirty`, `Stop`, `MouseWait`, `JoyWait`, the gamma commands, `CreateListener`, `EmitSound`, `MeshCullBox`, `Stats3D`, `RuntimeStats`, a few graphics-driver queries and joystick axis variants |
 
-The language keywords `Handle` and `Object` are also missing — see
-[Types and objects](#types-and-objects).
-
 ---
 
 ## Silently different results
@@ -159,7 +155,6 @@ are the most likely reason for an old program to behave strangely.
   global's value here. If the local has a different type than the global, the program is
   rejected.
   *Workaround:* give locals names that differ from globals. (BUG-100)
-- **`Delete p\child` does not delete the object**, it only clears the field. (BUG-105)
 
 ---
 
@@ -198,17 +193,6 @@ are the most likely reason for an old program to behave strangely.
 
 ---
 
-## Types and objects
-
-- **`Handle` and `Object`** are not available. `Handle p` and `Object.T(h)` are rejected.
-  (BUG-101)
-- **A field as the loop variable of `For … Each`** (`For p\child = Each T`) is rejected.
-  (BUG-102)
-- **`Delete New T`** fails in the C++ compiler. (BUG-105)
-- `Delete` on a field: see
-  [Silently different results](#silently-different-results) (BUG-105).
-
----
 
 ## Data, Read and Restore
 

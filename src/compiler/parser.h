@@ -535,6 +535,7 @@ private:
           bool isExprStarter = (kw == "NOT"  || kw == "TRUE" || kw == "FALSE" ||
                                 kw == "NULL" || kw == "NEW"  || kw == "FIRST" ||
                                 kw == "LAST" || kw == "BEFORE" || kw == "AFTER" ||
+                                kw == "HANDLE" || kw == "OBJECT" ||
                                 kw == "PI"   || kw == "ABS"  || kw == "SGN" ||
                                 kw == "INT"  || kw == "FLOAT" || kw == "STR");
           if (!isExprStarter) break;
@@ -943,11 +944,10 @@ private:
     if (peekKw() == "EACH") {
       advance(); // EACH
       Token tn = expect(TokenType::ID, "Expected type name after Each");
-      if (target)
-        error(nameTok.line, nameTok.col,
-              "an array element or a field cannot be the index variable of "
-              "'For ... = Each'");
-      else if (!hint.empty())
+      if (target) {
+        // Ein Feld oder Array-Element ist wie im Original ein gueltiger
+        // Zaehler (BUG-102); ob es den Typ haelt, prueft der Analyzer.
+      } else if (!hint.empty())
         error(nameTok.line, nameTok.col,
               "index variable '" + nameTok.value + hint +
                   "' is a number, but 'Each " + tn.value +
@@ -960,6 +960,7 @@ private:
                   tn.value + "'");
       auto each  = std::make_unique<ForEachStmt>(nameTok.value, tn.value);
       each->typeTag = objTag;
+      each->target  = std::move(target);
       each->line = ln;
       each->col  = nameTok.col;
       each->block = parseBlock({"NEXT"});
@@ -1895,6 +1896,27 @@ private:
         ae->line = t.line;
         ae->col  = t.col;
         return ae;
+      }
+      // "Handle p" und "Object.T h": beide nehmen wie After einen einfachen
+      // Ausdruck (parser.cpp, parseUniExpr). Der Punkt nach Object ist dort
+      // freigestellt (BUG-101).
+      if (t.value == "HANDLE") {
+        advance();
+        auto obj = parseUnary();
+        auto he  = std::make_unique<HandleExpr>(std::move(obj));
+        he->line = t.line;
+        he->col  = t.col;
+        return he;
+      }
+      if (t.value == "OBJECT") {
+        advance();
+        if (peek().type == TokenType::OPERATOR && peek().value == ".") advance();
+        Token tn = expect(TokenType::ID, "Expected type name after Object");
+        auto h   = parseUnary();
+        auto oc  = std::make_unique<ObjectCastExpr>(tn.value, std::move(h));
+        oc->line = t.line;
+        oc->col  = t.col;
+        return oc;
       }
     }
 

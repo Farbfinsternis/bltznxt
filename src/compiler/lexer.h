@@ -322,6 +322,7 @@ private:
         "TYPE",
         "FIELD",    "NEW",      "DELETE",
         "EACH",     "FIRST",    "LAST",     "BEFORE",   "AFTER",
+        "HANDLE",   "OBJECT",   // Handle obj, Object.Typ h (BUG-101)
         "INSERT",
         // Data
         "DATA",     "READ",     "RESTORE",  "INCLUDE",
