@@ -474,6 +474,46 @@ inline void bb_gl_quit_() {
 }
 
 // ============================================================
+// Vollbild: Zeichenflaeche ueber den Bildschirmrand hinaus (BUG-171)
+// ============================================================
+//
+// Deckt die Zeichenflaeche eines OpenGL-Fensters den Bildschirm genau ab,
+// schickt der NVIDIA-Treiber das Bild an der Fensterverwaltung vorbei auf
+// den Monitor. Dann sehen Win+Umschalt+S, die Druck-Taste und die
+// Monitoraufnahme von OBS nur das erste Bild oder Schwarz; beim Original
+// (echter Moduswechsel) sehen sie das Spiel. Gemessen am 2026-09-24
+// (build/shot20260924): ein Pixel mehr Zeichenflaeche genuegt. Ein
+// Layered-Fenster, ein Rahmen ausserhalb der Zeichenflaeche und ein
+// unsichtbares Fenster darueber helfen nicht.
+//
+// Das Fenster waechst deshalb auf beiden Seiten der Achse, auf der das
+// skalierte Bild schwarze Raender hat, um je einen Pixel ueber den
+// Bildschirm hinaus. Weil das Bild auf dieser Achse zentriert wird und die
+// andere Achse den Massstab bestimmt, bleibt es Pixel fuer Pixel an seinem
+// Platz - fuer die 2D-Befehle (Logical Presentation von SDL), fuer
+// RenderWorld und fuer die Maus (bb_present_update_) gleichermassen.
+inline void bb_gl_fullscreen_overhang_(int gw, int gh) {
+#ifdef _WIN32
+  HWND hw = (HWND)SDL_GetPointerProperty(SDL_GetWindowProperties(bb_window_),
+                                         SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr);
+  if (!hw || gw <= 0 || gh <= 0) return;
+  MONITORINFO mi = { sizeof(mi) };
+  if (!GetMonitorInfoW(MonitorFromWindow(hw, MONITOR_DEFAULTTONEAREST), &mi)) return;
+  const RECT& m = mi.rcMonitor;
+  const long mw = m.right - m.left, mh = m.bottom - m.top;
+  // Hoehe bestimmt den Massstab (Bild schmaler oder gleich): links und rechts
+  // ein Pixel mehr. Sonst oben und unten.
+  const bool wider = (long long)gw * mh <= (long long)gh * mw;
+  SetWindowPos(hw, nullptr,
+               m.left - (wider ? 1 : 0), m.top - (wider ? 0 : 1),
+               mw + (wider ? 2 : 0),     mh + (wider ? 0 : 2),
+               SWP_NOZORDER | SWP_NOACTIVATE);
+#else
+  (void)gw; (void)gh;
+#endif
+}
+
+// ============================================================
 // bb_Graphics3D
 // ============================================================
 
@@ -516,6 +556,7 @@ inline void bb_Graphics3D(int w, int h, int depth = 32, int mode = 0) {
     std::cerr << "[runtime] Graphics3D: SDL_CreateWindow failed: " << SDL_GetError() << "\n";
     return;
   }
+  if (fullscreen) bb_gl_fullscreen_overhang_(w, h);
 
   // Create OpenGL context.
   bb_gl_ctx_ = SDL_GL_CreateContext(bb_window_);

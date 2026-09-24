@@ -38,6 +38,32 @@ running Blitz3D 11.8. The entries below this one describe each step; this is the
 
 ---
 
+## 2026-09-24 — Screenshots and screen recording see the 3D fullscreen (BUG-171)
+
+In 3D fullscreen, the Windows screenshot tool captured an old frame (in blox-n-balls the loading
+screen while the menu was showing), and OBS's display capture stayed black. Window capture
+worked, and so did everything with Blitz3D's real mode change.
+
+The cause is the graphics driver: when an OpenGL window's drawing area covers the monitor
+exactly, the NVIDIA driver sends its frames straight to the display, past the Windows
+compositor. Anything that captures the screen through the compositor then keeps seeing whatever
+it got last. Measured by capturing the screen while a program changes colour every four
+seconds: our 3D fullscreen stayed on the first colour, windowed 3D and the 2D fullscreen
+(which SDL presents through Direct3D) did not. A drawing area one pixel larger than the monitor
+is enough to stop the bypass; a layered window, a one-pixel frame outside the drawing area and
+an invisible window on top are not.
+
+`Graphics3D` in fullscreen now makes the window one pixel wider than the monitor on each side
+of the axis that has the black bars (800×600 on 1920×1080: 1922×1080 at x = −1). The picture
+is centred on that axis and scaled by the other one, so it stays exactly where it was.
+Measured before and after at 800×600 and 1280×400: picture edges, 2D and 3D drawing and the
+mouse position after `MoveMouse` are identical. The window keeps its size across a focus
+change, and `Flip 1` still waits for the display in fullscreen (60 fps), `Flip 0` does not.
+Checked with OBS's display capture on blox-n-balls. There is no automated test, since the suite
+does not open fullscreen windows.
+
+---
+
 ## 2026-09-24 — Sprites appear in mirrors (BUG-168)
 
 A sprite above a `CreateMirror` plane had no reflection. The mirror pass draws the scene with a

@@ -11,7 +11,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-09-24 — 42 open bugs.*
+*Last updated: 2026-09-24 — 41 open bugs.*
 
 If your program behaves differently from Blitz3D and the cause is not listed here, please
 open an issue with a minimal `.bb` file and the output of both.
@@ -274,8 +274,5 @@ visibly wrong results because of the points below.
 - **The IDE smoke test** (`ide/test/smoke.js`) reports two failures because its test file
   for the C++-error path is now caught earlier by the compiler. The IDE itself is not
   affected. (BUG-121)
-- **Screenshots of a fullscreen program can show an old frame.** The Windows screenshot tool
-  (Win+Shift+S) captured the loading screen of a game that was already in its menu.
-  *Workaround:* run the program in a window. (BUG-171)
 - **Compiled programs open a console window** next to the graphics window, showing
   OpenGL diagnostics. Blitz3D programs have none. (BUG-175)
