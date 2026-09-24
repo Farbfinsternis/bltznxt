@@ -44,8 +44,9 @@ BlitzNext is meant to replace Blitz3D, not to be a museum copy of it. For old pr
   program does stay the same.
 
 Where BlitzNext deliberately does things differently, it says so in
-[KNOWN_ISSUES.md](KNOWN_ISSUES.md) under "Intentional differences". Anything that breaks an
-old program is a bug.
+[KNOWN_ISSUES.md](KNOWN_ISSUES.md) under "Intentional differences"; small known differences
+that do not break programs are listed there under "Accepted differences". Anything that breaks
+an old program is a bug.
 
 ---
 
@@ -57,7 +58,7 @@ old program is a bug.
 | **Built-in commands** | 463 entries in `src/compiler/commands.h`, including extensions; this counts signatures, not verified behaviour |
 | **2D milestones** | Milestones 6–46 complete ([roadmap.md](roadmap.md)) |
 | **3D runtime** | Meshes, surfaces, brushes, sprites, mirrors, MD2 models, collisions and line/entity picking available; remaining work in [ROADMAP3D.md](ROADMAP3D.md) |
-| **Known deviations** | 40 open bugs, all reproduced against Blitz3D 11.8 ([KNOWN_ISSUES.md](KNOWN_ISSUES.md)) |
+| **Known deviations** | 24 open bugs that can break an old program, all reproduced against Blitz3D 11.8; accepted differences listed separately ([KNOWN_ISSUES.md](KNOWN_ISSUES.md)) |
 | **Primary integration test** | blox-n-balls: all 26 source files unchanged; loads, menus work, levels can be played; complete gameplay not yet verified |
 
 Compatibility is measured, not estimated: questions about the language are answered from the
@@ -74,8 +75,8 @@ inside blocks, and `Include` on a line with other statements. See
 [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 
 **Runtime.** Math, strings, files, banks, input, audio and 2D graphics are available. A few
-commands remain incomplete, including pixel-accurate `ImagesCollide`, `SystemProperty` and
-`CallDLL`. `CopyRect`, image/texture buffer drawing and multi-camera rendering have received
+commands remain incomplete, including pixel-accurate `ImagesCollide` and `SystemProperty`;
+`CallDLL` does nothing, as userlibs are not supported. `CopyRect`, image/texture buffer drawing and multi-camera rendering have received
 compatibility fixes. In 3D, entities, cameras, lights, textures, brushes, primitive meshes,
 `.x`/`.3ds` loading, the surface API, sprites, mirrors, MD2 models with animation, collisions
 and line/entity picking are available. Camera picking/projection, skeletal and keyframe

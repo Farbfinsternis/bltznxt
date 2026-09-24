@@ -1,9 +1,10 @@
 # Known Issues
 
-BlitzNext aims to compile Blitz3D programs so that they behave exactly as they did in the
-original. This page lists where that is **not yet** the case: programs that are rejected
-although Blitz3D accepts them, programs that run but produce different results, and
-commands that exist but do nothing.
+BlitzNext is meant to replace Blitz3D: an old program must compile unchanged, must not crash
+or stop halfway, and must stay playable. Small differences in looks, rounding or timing are
+accepted. This page lists where that promise is **not yet** kept — programs that are rejected
+although Blitz3D accepts them, programs that run but work differently, and commands that
+exist but do nothing — and, separately, the differences that are known and accepted.
 
 Every entry below has been reproduced against a running **Blitz3D 11.8** and checked
 against the official source code at
@@ -11,14 +12,15 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-09-24 — 40 open bugs.*
+*Last updated: 2026-09-24 — 24 open bugs.*
 
-If your program behaves differently from Blitz3D and the cause is not listed here, please
-open an issue with a minimal `.bb` file and the output of both.
+If an old program breaks and the cause is not listed here, please open an issue with a
+minimal `.bb` file and a description of what happens in both.
 
 **Contents**
 
 - [Intentional differences](#intentional-differences)
+- [Accepted differences](#accepted-differences)
 - [Missing commands](#missing-commands)
 - [Silently different results](#silently-different-results) — read this first
 - [Language and compiler](#language-and-compiler)
@@ -81,6 +83,39 @@ The full reasoning is in [ROADMAP3D.md](ROADMAP3D.md), section
 
 ---
 
+## Accepted differences
+
+These differ from Blitz3D, but they do not stop an old program from working, so they are not
+counted as bugs and are not planned to be fixed:
+
+- **Last digits and rounding.** `ASin`, `ACos` and `Exp` can differ in the last digit
+  (BUG-163). After several turns, `EntityRoll` may report -180 where Blitz3D reports 180 —
+  the same orientation — and angles can differ in the last digits, because Blitz3D stores
+  rotations as quaternions (BUG-150).
+- **Order of evaluation.** A call that deletes or changes an object may run after the rest of
+  the expression: in `F(w) + (w = Null)`, where `F` deletes `w`, the comparison can see `w`
+  before the call. Blitz3D does not fix the order either. Put such a call into its own
+  statement. (BUG-180)
+- **Looks that the new renderer will change anyway.** `UpdateNormals` does not merge vertices
+  at the same position, so a cube stays faceted where Blitz3D rounds its corners (BUG-134).
+  Spherical environment mapping (texture flag 64) is drawn as a normal texture (BUG-130).
+- **Legacy model formats.** `.3ds` models number their vertices differently and have
+  normalised normals (BUG-135); some `.x` models list their surfaces in a different order
+  (BUG-146); texture paths with a directory part inside `.x` files are resolved relative to
+  the model (BUG-76).
+- **The window title** is "BLTZNXT" when the program sets no `AppTitle`; Blitz3D leaves it
+  empty. (BUG-147)
+- **`CallDLL`** does nothing and returns 0 — part of the decision not to support userlibs
+  (see above). (BUG-123)
+- **Invalid programs that Blitz3D rejects may be accepted.** A program that ran in Blitz3D
+  never hits these: division by a constant zero (BUG-75), a constant index outside a fixed
+  array (BUG-78), an object assigned to an untagged variable (part of BUG-80), `Global x`
+  after `x` has been used (BUG-81), two functions with the same name (BUG-138), the same
+  `Local` declared twice (BUG-161). String functions with an invalid position or length
+  (`Mid(s, 0)`) continue with a guessed value where Blitz3D stops with an error (BUG-125).
+
+---
+
 ## Missing commands
 
 104 of Blitz3D's commands (not counting language keywords) are not available yet. A
@@ -113,10 +148,6 @@ are the most likely reason for an old program to behave strangely.
   and 1.5 here. *Workaround:* tag the constant (`Const c# = 1.5`). (BUG-99)
 - **Numbers with a leading zero are read as octal.** `Print 010` prints `8`; `08` does not
   compile at all. *Workaround:* remove leading zeros. (BUG-98)
-- **`ASin`, `ACos` and `Exp` can differ in the last digit.** Blitz3D's old C runtime computes
-  them with reduced intermediate precision; `Exp` is off by up to three units there. All other
-  math functions match bit for bit, including how their unrounded results feed into the next
-  calculation. (BUG-163)
 - **`WriteString` and `ReadString` use a different file format.** Blitz3D writes a 4-byte
   length followed by the characters; BlitzNext writes the characters followed by a zero
   byte. Files written by Blitz3D programs — save games, level data — are read incorrectly.
@@ -129,14 +160,6 @@ are the most likely reason for an old program to behave strangely.
   rejected.
   *Workaround:* give locals names that differ from globals. (BUG-100)
 - **`Delete p\child` does not delete the object**, it only clears the field. (BUG-105)
-- **A call that deletes or changes an object may be evaluated after the rest of the
-  expression.** In `F(w) + (w = Null)`, where `F` deletes `w`, the comparison can see `w`
-  before the call.
-  *Workaround:* put such a call into its own statement. (BUG-180)
-- **String functions accept invalid positions and lengths.** `Mid(s, 0)`, `Instr(s, t, 0)`
-  and a negative length in `Left`, `Right`, `LSet` or `RSet` stop a Blitz3D program with
-  "parameter must be positive" / "greater than 0". BlitzNext continues with a guessed
-  value. (BUG-125)
 
 ---
 
@@ -146,16 +169,8 @@ are the most likely reason for an old program to behave strangely.
   - Code after an `Include` on the same line (`Include "a.bb" : Print "x"`) is dropped.
   - An `Include` after other statements on the same line is rejected.
   - The same file written in different case (`helper.bb`, `HELPER.BB`) is included twice.
-  - Nested includes resolve their path relative to the including file; Blitz3D resolves it
-    relative to the main program's directory.
-  - A missing include file prints a message but does not stop the build.
 
-  *Workaround:* put each `Include` on its own line, spell file names consistently, and keep
-  included files in the same directory as the main program. (BUG-94)
-- **Two functions with the same name are not reported.** Blitz3D stops with `duplicate
-  identifier`. Here the build fails later in the C++ compiler, or — if the names differ only in
-  case — succeeds, and it is unclear which function is called.
-  *Workaround:* give every function a unique name. (BUG-138)
+  *Workaround:* put each `Include` on its own line and spell file names consistently. (BUG-94)
 - **The type check treats an untagged variable as having the type of its first value.** In
   Blitz3D a variable created without a tag is always an integer. Valid programs are
   therefore rejected here: `x = 1.5` followed by a use of `x%` is reported as a type
@@ -167,9 +182,6 @@ are the most likely reason for an old program to behave strangely.
 - **An element of a fixed array as `For` counter** (`For v[0] = 1 To 3`) is rejected, and so
   is a chain of fields (`For a\b\c = …`). *Workaround:* count in a plain variable and assign
   it inside the loop. (BUG-160)
-- **Declaring the same `Local` twice is not reported.** Blitz3D stops with `Duplicate
-  variable name`; here the second declaration is accepted and, if its tag differs, ignored.
-  (BUG-161)
 - **Parameter defaults that use `Int()` or `Float()`** (`Function F(n = Int(1.9))`) are
   rejected as not constant. (BUG-49)
 - **`Const` with a conversion** (`Const c% = Int(1.9)`, `Const c = "42"`) fails in the C++
@@ -181,11 +193,6 @@ are the most likely reason for an old program to behave strangely.
 - **An empty source file** is rejected with "could not read file". (BUG-110)
 - **An unclosed string literal** (`Print "abc` without the closing quote) is rejected.
   Blitz3D accepts it — and drops the last character. (WEAK-12)
-- **Some invalid programs are accepted** that Blitz3D rejects:
-  division by a constant zero (`7 / 0`, BUG-75), a constant index outside a fixed
-  array (`Local a[3] : a[4] = 1`, which then writes out of bounds, BUG-78), an object
-  assigned to an untagged variable (BUG-80), and `Global x` after `x` has already been used
-  (BUG-81).
 - **Some errors are reported by the C++ compiler** instead of with a Blitz-style message,
   pointing into generated code. Every such case listed on this page is a bug. (WEAK-14)
 
@@ -209,8 +216,6 @@ are the most likely reason for an old program to behave strangely.
   rejected. (BUG-107)
 - **`Restore` inside a function** cannot reach a label in the main program; it is rejected
   as an undefined label. (BUG-87)
-- Typed `Read` and reading past the end: see
-  [Silently different results](#silently-different-results) (BUG-85).
 
 ---
 
@@ -218,11 +223,8 @@ are the most likely reason for an old program to behave strangely.
 
 - **`SystemProperty`** always returns an empty string (Blitz3D returns e.g. `"Intel"` for
   `"cpu"`). (BUG-122)
-- **`CallDLL`** does nothing and returns 0. BlitzNext produces 64-bit programs, so 32-bit
-  DLLs written for Blitz3D could not be loaded anyway. (BUG-123)
 - **`ShowPointer` and `HidePointer`** have no effect. (BUG-124)
-- Float printing, `WriteString`/`ReadString` and string parameter checks:
-  see [Silently different results](#silently-different-results).
+- `WriteString`/`ReadString`: see [Silently different results](#silently-different-results).
 
 ---
 
@@ -240,31 +242,14 @@ are the most likely reason for an old program to behave strangely.
 ## 3D graphics
 
 The 3D layer is under active development — see [ROADMAP3D.md](ROADMAP3D.md). Besides the
-[missing commands](#missing-commands), several of the demos that ship with Blitz3D show
-visibly wrong results because of the points below.
+[missing commands](#missing-commands):
 
 - **`CreateTexture` does not round sizes up to powers of two.** Blitz3D reports
   `TextureWidth` 32 for `CreateTexture(30,20)`; BlitzNext reports 30. Drawing into the texture
   buffer covers a different part of the surface. (BUG-143)
-- **Angles at the edge can come out with the other sign.** Rotations are stored as angles
-  here and as quaternions in Blitz3D, so after several turns `EntityRoll` may report -180
-  where Blitz3D reports 180 (the same orientation), and the last digits can differ. (BUG-150)
-- **Surfaces of some `.x` models come in a different order.** `GetSurface(mesh,1)` of the jet in
-  the Jet Tails demo has 187 triangles here and 4 in Blitz3D. (BUG-146)
-- **Without `AppTitle` the window is titled "BLTZNXT".** Blitz3D leaves the title empty. (BUG-147)
-- **Spherical environment mapping (texture flag 64) is ignored.** Chrome and reflection
-  effects show the texture as if it were mapped normally. (BUG-130)
 - **Changing the graphics mode keeps images and custom loader matrices.** Blitz3D frees all
   images and resets `LoaderMatrix` on `Graphics`, `Graphics3D` and `EndGraphics`. Programs
   written for Blitz3D reload their images after a mode change anyway. (BUG-140)
-- **`UpdateNormals`** averages per vertex index. Blitz3D also merges vertices at the same
-  position, so a cube gets rounded corner normals there and stays faceted here. (BUG-134)
-- **`.3ds` models** number their vertices differently (`TriangleVertex` returns 0,2,1 where
-  Blitz3D returns 0,1,2), and their normals are normalised where Blitz3D leaves them
-  unnormalised. (BUG-135)
-- **Texture paths inside `.x` models** are resolved relative to the model file. For paths
-  with a directory part (`Textures\Rock.bmp`) Blitz3D apparently does not load the
-  texture, so a model can end up with a different number of surfaces here. (BUG-76)
 
 ---
 
