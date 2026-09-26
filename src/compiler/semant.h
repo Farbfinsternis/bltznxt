@@ -373,10 +373,7 @@ private:
         // Funktion stehen, die es als Vorgabe benutzt - das Original nimmt das
         // an. Waehrend collect() laeuft, ist constNames_ noch unvollstaendig.
         for (auto &p : fn->params) {
-          if (p.defaultValue && !isConstExpr(p.defaultValue.get()))
-            error(p.defaultValue->line, p.defaultValue->col,
-                  "the default value of '" + p.name +
-                      "' must be a constant expression");
+          if (p.defaultValue) foldDefault(p);
           checkVecSize(p.vecSize.get(), p.name, fn->line, fn->col);
         }
         Scope local;
@@ -485,6 +482,42 @@ private:
         if (errors_ == before)
           error(line, col, "Illegal operator for type in a 'Data' value");
       }
+    }
+  }
+
+  // Vorgabewert eines Parameters: VarDeclNode::proto mit DECL_PARAM
+  // (compiler/declnode.cpp) faltet ihn wie ein Const und wandelt ihn in den
+  // Typ des Parameters - "F(n = Int(1.9))" ist 2, "F#(x# = 7/2)" ist 3.0,
+  // "F$(s$ = 1.5)" ist "1.5" (gemessen, build/default20260926). Ein Objekt-
+  // parameter kann keine Vorgabe haben: Null ist dort nicht konstant.
+  void foldDefault(FunctionDecl::Param &p) {
+    ExprNode *e = p.defaultValue.get();
+    ConstFolder folder([this](const std::string &name) -> const ConstVal * {
+      auto it = constValues_.find(name);
+      return it == constValues_.end() ? nullptr : &it->second;
+    });
+    ConstVal v;
+    ConstFolder::Result r = folder.fold(e, v);
+    if (r == ConstFolder::OK) {
+      ConstVal::Kind to = p.hint == "$" ? ConstVal::STR
+                        : p.hint == "#" ? ConstVal::FLOAT
+                                        : ConstVal::INT;
+      if (!p.hint.empty() && p.hint[0] == '.') {
+        error(e->line, e->col, "the default value of '" + p.name +
+                                   "' must be a constant expression");
+        return;
+      }
+      p.folded = v.castTo(to);
+    } else if (r == ConstFolder::DIV_ZERO) {
+      error(e->line, e->col,
+            "Division by zero in the default value of '" + p.name + "'");
+    } else if (r == ConstFolder::BAD_TYPE) {
+      error(e->line, e->col,
+            "Illegal operator for type in the default value of '" + p.name +
+                "'");
+    } else {
+      error(e->line, e->col, "the default value of '" + p.name +
+                                 "' must be a constant expression");
     }
   }
 

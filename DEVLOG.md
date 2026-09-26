@@ -38,6 +38,28 @@ running Blitz3D 11.8. The entries below this one describe each step; this is the
 
 ---
 
+## 2026-09-26 — Parameter defaults are folded like constants (BUG-49)
+
+A parameter default must be constant in Blitz3D, and it is folded like a `Const` and converted
+to the parameter's type (`VarDeclNode::proto` with `DECL_PARAM`). BlitzNext only checked the
+form of the expression and passed it on to C++, so `Function F(n = Int(1.9))` was rejected as not
+constant, and a division by zero crashed at the call. Defaults now go through the constant
+folder from BUG-99:
+
+- `Int`, `Float`, `Str`, `Abs` and `Sgn` are allowed: `F(n = Int(1.9))` is 2.
+- The value takes the parameter's type: `F#(x# = 7/2)` is 3.0 (integer division first),
+  `F$(s$ = 1.5)` is `"1.5"`, `F(n = "7" + 1)` is 71.
+- "Division by zero" and "Illegal operator for type" are reported at compile time.
+
+Measured in 11 programs with 27 defaults (`build/default20260926`), all match Blitz3D. In the
+sample programs only the written form of two defaults changes (`bb_ToFloat(1)` → `1.0f`), not
+their values.
+
+Test `test_bug49_vorgabe_faltung` with output recorded in Blitz3D, negative test
+`neg_bug49_division_by_zero`.
+
+---
+
 ## 2026-09-26 — `Data` takes constant expressions (BUG-107)
 
 `Data` accepted only single literals with an optional sign; `Data N + 1, Pi, True` was a syntax

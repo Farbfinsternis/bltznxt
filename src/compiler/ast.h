@@ -271,6 +271,9 @@ public:
     // Groesse gehoert zum Typ: ein a[3] an ein v[2] ist dort
     // "Illegal type conversion" (BUG-59).
     std::unique_ptr<ExprNode> vecSize;       // nullptr = einfacher Parameter
+    // Die Vorgabe, vom semantischen Pass gefaltet und in den Typ des
+    // Parameters gewandelt (BUG-49) - wie VarDeclNode::proto mit DECL_PARAM.
+    ConstVal folded;
   };
   std::string name;
   std::string returnHint; // #  %  !  $  .TypeName  or "" (= int, as in Blitz3D)

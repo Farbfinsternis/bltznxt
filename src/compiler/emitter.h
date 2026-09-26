@@ -761,7 +761,11 @@ public:
       output << " var_" << toLower(p.name);
       if (withDefaults && i >= firstTrailingDefault && p.defaultValue) {
         output << " = ";
-        emitConverted(p.defaultValue.get(), p.hint); // Zieltyp wie ueberall
+        // Schon gefaltet und im Typ des Parameters (BUG-49).
+        if (p.folded.ok())
+          output << constLiteral(p.folded);
+        else
+          emitConverted(p.defaultValue.get(), p.hint); // Zieltyp wie ueberall
       }
       if (i + 1 < node->params.size()) output << ", ";
     }
@@ -792,7 +796,8 @@ public:
     // type helper).
     auto savedObjectTypes = varObjectTypes;
     auto savedVarHints    = varHints_;
-    for (auto &[pname, phint, pdef, pvec] : node->params) {
+    for (auto &[pname, phint, pdef, pvec, pfold] : node->params) {
+      (void)pfold;
       (void)pdef; (void)pvec;
       std::string lo = pname;
       std::transform(lo.begin(), lo.end(), lo.begin(),

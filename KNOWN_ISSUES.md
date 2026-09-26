@@ -12,7 +12,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-09-26 — 19 open bugs.*
+*Last updated: 2026-09-26 — 18 open bugs.*
 
 If an old program breaks and the cause is not listed here, please open an issue with a
 minimal `.bb` file and a description of what happens in both.
@@ -175,8 +175,6 @@ are the most likely reason for an old program to behave strangely.
 - **An element of a fixed array as `For` counter** (`For v[0] = 1 To 3`) is rejected, and so
   is a chain of fields (`For a\b\c = …`). *Workaround:* count in a plain variable and assign
   it inside the loop. (BUG-160)
-- **Parameter defaults that use `Int()` or `Float()`** (`Function F(n = Int(1.9))`) are
-  rejected as not constant. (BUG-49)
 - **Integer literals wider than 32 bits** (`2147483648`, `$100000000`) are rejected, a
   decimal one only by the C++ compiler; Blitz3D wraps them around (`Print 2147483648`
   prints `-2147483648`). (BUG-11)
