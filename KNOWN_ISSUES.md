@@ -12,7 +12,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-09-24 — 21 open bugs.*
+*Last updated: 2026-09-26 — 20 open bugs.*
 
 If an old program breaks and the cause is not listed here, please open an issue with a
 minimal `.bb` file and a description of what happens in both.
@@ -140,8 +140,6 @@ everything that is available.
 These compile and run without any message, but compute something else than Blitz3D. They
 are the most likely reason for an old program to behave strangely.
 
-- **An untagged `Const` keeps a float value.** `Const c = 1.5` is the integer 2 in Blitz3D
-  and 1.5 here. *Workaround:* tag the constant (`Const c# = 1.5`). (BUG-99)
 - **Numbers with a leading zero are read as octal.** `Print 010` prints `8`; `08` does not
   compile at all. *Workaround:* remove leading zeros. (BUG-98)
 - **`WriteString` and `ReadString` use a different file format.** Blitz3D writes a 4-byte
@@ -179,12 +177,9 @@ are the most likely reason for an old program to behave strangely.
   it inside the loop. (BUG-160)
 - **Parameter defaults that use `Int()` or `Float()`** (`Function F(n = Int(1.9))`) are
   rejected as not constant. (BUG-49)
-- **`Const` with a conversion** (`Const c% = Int(1.9)`, `Const c = "42"`) fails in the C++
-  compiler, and a `Const` used as the size of a field array before it is declared is
-  rejected. *Workaround:* write the value directly and declare constants before types.
-  (BUG-99)
-- **Hex and binary literals wider than 32 bits** (`$100000000`) are rejected; Blitz3D
-  wraps them around. (BUG-11)
+- **Integer literals wider than 32 bits** (`2147483648`, `$100000000`) are rejected, a
+  decimal one only by the C++ compiler; Blitz3D wraps them around (`Print 2147483648`
+  prints `-2147483648`). (BUG-11)
 - **An empty source file** is rejected with "could not read file". (BUG-110)
 - **An unclosed string literal** (`Print "abc` without the closing quote) is rejected.
   Blitz3D accepts it — and drops the last character. (WEAK-12)

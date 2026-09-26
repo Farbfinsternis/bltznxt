@@ -1,0 +1,1 @@
+tests/neg_bug99_not_constant.bb:3:7: error: Expression must be constant: the value of 'c' may only use literals, Pi, True, False, constants declared above it, operators and Abs/Sgn/Int/Float/Str

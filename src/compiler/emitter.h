@@ -2068,6 +2068,13 @@ private:
         hoistedConsts_.insert(lo);
         constNames_.insert(lo);
         declaredVars.insert(lo); // never re-declared as an implicit variable
+        // Der semantische Pass hat den Wert schon gefaltet und in den Typ des
+        // Tags gewandelt (BUG-99): hier steht nur noch das fertige Literal,
+        // keine C++-Rechnung, die anders rundet oder nicht constexpr ist.
+        if (cd->folded.ok()) {
+          emitConstValue(lo, cd->folded);
+          continue;
+        }
         if (cd->typeHint == "$") {
           output << "const bbString var_" << lo << " = ";
         } else {
@@ -2081,6 +2088,35 @@ private:
         inExprCtx = prev;
         output << ";\n";
       }
+    }
+  }
+
+  void emitConstValue(const std::string &lo, const ConstVal &v) {
+    if (v.k == ConstVal::STR) {
+      output << "const bbString var_" << lo << " = bbString(\""
+             << escapeCppString(v.s) << "\");\n";
+    } else if (v.k == ConstVal::FLOAT) {
+      output << "constexpr float var_" << lo << " = ";
+      if (std::isnan(v.f))
+        output << "__builtin_nanf(\"\")";
+      else if (std::isinf(v.f))
+        output << (v.f < 0 ? "-" : "") << "__builtin_inff()";
+      else {
+        char buf[40];
+        std::snprintf(buf, sizeof(buf), "%.9g", static_cast<double>(v.f));
+        std::string s = buf;
+        if (s.find_first_of(".eEn") == std::string::npos) s += ".0";
+        output << s << "f";
+      }
+      output << ";\n";
+    } else {
+      // INT_MIN laesst sich in C++ nicht als Literal schreiben.
+      output << "constexpr int var_" << lo << " = ";
+      if (v.i == std::numeric_limits<int>::min())
+        output << "(-2147483647 - 1)";
+      else
+        output << v.i;
+      output << ";\n";
     }
   }
 

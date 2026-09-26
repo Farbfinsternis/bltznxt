@@ -1,0 +1,1 @@
+tests/neg_bug99_division_by_zero.bb:3:7: error: Division by zero in the value of the constant 'c'

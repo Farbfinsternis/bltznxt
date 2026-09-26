@@ -3,6 +3,7 @@
 
 #include "ast.h"
 #include "commands.h"
+#include "constfold.h"
 #include "lexer.h" // toLower
 #include "sourcemap.h"
 #include "suggest.h"
@@ -44,6 +45,8 @@ public:
     errors_     = 0;
     blockDepth_ = 0;
     constNames_.clear();
+    constValues_.clear();
+    constReported_.clear();
     types_.clear();
     typeNames_.clear();
     fieldNames_.clear();
@@ -51,6 +54,10 @@ public:
     arrays_.clear();
     globals_.clear();
 
+    // Vor allem anderen: das Original wertet alle Consts aus, bevor es
+    // Types, Globals oder Anweisungen ansieht - ein Feld "a[N]" darf vor
+    // "Const N" stehen, ein Const aber nicht auf ein spaeteres zeigen.
+    foldConsts(prog->nodes);
     collect(prog->nodes);
 
     // Die Labels des Hauptprogramms - ohne die der Funktionen, die ihre
@@ -210,6 +217,61 @@ private:
     error(line, col, "Undefined label '" + name + "'");
   }
 
+  // Alle Consts des Hauptprogramms in Quelltextreihenfolge falten, wie
+  // VarDeclNode::proto der Referenz (compiler/declnode.cpp): Ausdruck
+  // falten, in den Typ des Tags wandeln - ohne Tag int -, und nur dieser Wert
+  // gilt fortan (BUG-99). Ein Const in einem Block oder einer Funktion meldet
+  // stmt(); hier bleibt es unbeachtet.
+  void foldConsts(const std::vector<std::unique_ptr<ASTNode>> &nodes) {
+    for (auto &n : nodes) {
+      if (auto *pr = dynamic_cast<Program *>(n.get())) {
+        foldConsts(pr->nodes);
+        continue;
+      }
+      auto *cd = dynamic_cast<ConstDecl *>(n.get());
+      if (!cd) continue;
+      const std::string lo = toLower(cd->name);
+      if (constValues_.count(lo)) {
+        error(cd->line, cd->col,
+              "Duplicate variable name: the constant '" + cd->name +
+                  "' is already declared");
+        constReported_.insert(cd);
+        continue;
+      }
+      bool viaBad = false; // haengt an einem schon gemeldeten Const
+      ConstFolder folder([this, &viaBad](const std::string &name)
+                             -> const ConstVal * {
+        auto it = constValues_.find(name);
+        if (it == constValues_.end()) return nullptr;
+        if (!it->second.ok()) viaBad = true;
+        return &it->second;
+      });
+      ConstVal v;
+      ConstFolder::Result r = folder.fold(cd->value.get(), v);
+      if (r == ConstFolder::OK) {
+        ConstVal::Kind to = cd->typeHint == "$" ? ConstVal::STR
+                          : cd->typeHint == "#" ? ConstVal::FLOAT
+                                                : ConstVal::INT;
+        cd->folded = v.castTo(to);
+      } else if (viaBad) {
+        constReported_.insert(cd);
+      } else if (r == ConstFolder::DIV_ZERO) {
+        error(cd->line, cd->col,
+              "Division by zero in the value of the constant '" + cd->name +
+                  "'");
+        constReported_.insert(cd);
+      } else if (r == ConstFolder::NOT_CONST) {
+        error(cd->line, cd->col,
+              "Expression must be constant: the value of '" + cd->name +
+                  "' may only use literals, Pi, True, False, constants "
+                  "declared above it, operators and Abs/Sgn/Int/Float/Str");
+        constReported_.insert(cd);
+      }
+      // BAD_TYPE meldet stmt() ueber expr() mit dem ueblichen Wortlaut.
+      constValues_[lo] = cd->folded;
+    }
+  }
+
   void collect(const std::vector<std::unique_ptr<ASTNode>> &nodes) {
     for (auto &n : nodes) {
       if (auto *td = dynamic_cast<TypeDecl *>(n.get())) {
@@ -280,8 +342,11 @@ private:
     if (auto *ue = dynamic_cast<UnaryExpr *>(e)) return isConstExpr(ue->expr.get());
     if (auto *be = dynamic_cast<BinaryExpr *>(e))
       return isConstExpr(be->left.get()) && isConstExpr(be->right.get());
+    // constValues_ ist schon vor collect() vollstaendig (foldConsts), ein
+    // Feld "a[N]" vor "Const N" ist also konstant - wie im Original.
     if (auto *ve = dynamic_cast<VarExpr *>(e))
-      return constNames_.count(toLower(ve->name)) > 0;
+      return constNames_.count(toLower(ve->name)) > 0 ||
+             constValues_.count(toLower(ve->name)) > 0;
     return false;
   }
 
@@ -378,6 +443,17 @@ private:
     std::string lo = toLower(name);
     if (globals_.count(lo)) return; // globals win, as in the emitter
     (*scope_)[lo] = t;
+  }
+
+  // "Constants can not be assigned to" (IdentVarNode::semant der Referenz)
+  // - fuer jede Stelle, die schreibt. Ein Local gleichen Namens in einer
+  // Funktion verdeckt den Const und darf beschrieben werden.
+  void checkNotConst(const std::string &name, int line, int col,
+                     const char *what = "Constants can not be assigned to") {
+    std::string lo = toLower(name);
+    if (scope_ && scope_->count(lo)) return;
+    if (!constNames_.count(lo)) return;
+    error(line, col, std::string(what) + ": '" + name + "' is a constant");
   }
 
   // A tag that contradicts the variable's type — varnode.cpp rejects this.
@@ -522,7 +598,19 @@ private:
               "'Global' is only allowed at the top level of the main program, "
               "not inside a block and not inside a function - declare '" +
                   vd->name + "' there and assign to it here");
-      if (vd->scope == VarDecl::LOCAL) declare(vd->name, t);
+      // Consts teilen sich den Namensraum mit den Globals und den Locals des
+      // Hauptprogramms; nur in einer Funktion darf ein Local sie verdecken.
+      if ((vd->scope == VarDecl::GLOBAL || !inFunction_) &&
+          constValues_.count(toLower(vd->name)))
+        error(vd->line, vd->col,
+              "Duplicate variable name: '" + vd->name +
+                  "' is already declared as a constant");
+      // Ein Local verdeckt einen Const gleichen Namens (gemessen); declare()
+      // liesse sonst den Const gewinnen, und "c = 5" danach waere eine
+      // Zuweisung an ihn.
+      if (vd->scope == VarDecl::LOCAL && constNames_.count(toLower(vd->name)))
+        (*scope_)[toLower(vd->name)] = t;
+      else if (vd->scope == VarDecl::LOCAL) declare(vd->name, t);
       if (vd->initValue)
         checkAssign(t, expr(vd->initValue.get()), "Local", vd->line, vd->col);
       // "Local a[3] = 1" gibt es nicht: der Parser laesst Groesse und
@@ -533,9 +621,18 @@ private:
               "'Const' is only allowed at the top level of the main program, "
               "not inside a block and not inside a function - move the "
               "declaration of '" + cd->name + "' there");
+      int before = errors_;
       if (cd->value) expr(cd->value.get());
+      // Ein Typfehler, den expr() nicht kennt (etwa Abs auf einem String):
+      // ohne diese Meldung liefe der Const ungefaltet bis zu g++.
+      if (!cd->folded.ok() && errors_ == before && !constReported_.count(cd) &&
+          blockDepth_ == 0 && !inFunction_)
+        error(cd->line, cd->col,
+              "Illegal operator for type in the value of the constant '" +
+                  cd->name + "'");
     } else if (auto *as = dynamic_cast<AssignStmt *>(n)) {
       Ty val = expr(as->value.get());
+      checkNotConst(as->name, as->line, as->col);
       const Ty *known = lookup(as->name);
       if (known) {
         if (!checkTag(as->name, as->typeHint, as->line, as->col)) {
@@ -561,6 +658,7 @@ private:
         declare(as->name, as->typeHint.empty() ? val : fromHint(as->typeHint));
       }
     } else if (auto *rd = dynamic_cast<ReadStmt *>(n)) {
+      checkNotConst(rd->name, rd->line, rd->col, "Constants can not be modified");
       if (lookup(rd->name)) checkTag(rd->name, rd->typeHint, rd->line, rd->col);
       else declare(rd->name, fromHint(rd->typeHint));
     // Die drei Anweisungen mit einem Sprungziel (BUG-87). `Restore` ohne
@@ -627,6 +725,8 @@ private:
       if (fs->target) {
         counter = expr(fs->target.get());
       } else if (const Ty *had = lookup(fs->varName)) {
+        checkNotConst(fs->varName, fs->line, fs->col,
+                      "Index variable can not be constant");
         checkTag(fs->varName, fs->typeHint, fs->line, fs->col);
         counter = *had;
       } else {
@@ -1106,6 +1206,8 @@ private:
   Ty                                         returnType_;
   bool                                       inFunction_ = false;
   std::unordered_set<std::string>            constNames_;
+  std::unordered_map<std::string, ConstVal>  constValues_; // gefaltete Consts
+  std::unordered_set<const ConstDecl *>      constReported_;
   std::unordered_map<std::string, Sig>       sigCache_;
 };
 

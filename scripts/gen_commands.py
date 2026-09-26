@@ -42,7 +42,7 @@ SIG_RE = re.compile(r"^inline\s+(void|int|float|double|bool|bbString|bb_Ext)\s+"
 
 # Print, Write, Min und Max nehmen in der Runtime jeden Typ (Templates). Der
 # Typ ist damit nicht festgelegt — '.' heisst hier wie sonst 'beliebig'.
-TEMPLATE_RE = re.compile(r"^template\s*<[^>]*>\s*inline\s+[A-Za-z_][\w:<>&, ]*?\s+"
+TEMPLATE_RE = re.compile(r"^template\s*<[^>]*>\s*inline\s+([A-Za-z_][\w:<>&, ]*?)\s+"
                          r"bb_([A-Z][A-Za-z0-9_]*)\s*\(", re.MULTILINE)
 
 # Keine Konstanten in dieser Tabelle. Pi ist in Blitz3D ein reserviertes Wort
@@ -129,10 +129,10 @@ def scan_header(path):
             params.append(parsed)
         if not ok:
             continue
-        found.append((name, RET_MAP[m.group(1)], params))
+        found.append((name, RET_MAP[m.group(1)], params, False))
 
     for m in TEMPLATE_RE.finditer(src):
-        name = m.group(1)
+        name = m.group(2)
         if name in SKIP or name.endswith("_"):
             continue
         i = src.index("(", m.start())
@@ -149,7 +149,9 @@ def scan_header(path):
         for idx, p in enumerate(split_params(src[i + 1:j]), 1):
             pm = re.match(r"^.*?([A-Za-z_][A-Za-z0-9_]*)$", p.split("=")[0].strip())
             params.append((pm.group(1) if pm else "arg%d" % idx, ".", "=" in p))
-        found.append((name, ".", params))
+        # Ein Template mit festem Rueckgabetyp (bb_Str(const bb_ref<T>&)
+        # liefert bbString) behaelt ihn; nur ein abhaengiger wird '.'.
+        found.append((name, RET_MAP.get(m.group(1).strip(), "."), params, True))
     return found
 
 
@@ -280,9 +282,13 @@ def render(merged):
 def main():
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     headers = sorted(glob.glob(os.path.join(root, "src", "compiler", "bb_*.h")))
-    entries = []
+    found = []
     for h in headers:
-        entries += scan_header(h)
+        found += scan_header(h)
+    # Templates zuletzt: die gewoehnlichen Ueberladungen geben die
+    # Parameternamen vor, gleich in welchem Header das Template steht
+    # (bb_object.h kommt alphabetisch vor bb_string.h).
+    entries = [e[:3] for e in found if not e[3]] + [e[:3] for e in found if e[3]]
     for cname, cret in CONSTANTS:
         entries.append((cname, cret, []))
     merged = merge(entries)

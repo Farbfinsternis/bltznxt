@@ -1,6 +1,7 @@
 #ifndef BLITZNEXT_AST_H
 #define BLITZNEXT_AST_H
 
+#include "constval.h"
 #include "token.h"
 #include <memory>
 #include <string>
@@ -292,6 +293,9 @@ public:
   std::string name;
   std::string typeHint; // %  #  $  or ""
   std::unique_ptr<ExprNode> value;
+  // Vom semantischen Pass gefalteter Wert, schon im Typ des Tags (ohne Tag
+  // int). Der Emitter schreibt nur noch diesen Wert (BUG-99).
+  ConstVal folded;
   ConstDecl(std::string n, std::string th, std::unique_ptr<ExprNode> val)
       : name(std::move(n)), typeHint(std::move(th)), value(std::move(val)) {}
   void accept(ASTVisitor *v) override { v->visit(this); }

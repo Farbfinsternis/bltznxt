@@ -1,0 +1,1 @@
+tests/neg_bug99_assign.bb:5:1: error: Constants can not be assigned to: 'c' is a constant

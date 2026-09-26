@@ -1,0 +1,1 @@
+tests/neg_bug99_duplicate.bb:4:7: error: Duplicate variable name: the constant 'c' is already declared

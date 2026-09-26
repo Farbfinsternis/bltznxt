@@ -38,6 +38,50 @@ running Blitz3D 11.8. The entries below this one describe each step; this is the
 
 ---
 
+## 2026-09-26 — Constants are folded like Blitz3D (BUG-99)
+
+`Const c = 1.5` is the integer 2 in Blitz3D and was 1.5 here. The compiler passed a `Const`
+on to C++ as `constexpr auto`, so the value kept whatever type C++ gave it, and anything C++
+cannot compute at compile time (`Int(1.9)`, `"42"` as a number, `N + M` into a string) failed
+in g++. Now the semantic pass folds every `Const` the way Blitz3D's compiler does
+(`VarDeclNode::proto` and the `semant` methods in `exprnode.cpp`), and the emitter writes only
+the finished literal:
+
+- **No tag means int.** The value is converted to the tag's type after folding: floats round
+  to the nearest integer, halves to even (`2.5` → 2, `-1.5` → -2); strings convert like `atoi`
+  and `atof`; numbers become strings like `Str`.
+- **Folding follows the runtime rules:** integer division truncates, `^` is always a float,
+  `Mod` keeps the sign of the left side, `And`/`Or`/`Shl`/... convert both sides to int,
+  comparisons give 0 or 1, `"7" + 1` is `"71"`, overflow wraps around.
+- **Constant expressions are** literals, `Pi`, `True`, `False`, constants declared further up, operators
+  and `Abs`/`Sgn`/`Int`/`Float`/`Str`. Anything else — `Len`, `Sin`, `MilliSecs`, a
+  variable, a constant declared further down — is "Expression must be constant", with a
+  Blitz-style message instead of a g++ error. So are "Division by zero", "Duplicate variable
+  name" (a second `Const`, a `Global` or main-program `Local` of the same name — the second
+  `Const` used to be ignored silently), "Constants can not be assigned to", "Constants can not
+  be modified" (`Read`) and "Index variable can not be constant" (`For`).
+- **All constants are known before anything else**, so a field array `Field a[N]` may come
+  before `Const N`. A `Local` in a function still hides a constant of the same name.
+
+Every value the constant is used in follows: parameter defaults (`G#(a# = K)` with
+`Const K = 1.5` gives 2.0), `Global g# = K`, fixed array sizes and `Step` (`Const S = 0.5` is 0,
+and the loop does not run — as in Blitz3D). The conversions `ftoa` and float-to-int moved from
+`bb_string.h` into `bb_numconv.h`, so compiler and runtime share one implementation.
+
+Measured in 58 small programs (`build/const20260926`), 91 folded values among them; 56 give the
+same output as Blitz3D. The two left are `Data` with a constant (BUG-107, next) and decimal
+integer literals wider than 32 bits, which Blitz3D wraps around (`Print 2147483648` prints
+`-2147483648`) and we reject in g++ — added to BUG-11.
+
+Also fixed: `scripts/gen_commands.py` gave `Str` an unknown return type since the template
+`bb_Str(const bb_ref<T>&)` of BUG-181; a template with a fixed return type now keeps it.
+
+Test `test_bug99_const_faltung` with output recorded in Blitz3D, negative tests
+`neg_bug99_not_constant`, `neg_bug99_forward`, `neg_bug99_division_by_zero`,
+`neg_bug99_duplicate` and `neg_bug99_assign`.
+
+---
+
 ## 2026-09-24 — The type system, checked against Blitz3D (BUG-105, BUG-102, BUG-101, BUG-181)
 
 After BUG-104, the whole type system was put through 39 small programs, each run in Blitz3D

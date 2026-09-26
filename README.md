@@ -58,7 +58,7 @@ an old program is a bug.
 | **Built-in commands** | 463 entries in `src/compiler/commands.h`, including extensions; this counts signatures, not verified behaviour |
 | **2D milestones** | Milestones 6–46 complete ([roadmap.md](roadmap.md)) |
 | **3D runtime** | Meshes, surfaces, brushes, sprites, mirrors, MD2 models, collisions and line/entity picking available; remaining work in [ROADMAP3D.md](ROADMAP3D.md) |
-| **Known deviations** | 21 open bugs that can break an old program, all reproduced against Blitz3D 11.8; accepted differences listed separately ([KNOWN_ISSUES.md](KNOWN_ISSUES.md)) |
+| **Known deviations** | 20 open bugs that can break an old program, all reproduced against Blitz3D 11.8; accepted differences listed separately ([KNOWN_ISSUES.md](KNOWN_ISSUES.md)) |
 | **Primary integration test** | blox-n-balls: all 26 source files unchanged; loads, menus work, levels can be played; complete gameplay not yet verified |
 
 Compatibility is measured, not estimated: questions about the language are answered from the
@@ -308,11 +308,14 @@ src/compiler/
   ast.h             ← AST node definitions
   parser.h          ← recursive-descent parser
   semant.h          ← semantic pass: symbol tables, types, arity
+  constfold.h       ← folds Const values at compile time, as Blitz3D does
+  constval.h        ← a folded int/float/string value and its conversions
   commands.h        ← built-in command table (generated, see scripts/)
   emitter.h         ← C++17 code generator (Visitor)
   bb_runtime.h      ← core runtime (types, data, I/O)
   bb_math.h         ← math functions
   bb_string.h       ← string functions
+  bb_numconv.h      ← float → string and float → int as Blitz3D (runtime and compiler)
   bb_system.h       ← time, system, process
   bb_file.h         ← file I/O
   bb_socket.h       ← TCP streams and hostname lookup
