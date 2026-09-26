@@ -1,6 +1,6 @@
 # BLTZNXT — Vision
 
-Stand: 2026-09-22
+Stand: 2026-09-26
 
 Der Wert von BLTZNXT liegt in der Kompatibilität, nicht in PBR: zwanzig Jahre Blitz3D-Code
 laufen wieder auf Maschinen ohne DX7. Das kann keine andere Engine nachbauen, und das NEXT
@@ -66,6 +66,70 @@ Der Ersatz im NEXT hat andere Anforderungen:
 - Das Plugin meldet sich selbst an, mit Versionskennung, statt in einer Textdatei daneben deklariert
   zu werden — eine veraltete Erweiterung wird erkannt, statt abzustürzen.
 
+## Netzwerk: Mehrspieler ohne eigenen Server (Entwurf, 2026-09-26)
+
+Ziel: Online-Spiele, für die der Entwickler keinen Spielserver betreibt. „Ganz ohne Server" geht
+dabei im Internet praktisch nie — zwei Rechner hinter Routern (NAT) finden sich nicht von selbst.
+Es braucht immer einen **Treffpunkt**, über den sich die Spieler zum ersten Mal erreichen
+(Signaling), und für einen Teil der Anschlüsse einen **Umweg** über ein Relay. „Serverless" heißt
+hier deshalb: kein eigener Spielserver. Das Spiel läuft zwischen den Spielern, der Treffpunkt ist
+klein oder wird von anderen betrieben.
+
+### Ausgangslage
+
+TCP ist vorhanden (`OpenTCPStream`, `CreateTCPServer` …). Es fehlen alle UDP-Befehle und das
+DirectPlay-Set von Blitz3D (`StartNetGame`, `HostNetGame`, `JoinNetGame`, `CreateNetPlayer`,
+`SendNetMsg`, `RecvNetMsg`, `NetMsgType` …, siehe [KNOWN_ISSUES.md](KNOWN_ISSUES.md)). Genau
+dieses Set war in Blitz3D die Mehrspieler-Schicht, und es hatte schon das, was ein Spiel ohne
+Server braucht: ein Spieler hostet, die anderen treten bei, Spieler kommen und gehen als
+Nachrichten, und fällt der Host weg, übernimmt ein anderer (Host-Migration).
+
+### Die Wege
+
+| Weg | Was | Stärke | Grenze |
+|---|---|---|---|
+| **UDP + DirectPlay nachbauen** | Die alten Befehle auf eigenem UDP, zuverlässige und schnelle Nachrichten | Alte Mehrspieler-Programme laufen wieder; LAN und direkte IP sofort | Übers Internet scheitert es an NAT, solange kein Treffpunkt dazukommt |
+| **WebRTC-Datenkanäle** | Peer-to-Peer mit ICE/STUN, TURN als Umweg; nativ z. B. über `libdatachannel` (C++, MPL-2.0) | Der Standardweg durch NAT; derselbe Transport läuft im Browser | Für einen Teil der Verbindungen ist TURN nötig — das kostet Bandbreite und braucht einen Betreiber |
+| **Plattform-Dienste** | Steam Networking Sockets, Epic Online Services (P2P mit Relay und Lobbys) | NAT ist gelöst, nichts selbst zu betreiben | Bindung an Anbieter, SDK und Konto — gehört ins Plugin-System, nicht in den Kern |
+| **Serverless im Cloud-Sinn** | Ein Raum je Spiel bei Cloudflare Durable Objects, AWS Lambda o. ä., per WebSocket | Robust gegen NAT und Cheating, kein eigener Betrieb | Technisch Client-Server, und nicht kostenlos |
+
+Der Treffpunkt für WebRTC lässt sich austauschbar machen: LAN-Broadcast, ein Beitrittscode, den
+die Spieler austauschen, öffentliche Infrastruktur als Briefkasten (BitTorrent-Tracker,
+Nostr-Relays, MQTT-Broker — so arbeitet die JS-Bibliothek Trystero) oder ein eigener kleiner
+Signaling-Dienst. STUN-Server gibt es öffentlich; TURN bleibt eine Einstellung, die ein Spiel
+setzen kann, aber nicht muss.
+
+### Vorschlag
+
+1. **Phase 1: UDP und DirectPlay nachbauen.** Das ist Kompatibilität, nicht NEXT — alte Programme
+   brauchen genau diese Befehle. Vorher am Original messen: Nachrichtentypen und ihre Reihenfolge,
+   was beim Beitreten und Verlassen ankommt, Host-Wechsel, Verhalten bei Verbindungsabbruch.
+   DirectPlay selbst gibt es auf aktuellen Systemen nicht mehr; nachgebaut wird das Verhalten,
+   nicht die Bibliothek.
+2. **NEXT: WebRTC als Transport darunter.** Die DirectPlay-Schicht und eine neue, einfache API
+   benutzen denselben Weg; alte Programme bekommen Internet-Mehrspieler ohne Änderung, sobald
+   ein Treffpunkt eingestellt ist. Im Browser ist es derselbe Transport.
+3. **Plugins für Steam und EOS**, sobald das neue Plugin-System steht.
+
+Eine neue API im Stil von Blitz könnte so aussehen (Skizze, nichts davon festgelegt):
+
+```blitzbasic
+room = NetOpen("meinspiel", "raum42")   ; hosten oder beitreten, über einen Code
+NetSend room, player, bank, reliable     ; zuverlässig oder schnell
+While NetRecv(room)
+  Select NetEvent(room)
+    Case NET_JOIN  : ...
+    Case NET_LEAVE : ...
+    Case NET_DATA  : ...
+  End Select
+Wend
+```
+
+Dazu gehören zwei Kanalarten (zuverlässig und geordnet, schnell und verlustbehaftet), Ereignisse
+für kommende und gehende Spieler, Host-Migration und optional Hilfen für Lockstep oder
+Zustandsabgleich. Offen bleibt bei jedem Peer-to-Peer-Modell das Cheating: ohne Server hilft nur
+Vertrauen oder gegenseitige Prüfung.
+
 ## Die Naht zwischen alt und neu
 
 PBR ist doch ein Architekturthema — nur nicht dort, wo [ROADMAP3D.md](ROADMAP3D.md) es verortet.
@@ -97,21 +161,24 @@ Die Liste GLTF/PBR/Shader ist richtig, aber in dieser Reihenfolge falsch sortier
 | 3 | glTF | Der Behälter, der genau diese Materialien transportiert. Vorher gebaut lädt man Modelle, die man nicht korrekt schattieren kann |
 | 4 | Eigene Shader | Permanente API-Festlegung — zuletzt, mit Bedacht |
 | 5 | Neues Userlib-System | Plattformübergreifend statt Windows-only. Nach den Shadern, weil eine Erweiterung dieselben Materialien ansprechen können soll wie die Engine |
+| — | Netzwerk über WebRTC (Entwurf) | Unabhängig von der Grafik-Reihe; setzt den DirectPlay-Nachbau aus Phase 1 voraus. Steam/EOS erst nach Schritt 5 |
 
 GLSL als API freizugeben legt BLTZNXT auf OpenGL fest, solange es das Projekt gibt: kein Vulkan,
 kein WebGPU, kein Metal. Das darf eine Entscheidung sein, aber eine bewusste.
 
 ## Offene Entscheidungen
 
-Vier Fragen stehen vor dem ersten Schritt. Keine davon ist technisch schwer, alle färben auf Jahre
+Vier Fragen stehen vor dem ersten Schritt, eine fünfte vor dem Netzwerk. Keine davon ist technisch schwer, alle färben auf Jahre
 ab.
 
 - [ ] Welcher Korpus definiert „Phase 1 fertig"? Welche Demos, welche Spiele?
 - [ ] Was heißt „aktuelle Systeme": Windows allein, oder auch Linux, macOS, Browser?
 - [ ] Wo liegt der Schalter zwischen altem und modernem Pfad — pro Programm oder pro Kamera?
 - [ ] Wird GLSL die Shader-API, mit der Festlegung auf OpenGL?
+- [ ] Netzwerk (Entwurf oben): welcher Treffpunkt ist die Vorgabe, und wer betreibt TURN — das
+  Projekt, der Spieleentwickler oder niemand?
 
-Eine fünfte ist entschieden: Userlibs gehören nicht zum Anspruch (2026-09-22, siehe oben).
+Eine weitere ist entschieden: Userlibs gehören nicht zum Anspruch (2026-09-22, siehe oben).
 
 Ein Gedanke zum Schluss, weil er in der Liste fehlt: Wäre es meine Engine, stünde **vor** PBR der
 Browser. BLTZNXT ist ein Transpiler nach C++, Emscripten ist damit näher, als es aussieht — und
