@@ -38,6 +38,21 @@ bewusst herausgeschnitten:
 | Zielplattformen | Der Compiler hängt an der Windows-API (WEAK-24), `build_linux.sh` baut nicht | Offen: wenn „aktuelle Systeme" Linux, macOS oder den Browser einschließt, ist das Phase 1 und nicht NEXT |
 | Userlibs (`.decls`) | Nicht unterstützt, `userlibs/` bleibt leer | Entschieden am 2026-09-22: harter Schnitt, Ersatz im NEXT — siehe unten |
 
+## Leuchtturm: Neues mit dem alten Renderer
+
+blox-n-balls beweist, dass alter Code läuft. Es beweist nicht, dass man mit BLTZNXT heute etwas
+Neues bauen kann — dafür braucht es einen Leuchtturm: einen kleinen Arena-Shooter im Stil von
+Quake III, geschrieben als gewöhnliches Blitz3D-Programm auf dem Blitz3D-kompatiblen Renderer. Neu
+sind nur die Daten: Karte, Waffen und Items kommen aus Blender. Umfang und Plan stehen in
+[LEUCHTTURM.md](LEUCHTTURM.md).
+
+Daraus folgt eine Einordnung von **glTF in zwei Stufen**. Die Formate, die Blitz3D liest — `.x`,
+`.3ds`, `.md2`, `.b3d` —, schreibt heute kaum ein Werkzeug noch. glTF kommt deshalb zuerst als
+**Eingangsformat für den alten Pfad**: Der Lader liest, was der Blitz3D-Renderer darstellen kann
+(Geometrie, Hierarchie, Brushes, zwei UV-Sätze, Knochen und Animationen), und lässt PBR-Anteile
+liegen. Wählt ein Programm später den modernen Pfad, liest derselbe Lader aus derselben Datei auch
+die Materialien. Die alten Lader bleiben; sie sind Phase 1.
+
 ## Userlibs: Schnitt jetzt, Neubau im NEXT
 
 Das alte Userlib-System wird nicht nachgebaut. Blitz3D erweitert seinen Befehlssatz über
@@ -111,6 +126,13 @@ setzen kann, aber nicht muss.
    ein Treffpunkt eingestellt ist. Im Browser ist es derselbe Transport.
 3. **Plugins für Steam und EOS**, sobald das neue Plugin-System steht.
 
+Für einen Shooter wie den [Leuchtturm](LEUCHTTURM.md) heißt „ohne eigenen Server" **Listen-Server**:
+Ein Spieler hostet und rechnet die Welt, die anderen schicken Eingaben und bekommen Schnappschüsse,
+sagen die eigene Bewegung voraus und interpolieren die übrigen. Die Verbindungen bilden einen Stern
+um den Host, kein Netz jeder mit jedem, und die Schnappschüsse brauchen einen unzuverlässigen,
+ungeordneten Kanal — WebRTC kann das, TCP nicht. Host-Migration ist bei diesem Modell schwer; für
+den Anfang endet die Runde, wenn der Host geht.
+
 Eine neue API im Stil von Blitz könnte so aussehen (Skizze, nichts davon festgelegt):
 
 ```blitzbasic
@@ -158,7 +180,7 @@ Die Liste GLTF/PBR/Shader ist richtig, aber in dieser Reihenfolge falsch sortier
 |---|---|---|
 | 1 | Farbraum und Tonemapping als Schalter | Unsichtbar, aber Voraussetzung für alles Weitere. Legt die Naht fest, bevor Features daran hängen |
 | 2 | Materialmodell und IBL | Das eigentliche PBR. Mit vorhandenen Meshes testbar, ohne neues Dateiformat |
-| 3 | glTF | Der Behälter, der genau diese Materialien transportiert. Vorher gebaut lädt man Modelle, die man nicht korrekt schattieren kann |
+| 3 | glTF, vollständig | Der Behälter, der genau diese Materialien transportiert. Im alten Pfad liest der Lader glTF schon vorher, für den Leuchtturm — hier kommen die Materialien dazu |
 | 4 | Eigene Shader | Permanente API-Festlegung — zuletzt, mit Bedacht |
 | 5 | Neues Userlib-System | Plattformübergreifend statt Windows-only. Nach den Shadern, weil eine Erweiterung dieselben Materialien ansprechen können soll wie die Engine |
 | — | Netzwerk über WebRTC (Entwurf) | Unabhängig von der Grafik-Reihe; setzt den DirectPlay-Nachbau aus Phase 1 voraus. Steam/EOS erst nach Schritt 5 |
