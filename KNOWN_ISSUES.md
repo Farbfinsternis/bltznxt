@@ -12,7 +12,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-09-26 — 20 open bugs.*
+*Last updated: 2026-09-26 — 19 open bugs.*
 
 If an old program breaks and the cause is not listed here, please open an issue with a
 minimal `.bb` file and a description of what happens in both.
@@ -191,8 +191,6 @@ are the most likely reason for an old program to behave strangely.
 
 ## Data, Read and Restore
 
-- **`Data` accepts only literals.** Constants and expressions (`Data N + 1, Pi, True`) are
-  rejected. (BUG-107)
 - **`Restore` inside a function** cannot reach a label in the main program; it is rejected
   as an undefined label. (BUG-87)
 

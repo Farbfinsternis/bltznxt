@@ -373,7 +373,11 @@ public:
 // Data 1, 2.5, "x"  — list of literal tokens
 class DataStmt : public StmtNode {
 public:
-  std::vector<Token> values; // INT_LIT, FLOAT_LIT, STRING_LIT
+  // Jeder Wert ist ein Ausdruck, der konstant sein muss - wie im Original,
+  // das ihn mit parseExpr liest und in DataDeclNode::proto faltet (BUG-107).
+  std::vector<std::unique_ptr<ExprNode>> exprs;
+  // Vom semantischen Pass gefaltet, einer je Ausdruck, im Typ des Ausdrucks.
+  std::vector<ConstVal> folded;
   void accept(ASTVisitor *v) override { v->visit(this); }
 };
 

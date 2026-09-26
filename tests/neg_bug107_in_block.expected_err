@@ -1,0 +1,1 @@
+tests/neg_bug107_in_block.bb:4:3: error: 'Data' is only allowed at the top level of the main program, not inside a block and not inside a function

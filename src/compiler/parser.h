@@ -1421,29 +1421,28 @@ private:
 
   // ------------------------------------------------------------------ DATA
 
+  // "Data" liest eine Liste von Ausdruecken wie parseStmtSeq im Original
+  // (case DATA: ... parseExpr( false ) ...). Ob sie konstant sind, prueft
+  // der semantische Pass; hier genuegt die Form. Frueher nahm der Parser nur
+  // einzelne Literale mit Vorzeichen, "Data N+1, Pi" war ein Syntaxfehler
+  // (BUG-107).
   std::unique_ptr<DataStmt> parseData() {
-    int ln = peek().line;
-    advance(); // DATA
+    Token dt = advance(); // DATA
     auto ds  = std::make_unique<DataStmt>();
-    ds->line = ln;
+    ds->line = dt.line;
+    ds->col  = dt.col;
     while (true) {
       Token t = peek();
-      // Handle optional sign for negative numeric literals
-      std::string sign;
-      if (t.type == TokenType::OPERATOR &&
-          (t.value == "-" || t.value == "+")) {
-        sign = t.value;
-        advance();
-        t = peek();
+      if (t.type == TokenType::NEWLINE || t.type == TokenType::EOF_TOKEN ||
+          (t.type == TokenType::OPERATOR && (t.value == ":" || t.value == ","))) {
+        error(t.line ? t.line : dt.line, t.line ? t.col : dt.col,
+              "Expecting expression: 'Data' needs a value here");
+        break;
       }
-      if (t.type == TokenType::INT_LIT || t.type == TokenType::FLOAT_LIT ||
-          t.type == TokenType::STRING_LIT) {
-        Token lit = advance();
-        if (!sign.empty()) lit.value = sign + lit.value;
-        ds->values.push_back(lit);
-      } else {
-        break; // no more data items
-      }
+      auto e = parseExpr();
+      if (e && e->line == 0) { e->line = t.line; e->col = t.col; }
+      if (e && e->col == 0 && e->line == t.line) e->col = t.col;
+      ds->exprs.push_back(std::move(e));
       if (peek().type == TokenType::OPERATOR && peek().value == ",")
         advance();
       else

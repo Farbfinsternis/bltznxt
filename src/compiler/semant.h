@@ -445,6 +445,49 @@ private:
     (*scope_)[lo] = t;
   }
 
+  // Data wie DataDeclNode::proto (compiler/declnode.cpp): jeder Wert wird
+  // gefaltet und behaelt den Typ seines Ausdrucks - "Data 7/2" ist die
+  // Ganzzahl 3, "Data 7/2.0" die Kommazahl 3.5; gewandelt wird erst beim Read.
+  // Die Consts sind dann schon alle bekannt, "Data K" darf also vor
+  // "Const K" stehen (gemessen, build/data20260926). Nur im Hauptprogramm
+  // selbst: parseStmtSeq meldet "'Data' can only appear in main program"
+  // auch in einem If-Block.
+  void checkData(DataStmt *ds) {
+    if (blockDepth_ > 0 || inFunction_)
+      error(ds->line, ds->col,
+            "'Data' is only allowed at the top level of the main program, "
+            "not inside a block and not inside a function");
+    ds->folded.clear();
+    for (auto &e : ds->exprs) {
+      ConstFolder folder([this](const std::string &name) -> const ConstVal * {
+        auto it = constValues_.find(name);
+        return it == constValues_.end() ? nullptr : &it->second;
+      });
+      ConstVal v;
+      ConstFolder::Result r = folder.fold(e.get(), v);
+      int line = e && e->line ? e->line : ds->line;
+      int col  = e && e->line ? e->col : ds->col;
+      if (r == ConstFolder::OK) {
+        ds->folded.push_back(v);
+        continue;
+      }
+      ds->folded.push_back(ConstVal());
+      if (r == ConstFolder::DIV_ZERO) {
+        error(line, col, "Division by zero in a 'Data' value");
+      } else if (r == ConstFolder::NOT_CONST) {
+        error(line, col,
+              "Data expression must be constant: only literals, Pi, True, "
+              "False, constants, operators and Abs/Sgn/Int/Float/Str are "
+              "allowed");
+      } else {
+        int before = errors_;
+        expr(e.get());
+        if (errors_ == before)
+          error(line, col, "Illegal operator for type in a 'Data' value");
+      }
+    }
+  }
+
   // "Constants can not be assigned to" (IdentVarNode::semant der Referenz)
   // - fuer jede Stelle, die schreibt. Ein Local gleichen Namens in einer
   // Funktion verdeckt den Const und darf beschrieben werden.
@@ -657,6 +700,8 @@ private:
         }
         declare(as->name, as->typeHint.empty() ? val : fromHint(as->typeHint));
       }
+    } else if (auto *ds = dynamic_cast<DataStmt *>(n)) {
+      checkData(ds);
     } else if (auto *rd = dynamic_cast<ReadStmt *>(n)) {
       checkNotConst(rd->name, rd->line, rd->col, "Constants can not be modified");
       if (lookup(rd->name)) checkTag(rd->name, rd->typeHint, rd->line, rd->col);

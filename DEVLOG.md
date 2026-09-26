@@ -38,6 +38,29 @@ running Blitz3D 11.8. The entries below this one describe each step; this is the
 
 ---
 
+## 2026-09-26 — `Data` takes constant expressions (BUG-107)
+
+`Data` accepted only single literals with an optional sign; `Data N + 1, Pi, True` was a syntax
+error. Blitz3D reads any expression there and folds it like a `Const` (`DataDeclNode::proto`),
+so each value is now folded with the constant folder from BUG-99:
+
+- The value keeps the type of its expression: `Data 7/2` is the integer 3, `Data 7/2.0` the
+  float 3.5, `Data "x" + N` a string. `Read` converts it afterwards, as before.
+- A constant may be declared after the `Data` line that uses it.
+- As in Blitz3D, these are errors now: a variable, a function call or `Null` ("Data expression
+  must be constant"), a constant division by zero, `-"a"`, an empty `Data`, and `Data` inside a
+  block or function ("'Data' can only appear in main program"). The last three used to be
+  accepted silently.
+
+Measured in 14 programs (`build/data20260926`) with 90 values, each read as string, float and
+int: all match Blitz3D. All 123 sample programs transpile to the same C++ as before, except
+`bb_DataVal(+2)` now written as `bb_DataVal(2)` in `mak/fakelight`.
+
+Test `test_bug107_data_ausdruck` with output recorded in Blitz3D, negative tests
+`neg_bug107_not_constant`, `neg_bug107_in_block` and `neg_bug107_empty`.
+
+---
+
 ## 2026-09-26 — Constants are folded like Blitz3D (BUG-99)
 
 `Const c = 1.5` is the integer 2 in Blitz3D and was 1.5 here. The compiler passed a `Const`

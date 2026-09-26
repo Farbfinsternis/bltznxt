@@ -1791,17 +1791,12 @@ private:
         output << "    const size_t __data_at_" << toLower(lbl->name)
                << "__ = " << idx << ";\n";
       } else if (auto *ds = dynamic_cast<DataStmt *>(n.get())) {
-        for (auto &tok : ds->values) {
-          output << "    bb_data_pool_.push_back(";
-          if (tok.type == TokenType::STRING_LIT) {
-            output << "bb_DataVal(bbString(\"" << escapeCppString(tok.value)
-                   << "\"))";
-          } else if (tok.type == TokenType::FLOAT_LIT) {
-            output << "bb_DataVal(" << floatLiteral(tok.value) << ")";
-          } else { // INT_LIT (or signed numeric)
-            output << "bb_DataVal(" << tok.value << ")";
-          }
-          output << ");\n";
+        // Der semantische Pass hat jeden Wert gefaltet (BUG-107); sein Typ
+        // bleibt erhalten, gewandelt wird erst beim Read.
+        for (auto &v : ds->folded) {
+          if (!v.ok()) continue; // schon als Fehler gemeldet
+          output << "    bb_data_pool_.push_back(bb_DataVal("
+                 << constLiteral(v) << "));\n";
           ++idx;
         }
       } else if (auto *prog = dynamic_cast<Program *>(n.get())) {
@@ -2091,33 +2086,33 @@ private:
     }
   }
 
-  void emitConstValue(const std::string &lo, const ConstVal &v) {
-    if (v.k == ConstVal::STR) {
-      output << "const bbString var_" << lo << " = bbString(\""
-             << escapeCppString(v.s) << "\");\n";
-    } else if (v.k == ConstVal::FLOAT) {
-      output << "constexpr float var_" << lo << " = ";
-      if (std::isnan(v.f))
-        output << "__builtin_nanf(\"\")";
-      else if (std::isinf(v.f))
-        output << (v.f < 0 ? "-" : "") << "__builtin_inff()";
-      else {
-        char buf[40];
-        std::snprintf(buf, sizeof(buf), "%.9g", static_cast<double>(v.f));
-        std::string s = buf;
-        if (s.find_first_of(".eEn") == std::string::npos) s += ".0";
-        output << s << "f";
-      }
-      output << ";\n";
-    } else {
-      // INT_MIN laesst sich in C++ nicht als Literal schreiben.
-      output << "constexpr int var_" << lo << " = ";
-      if (v.i == std::numeric_limits<int>::min())
-        output << "(-2147483647 - 1)";
-      else
-        output << v.i;
-      output << ";\n";
+  // Ein gefalteter Wert als C++-Ausdruck seines Typs: bbString, float, int.
+  static std::string constLiteral(const ConstVal &v) {
+    if (v.k == ConstVal::STR)
+      return "bbString(\"" + escapeCppString(v.s) + "\")";
+    if (v.k == ConstVal::FLOAT) {
+      if (std::isnan(v.f)) return "__builtin_nanf(\"\")";
+      if (std::isinf(v.f))
+        return v.f < 0 ? "-__builtin_inff()" : "__builtin_inff()";
+      char buf[40];
+      std::snprintf(buf, sizeof(buf), "%.9g", static_cast<double>(v.f));
+      std::string s = buf;
+      if (s.find_first_of(".eEn") == std::string::npos) s += ".0";
+      return s + "f";
     }
+    // INT_MIN laesst sich in C++ nicht als Literal schreiben.
+    if (v.i == std::numeric_limits<int>::min()) return "(-2147483647 - 1)";
+    return std::to_string(v.i);
+  }
+
+  void emitConstValue(const std::string &lo, const ConstVal &v) {
+    if (v.k == ConstVal::STR)
+      output << "const bbString var_" << lo << " = ";
+    else if (v.k == ConstVal::FLOAT)
+      output << "constexpr float var_" << lo << " = ";
+    else
+      output << "constexpr int var_" << lo << " = ";
+    output << constLiteral(v) << ";\n";
   }
 
   // Scan AST nodes for Global VarDecl and emit file-scope C++ declarations.

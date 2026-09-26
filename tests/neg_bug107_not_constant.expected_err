@@ -1,0 +1,1 @@
+tests/neg_bug107_not_constant.bb:5:6: error: Data expression must be constant: only literals, Pi, True, False, constants, operators and Abs/Sgn/Int/Float/Str are allowed
