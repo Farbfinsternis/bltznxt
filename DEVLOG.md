@@ -38,6 +38,22 @@ running Blitz3D 11.8. The entries below this one describe each step; this is the
 
 ---
 
+## 2026-09-27 — MD2 to glTF converter, tested on the Bird demo
+
+`scripts/md2_to_gltf.py` turns an MD2 model into a `.glb` for `LoadAnimMesh`: frame 0 is the
+mesh, every other frame a morph target, and one animation switches the targets frame by frame,
+so linear blending between keys is the same as MD2's blending between frames. Axes, vertex
+order, UVs and winding follow the measured MD2 loader (`bb_md2.h`); a BMP or PNG can be
+embedded as base texture. At 60 frames per second, `Animate m,1,speed` runs as fast as
+`AnimateMD2 m,1,speed,0,last`.
+
+Tested with the Bird demo from the Blitz3D samples (AGore): with the bird converted and four
+lines changed (`LoadAnimMesh`, no `EntityTexture`, `Animate`), a fixed-step run was compared
+with the MD2 version at six moments. Triangle counts are equal; at most 27 of 307,200 pixels
+differ, each by one colour step.
+
+---
+
 ## 2026-09-27 — glTF: KHR_texture_transform (3D-24, part 4)
 
 Blender writes `KHR_texture_transform` when a texture goes through a Mapping node, for tiled or
