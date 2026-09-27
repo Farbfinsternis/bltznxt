@@ -202,7 +202,6 @@ are the most likely reason for an old program to behave strangely.
 
 - **`SystemProperty`** always returns an empty string (Blitz3D returns e.g. `"Intel"` for
   `"cpu"`). (BUG-122)
-- **`ShowPointer` and `HidePointer`** have no effect. (BUG-124)
 - `WriteString`/`ReadString`: see [Silently different results](#silently-different-results).
 
 ---

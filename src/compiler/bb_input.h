@@ -301,6 +301,26 @@ inline void bb_MoveMouse(int x, int y) {
   SDL_FlushEvent(SDL_EVENT_MOUSE_MOTION);
 }
 
+// ---- ShowPointer / HidePointer (BUG-124) ----
+//
+// Blendet den Zeiger ueber dem Fenster aus bzw. ein. Das ist mehr als Kosmetik:
+// ein Blitz-Spiel mit Mausblick versteckt den Zeiger und holt ihn je Bild mit
+// MoveMouse zur Mitte. Bei hoher Bildrate verschluckt das Zuruecksetzen fast
+// jede Bewegung - gemessen im Leuchtturm bei ~2000 Bildern/s: rund 2 % kamen
+// an (2026-09-27). SDL3 erkennt genau dieses Muster (versteckter Zeiger, Warps
+// zur Fenstermitte) und liest die Maus dann relativ und roh, ohne den Zeiger
+// wirklich zu bewegen (SDL_HINT_MOUSE_EMULATE_WARP_WITH_RELATIVE, Vorgabe an).
+// MouseX/MouseY und MouseXSpeed bleiben dabei, was sie waren; verliert das
+// Fenster den Fokus, gibt SDL den Zeiger frei.
+inline void bb_HidePointer() {
+  bb_sdl_ensure_();
+  if (bb_sdl_initialized_) SDL_HideCursor();
+}
+inline void bb_ShowPointer() {
+  bb_sdl_ensure_();
+  if (bb_sdl_initialized_) SDL_ShowCursor();
+}
+
 // ---- Joystick API ----
 //
 // port: 0-based port index (0 = first joystick connected).

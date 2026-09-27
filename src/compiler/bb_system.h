@@ -170,9 +170,7 @@ inline void bb_SetEnv(const bbString &key, const bbString &val) {
 // Returns a system property string; stub for unknown properties.
 inline bbString bb_SystemProperty(const bbString &/*prop*/) { return ""; }
 
-// Pointer visibility — no-op stubs until SDL3 window exists.
-inline void bb_ShowPointer() {}
-inline void bb_HidePointer() {}
+// ShowPointer / HidePointer stehen in bb_input.h (BUG-124).
 
 // CallDLL — advanced stub: logs the call and returns 0.
 inline int bb_CallDLL(const bbString &dll, const bbString &func,
