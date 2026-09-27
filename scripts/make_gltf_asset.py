@@ -64,6 +64,18 @@ gebaut und treffen die Stellen, an denen ein glTF-Leser danebengreifen kann:
     test_gltf_knoten_seq.glb  fuer LoadAnimSeq: "kiste" von (0,0,0) nach
                           (0,5,0) in 0.2 s (12 Bilder).
 
+    test_gltf_morph.glb   Morph Targets. Ein Quadrat -1..1 in der xy-Ebene mit
+                          zwei Zielen: "hoch" hebt die oberen Ecken um 1 und
+                          versetzt die Normalen um (1,0,0), "breit" schiebt
+                          die rechten Ecken um 1 nach +x. Zweimal:
+                          "blatt" (rot, ohne Skin), Netz-Gewichte 0.5/0, am
+                          Knoten 0.5/0.25 (die gelten);
+                          "arm" (gruen) an der Skin mit dem Gelenk "gelenk"
+                          im Ursprung, Gewichte 0/1.
+                          "morphen": Gewichte von "blatt" 0/0 -> 1/0 in 10
+                          Bildern. "drehen": "gelenk" auf -90 Grad um z bis
+                          Bild 5 (glTF, wie test_gltf_skin).
+
 Aufruf aus dem Projektwurzelverzeichnis:
 
     python scripts/make_gltf_asset.py
@@ -384,6 +396,60 @@ def knoten():
     glb("test_gltf_knoten_seq.glb", doc, b)
 
 
+def morph():
+    b = Buf()
+    pos = [(-1, -1, 0), (1, -1, 0), (1, 1, 0), (-1, 1, 0)]
+    targets = [
+        {"POSITION": b.acc("f", F32, "VEC3", [(0, 0, 0), (0, 0, 0), (0, 1, 0), (0, 1, 0)], minmax=True),
+         "NORMAL": b.acc("f", F32, "VEC3", [(1, 0, 0)] * 4)},
+        {"POSITION": b.acc("f", F32, "VEC3", [(0, 0, 0), (1, 0, 0), (1, 0, 0), (0, 0, 0)], minmax=True)},
+    ]
+    base = {"POSITION": b.acc("f", F32, "VEC3", pos, minmax=True),
+            "NORMAL": b.acc("f", F32, "VEC3", [(0, 0, 1)] * 4)}
+    idx = b.acc("B", U8, "SCALAR", [0, 1, 2, 0, 2, 3])
+    skinned = dict(base)
+    skinned["JOINTS_0"] = b.acc("B", U8, "VEC4", [(0, 0, 0, 0)] * 4)
+    skinned["WEIGHTS_0"] = b.acc("f", F32, "VEC4", [(1, 0, 0, 0)] * 4)
+    s = math.sqrt(0.5)
+    t = lambda frames: [f / 60.0 for f in frames]
+    unlit = {"KHR_materials_unlit": {}}
+    doc = {
+        "asset": {"version": "2.0", "generator": "make_gltf_asset.py"},
+        "extensionsUsed": ["KHR_materials_unlit"],
+        "scenes": [{"nodes": [0, 1, 2]}],
+        "nodes": [
+            {"name": "blatt", "mesh": 0, "weights": [0.5, 0.25]},
+            {"name": "arm", "mesh": 1, "skin": 0},
+            {"name": "gelenk"},
+        ],
+        "skins": [{"joints": [2]}],
+        "meshes": [
+            {"primitives": [{"attributes": base, "indices": idx, "material": 0, "targets": targets}],
+             "weights": [0.5, 0], "extras": {"targetNames": ["hoch", "breit"]}},
+            {"primitives": [{"attributes": skinned, "indices": idx, "material": 1, "targets": targets}],
+             "weights": [0, 1]},
+        ],
+        "materials": [
+            {"name": "rot", "pbrMetallicRoughness": {"baseColorFactor": [1, 0, 0, 1]}, "extensions": unlit},
+            {"name": "gruen", "pbrMetallicRoughness": {"baseColorFactor": [0, 1, 0, 1]}, "extensions": unlit},
+        ],
+        "animations": [
+            {"name": "morphen",
+             "samplers": [{"input": b.acc("f", F32, "SCALAR", t([0, 10])),
+                           "output": b.acc("f", F32, "SCALAR", [0, 0, 1, 0])}],
+             "channels": [{"sampler": 0, "target": {"node": 0, "path": "weights"}}]},
+            {"name": "drehen",
+             "samplers": [{"input": b.acc("f", F32, "SCALAR", t([0, 5, 10])),
+                           "output": b.acc("f", F32, "VEC4", [(0, 0, 0, 1), (0, 0, -s, s), (0, 0, -s, s)])}],
+             "channels": [{"sampler": 0, "target": {"node": 2, "path": "rotation"}}]},
+        ],
+        "bufferViews": b.views,
+        "accessors": b.accessors,
+        "buffers": [{"byteLength": len(b.data)}],
+    }
+    glb("test_gltf_morph.glb", doc, b)
+
+
 def fehler():
     with open(os.path.join(OUT, "test_gltf_kaputt.gltf"), "w", newline="\n") as f:
         f.write('{ "asset": { "version": "2.0" }, nope }\n')
@@ -400,3 +466,4 @@ if __name__ == "__main__":
     fehler()
     skin()
     knoten()
+    morph()

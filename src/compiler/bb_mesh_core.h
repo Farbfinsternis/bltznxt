@@ -60,6 +60,10 @@ struct bb_MeshData_ {
   // keine Gewichte hat; ein Vertex jenseits des Endes folgt Knochen 0.
   std::vector<uint8_t> bone_ids;
   std::vector<float>   bone_w;
+  // Morph Targets (glTF, 3D-24): je Ziel sechs Floats je Vertex - Versatz
+  // der Lage und der Normale. Leer ohne Ziele; ist ein Feld kuerzer als die
+  // Vertices (AddVertex danach), bleiben die uebrigen unverformt.
+  std::vector<std::vector<float>> morph;
 };
 
 // ============================================================

@@ -132,6 +132,8 @@ inline void bb_ent_set_local_tform_(bb_Entity_* e, const float m[16]) {
 struct bb_AnimKeys_ {
   std::map<int, bb_Vec3_> pos, scl;
   std::map<int, bb_Quat_> rot;
+  // Morph-Gewichte (glTF, 3D-24): je Bild ein Wert je Ziel, linear gemischt.
+  std::map<int, std::vector<float>> wts;
 
   bb_AnimKeys_() = default;
 
@@ -141,6 +143,26 @@ struct bb_AnimKeys_ {
     for (const auto& [f, v] : t.pos) if (f >= first && f <= last) pos[f - first] = v;
     for (const auto& [f, v] : t.scl) if (f >= first && f <= last) scl[f - first] = v;
     for (const auto& [f, v] : t.rot) if (f >= first && f <= last) rot[f - first] = v;
+    for (const auto& [f, v] : t.wts) if (f >= first && f <= last) wts[f - first] = v;
+  }
+
+  // Zwei Gewichtsfelder mischen; ein fehlender Eintrag zaehlt als 0.
+  static std::vector<float> mix_(const std::vector<float>& a, const std::vector<float>& b, float d) {
+    std::vector<float> o(std::max(a.size(), b.size()), 0.0f);
+    for (size_t i = 0; i < o.size(); ++i) {
+      const float x = i < a.size() ? a[i] : 0, y = i < b.size() ? b[i] : 0;
+      o[i] = (y - x) * d + x;
+    }
+    return o;
+  }
+  std::vector<float> weights(float time) const {
+    if (wts.empty()) return {};
+    auto next = wts.upper_bound(static_cast<int>(time));
+    if (next == wts.begin()) return next->second;
+    auto curr = std::prev(next);
+    if (next == wts.end()) return curr->second;
+    const float d = (time - curr->first) / static_cast<float>(next->first - curr->first);
+    return mix_(curr->second, next->second, d);
   }
 
   // getLinearValue: der naechste Schluessel wird ueber die abgeschnittene
@@ -197,9 +219,10 @@ struct bb_Animator_ {
   struct Anim {
     std::vector<bb_AnimKeysRef_> keys;   // je Sequenz
     // fuer Uebergaenge
-    bool     pos = false, scl = false, rot = false;
+    bool     pos = false, scl = false, rot = false, wts = false;
     bb_Vec3_ src_pos, dest_pos, src_scl, dest_scl;
     bb_Quat_ src_rot, dest_rot;
+    std::vector<float> src_wts, dest_wts;
   };
 
   std::vector<int>  seqs;   // Laenge je Sequenz in Bildern
@@ -272,6 +295,7 @@ struct bb_Animator_ {
       if (!keys->pos.empty()) bb_ent_set_local_pos_(e, keys->position(time));
       if (!keys->scl.empty()) bb_ent_set_local_scl_(e, keys->scale(time));
       if (!keys->rot.empty()) bb_ent_set_local_rot_(e, keys->rotation(time));
+      if (!keys->wts.empty()) e->morph_w = keys->weights(time);
     }
   }
 
@@ -288,6 +312,7 @@ struct bb_Animator_ {
                                             (a.dest_scl.y - a.src_scl.y) * t + a.src_scl.y,
                                             (a.dest_scl.z - a.src_scl.z) * t + a.src_scl.z });
       if (a.rot) bb_ent_set_local_rot_(e, bb_quat_slerp_(a.src_rot, a.dest_rot, t));
+      if (a.wts) e->morph_w = bb_AnimKeys_::mix_(a.src_wts, a.dest_wts, t);
     }
   }
 
@@ -306,6 +331,9 @@ struct bb_Animator_ {
       }
       if ((a.rot = bb_anim_nrot_(keys) > 0)) {
         a.src_rot = bb_ent_local_rot_(e); a.dest_rot = keys->rotation(time);
+      }
+      if ((a.wts = keys && !keys->wts.empty())) {
+        a.src_wts = e->morph_w; a.dest_wts = keys->weights(time);
       }
     }
   }

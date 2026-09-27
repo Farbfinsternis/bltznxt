@@ -35,6 +35,8 @@
 //    Gelenk einer Skin (ohne Netz)                Pivot
 //    Skin: JOINTS/WEIGHTS, inverseBindMatrices    Knochen des Netzes
 //    animations[n]                                Sequenz n (AnimSeq)
+//    Morph Targets (POSITION, NORMAL), weights    Versatz je Vertex, Gewichte
+//                                                 an der Entity
 //
 //  Skinning: Ein Vertex folgt bis zu vier Gelenken (die schwersten aus
 //  JOINTS_0/1, auf Summe 1 gebracht), gezeichnet wie bei .b3d: Weltlage des
@@ -54,6 +56,13 @@
 //  dort auf der Ruhelage - sonst bliebe beim Wechsel die alte Haltung
 //  stehen.
 //
+//  Morph Targets (Shape Keys in Blender): Blitz3D kennt sie nicht, und es
+//  gibt keinen Befehl dafuer - die Gewichte kommen aus der Datei (node.weights,
+//  sonst mesh.weights) und aus dem Animationskanal "weights", laufen also mit
+//  Animate, SetAnimTime und Uebergaengen wie jede Sequenz. Gezeichnet wird
+//  erst der Morph, dann das Skinning; LoadMesh backt die Gewichte der Datei
+//  ein. TANGENT-Ziele bleiben liegen.
+//
 //  Achsen: glTF ist rechtshaendig mit +Y oben, Blitz3D linkshaendig. Die
 //  Vorgabe ist LoaderMatrix "glb"/"gltf" 1,0,0, 0,1,0, 0,0,-1 - z wird
 //  gespiegelt, und wie beim .3ds-Lader dreht die negative Determinante den
@@ -68,9 +77,8 @@
 //  mit den Werten, die man sieht. Beide werden deshalb nach sRGB gewandelt;
 //  Bilder sind schon sRGB.
 //
-//  Noch nicht: Morph Targets (auch als Animationskanal "weights"),
-//  KHR_texture_transform. Draco- und meshopt-komprimierte Dateien werden
-//  abgelehnt.
+//  Noch nicht: KHR_texture_transform. Draco- und meshopt-komprimierte
+//  Dateien werden abgelehnt.
 // ============================================================
 
 #include "bb_mesh.h"
@@ -341,7 +349,7 @@ struct bb_GltfLoad_ {
   std::vector<bool>                 node_seen;  // gegen Zyklen im Knotenbaum
   std::vector<int>                  node_h;     // Handle je Knoten, 0 = keins
   std::vector<bool>                 is_joint;   // Gelenk irgendeiner Skin
-  struct Rest { bb_Vec3_ p, s; bb_Quat_ r; };
+  struct Rest { bb_Vec3_ p, s; bb_Quat_ r; std::vector<float> w; };
   std::vector<Rest>                 rest;       // lokale Lage beim Laden
   std::vector<std::pair<int, int>>  skinned;    // (Netz-Handle, Skin)
   bool                              animonly = false;
@@ -653,6 +661,19 @@ inline void bb_gltf_mesh_(bb_GltfLoad_& L, int h, int mi, int skin) {
     const bool has_c  = bb_gltf_accessor_(L, at["COLOR_0"].i(), col, cc) && (cc == 3 || cc == 4);
     if (!has_n) need_normals = true;
 
+    // Morph Targets: Versatz von Lage und Normale je Ziel. Alle Primitive
+    // eines Netzes haben gleich viele (glTF 3.7.2.2); gezaehlt wird am ersten.
+    const int nt = static_cast<int>(prims[0]["targets"].size());
+    std::vector<std::vector<double>> tp(nt), tn(nt);
+    for (int t = 0; t < nt; ++t) {
+      const bb_Json_& tg = pr["targets"][t];
+      int c = 0;
+      if (!bb_gltf_accessor_(L, tg["POSITION"].i(), tp[t], c) || c != 3 || tp[t].size() != nv * 3)
+        tp[t].clear();
+      if (!bb_gltf_accessor_(L, tg["NORMAL"].i(), tn[t], c) || c != 3 || tn[t].size() != nv * 3)
+        tn[t].clear();
+    }
+
     std::vector<double> jn[2], wt[2];
     int sets = 0;
     const int njoints = skin >= 0 ? static_cast<int>(L.doc["skins"][skin]["joints"].size()) : 0;
@@ -703,6 +724,8 @@ inline void bb_gltf_mesh_(bb_GltfLoad_& L, int h, int mi, int skin) {
       s->bone_ids.resize(static_cast<size_t>(base) * 4, 255);
       s->bone_w.resize(static_cast<size_t>(base) * 4, 0.0f);
     }
+    if (nt && s->morph.size() < static_cast<size_t>(nt)) s->morph.resize(nt);
+    for (auto& d : s->morph) d.resize(static_cast<size_t>(base) * 6, 0.0f);
     for (size_t v = 0; v < nv; ++v) {
       if (skin >= 0) {
         bb_GltfBones_ bn;
@@ -734,6 +757,12 @@ inline void bb_gltf_mesh_(bb_GltfLoad_& L, int h, int mi, int skin) {
         if (cc == 4) vd[13] = static_cast<float>(col[v * 4 + 3]);
       }
       s->vertices.insert(s->vertices.end(), vd, vd + BB_VF);
+      for (size_t t = 0; t < s->morph.size(); ++t) {
+        float d[6] = { 0, 0, 0, 0, 0, 0 };
+        if (t < tp.size() && !tp[t].empty()) bb_gltf_lm_apply_(L, &tp[t][v * 3], d);
+        if (t < tn.size() && !tn[t].empty()) bb_gltf_lm_apply_(L, &tn[t][v * 3], d + 3);
+        s->morph[t].insert(s->morph[t].end(), d, d + 6);
+      }
     }
     for (size_t k = 0; k + 2 < list.size(); k += 3) {
       const uint32_t a = list[k], b = list[k + 1], c = list[k + 2];
@@ -822,6 +851,17 @@ inline void bb_gltf_node_(bb_GltfLoad_& L, int ni, int parent) {
     bb_gltf_mesh_(L, h, n["mesh"].i(), skinned ? skin : -1);
     if (skinned) L.skinned.emplace_back(h, skin);
   }
+  // Gewichte der Morph Targets: die des Knotens, sonst die des Netzes, sonst 0.
+  if (n["mesh"].has()) {
+    const bb_Json_& mesh = L.doc["meshes"][n["mesh"].i()];
+    const int nt = static_cast<int>(mesh["primitives"][0]["targets"].size());
+    if (nt) {
+      const bb_Json_& w = n["weights"].size() ? n["weights"] : mesh["weights"];
+      e->morph_w.assign(nt, 0.0f);
+      for (int t = 0; t < nt; ++t) e->morph_w[t] = static_cast<float>(w[t].n(0));
+      L.rest[ni].w = e->morph_w;
+    }
+  }
   const bb_Json_& kids = n["children"];
   for (size_t k = 0; k < kids.size(); ++k) bb_gltf_node_(L, kids[k].i(), h);
 }
@@ -872,10 +912,12 @@ inline void bb_gltf_bake_skins_(int h) {
   for (int c : e->children) bb_gltf_bake_skins_(c);
   if (e->kind() != bb_EntityKind_::Mesh) return;
   auto* me = static_cast<bb_MeshEntity_*>(e);
-  if (!me->boned || me->rep->bone_inv.empty()) return;
+  const bool skin = me->boned && !me->rep->bone_inv.empty();
+  if (!skin && !bb_morph_active_(me)) return;
   bb_skin_build_(me);
+  // Mit Knochen stehen die Vertices im Weltraum, ohne im Raum des Netzes.
   float inv[16], co[9];
-  if (!mat4_inverse_(inv, me->world)) mat4_identity_(inv);
+  if (!skin || !mat4_inverse_(inv, me->world)) mat4_identity_(inv);
   mat4_cofactor3_(co, inv);
   for (size_t si = 0; si < me->surfaces().size() && si < me->skinned.size(); ++si) {
     bb_MeshData_& d = me->surfaces()[si];
@@ -890,8 +932,10 @@ inline void bb_gltf_bake_skins_(int h) {
     }
     d.bone_ids.clear();
     d.bone_w.clear();
+    d.morph.clear();
     d.dirty = true;
   }
+  me->morph_w.clear();
   for (auto& s : me->skinned) bb_mesh_free_gpu_(&s);
   me->skinned.clear();
   me->bones.clear();
@@ -909,7 +953,7 @@ inline void bb_gltf_anims_(bb_GltfLoad_& L, int root) {
   const int na = static_cast<int>(anims.size());
   if (!na) return;
   const size_t nn = L.node_h.size();
-  std::vector<uint8_t> used(nn, 0);                      // 1 Lage, 2 Skalierung, 4 Drehung
+  std::vector<uint8_t> used(nn, 0);                      // 1 Lage, 2 Skalierung, 4 Drehung, 8 Gewichte
   std::vector<std::map<int, std::shared_ptr<bb_AnimKeys_>>> keys(na);
   std::vector<int> len(na, 0);
 
@@ -934,10 +978,14 @@ inline void bb_gltf_anims_(bb_GltfLoad_& L, int root) {
       const int s = ch[c]["sampler"].i();
       if (ni < 0 || ni >= static_cast<int>(nn) || !L.node_h[ni] || s < 0 || s >= ns || !ok[s]) continue;
       const std::string& path = tg["path"].str;
-      const int kind = path == "translation" ? 1 : path == "scale" ? 2 : path == "rotation" ? 4 : 0;
-      if (!kind) { L.warn("Morph-Animationen (weights) werden uebergangen"); continue; }
-      const int comps = kind == 4 ? 4 : 3;
-      if (oc[s] != comps) continue;
+      const int kind = path == "translation" ? 1 : path == "scale" ? 2 :
+                       path == "rotation" ? 4 : path == "weights" ? 8 : 0;
+      if (!kind) continue;
+      // weights: ein SCALAR je Ziel und Schluessel, so viele Ziele wie das Netz.
+      const int nt = kind == 8 ? static_cast<int>(
+          L.doc["meshes"][L.doc["nodes"][ni]["mesh"].i()]["primitives"][0]["targets"].size()) : 0;
+      const int comps = kind == 8 ? nt : kind == 4 ? 4 : 3;
+      if (!comps || oc[s] != (kind == 8 ? 1 : comps)) continue;
       const std::string& ip = sm[s]["interpolation"].str;
       const bool cubic = ip == "CUBICSPLINE", step = ip == "STEP";
       const size_t n = in[s].size();
@@ -961,11 +1009,13 @@ inline void bb_gltf_anims_(bb_GltfLoad_& L, int root) {
             float p[3];
             bb_gltf_lm_apply_(L, v, p);
             k.scl[g] = { std::fabs(p[0]), std::fabs(p[1]), std::fabs(p[2]) };
-          } else {
+          } else if (kind == 4) {
             float m[16];
             bb_gltf_trs_matrix_(0, 0, 0, v[0], v[1], v[2], v[3], 1, 1, 1, m);
             bb_gltf_conv_(L, m);
             k.rot[g] = bb_quat_from_mat_(m);
+          } else {
+            k.wts[g].assign(v, v + comps);
           }
           len[a] = std::max(len[a], g);
         }
@@ -983,6 +1033,7 @@ inline void bb_gltf_anims_(bb_GltfLoad_& L, int root) {
       if ((used[ni] & 1) && kp->pos.empty()) kp->pos[0] = L.rest[ni].p;
       if ((used[ni] & 2) && kp->scl.empty()) kp->scl[0] = L.rest[ni].s;
       if ((used[ni] & 4) && kp->rot.empty()) kp->rot[0] = L.rest[ni].r;
+      if ((used[ni] & 8) && kp->wts.empty()) kp->wts[0] = L.rest[ni].w;
     }
 
   bb_Entity_* re = bb_entity_get_(root);

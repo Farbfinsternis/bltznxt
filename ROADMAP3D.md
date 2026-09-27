@@ -1161,9 +1161,12 @@ Leuchtturm-Projekt (LEUCHTTURM.md). Gelesen wird, was der alte Renderer darstell
       inverse Bind-Matrizen; die Knochenliste haengt am Netz, `CopyEntity` haengt sie um
 - [x] Animationen -> Sequenzen am Animator der Wurzel, 60 Bilder je Sekunde; LINEAR, STEP,
       CUBICSPLINE (nur Werte); `LoadAnimSeq` aus einer zweiten glTF-Datei
-- [ ] KHR_texture_transform, Morph Targets
+- [x] Morph Targets: Versatz von Lage und Normale je Ziel, Gewichte aus Knoten/Netz und dem
+      Animationskanal `weights` (auch in Uebergaengen); erst Morph, dann Skinning; ohne neue
+      Befehle
+- [ ] KHR_texture_transform
 - **Test:** `tests/test_3d24_gltf.bb`, `tests/test_3d24_gltf_anim.bb` (Skinning pixelgleich mit
-  `test_skin.b3d`; Dateien aus `scripts/make_gltf_asset.py`)
+  `test_skin.b3d`), `tests/test_3d24_gltf_morph.bb`; Dateien aus `scripts/make_gltf_asset.py`
 
 ---
 

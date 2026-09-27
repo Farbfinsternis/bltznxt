@@ -980,8 +980,21 @@ static inline bool bb_frustum_box_visible_(const bb_CullFrustum_& f,
 // normiert. Knochen 0 ist das Netz selbst; ein Knochen, den es nicht mehr
 // gibt (FreeEntity), wird wie Knochen 0 behandelt - das Original stuerzt
 // dort ab.
+//
+// Morph Targets (glTF, 3D-24) kommen davor, wie glTF es verlangt: erst
+// Ruhelage + Summe (Gewicht * Versatz), dann die Knochen. Ohne Knochen
+// bleiben die Vertices im Raum des Netzes.
+static inline bool bb_morph_active_(const bb_MeshEntity_* me) {
+  bool any = false;
+  for (float w : me->morph_w) if (w != 0) { any = true; break; }
+  if (!any) return false;
+  for (const auto& s : me->rep->surfaces) if (!s.morph.empty()) return true;
+  return false;
+}
+
 static inline void bb_skin_build_(bb_MeshEntity_* me) {
   const bb_MeshRep_& rep = *me->rep;
+  const bool morph = bb_morph_active_(me);
   const bb_Animator_* an = me->animator.get();
   const size_t nb = rep.bone_inv.size();
   std::vector<std::array<float, 16>> T(nb);
@@ -1003,6 +1016,23 @@ static inline void bb_skin_build_(bb_MeshEntity_* me) {
     if (dst.indices != src.indices) dst.indices = src.indices;
     dst.vertices = src.vertices;
     const size_t nv = src.vertices.size() / BB_VF;
+    if (morph && !src.morph.empty()) {
+      for (size_t t = 0; t < src.morph.size() && t < me->morph_w.size(); ++t) {
+        const float w = me->morph_w[t];
+        const std::vector<float>& d = src.morph[t];
+        if (w == 0) continue;
+        for (size_t i = 0; i < nv && i * 6 + 5 < d.size(); ++i) {
+          float* v = &dst.vertices[i * BB_VF];
+          for (int j = 0; j < 6; ++j) v[j] += w * d[i * 6 + j];
+        }
+      }
+      for (size_t i = 0; i < nv; ++i) {
+        float* v = &dst.vertices[i * BB_VF];
+        const float l = sqrtf(v[3] * v[3] + v[4] * v[4] + v[5] * v[5]);
+        if (l > 0) { v[3] /= l; v[4] /= l; v[5] /= l; }
+      }
+    }
+    if (!nb) { dst.dirty = true; continue; }
     for (size_t i = 0; i < nv; ++i) {
       float* v = &dst.vertices[i * BB_VF];
       const float p[3] = { v[0], v[1], v[2] };
@@ -1200,10 +1230,11 @@ static inline void bb_render_meshes_(bb_Shader_* shader,
     // Lage des Netzes, gezeichnet die bewegten Vertices, die schon im
     // Weltraum stehen.
     const bool skin = it.me && it.me->boned && !it.me->rep->bone_inv.empty();
-    if (skin) {
-      bb_skin_build_(it.me);
-      model = identity;
-    }
+    // Morph Targets (3D-24): verformt wie beim Skinning, aber ohne Knochen
+    // im Raum des Netzes - die Lage der Entity gilt weiter.
+    const bool deform = skin || (it.me && bb_morph_active_(it.me));
+    if (deform) bb_skin_build_(it.me);
+    if (skin) model = identity;
 
     float mvp[16];
     mat4_mul_(mvp, vm, model);
@@ -1239,7 +1270,7 @@ static inline void bb_render_meshes_(bb_Shader_* shader,
     for (size_t si = 0; si < nsurf; ++si) {
       bb_MeshData_& surf = it.sp ? it.sp->quad
                          : it.md ? it.md->mesh
-                         : skin  ? it.me->skinned[si]
+                         : deform ? it.me->skinned[si]
                                  : it.me->surfaces()[si];
       const bb_Brush_ br = (it.sp || it.md) ? me->brush
                                             : bb_brush_combine_(surf.brush, me->brush);

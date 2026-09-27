@@ -79,7 +79,7 @@ commands remain incomplete, including pixel-accurate `ImagesCollide` and `System
 `CallDLL` does nothing, as userlibs are not supported. `CopyRect`, image/texture buffer drawing and multi-camera rendering have received
 compatibility fixes. In 3D, entities, cameras, lights, textures, brushes, primitive meshes,
 `.x`/`.3ds`/`.b3d` loading with hierarchies, keyframe and skeletal animation, glTF
-(`.gltf`/`.glb`, e.g. from Blender, with skinning and animations), the surface API,
+(`.gltf`/`.glb`, e.g. from Blender, with skinning, animations and morph targets), the surface API,
 sprites, mirrors, MD2 models, collisions and line/entity picking are available. Camera
 picking/projection, render tweening, terrain, fog and planes remain missing.
 TCP streams and hostname lookup are available; UDP and DirectPlay remain missing.
@@ -382,7 +382,7 @@ Where the 3D engine is heading — one modern material model, per-pixel lighting
 | 3D-17 | Line/entity picking available; camera picking, projection and fog missing | Partial |
 | 3D-18 | Collision methods, responses and result queries | Implemented, reference-tested |
 | 3D-19 | Keyframe and skeletal animation, `.x`/`.3ds` hierarchies, `.b3d`; tweening missing | Implemented, reference-tested |
-| 3D-24 | glTF (`.gltf`/`.glb`): nodes, meshes, materials as brushes, lightmaps on UV set 1, skinning, animations; morph targets missing | Implemented |
+| 3D-24 | glTF (`.gltf`/`.glb`): nodes, meshes, materials as brushes, lightmaps on UV set 1, skinning, animations, morph targets | Implemented |
 | 3D-14, 3D-20 – 3D-23 | OBJ loader, remaining 3D maths, terrain, BSP | Remaining roadmap work |
 
 ---

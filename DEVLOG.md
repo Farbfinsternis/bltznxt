@@ -38,6 +38,26 @@ running Blitz3D 11.8. The entries below this one describe each step; this is the
 
 ---
 
+## 2026-09-27 — glTF: morph targets (3D-24, part 3)
+
+Blender's shape keys arrive as glTF morph targets, and they now deform the mesh. Blitz3D has no
+morph targets and no command for them, and none was added: the weights come from the file
+(`node.weights`, else `mesh.weights`) and from the `weights` animation channel, so they play
+with `Animate`, `SetAnimTime` and transitions like any sequence.
+
+- Each surface keeps a position and normal offset per target and vertex; the weights live on
+  the entity (`bb_Entity_::morph_w`), where the animator sets them like position and rotation,
+  and `CopyEntity` copies them.
+- Drawing: base + Σ weight × offset first, then skinning, as glTF requires. Without bones the
+  deformed vertices stay in the mesh's space. `LoadMesh` bakes the file's weights.
+- A sequence that does not animate a mesh's weights leaves them at the file's weights.
+
+Checked by hand in `test_3d24_gltf_morph`: weights over time, the rest weights in another
+sequence, a transition halfway, morph before skinning (a stretched arm rotated by −90° reaches
+down, not right), a copy with its own pose, and the baked vertices of `LoadMesh`.
+
+---
+
 ## 2026-09-27 — glTF: skinning and animations (3D-24, part 2)
 
 glTF models from Blender now move: skins and animations run on the animation system from 3D-19.

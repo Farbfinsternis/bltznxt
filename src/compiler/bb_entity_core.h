@@ -108,6 +108,10 @@ struct bb_Entity_ {
   std::shared_ptr<const bb_AnimKeys_> anim;
   std::shared_ptr<bb_Animator_>       animator;
   int                                 lastCopy = 0;
+  // Gewichte der Morph Targets (glTF, 3D-24), je Ziel eines. Steht hier und
+  // nicht am Mesh, damit der Animator sie setzen kann wie Lage und Drehung;
+  // Blitz3D selbst kennt keine Morph Targets.
+  std::vector<float>                  morph_w;
 
   // World matrix (column-major 4×4), updated by UpdateWorld
   float world[16] = {
@@ -173,6 +177,7 @@ inline void bb_entity_copy_fields_(bb_Entity_& dst, const bb_Entity_& src) {
   memcpy(dst.collBoxB, src.collBoxB, sizeof(dst.collBoxB));
   dst.pickMode = src.pickMode;
   dst.obscurer = src.obscurer;
+  dst.morph_w  = src.morph_w;
   dst.colls.clear();
   memcpy(dst.prev, src.world, sizeof(dst.prev));
 }
