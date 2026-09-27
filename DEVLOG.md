@@ -38,6 +38,23 @@ running Blitz3D 11.8. The entries below this one describe each step; this is the
 
 ---
 
+## 2026-09-27 — Lighthouse: Quake III values, mouse look fixed
+
+After the first play test the jump felt too low. The movement now uses Quake III's own values,
+scaled by the player's height (56 units = 1.8 m, one unit ≈ 3.2 cm): running 10.3 m/s, jump
+velocity 8.7 m/s, gravity 25.7 m/s², stop speed 3.2 m/s; friction and acceleration have no unit
+and stay. The jump reaches 1.40 m at 60 ticks per second (1.47 m without ticks).
+`test_leuchtturm_bewegung` now jumps onto the block from a standstill with air control only —
+with a run-up at 10 m/s the player sails over it.
+
+The play test also showed that mouse look barely worked: at about 2000 frames per second,
+recentring the visible pointer every frame swallowed about 98 % of the movement (measured with a
+diagnostic build of the game). `HidePointer` and `ShowPointer` were empty stubs (BUG-124); they now
+hide and show the pointer, and with the pointer hidden SDL3 reads the mouse relatively, so the
+movement arrives in full.
+
+---
+
 ## 2026-09-27 — Lighthouse step 3: movement and collision
 
 The lighthouse game now lives in `samples/leuchtturm/` and you can run and jump through a

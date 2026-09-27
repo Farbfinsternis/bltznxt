@@ -63,11 +63,11 @@ Lauf(p, 10, 0, 0, False)
 Lauf(p, 60, 0, 0, True)
 Print "4 sprung:   hoechstens " + C(hoechst) + " | " + Wo(p)
 
-; 5) Anlauf und Sprung auf den Block (1 m hoch, x -10..-7, z -10..-7)
-Spieler_Setzen(p, -8.5, 0, -13.5, 0)
+; 5) Aus dem Stand auf den Block (1 m hoch, x -10..-7, z -10..-7): kurz vor
+;    der Kante abspringen und nur mit Luftkontrolle nach vorn druecken
+Spieler_Setzen(p, -8.5, 0, -10.5, 0)
 Lauf(p, 10, 0, 0, False)
-Lauf(p, 12, 1, 0, False)
-Lauf(p, 20, 1, 0, True)
+Lauf(p, 25, 1, 0, True)
 Lauf(p, 60, 0, 0, False)
 Print "5 block:    " + Wo(p)
 
@@ -81,7 +81,7 @@ Print "6 rampe:    " + Wo(p)
 ; 7) Die Treppe hinauf auf Plattform B (6 Stufen zu 0.25): Blick nach -x
 Spieler_Setzen(p, -3, 0, 11, 90)
 Lauf(p, 10, 0, 0, False)
-Lauf(p, 70, 1, 0, False)
+Lauf(p, 55, 1, 0, False)
 Lauf(p, 60, 0, 0, False)
 Print "7 treppe:   " + Wo(p)
 

@@ -1,7 +1,7 @@
 ; Leuchtturm - der Spieler: Bewegung und Kollision (Schritt 3).
 ;
 ; Das Ziel ist das Gefuehl von Quake III: schnelles Laufen, das sofort
-; anspricht, ein Sprung von gut einem Meter, und in der Luft genug Kontrolle,
+; anspricht, ein Sprung von fast anderthalb Metern, und in der Luft genug Kontrolle,
 ; um mit Strafe und Maus die Richtung zu biegen. Dafuer fuehrt das Programm
 ; die Geschwindigkeit selbst:
 ;
@@ -36,16 +36,20 @@
 ;
 ; Masse in Metern und Sekunden; die Fuesse stehen 0.9 unter der Mitte.
 
+; Die Werte sind die von Quake III, umgerechnet ueber die Groesse des
+; Spielers: 56 Quake-Einheiten sind 1.8 m, eine Einheit also 3.2 cm. Laufen
+; 320 u/s, Absprung 270 u/s, Schwerkraft 800 u/s2, Anhalten 100 u/s;
+; Reibung und Beschleunigungen haben keine Einheit und bleiben.
 Const SP_RADIUS#   = 0.4    ; Ellipsoid: halbe Breite
 Const SP_HALB#     = 0.9    ; halbe Hoehe
 Const SP_AUGE#     = 0.7    ; Auge ueber der Mitte, 1.6 ueber den Fuessen
-Const SP_LAUF#     = 8.0    ; Laufgeschwindigkeit
+Const SP_LAUF#     = 10.3   ; Laufgeschwindigkeit
 Const SP_BESCHL#   = 10.0   ; Beschleunigung am Boden (je Sekunde, mal Laufgeschwindigkeit)
 Const SP_LUFT#     = 1.0    ; dasselbe in der Luft
 Const SP_REIBUNG#  = 6.0
-Const SP_STOPP#    = 2.5
-Const SP_SPRUNG#   = 6.8    ; Absprung: v*v / (2*g) = gut 1.1 m
-Const SP_SCHWERE#  = 20.0
+Const SP_STOPP#    = 3.2
+Const SP_SPRUNG#   = 8.7    ; Absprung: v*v / (2*g) = 1.47 m
+Const SP_SCHWERE#  = 25.7
 Const SP_BODEN_NY# = 0.7    ; Normale mit mehr Y ist Boden (flacher als 45 Grad)
 Const SP_FUSS_R#   = 0.3    ; Kugel der Bodenpruefung
 Const SP_SCHNAPP#  = 0.1    ; so weit werden die Fuesse zum Boden gezogen

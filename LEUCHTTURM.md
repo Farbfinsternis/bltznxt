@@ -124,8 +124,9 @@ dürfen bis Schritt 5 statisch sein.
 | `karte.bb` | Karte laden: `-col` wird unsichtbare Kollisionsgeometrie, `spawn` der Startpunkt; ohne `-col` kollidiert die sichtbare Geometrie |
 | `daten/arena.glb` | Platzhalter-Arena aus `werkzeug/arena.py`: Boden, Wände, Säule, Block, Rampe, Treppe, zwei Plattformen |
 
-Werte der Bewegung: Laufen 8 m/s, Sprung gut 1,1 m hoch, Schwerkraft 20 m/s², Stufen bis 25 cm
-geht man hinauf. `tests/test_leuchtturm_bewegung.bb` steuert den Spieler mit künstlicher Eingabe
+Werte der Bewegung: die von Quake III, umgerechnet über die Spielergröße (56 Einheiten = 1,8 m,
+eine Einheit ≈ 3,2 cm): Laufen 10,3 m/s, Absprung 8,7 m/s, Schwerkraft 25,7 m/s², Sprunghöhe
+1,4 m; Stufen bis 25 cm geht man hinauf. `tests/test_leuchtturm_bewegung.bb` steuert den Spieler mit künstlicher Eingabe
 durch die Arena und prüft Fallen, Laufen, Wand, Sprung, Block, Rampe hinauf und hinab, Treppe und
 Stehen am Hang.
 
