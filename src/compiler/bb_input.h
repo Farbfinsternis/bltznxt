@@ -275,11 +275,19 @@ inline void bb_MoveMouse(int x, int y) {
   bb_mouse_read_y_ = (float)y;
   bb_mouse_speed_x_ = x;
   bb_mouse_speed_y_ = y;
-  if (bb_window_)
-    SDL_WarpMouseInWindow(bb_window_, bb_present_to_window_x_((float)x),
-                                      bb_present_to_window_y_((float)y));
-  else
+  // Ohne Eingabefokus bleibt der echte Zeiger, wo er ist - bewusst anders als
+  // das Original, das im Fenstermodus 2 weiterlaeuft und SetCursorPos auch
+  // dann ruft: ein Spiel, das die Maus je Bild zur Mitte holt, fing sonst den
+  // Zeiger des ganzen Rechners, sobald man in ein anderes Fenster wechselt
+  // (2026-09-27). Das Programm merkt davon nichts: MouseX/Y und der
+  // Ausgangspunkt fuer MouseXSpeed sind oben schon gesetzt.
+  if (bb_window_) {
+    if (SDL_GetWindowFlags(bb_window_) & SDL_WINDOW_INPUT_FOCUS)
+      SDL_WarpMouseInWindow(bb_window_, bb_present_to_window_x_((float)x),
+                                        bb_present_to_window_y_((float)y));
+  } else {
     SDL_WarpMouseGlobal((float)x, (float)y);
+  }
   // SDL legt fuer den Warp ein eigenes Bewegungsereignis mit der Zielposition
   // in die Warteschlange. Wurde es erst beim naechsten MouseXSpeed verarbeitet,
   // setzte es die Lage nach den echten Bewegungen wieder auf das Ziel - jede

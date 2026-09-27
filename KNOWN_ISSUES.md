@@ -45,6 +45,11 @@ These are not bugs but decisions, and they will stay:
   Where BlitzNext lights a model correctly and Blitz3D did not, BlitzNext stays correct. One
   example: an object scaled unevenly with `ScaleEntity` (say `1.5,0.5,1`) is shaded
   differently, because Direct3D 7 stretched its normals along with the object. (BUG-177)
+- **`MoveMouse` leaves the real pointer alone while the window has no input focus.** In
+  windowed mode Blitz3D keeps running in the background and moves the pointer anyway, so a
+  game that recentres the mouse every frame traps the pointer of the whole desktop as soon as
+  you switch to another window. `MouseX`, `MouseY` and the starting point for `MouseXSpeed`
+  are still set, so the program sees no difference.
 - **Colours read back from the rendered 3D image are not guaranteed.** `ReadPixel` or
   `CopyRect` after `RenderWorld` return BlitzNext's shading, not Direct3D 7's. What is in the
   image — geometry, visibility, texture contents — does match.
