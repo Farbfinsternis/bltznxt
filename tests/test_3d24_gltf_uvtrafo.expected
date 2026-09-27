@@ -1,0 +1,11 @@
+flaechen 4
+1) aus der Datei
+ ohne:    blau rot gruen weiss
+ versatz: rot blau weiss gruen
+ drehung: gruen blau weiss rot
+ satz:    rot rot rot rot
+2) versatz + PositionTexture 0.5
+ ohne:    blau rot gruen weiss
+ versatz: blau rot gruen weiss
+ drehung: gruen blau weiss rot
+ satz:    rot rot rot rot

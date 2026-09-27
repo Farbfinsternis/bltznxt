@@ -1164,9 +1164,10 @@ Leuchtturm-Projekt (LEUCHTTURM.md). Gelesen wird, was der alte Renderer darstell
 - [x] Morph Targets: Versatz von Lage und Normale je Ziel, Gewichte aus Knoten/Netz und dem
       Animationskanal `weights` (auch in Uebergaengen); erst Morph, dann Skinning; ohne neue
       Befehle
-- [ ] KHR_texture_transform
+- [x] KHR_texture_transform als eigene UV-Matrix der Textur, vor `ScaleTexture` & Co.
 - **Test:** `tests/test_3d24_gltf.bb`, `tests/test_3d24_gltf_anim.bb` (Skinning pixelgleich mit
-  `test_skin.b3d`), `tests/test_3d24_gltf_morph.bb`; Dateien aus `scripts/make_gltf_asset.py`
+  `test_skin.b3d`), `tests/test_3d24_gltf_morph.bb`, `tests/test_3d24_gltf_uvtrafo.bb`; Dateien
+  aus `scripts/make_gltf_asset.py`
 
 ---
 

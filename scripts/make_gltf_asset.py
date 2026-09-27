@@ -76,6 +76,18 @@ gebaut und treffen die Stellen, an denen ein glTF-Leser danebengreifen kann:
                           Bildern. "drehen": "gelenk" auf -90 Grad um z bis
                           Bild 5 (glTF, wie test_gltf_skin).
 
+    test_gltf_uvtrafo.glb KHR_texture_transform. Eine 2x2-Textur, oben blau |
+                          rot, unten gruen | weiss, auf vier Tafeln (2x2,
+                          glTF-z = -6, Mitten x = -4.5, -1.5, 1.5, 4.5), UV
+                          0..1 von links oben:
+                          "ohne"     keine Transformation
+                          "versatz"  offset (0.5, 0)
+                          "drehung"  rotation pi/2, offset (0, 1):
+                                     u' = v, v' = 1 - u
+                          "satz"     texCoord 1 aus der Erweiterung (die
+                                     textureInfo sagt 0); TEXCOORD_1 steht
+                                     ueberall auf (0.75, 0.25) - rot
+
 Aufruf aus dem Projektwurzelverzeichnis:
 
     python scripts/make_gltf_asset.py
@@ -450,6 +462,48 @@ def morph():
     glb("test_gltf_morph.glb", doc, b)
 
 
+def uvtrafo():
+    b = Buf()
+    img = b.view(png(2, 2, [0, 0, 255, 255, 255, 0, 0, 255,
+                            0, 255, 0, 255, 255, 255, 255, 255]))
+    prims = []
+    for k, cx in enumerate((-4.5, -1.5, 1.5, 4.5)):
+        pos = [(cx - 1, -1, -6), (cx + 1, -1, -6), (cx + 1, 1, -6), (cx - 1, 1, -6)]
+        at = {"POSITION": b.acc("f", F32, "VEC3", pos, minmax=True),
+              "TEXCOORD_0": b.acc("f", F32, "VEC2", [(0, 1), (1, 1), (1, 0), (0, 0)]),
+              "TEXCOORD_1": b.acc("f", F32, "VEC2", [(0.75, 0.25)] * 4)}
+        prims.append({"attributes": at, "indices": b.acc("B", U8, "SCALAR", [0, 1, 2, 0, 2, 3]),
+                      "material": k})
+
+    def mat(name, ext):
+        info = {"index": 0}
+        if ext is not None:
+            info["extensions"] = {"KHR_texture_transform": ext}
+        return {"name": name, "extensions": {"KHR_materials_unlit": {}},
+                "pbrMetallicRoughness": {"baseColorTexture": info}}
+
+    doc = {
+        "asset": {"version": "2.0", "generator": "make_gltf_asset.py"},
+        "extensionsUsed": ["KHR_materials_unlit", "KHR_texture_transform"],
+        "extensionsRequired": ["KHR_texture_transform"],
+        "scenes": [{"nodes": [0]}],
+        "nodes": [{"name": "tafeln", "mesh": 0}],
+        "meshes": [{"primitives": prims}],
+        "materials": [
+            mat("ohne", None),
+            mat("versatz", {"offset": [0.5, 0]}),
+            mat("drehung", {"rotation": math.pi / 2, "offset": [0, 1]}),
+            mat("satz", {"texCoord": 1}),
+        ],
+        "textures": [{"source": 0}],
+        "images": [{"bufferView": img, "mimeType": "image/png"}],
+        "bufferViews": b.views,
+        "accessors": b.accessors,
+        "buffers": [{"byteLength": len(b.data)}],
+    }
+    glb("test_gltf_uvtrafo.glb", doc, b)
+
+
 def fehler():
     with open(os.path.join(OUT, "test_gltf_kaputt.gltf"), "w", newline="\n") as f:
         f.write('{ "asset": { "version": "2.0" }, nope }\n')
@@ -467,3 +521,4 @@ if __name__ == "__main__":
     skin()
     knoten()
     morph()
+    uvtrafo()

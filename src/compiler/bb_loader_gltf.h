@@ -32,6 +32,8 @@
 //    unlit
 //    COLOR_0                                      Vertexfarbe, FX 2
 //    Sampler CLAMP_TO_EDGE                        Textur-Flag 16 / 32
+//    KHR_texture_transform                        UV-Matrix der Textur (vor
+//                                                 ScaleTexture & Co.)
 //    Gelenk einer Skin (ohne Netz)                Pivot
 //    Skin: JOINTS/WEIGHTS, inverseBindMatrices    Knochen des Netzes
 //    animations[n]                                Sequenz n (AnimSeq)
@@ -77,8 +79,7 @@
 //  mit den Werten, die man sieht. Beide werden deshalb nach sRGB gewandelt;
 //  Bilder sind schon sRGB.
 //
-//  Noch nicht: KHR_texture_transform. Draco- und meshopt-komprimierte
-//  Dateien werden abgelehnt.
+//  Draco- und meshopt-komprimierte Dateien werden abgelehnt.
 // ============================================================
 
 #include "bb_mesh.h"
@@ -501,7 +502,9 @@ inline bool bb_gltf_image_(const bb_GltfLoad_& L, int img, std::vector<uint8_t>&
 // die sich das Bild mit Metallic/Roughness teilt, traegt sie dort).
 // Dieselbe Textur mit denselben Einstellungen ist dasselbe Handle - sonst
 // wuerden gleiche Brushes nicht zusammengefasst.
-inline int bb_gltf_texture_(bb_GltfLoad_& L, int ti, int flags, int coords, double cut, bool grey) {
+// `uv`: die Matrix aus KHR_texture_transform (spaltenweise 2x3), nullptr ohne.
+inline int bb_gltf_texture_(bb_GltfLoad_& L, int ti, int flags, int coords, double cut, bool grey,
+                            const float* uv = nullptr) {
   const bb_Json_& tx = L.doc["textures"][ti];
   if (!tx.has()) return 0;
   const int img = tx["source"].i();
@@ -511,7 +514,9 @@ inline int bb_gltf_texture_(bb_GltfLoad_& L, int ti, int flags, int coords, doub
 
   const std::string key = std::to_string(img) + "/" + std::to_string(flags) + "/" +
                           std::to_string(coords) + "/" + std::to_string(cut) + "/" + (grey ? "g" : "c");
-  if (auto it = L.texcache.find(key); it != L.texcache.end()) return it->second;
+  std::string ukey = key;
+  if (uv) for (int i = 0; i < 6; ++i) ukey += "/" + std::to_string(uv[i]);
+  if (auto it = L.texcache.find(ukey); it != L.texcache.end()) return it->second;
 
   std::vector<uint8_t> bytes;
   std::string name;
@@ -522,7 +527,7 @@ inline int bb_gltf_texture_(bb_GltfLoad_& L, int ti, int flags, int coords, doub
   if (!data) {
     std::cerr << "[runtime] LoadMesh: '" << L.file << "' - Bild " << img
               << " nicht lesbar (PNG und JPEG gehen)\n";
-    L.texcache.emplace(key, 0);
+    L.texcache.emplace(ukey, 0);
     return 0;
   }
 
@@ -551,8 +556,12 @@ inline int bb_gltf_texture_(bb_GltfLoad_& L, int ti, int flags, int coords, doub
   }
   t->frames.push_back(std::move(f));
   t->coords = coords;
+  if (uv) {
+    t->pre_on = true;
+    for (int i = 0; i < 6; ++i) t->pre[i] = uv[i];
+  }
   const int handle = bb_texture_register_(std::move(t));
-  L.texcache.emplace(key, handle);
+  L.texcache.emplace(ukey, handle);
   return handle;
 }
 
@@ -591,14 +600,32 @@ inline bb_Brush_ bb_gltf_brush_(bb_GltfLoad_& L, int mi, bool vcolors) {
   if ((emits && !m["emissiveTexture"].has()) || m["extensions"]["KHR_materials_unlit"].has())
     br.fx |= 1;
 
+  // KHR_texture_transform ersetzt auch texCoord.
   auto tex_coords = [&](const bb_Json_& info) {
-    const int tc = info["texCoord"].i(0);
+    const bb_Json_& x = info["extensions"]["KHR_texture_transform"]["texCoord"];
+    const int tc = x.has() ? x.i(0) : info["texCoord"].i(0);
     if (tc > 1) L.warn("nur TEXCOORD_0 und TEXCOORD_1 werden gelesen");
     return tc == 1 ? 1 : 0;
   };
+  // uv' = T(offset) * R(rotation) * S(scale) * uv, R = [cos sin; -sin cos]
+  // (KHR_texture_transform) - spaltenweise 2x3 fuer bb_Texture_::pre.
+  float uvm[2][6];
+  auto uv_matrix = [&](const bb_Json_& info, int k) -> const float* {
+    const bb_Json_& x = info["extensions"]["KHR_texture_transform"];
+    if (!x.has()) return nullptr;
+    const double r = x["rotation"].n(0), c = std::cos(r), s = std::sin(r);
+    const double sx = x["scale"][0].n(1), sy = x["scale"][1].n(1);
+    float* m = uvm[k];
+    m[0] = static_cast<float>(c * sx);  m[1] = static_cast<float>(-s * sx);
+    m[2] = static_cast<float>(s * sy);  m[3] = static_cast<float>(c * sy);
+    m[4] = static_cast<float>(x["offset"][0].n(0));
+    m[5] = static_cast<float>(x["offset"][1].n(0));
+    return m;
+  };
   const bb_Json_& base = pbr["baseColorTexture"];
   if (base.has()) {
-    if (const int t = bb_gltf_texture_(L, base["index"].i(), tflags, tex_coords(base), cut, false)) {
+    if (const int t = bb_gltf_texture_(L, base["index"].i(), tflags, tex_coords(base), cut, false,
+                                       uv_matrix(base, 0))) {
       br.tex.tex[0]   = bb_texture_ref_(t);
       br.tex.frame[0] = 0;
     }
@@ -611,7 +638,8 @@ inline bb_Brush_ bb_gltf_brush_(bb_GltfLoad_& L, int mi, bool vcolors) {
       return L.doc["textures"][ti]["source"].i(-2);
     };
     const bool packed = mr.has() && source(mr) == source(occ);
-    if (const int t = bb_gltf_texture_(L, occ["index"].i(), BB_TEX_COLOR, tex_coords(occ), -1, packed)) {
+    if (const int t = bb_gltf_texture_(L, occ["index"].i(), BB_TEX_COLOR, tex_coords(occ), -1, packed,
+                                       uv_matrix(occ, 1))) {
       br.tex.tex[1]   = bb_texture_ref_(t);
       br.tex.frame[1] = 0;
     }
@@ -1106,7 +1134,7 @@ inline int bb_load_gltf_(const bbString& file, const float lm[9], int parent, bo
   const bb_Json_& req = L.doc["extensionsRequired"];
   for (size_t i = 0; i < req.size(); ++i) {
     const std::string& x = req[i].str;
-    if (x != "KHR_mesh_quantization" && x != "KHR_materials_unlit")
+    if (x != "KHR_mesh_quantization" && x != "KHR_materials_unlit" && x != "KHR_texture_transform")
       return fail("braucht " + x);
   }
 

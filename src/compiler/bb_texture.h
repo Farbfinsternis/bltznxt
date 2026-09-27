@@ -79,6 +79,11 @@ struct bb_Texture_ {
   float    uScale = 1.0f, vScale = 1.0f;
   float    uPos   = 0.0f, vPos   = 0.0f;
   float    angle  = 0.0f;     // Grad
+  // UV-Matrix aus der Datei (glTF KHR_texture_transform, 3D-24), spaltenweise
+  // 2x3: wirkt vor ScaleTexture & Co. Blitz dreht erst und skaliert dann,
+  // glTF umgekehrt - mit den Blitz-Werten allein ginge das nicht genau.
+  bool     pre_on = false;
+  float    pre[6] = { 1, 0, 0, 1, 0, 0 };
   std::vector<bb_TexFrame_> frames;
   bool     dirty = true;      // GPU-Upload noetig
 
@@ -358,6 +363,16 @@ inline void bb_texture_matrix_(const bb_Texture_ *t, float *m) {
   m[0] =  c / su;  m[1] =  s / sv;  m[2] = 0.0f;
   m[3] = -s / su;  m[4] =  c / sv;  m[5] = 0.0f;
   m[6] = -t->uPos; m[7] = -t->vPos; m[8] = 1.0f;
+  if (t->pre_on) {
+    // m * pre, pre als 3x3 mit letzter Zeile 0,0,1
+    const float* p = t->pre;
+    float o[9];
+    for (int c = 0; c < 3; ++c) {
+      const float a = c < 2 ? p[c * 2] : p[4], b = c < 2 ? p[c * 2 + 1] : p[5], w = c < 2 ? 0.0f : 1.0f;
+      for (int r = 0; r < 3; ++r) o[c * 3 + r] = m[r] * a + m[3 + r] * b + m[6 + r] * w;
+    }
+    for (int i = 0; i < 9; ++i) m[i] = o[i];
+  }
 }
 
 // ============================================================

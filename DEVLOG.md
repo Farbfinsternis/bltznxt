@@ -38,6 +38,25 @@ running Blitz3D 11.8. The entries below this one describe each step; this is the
 
 ---
 
+## 2026-09-27 — glTF: KHR_texture_transform (3D-24, part 4)
+
+Blender writes `KHR_texture_transform` when a texture goes through a Mapping node, for tiled or
+shifted textures. The loader now reads it for the base colour and the occlusion texture,
+including its `texCoord` override, and accepts it in `extensionsRequired`.
+
+It is not mapped onto `PositionTexture`, `ScaleTexture` and `RotateTexture`: Blitz3D rotates
+before it scales, glTF scales before it rotates, so a non-uniform scale with a rotation has no
+exact Blitz equivalent. Instead a texture can carry a UV matrix from the file
+(`bb_Texture_::pre`) that applies before the Blitz transform; a program can still move, scale
+and rotate the texture on top of it. Base colour and lightmap may share one UV set with
+different transforms, which is why the matrix sits on the texture and is not baked into the
+vertices.
+
+`test_3d24_gltf_uvtrafo` checks an offset, a rotation with offset, the `texCoord` override and
+`PositionTexture` on top, at the texel centres of a 2×2 texture.
+
+---
+
 ## 2026-09-27 — glTF: morph targets (3D-24, part 3)
 
 Blender's shape keys arrive as glTF morph targets, and they now deform the mesh. Blitz3D has no
