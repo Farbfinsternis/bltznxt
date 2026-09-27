@@ -130,6 +130,121 @@ def main():
             f.write(data)
         print("%s: %d Bytes" % (path, len(data)))
 
+    anim_assets(out)
+
+
+# ---- 3D-19: Keyframer ----------------------------------------------------
+
+def trimesh_at(name, verts, faces, matname, axes):
+    """Wie trimesh, aber mit eigener lokaler Matrix (0x4160: drei Achsen,
+    dann der Ursprung) und ohne UV. Die Vertices stehen wie immer in
+    Weltkoordinaten; ohne Dreiecke gibt es nur die Matrix."""
+    subs = b""
+    if verts:
+        vb = struct.pack(LE + "H", len(verts)) + \
+            b"".join(struct.pack(LE + "fff", *p) for p in verts)
+        fb = struct.pack(LE + "H", len(faces)) + \
+            b"".join(struct.pack(LE + "HHHH", a, b, c, 0) for a, b, c in faces)
+        grp = chunk(0x4130, cstr(matname) + struct.pack(LE + "H", len(faces)) +
+                    b"".join(struct.pack(LE + "H", i) for i in range(len(faces))))
+        subs += chunk(0x4110, vb) + chunk(0x4120, fb, grp)
+    subs += chunk(0x4160, struct.pack(LE + "12f", *axes))
+    return chunk(0x4000, cstr(name), chunk(0x4100, b"", subs))
+
+
+def track(cid, keys):
+    """Eine Spur: Kopf (Flags, 8 Byte, Anzahl, 2 Byte), dann je Schluessel
+    Zeit, Flags, die Spline-Werte zu den Flags und die Daten."""
+    out = struct.pack(LE + "H8sHH", 0, b"\0" * 8, len(keys), 0)
+    for k in keys:
+        time, flags, spline, vals = k
+        out += struct.pack(LE + "iH", time, flags)
+        out += b"".join(struct.pack(LE + "f", s) for s in spline)
+        out += b"".join(struct.pack(LE + "f", v) for v in vals)
+    return chunk(cid, out)
+
+
+def node(nid, name, parent, pivot=None, inst=None, pos=None, rot=None, scl=None):
+    subs = chunk(0xB030, struct.pack(LE + "H", nid))
+    subs += chunk(0xB010, cstr(name) + struct.pack(LE + "HHH", 0, 0, parent))
+    if inst is not None:
+        subs += chunk(0xB011, cstr(inst))
+    if pivot is not None:
+        subs += chunk(0xB013, struct.pack(LE + "fff", *pivot))
+    if pos:
+        subs += track(0xB020, pos)
+    if rot:
+        subs += track(0xB021, rot)
+    if scl:
+        subs += track(0xB022, scl)
+    return chunk(0xB002, b"", subs)
+
+
+def keyframer(anim_len, nodes):
+    kfhdr = chunk(0xB00A, struct.pack(LE + "H", 5) + cstr("test") +
+                  struct.pack(LE + "I", anim_len))
+    return chunk(0xB000, b"", kfhdr + b"".join(nodes))
+
+
+def anim_assets(out):
+    """test_anim.3ds / test_anim_seq.3ds (3D-19).
+
+    arm   Quader, lokale Matrix verschoben, Drehpunkt 0.5 in x; drei
+          Drehschluessel, die sich aufaddieren (je 90 Grad um die 3DS-z-
+          Achse), zwei Lageschluessel.
+    gelenk  "$$$DUMMY" unter arm, nur eine Lage.
+    hand  Quader mit gedrehter lokaler Matrix unter gelenk. Ein
+          Skalierungsschluessel liegt hinter der Laenge und faellt weg; ein
+          Schluessel traegt Spline-Werte (Flags 1 und 8), die der Leser
+          ueberspringen muss.
+    Dazu ein zweiter Knoten "hand" (wird uebergangen, das Objekt ist schon
+    vergeben), ein Knoten zu einem Objekt, das es nicht gibt, ein Knoten mit
+    unbekanntem Elternteil und ein Objekt "leer" ohne Dreiecke.
+    """
+    pi2 = 1.5707963
+    va, fa = box(0, 2, -0.5, 0.5, 1.5, 2.5)
+    vh, fh = box(3, 4, -0.25, 0.25, 1.75, 2.25)
+    ident_at = lambda x, y, z: (1, 0, 0, 0, 1, 0, 0, 0, 1, x, y, z)
+    scene = chunk(0x3D3D, b"",
+                  material("rot", (255, 0, 0)) +
+                  trimesh_at("arm", va, fa, "rot", ident_at(0, 0, 2)) +
+                  trimesh_at("hand", vh, fh, "rot", (0, 1, 0, -1, 0, 0, 0, 0, 1, 3, 0, 2)) +
+                  trimesh_at("leer", [], [], "rot", ident_at(5, 5, 5)))
+    kf = keyframer(20, [
+        node(0, "arm", 65535, pivot=(0.5, 0, 0),
+             pos=[(0, 0, (), (0, 0, 2)), (20, 0, (), (0, 0, 4))],
+             rot=[(0, 0, (), (0, 0, 0, 1)), (10, 0, (), (pi2, 0, 0, 1)),
+                  (20, 0, (), (pi2, 0, 0, 1))],
+             scl=[(0, 0, (), (1, 1, 1))]),
+        node(1, "$$$DUMMY", 0, inst="gelenk", pos=[(0, 0, (), (3, 0, 0))]),
+        node(2, "hand", 1,
+             pos=[(0, 0, (), (0, 0, 0))],
+             rot=[(0, 0, (), (0, 1, 0, 0)), (16, 9, (0.5, 0.25), (pi2, 1, 0, 0))],
+             scl=[(0, 0, (), (1, 1, 1)), (12, 0, (), (1, 2, 1)), (30, 0, (), (5, 5, 5))]),
+        node(3, "hand", 0, pos=[(0, 0, (), (9, 9, 9))]),
+        node(4, "gibtsnicht", 0),
+        node(5, "leer", 77),
+    ])
+    data = chunk(0x4D4D, b"", chunk(0x0002, struct.pack(LE + "I", 3)) + scene + kf)
+    path = os.path.join(out, "test_anim.3ds")
+    with open(path, "wb") as f:
+        f.write(data)
+    print("%s: %d Bytes" % (path, len(data)))
+
+    # Zweite Sequenz: gleiche Namen, keine Netze noetig, andere Laenge.
+    scene = chunk(0x3D3D, b"",
+                  trimesh_at("arm", [], [], "", ident_at(0, 0, 2)) +
+                  trimesh_at("hand", [], [], "", ident_at(3, 0, 2)))
+    kf = keyframer(8, [
+        node(0, "arm", 65535, pos=[(0, 0, (), (0, 0, 2)), (8, 0, (), (4, 0, 2))]),
+        node(1, "hand", 0, rot=[(0, 0, (), (0, 0, 0, 1)), (8, 0, (), (pi2, 1, 0, 0))]),
+    ])
+    data = chunk(0x4D4D, b"", chunk(0x0002, struct.pack(LE + "I", 3)) + scene + kf)
+    path = os.path.join(out, "test_anim_seq.3ds")
+    with open(path, "wb") as f:
+        f.write(data)
+    print("%s: %d Bytes" % (path, len(data)))
+
 
 if __name__ == "__main__":
     main()

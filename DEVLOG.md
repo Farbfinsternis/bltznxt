@@ -38,6 +38,44 @@ running Blitz3D 11.8. The entries below this one describe each step; this is the
 
 ---
 
+## 2026-09-26 — Animation: keys, sequences, `.x`/`.3ds` hierarchies, `.b3d` with bones (3D-19)
+
+Blitz3D's animation system, rebuilt from `animation.cpp`, `animator.cpp`, the three loaders and
+`meshmodel.cpp`/`surface.cpp`, and measured against Blitz3D 11.8 at every step.
+
+- **Commands** (`bb_animation.h`, new): `Animate`, `SetAnimTime`, `AnimSeq`, `AnimLength`,
+  `AnimTime`, `Animating`, `AddAnimSeq`, `ExtractAnimSeq`, `SetAnimKey`, `LoadAnimSeq`. Position
+  and scale keys are mixed linearly, rotations as quaternions with slerp; loop, ping-pong, one-shot,
+  negative speed and transitions work as in `Animator::update`. `UpdateWorld`'s time step now
+  counts, hidden entities do not animate, and `CopyEntity` copies the animator (stopped).
+  Entities keep their Euler angles; keys are converted through the rotation matrix.
+- **`LoadAnimMesh` for `.x`**: frames become child meshes with their names and local transform,
+  `AnimationSet` keys become sequence 0. Text and binary files, `LoaderMatrix` included.
+- **`LoadAnimMesh` for `.3ds`**: objects become children of an empty root, the keyframer re-parents
+  them by node id, handles `$$$DUMMY`, the pivot and the relative rotation keys. A file without a
+  keyframer has no animator, as in Blitz3D.
+- **`.b3d`** (`bb_loader_b3d.h`, new): textures, brushes, nodes, meshes, bones with up to four
+  weights per vertex, keys. `LoadMesh` collapses the tree as `collapseMesh` does. Boned meshes
+  are skinned on the CPU at `RenderWorld`, per entity, so copies keep their own pose. Surfaces
+  are ordered like Blitz3D's `map<Brush>` (a `memcmp` of the render state), so `GetSurface`
+  finds the same surface.
+
+Measured: the manual keys of `createanim.bb`-style sequences (23 cases), the two animated robots
+of `samples/mak/anim` in `.x` and `.3ds` (59 entities, bone positions at several times, with
+`LoadAnimSeq`), `mariorun.x` (binary) and generated `.b3d` files, where the skinned strip is
+compared by reading pixels after `RenderWorld`. All values match; the only difference found is
+`MeshWidth` of an empty mesh.
+
+Tests `test_3d19_animation`, `test_3d19_animation_fehler`, `test_3d19_animation_x`,
+`test_3d19_animation_3ds`, `test_3d19_animation_b3d`; `test_3d13_loader` now expects the
+`.3ds` hierarchy. New assets are written by `scripts/make_3ds_asset.py` and
+`scripts/make_b3d_asset.py` (new); the two `.x` files are handwritten.
+
+Not yet: `CaptureWorld`/`RenderWorld tween` (tweening). The surface order of `.x` and `.3ds`
+still follows the file, not Blitz3D's brush order.
+
+---
+
 ## 2026-09-26 — Parameter defaults are folded like constants (BUG-49)
 
 A parameter default must be constant in Blitz3D, and it is folded like a `Const` and converted

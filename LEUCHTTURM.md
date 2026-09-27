@@ -93,7 +93,7 @@ Freie Assets gibt es unter CC0 unter anderem von Kenney und Quaternius (Modelle)
 | Kollision, `LinePick`, `EntityType`, `Collisions` | vorhanden | — |
 | Sprites, Partikel, mehrere Texturschichten, 2D über 3D | vorhanden | — |
 | `FindChild`, `GetChild`, `EntityName`, `CopyEntity` | vorhanden | — |
-| Animationssystem (`Animate`, `SetAnimTime`, `AnimSeq`, `ExtractAnimSeq` …) | fehlt | Phase 1 — alte `.x`/`.b3d` brauchen es ebenso |
+| Animationssystem (`Animate`, `SetAnimTime`, `AnimSeq`, `ExtractAnimSeq` …), `.b3d` mit Knochen | vorhanden (3D-19) | — |
 | glTF-Lader, statisch: Geometrie, Hierarchie, Brushes, zwei UV-Sätze | fehlt | Leuchtturm |
 | glTF-Lader, animiert: Skinning, Animationen auf dem Blitz-System | fehlt | Leuchtturm, nach dem Animationssystem |
 | 3D-Klang (`CreateListener`, `EmitSound`) | fehlt | Phase 1 |

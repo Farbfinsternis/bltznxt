@@ -26,6 +26,13 @@ enum class bb_EntityKind_ {
   Pivot, Mesh, Camera, Light, Sprite, Mirror, Md2
 };
 
+// Animation (3D-19, bb_animation.h). Hier nur vorab genannt: die Entity
+// haelt beides ueber shared_ptr, das kommt mit einem unvollstaendigen Typ
+// aus.
+struct bb_AnimKeys_;
+struct bb_Animator_;
+inline std::shared_ptr<bb_Animator_> bb_animator_clone_(const bb_Animator_& a);
+
 // ============================================================
 // bb_Entity_ — polymorphic base for all 3D scene objects
 // ============================================================
@@ -88,6 +95,19 @@ struct bb_Entity_ {
     0,0,1,0,
     0,0,0,1
   };
+
+  // ---- Animation (3D-19) ----
+  // Wie Object im Original: `anim` sammelt, was SetAnimKey setzt (und was
+  // ein Lader an Schluesseln mitbringt), bis AddAnimSeq bzw. der Lader es
+  // als Sequenz in einen Animator uebernimmt. `animator` spielt die
+  // Sequenzen ab; er sitzt an der Wurzel und bewegt alle Entities seiner
+  // Liste. Beides wandert beim Klonen nicht mit - Object(const Object&)
+  // laesst es leer, CopyEntity baut den Animator eigens nach.
+  // `lastCopy` ist Object::last_copy: die zuletzt gemachte Kopie, damit der
+  // kopierte Animator seine Entities in der Kopie wiederfindet.
+  std::shared_ptr<const bb_AnimKeys_> anim;
+  std::shared_ptr<bb_Animator_>       animator;
+  int                                 lastCopy = 0;
 
   // World matrix (column-major 4×4), updated by UpdateWorld
   float world[16] = {
@@ -708,7 +728,7 @@ inline float bb_TFormedZ() { return bb_tformed_[2]; }
 // (`blitz3d/object.cpp:28`), damit auch die Handles in derselben Folge
 // vergeben werden.
 inline int bb_copy_entity_tree_(int h, int parent) {
-  const bb_Entity_* e = bb_entity_get_(h);
+  bb_Entity_* e = bb_entity_get_(h);
   if (!e) return 0;
 
   std::unique_ptr<bb_Entity_> c = e->clone();
@@ -724,7 +744,11 @@ inline int bb_copy_entity_tree_(int h, int parent) {
   const std::vector<int> kids = e->children;
 
   int nh = bb_entity_register_(std::move(c), parent);
+  e->lastCopy = nh;
   for (int k : kids) bb_copy_entity_tree_(k, nh);
+  // Erst nach den Kindern, wie Object::copy: der Animator der Kopie sucht
+  // seine Entities ueber lastCopy, und die gibt es jetzt alle.
+  if (e->animator) bb_entity_get_(nh)->animator = bb_animator_clone_(*e->animator);
   return nh;
 }
 

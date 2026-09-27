@@ -816,9 +816,9 @@ gleichem Brush zusammenfassen.
       aus Zeichen, darueber derselbe Objektbaum. Alle **8** Binaerdateien
       der Installation liefern dieselbe Flaechenzahl und dieselben drei
       Ausmasse wie das Original.
-- [ ] `.b3d` - in der Installation liegt keine einzige solche Datei,
-      der Loader waere also gegen nichts pruefbar
-- [ ] Hierarchie und Animation aus dem Keyframe-Abschnitt (3D-19)
+- [x] `.b3d` - in der Installation liegt keine einzige solche Datei; gebaut
+      in 3D-19 gegen selbst erzeugte Dateien (scripts/make_b3d_asset.py)
+- [x] Hierarchie und Animation aus dem Keyframe-Abschnitt (3D-19)
 
 **Sechs Dinge am laufenden Original nachgemessen — jedes einzelne haette man
 plausibel anders gemacht, und keines meldet sich von selbst:**
@@ -1038,22 +1038,23 @@ am Original gemessen (2026-09-17, `build/coll20260917/`, 55 Faelle).
 
 ---
 
-### 3D-19 · Animation
-*Dateien: `bb_animation.h` (neu)*
+### 3D-19 · Animation ✓
+*Dateien: `bb_animation.h`, `bb_loader_b3d.h` (neu), `bb_loader.h`, `bb_mesh.h`*
 
-- [ ] `bb_AnimData_` struct: `length`, `keys` (frame → {pos,rot,scale})
-- [ ] `bb_Entity_` um `animData[]` (Sequenzen), `animSeq`, `animTime`, `animSpeed`,
-      `animMode`, `animating` erweitern
-- [ ] `bb_Animate(h, mode, speed=1, seq=0, transition=0)`
-      (mode: 0=Stop, 1=Loop, 2=Ping-Pong, 3=One-Shot)
-- [ ] `bb_SetAnimTime(h, time, seq=0)`
-- [ ] `bb_AnimSeq(h)`, `bb_AnimLength(h, seq=0)`, `bb_AnimTime(h)`, `bb_Animating(h)`
-- [ ] `bb_AddAnimSeq(h, length)` → seq index
-- [ ] `bb_ExtractAnimSeq(h, first, last, seq)` → seq index
-- [ ] `bb_SetAnimKey(h, frame, pos=1, rot=1, scale=1)`
-- [ ] `bb_LoadAnimSeq(h, path$)` → seq index (lädt Keyframes aus .b3d)
-- [ ] Animation-Interpolation in `UpdateWorld` (Lerp Pos/Scale, Slerp Rot)
-- **Test:** `tests/test_3d19_animation.bb`
+Nach `animation.cpp`, `animator.cpp`, den drei Ladern und `meshmodel.cpp`/`surface.cpp`; jeder
+Schritt am Original gemessen (2026-09-26).
+
+- [x] Schluessel je Entity (`bb_AnimKeys_`: Lage/Skalierung linear, Drehung als Quaternion mit
+      Slerp), Animator an der Wurzel (`bb_Animator_`: Sequenzen, Zeit, Modus, Uebergang)
+- [x] `bb_Animate(h, mode, speed=1, seq=0, transition=0)` (1 Schleife, 2 Pingpong, 3 einmal)
+- [x] `bb_SetAnimTime`, `bb_AnimSeq`, `bb_AnimLength`, `bb_AnimTime`, `bb_Animating`
+- [x] `bb_AddAnimSeq`, `bb_ExtractAnimSeq`, `bb_SetAnimKey`, `bb_LoadAnimSeq`
+- [x] Animation in `UpdateWorld` (mit Zeitschritt), `CopyEntity` kopiert den Animator
+- [x] `LoadAnimMesh` fuer `.x` (Frames, AnimationSet) und `.3ds` (Keyframer, Dummies, Pivot)
+- [x] `.b3d`: Knoten, Netze, Knochen mit Gewichten, Schluessel; Skinning auf der CPU
+- [ ] Tweening: `CaptureWorld`, `RenderWorld tween`
+- [ ] Flaechenreihenfolge von `.x`/`.3ds` wie im Original (nach Brush sortiert)
+- **Test:** `tests/test_3d19_animation*.bb`
 
 ---
 

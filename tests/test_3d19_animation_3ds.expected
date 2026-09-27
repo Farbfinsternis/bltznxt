@@ -1,0 +1,14 @@
+[] kinder 2 fl 0 | 0,0,0 r 0,0,0 | seq 0 len 20 t 0 an 0
+ [arm] kinder 1 fl 1 w 2000 h 1000 d 1000 | 0,2000,0 r 0,0,0 | seq -1 len -1 t -1000 an 0
+  [gelenk] kinder 1 fl 0 | 3000,0,0 r 0,0,0 | seq -1 len -1 t -1000 an 0
+   [hand] kinder 0 fl 1 w 500 h 500 d 1000 | 0,0,0 r 0,0,0 | seq -1 len -1 t -1000 an 0
+ [leer] kinder 0 fl 0 | 5000,5000,5000 r 0,0,0 | seq -1 len -1 t -1000 an 0
+2.0 seq 0 len 20 t 0 an 0 arm 0,2000,0 r 0,0,0 hand 0,0,0 r 0,0,0 welt 3000,2000,0
+2.1 seq 0 len 20 t 4000 an 0 arm 0,2400,0 r 0,-36000,0 hand 0,0,0 r 22500,0,0 welt 2427,2400,-1763
+2.2 seq 0 len 20 t 8000 an 0 arm 0,2800,0 r 0,-72000,0 hand 0,0,0 r 45000,0,0 welt 927,2800,-2853
+2.3 seq 0 len 20 t 12000 an 0 arm 0,3200,0 r 0,-108000,0 hand 0,0,0 r 67500,0,0 welt -927,3200,-2853
+2.4 seq 0 len 20 t 16000 an 0 arm 0,3600,0 r 0,-144000,0 hand 0,0,0 r 90000,0,0 welt -2427,3600,-1763
+2.5 seq 0 len 20 t 0 an 0 arm 0,2000,0 r 0,0,0 hand 0,0,0 r 0,0,0 welt 3000,2000,0
+3 seq=1 seq 1 len 8 t 4000 an 0 arm 2000,2000,0 r 0,0,0 hand 0,0,0 r 45000,0,0
+4 seq 0 len 20 t 12000 an 1 arm 0,3200,0 r 0,-108000,0
+5 kinder 0 fl 1 w 4500 h 1000 d 1000 seq -1 len -1 t -1000 an 0

@@ -117,7 +117,7 @@ counted as bugs and are not planned to be fixed:
 
 ## Missing commands
 
-104 of Blitz3D's commands (not counting language keywords) are not available yet. A
+94 of Blitz3D's commands (not counting language keywords) are not available yet. A
 program that uses one of them is rejected with `unknown function or command`. `blitzcc -k` lists
 everything that is available.
 
@@ -125,7 +125,6 @@ everything that is available.
 |------|---------|
 | Networking | all UDP and DirectPlay commands (`CreateUDPStream`, `SendUDPMsg`, `HostNetGame`, `SendNetMsg`, …) and `CopyStream`; TCP is available |
 | Picking and projection | `CameraPick`, `CameraProject`, `ProjectedX/Y/Z`, `EntityInView` |
-| Animation | `Animate`, `SetAnimTime`, `AnimTime`, `Animating`, `AnimSeq`, `AnimLength`, `LoadAnimSeq`, `AddAnimSeq`, `ExtractAnimSeq`, `SetAnimKey` |
 | Terrain, BSP | `CreateTerrain`, `LoadTerrain`, `ModifyTerrain`, `TerrainHeight`, …, `LoadBSP`, `BSPAmbientLight`, `BSPLighting` |
 | Planes | `CreatePlane` |
 | Camera fog | `CameraFogMode`, `CameraFogRange`, `CameraFogColor` |
@@ -225,6 +224,14 @@ The 3D layer is under active development — see [ROADMAP3D.md](ROADMAP3D.md). B
 - **Changing the graphics mode keeps images and custom loader matrices.** Blitz3D frees all
   images and resets `LoaderMatrix` on `Graphics`, `Graphics3D` and `EndGraphics`. Programs
   written for Blitz3D reload their images after a mode change anyway. (BUG-140)
+- **`RenderWorld tween` and `CaptureWorld` do not interpolate.** Programs that use Blitz3D's
+  render tweening draw the state of the last `UpdateWorld` instead of a blend between the two
+  last captures. Movement and animation look less smooth at low update rates, but the game
+  logic is the same. (3D-19)
+- **Surfaces of `.x` and `.3ds` models keep file order.** Blitz3D sorts the surfaces of a
+  loaded mesh by its brushes' render state; `.b3d` does this already, `.x` and `.3ds` still
+  number surfaces in the order the materials appear. `GetSurface(mesh, n)` can pick a
+  different surface on models with several materials. (3D-19)
 
 ---
 

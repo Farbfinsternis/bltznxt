@@ -1,0 +1,19 @@
+[] Mesh kinder 1 fl 0 | 0,0,0 r 0,0,0 | seq 0 len 24 t 0 an 0
+ [Arm] Mesh kinder 1 fl 1 | 0,2000,0 r 0,0,0 | seq -1 len -1 t -1000 an 0
+  [Hand] Mesh kinder 1 fl 1 | 3000,0,0 r 0,-90000,0 | seq -1 len -1 t -1000 an 0
+   [Finger] Mesh kinder 0 fl 0 | 1000,0,0 r 0,0,0 | seq -1 len -1 t -1000 an 0
+1 finger 3000,2000,-1000 hand breite 1000
+2.0 seq 0 len 24 t 0 an 0 arm 0,2000,0 r 0,0,0 finger 3000,2000,-1000
+2.1 seq 0 len 24 t 6000 an 0 arm 0,2600,0 r 0,54000,0 finger 2775,2600,1692
+2.2 seq 0 len 24 t 12000 an 0 arm 0,3200,0 r 0,108000,0 finger 500,3200,3317
+2.3 seq 0 len 24 t 18000 an 0 arm 0,3800,0 r 0,162000,0 finger -2312,3800,2591
+2.4 seq 0 len 24 t 0 an 0 arm 0,2000,0 r 0,0,0 finger 3000,2000,-1000
+3 seq=1 kinder 1
+3b seq 1 len 8 t 4000 an 0 arm 0,2000,0 r 0,0,0 hand 3000,500,0 r -30000,0,0 finger 4000,2500,0
+3c seq 1 len 8 t 6000 an 1 hand 3000,750,0 r -45000,0,0
+4 -1 1 seq 1 len 8 t 6000 an 1
+5 kinder 0 fl 1 breite 3000 seq -1 len -1 t -1000 an 0
+6 hand 3000,0,0 r 0,0,-90000 finger 3000,-1000,2000
+6b arm 0,0,2500 r 0,0,45000 finger 2976,1267,2500
+6c arm 0,0,3500 r 0,0,135000 finger -972,3270,3500
+7 seq=2 seq 2 len 10 t 5000 an 0 arm 0,4000,0 r 0,135000,0

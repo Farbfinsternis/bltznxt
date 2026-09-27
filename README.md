@@ -78,9 +78,9 @@ inside blocks, and `Include` on a line with other statements. See
 commands remain incomplete, including pixel-accurate `ImagesCollide` and `SystemProperty`;
 `CallDLL` does nothing, as userlibs are not supported. `CopyRect`, image/texture buffer drawing and multi-camera rendering have received
 compatibility fixes. In 3D, entities, cameras, lights, textures, brushes, primitive meshes,
-`.x`/`.3ds` loading, the surface API, sprites, mirrors, MD2 models with animation, collisions
-and line/entity picking are available. Camera picking/projection, skeletal and keyframe
-animation, terrain, fog and planes remain missing.
+`.x`/`.3ds`/`.b3d` loading with hierarchies, keyframe and skeletal animation, the surface API,
+sprites, mirrors, MD2 models, collisions and line/entity picking are available. Camera
+picking/projection, render tweening, terrain, fog and planes remain missing.
 TCP streams and hostname lookup are available; UDP and DirectPlay remain missing.
 
 **Blitz2D compatibility** is a practical secondary target. The 2D runtime is available, with
@@ -214,6 +214,8 @@ yet work like Blitz3D are listed in [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 
 **3D Graphics — Meshes** — `CreateMesh`, `LoadMesh`, `LoadAnimMesh`, `LoaderMatrix`, `CreateCube`, `CreateSphere`, `CreateCylinder`, `CreateCone`, `CopyMesh`, `AddMesh`, `FlipMesh`, `PaintMesh`, `LightMesh`, `FitMesh`, `ScaleMesh`, `RotateMesh`, `PositionMesh`, `UpdateNormals`, `MeshWidth`, `MeshHeight`, `MeshDepth`, `MeshesIntersect`, `CountSurfaces`
 
+**3D Graphics — Animation** — `Animate`, `SetAnimTime`, `AnimSeq`, `AnimLength`, `AnimTime`, `Animating`, `AddAnimSeq`, `ExtractAnimSeq`, `SetAnimKey`, `LoadAnimSeq`
+
 **3D Graphics — Surfaces & Vertices** — `CreateSurface`, `GetSurface`, `FindSurface`, `ClearSurface`, `PaintSurface`, `GetSurfaceBrush`, `AddVertex`, `AddTriangle`, `CountVertices`, `CountTriangles`, `TriangleVertex`, `VertexCoords`, `VertexNormal`, `VertexColor`, `VertexTexCoords`, `VertexX`, `VertexY`, `VertexZ`, `VertexNX`, `VertexNY`, `VertexNZ`, `VertexRed`, `VertexGreen`, `VertexBlue`, `VertexAlpha`, `VertexU`, `VertexV`, `VertexW`
 
 **3D Graphics — Maths** — `TFormPoint`, `TFormVector`, `TFormNormal`, `TFormedX`, `TFormedY`, `TFormedZ`
@@ -336,8 +338,10 @@ src/compiler/
   bb_gfxmode.h      ← graphics driver and mode enumeration (3D-00)
   bb_texture.h      ← textures (3D-11)
   bb_light.h        ← lights (3D-12)
-  bb_loader.h       ← LoadMesh / LoadAnimMesh, .3ds loader (3D-13)
+  bb_loader.h       ← LoadMesh / LoadAnimMesh, .3ds loader, hierarchies (3D-13, 3D-19)
   bb_loader_x.h     ← DirectX .x loader, text and binary (3D-13)
+  bb_loader_b3d.h   ← Blitz3D .b3d loader with bones (3D-19)
+  bb_animation.h    ← animation keys, sequences, Animate & co. (3D-19)
   bb_brush.h        ← brushes (3D-15)
   bb_surface.h      ← surfaces, vertices, triangles (3D-15)
   bb_sprite.h       ← sprites and view modes (3D-16)
@@ -375,7 +379,8 @@ Where the 3D engine is heading — one modern material model, per-pixel lighting
 | 3D-16 | Sprites and mirrors available; `CreatePlane` missing | Partial |
 | 3D-17 | Line/entity picking available; camera picking, projection and fog missing | Partial |
 | 3D-18 | Collision methods, responses and result queries | Implemented, reference-tested |
-| 3D-14, 3D-19 – 3D-23 | OBJ loader, animation, remaining 3D maths, terrain, MD2/BSP | Remaining roadmap work |
+| 3D-19 | Keyframe and skeletal animation, `.x`/`.3ds` hierarchies, `.b3d`; tweening missing | Implemented, reference-tested |
+| 3D-14, 3D-20 – 3D-23 | OBJ loader, remaining 3D maths, terrain, BSP | Remaining roadmap work |
 
 ---
 
@@ -399,7 +404,7 @@ depends on the Windows API and the bundled MinGW toolchain, so a Linux build doe
 bash tests/run_tests.sh
 ```
 
-The suite contains **287 tests, 97 of them negative**. Positive tests with an
+The suite contains **308 tests, 106 of them negative**. Positive tests with an
 `.expected` file are executed and their stdout is compared; the others are compile-only.
 Negative tests require a nonzero compiler exit status and, where an `.expected_err` exists,
 an exact diagnostic match. The current runner does not enforce exit code 1 specifically,

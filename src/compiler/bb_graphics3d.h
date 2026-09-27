@@ -29,23 +29,28 @@ inline int bb_tris_rendered_ = 0;
 #include "bb_surface.h"
 #include "bb_collision.h"
 #include "bb_mirror.h"
+#include "bb_animation.h"
 #include "bb_loader.h"
 
 // ============================================================
 // UpdateWorld — propagate world transforms + future systems
 // ============================================================
 
-// Der Zeitschritt ist optional und wird noch nicht ausgewertet - im Original
-// `UpdateWorld [elapsed_time#]` (BUG-44).
+// Der Zeitschritt `UpdateWorld [elapsed_time#]` (BUG-44) gilt fuer die
+// Animationen: MD2 und Animator zaehlen um ihn weiter.
 inline void bb_UpdateWorld(float elapsed_time = 1.0f) {
   bb_entity_update_all_();
   // Object::beginUpdate ruft animate(elapsed) vor der Kollision, fuer jedes
-  // nicht versteckte Objekt; bisher gibt es davon nur MD2 (3D-23).
+  // nicht versteckte Objekt: MD2 (3D-23) und Animatoren (3D-19). Das
+  // Original tut das Objekt fuer Objekt, jeweils direkt vor dessen
+  // Kollision; hier erst alle Animationen, dann alle Kollisionen.
   bb_md2_animate_all_(elapsed_time);
+  // Ein Animator setzt lokale Lagen - die Weltmatrizen muessen danach neu
+  // gerechnet werden, sonst stiesse die Kollision mit der alten Lage an.
+  if (bb_anim_update_all_(elapsed_time)) bb_entity_update_all_();
   // Kollisionen (3D-18): jedes Entity mit Typ wird von seiner Lage beim
   // vorigen UpdateWorld zur neuen bewegt, Treffer werden eingetragen.
   bb_world_update_collisions_();
-  // 3D-19: advance animation timers (stub)
 }
 
 // ============================================================

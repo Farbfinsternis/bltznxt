@@ -61,12 +61,12 @@ If GetParent(k) = piv Then Print "eltern gesetzt" Else Print "FEHLER eltern gese
 If EntityX(k) = 0 And EntityY(k) = 0 Then Print "eltern-position" Else Print "FEHLER eltern-position"
 FreeEntity k
 
-; --- 6) LoadAnimMesh laedt dieselbe Geometrie. Hierarchie und Animation
-;        gibt es noch nicht; der Befehl meldet das einmal und laedt sonst
-;        wie LoadMesh.
+; --- 6) LoadAnimMesh behaelt die Hierarchie (3D-19): eine leere Wurzel und
+;        je Objekt ein Kind mit seinem Namen. Ohne Keyframer-Abschnitt gibt
+;        es keinen Animator. Gemessen am Original (2026-09-26).
 a = LoadAnimMesh("tests/assets/test_box.3ds")
 If a <> 0 Then Print "animmesh" Else Print "FEHLER animmesh"
-If MeshWidth(a) = 12 And CountSurfaces(a) = 2 Then Print "animmesh gleich" Else Print "FEHLER animmesh gleich"
+If CountChildren(a) = 2 And CountSurfaces(a) = 0 And EntityName(GetChild(a,1)) = "kasten" And CountSurfaces(GetChild(a,1)) = 1 And CountSurfaces(GetChild(a,2)) = 1 And AnimSeq(a) = -1 Then Print "animmesh hierarchie" Else Print "FEHLER animmesh hierarchie"
 FreeEntity a
 
 ; --- 7) eine fehlende Datei ist Handle 0, kein Absturz

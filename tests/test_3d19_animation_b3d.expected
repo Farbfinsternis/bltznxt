@@ -1,0 +1,22 @@
+[koerper] Mesh kinder 1 6/4 6/4 | 0,0,0 r 0,0,0 | seq 0 len 20 t 0 an 0
+ [knochen1] Pivot kinder 1 | -2000,0,0 r 0,0,0 | seq -1 len -1 t -1000 an 0
+  [knochen2] Pivot kinder 0 | 4000,0,0 r 0,0,0 | seq -1 len -1 t -1000 an 0
+1 y40: |y90: |y120: r101-159 g160-219 |y135: r101-159 g160-219 | tris 8
+2a k2 1536,-2121,0 | y40: |y90: |y120: r101-120 |y135: r94-142 | tris 8
+2b k1 -2000,0,0 r 0,0,0 k2 2000,0,0 | y40: |y90: |y120: r101-159 g160-219 |y135: r101-159 g160-219 | tris 8
+2c y40: |y90: |y120: r103-115 |y135: r90-121 | tris 8
+3 v0 0,-500 n 0,0,-1000
+4a kopie seq 0 len 0 t 0 an 0 kinder 1
+4b y40: |y90: |y120: r101-120 |y135: r94-142 | tris 16
+5 seq 0 len 20 t 15000 an 1 | y40: |y90: |y120: r103-115 |y135: r90-121 | tris 8
+6 kinder 0 fl 2 w 4000 h 1000 seq -1 len -1 t -1000 an 0 | y40: |y90: |y120: r101-159 g160-219 |y135: r101-159 g160-219 | tris 8
+[wurzel] Mesh kinder 2 | 0,0,0 r 0,0,0 | seq 0 len 10 t 0 an 0
+ [a] Mesh kinder 0 3/1 | 2000,0,0 r 0,0,0 | seq -1 len -1 t -1000 an 0
+ [b] Mesh kinder 1 | -2000,0,0 r 0,0,0 | seq -1 len -1 t -1000 an 0
+  [c] Mesh kinder 0 3/1 | 0,0,3000 r 0,0,0 | seq -1 len -1 t -1000 an 0
+7a farbe 255.0,127.0,0.0,1000 uv 500,1000 uv1 1000,1000 n -1000
+7b textur 32x32
+7c c uv1 1000,1000
+7d a 2000,2500,0 r 0,0,0 b -2000,0,0 r 0,45000,0 c -4121,0,2121
+8 seq=1 seq 1 len 6 t 3000 an 0 a 0,-1500,0 r 0,0,0 b -2000,0,0 r 0,45000,0
+9 fl 1 w 6000 h 1000 d 3000

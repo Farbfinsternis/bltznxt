@@ -55,6 +55,12 @@ struct bb_MeshData_ {
   bool   dirty    = true;  // true = GPU buffers need (re-)uploading
   int    triCount = 0;     // updated by bb_mesh_upload_; = indices.size()/3
   bb_Brush_ brush;         // Aussehen dieser Flaeche (3D-13)
+
+  // Knochen je Vertex aus einem .b3d (3D-19): vier Nummern (255 = keiner,
+  // absteigend nach Gewicht) und vier Gewichte. Leer, wenn die Flaeche
+  // keine Gewichte hat; ein Vertex jenseits des Endes folgt Knochen 0.
+  std::vector<uint8_t> bone_ids;
+  std::vector<float>   bone_w;
 };
 
 // ============================================================

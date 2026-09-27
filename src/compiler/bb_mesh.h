@@ -16,7 +16,9 @@
 #include "bb_texture.h"
 #include "bb_sprite.h"
 #include "bb_md2.h"
+#include "bb_animation.h"
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cfloat>
 
@@ -47,6 +49,10 @@ struct bb_MeshRep_ {
   bool                   box_empty = true;
   unsigned long long     box_stamp = 0;
 
+  // Ruhelagen der Knochen (3D-19, MeshModel::Rep::bone_tforms): je Knochen
+  // der Kehrwert seiner Weltlage beim Laden. Teilen sich alle Kopien.
+  std::vector<std::array<float, 16>> bone_inv;
+
   ~bb_MeshRep_() {
     for (auto& s : surfaces) bb_mesh_free_gpu_(&s);
   }
@@ -58,14 +64,28 @@ struct bb_MeshEntity_ : bb_Entity_ {
   std::vector<bb_MeshData_>&       surfaces()       { return rep->surfaces; }
   const std::vector<bb_MeshData_>& surfaces() const { return rep->surfaces; }
 
+  // Mit Knochen (3D-19): die Vertices folgen beim Zeichnen den Entities im
+  // Animator, gewichtet, und stehen danach im Weltraum. `skinned` sind die
+  // so bewegten Flaechen dieser einen Entity - jede Kopie hat ihre eigene
+  // Haltung, der `rep` bleibt die Ruhelage.
+  bool                      boned = false;
+  std::vector<bb_MeshData_> skinned;
+
+  ~bb_MeshEntity_() override {
+    for (auto& s : skinned) bb_mesh_free_gpu_(&s);
+  }
+
   bb_EntityKind_ kind() const override { return bb_EntityKind_::Mesh; }
 
   // Der Klon teilt den `rep`, kopiert aber den Entity-Teil (Lage, Name,
   // Aussehen) fuer sich - genau wie MeshModel::MeshModel(const MeshModel&).
+  // Mit Knochen bleibt die Kopie beknocht; ihr Animator (von CopyEntity
+  // nachgebaut) bewegt die kopierten Knochen.
   std::unique_ptr<bb_Entity_> clone() const override {
     auto c = std::make_unique<bb_MeshEntity_>();
     bb_entity_copy_fields_(*c, *this);
     c->rep = rep;
+    c->boned = boned;
     return c;
   }
 };
@@ -935,6 +955,67 @@ static inline bool bb_frustum_box_visible_(const bb_CullFrustum_& f,
   return bb_frustum_visible_(f, view, model, c, 8);
 }
 
+// ---- Knochen (3D-19) ----
+// MeshModel::render mit Knochen und Surface::getMesh(bones): je Knochen
+// (Weltlage jetzt) * (Ruhelage)^-1, fuer die Normalen die Kofaktormatrix
+// davon. Ein Vertex mit einem Knochen wird einfach bewegt (die Normale
+// bleibt ungenormt), einer mit mehreren gewichtet gemischt und die Normale
+// normiert. Knochen 0 ist das Netz selbst; ein Knochen, den es nicht mehr
+// gibt (FreeEntity), wird wie Knochen 0 behandelt - das Original stuerzt
+// dort ab.
+static inline void bb_skin_build_(bb_MeshEntity_* me) {
+  const bb_MeshRep_& rep = *me->rep;
+  const bb_Animator_* an = me->animator.get();
+  const size_t nb = rep.bone_inv.size();
+  std::vector<std::array<float, 16>> T(nb);
+  std::vector<std::array<float, 9>>  N(nb);
+  for (size_t k = 0; k < nb; ++k) {
+    const int h = (an && k < an->objs.size()) ? an->objs[k] : 0;
+    const bb_Entity_* be = h ? bb_entity_get_(h) : nullptr;
+    if (!be) be = me;
+    mat4_mul_(T[k].data(), be->world, rep.bone_inv[k].data());
+    mat4_cofactor3_(N[k].data(), T[k].data());
+  }
+
+  me->skinned.resize(rep.surfaces.size());
+  for (size_t si = 0; si < rep.surfaces.size(); ++si) {
+    const bb_MeshData_& src = rep.surfaces[si];
+    bb_MeshData_& dst = me->skinned[si];
+    dst.brush = src.brush;
+    if (dst.indices != src.indices) dst.indices = src.indices;
+    dst.vertices = src.vertices;
+    const size_t nv = src.vertices.size() / BB_VF;
+    for (size_t i = 0; i < nv; ++i) {
+      float* v = &dst.vertices[i * BB_VF];
+      const float p[3] = { v[0], v[1], v[2] };
+      const float n[3] = { v[3], v[4], v[5] };
+      const uint8_t* ids = (i * 4 + 3 < src.bone_ids.size()) ? &src.bone_ids[i * 4] : nullptr;
+      if (!ids || ids[0] == 255 || ids[1] == 255) {
+        size_t b = (ids && ids[0] != 255) ? ids[0] : 0;
+        if (b >= nb) b = 0;
+        mat4_xform_pt_(v, T[b].data(), p[0], p[1], p[2]);
+        mat3_xform_vec_(v + 3, N[b].data(), n[0], n[1], n[2]);
+        continue;
+      }
+      float tv[3] = { 0, 0, 0 }, tn[3] = { 0, 0, 0 };
+      for (int k = 0; k < 4 && ids[k] != 255; ++k) {
+        size_t b = ids[k];
+        if (b >= nb) b = 0;
+        const float w = src.bone_w[i * 4 + k];
+        float a[3], c[3];
+        mat4_xform_pt_(a, T[b].data(), p[0], p[1], p[2]);
+        mat3_xform_vec_(c, N[b].data(), n[0], n[1], n[2]);
+        for (int j = 0; j < 3; ++j) { tv[j] += a[j] * w; tn[j] += c[j] * w; }
+      }
+      const float l = sqrtf(tn[0] * tn[0] + tn[1] * tn[1] + tn[2] * tn[2]);
+      if (l > 0) { tn[0] /= l; tn[1] /= l; tn[2] /= l; }
+      v[0] = tv[0]; v[1] = tv[1]; v[2] = tv[2];
+      v[3] = tn[0]; v[4] = tn[1]; v[5] = tn[2];
+    }
+    dst.dirty = true;
+  }
+}
+
 static inline void bb_render_meshes_(bb_Shader_* shader,
                                       const float* view,
                                       const float* proj,
@@ -1097,6 +1178,15 @@ static inline void bb_render_meshes_(bb_Shader_* shader,
       if (!bb_frustum_box_visible_(frustum, view, model, rep.box, rep.box + 3)) continue;
     }
 
+    // Mit Knochen (3D-19): geprueft wird wie im Original die Ruhelage an der
+    // Lage des Netzes, gezeichnet die bewegten Vertices, die schon im
+    // Weltraum stehen.
+    const bool skin = it.me && it.me->boned && !it.me->rep->bone_inv.empty();
+    if (skin) {
+      bb_skin_build_(it.me);
+      model = identity;
+    }
+
     float mvp[16];
     mat4_mul_(mvp, vm, model);
 
@@ -1131,6 +1221,7 @@ static inline void bb_render_meshes_(bb_Shader_* shader,
     for (size_t si = 0; si < nsurf; ++si) {
       bb_MeshData_& surf = it.sp ? it.sp->quad
                          : it.md ? it.md->mesh
+                         : skin  ? it.me->skinned[si]
                                  : it.me->surfaces()[si];
       const bb_Brush_ br = (it.sp || it.md) ? me->brush
                                             : bb_brush_combine_(surf.brush, me->brush);
