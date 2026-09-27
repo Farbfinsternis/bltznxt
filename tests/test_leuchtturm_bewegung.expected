@@ -1,0 +1,11 @@
+karte: spawn 1 col 1 spawn bei 0,0,-1500
+1 fallen:   fuesse 0,0,-1500 tempo 0 vy 0 boden 1
+2 laufen:   fuesse 400,0,-744 tempo 800 vy 0 boden 1 luft 0
+2 stehen:   fuesse 400,0,-643 tempo 0 vy 0 boden 1
+3 wand:     fuesse 0,0,1960 tempo 0 vy 0 boden 1
+4 sprung:   hoechstens 110 | fuesse 0,0,-1500 tempo 0 vy 0 boden 1
+5 block:    fuesse -850,100,-853 tempo 0 vy 0 boden 1
+6 rampe:    fuesse 978,200,1100 tempo 0 vy 0 boden 1
+7 treppe:   fuesse -1058,150,1100 tempo 0 vy 0 boden 1
+7b hinab:   fuesse 244,16,1100 tempo 800 vy 0 boden 1 luft 0
+8 hang:     fuesse 500,102,1100 tempo 0 vy 0 boden 1

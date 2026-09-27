@@ -38,6 +38,33 @@ running Blitz3D 11.8. The entries below this one describe each step; this is the
 
 ---
 
+## 2026-09-27 — Lighthouse step 3: movement and collision
+
+The lighthouse game now lives in `samples/leuchtturm/` and you can run and jump through a
+placeholder arena (`daten/arena.glb`, written by `werkzeug/arena.py` under the naming rules for
+Blender maps: `arena-col` is the invisible collision geometry, `spawn` the start).
+
+Movement follows the feel of Quake III rather than its code: friction on the ground, acceleration
+towards the wish direction that only tops up speed along it (strong on the ground, weak in the
+air — which gives air control and strafe jumping), a jump of about 1.1 m, gravity. Collision is
+Blitz3D's own: an ellipsoid (0.4 × 0.9) against the map's triangles with response 3, so standing
+on a ramp does not slide. After `UpdateWorld` the velocity is clipped at every contact, and a
+short `LinePick` below the feet decides whether there is ground — the collision alone reports
+none while pressing against a wall — and pulls the feet down while walking down ramps and steps.
+
+The mouse is only captured after a click into the window; Tab or Esc releases it. The first run
+trapped the desktop pointer because the game, started in the background, recentred it every
+frame without having focus. Blitz3D does the same in windowed mode, but `MoveMouse` in BLTZNXT
+now leaves the real pointer alone while the window has no input focus (listed as an intentional
+difference in `KNOWN_ISSUES.md`); `MouseX`/`MouseY` and `MouseXSpeed` behave as before.
+
+The game runs in fixed ticks of 1/60 s. `tests/test_leuchtturm_bewegung.bb` includes the game's
+modules and drives the player with synthetic input: falling, running (8 m/s after one second),
+a wall, a jump (1.10 m), a jump onto a 1 m block, up the ramp, down the ramp without leaving the
+ground, up the stairs, standing on the slope.
+
+---
+
 ## 2026-09-27 — MD2 to glTF converter, tested on the Bird demo
 
 `scripts/md2_to_gltf.py` turns an MD2 model into a `.glb` for `LoadAnimMesh`: frame 0 is the

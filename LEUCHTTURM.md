@@ -1,6 +1,6 @@
 # BLTZNXT — Leuchtturm
 
-Stand: 2026-09-26 · Entwurf
+Stand: 2026-09-27 · Schritt 3 läuft (Bewegung und Kollision in einer Platzhalter-Arena)
 
 Ein kleiner Arena-Shooter im Stil von Quake III, geschrieben als **gewöhnliches Blitz3D-Programm**:
 Blitz-Code, Blitz-Befehle, der Blitz3D-kompatible Renderer. Neu sind nur die Daten — Karte, Waffen
@@ -66,7 +66,7 @@ neuen Befehl.
 |---|---|---|
 | Sichtbare Geometrie | frei | Gerendert, nicht kollidierend |
 | Kollisionsgeometrie | endet auf `-col` | Unsichtbar, `EntityType` für die Kollision; einfacher als die sichtbare |
-| Spawnpunkt | `spawn` | Leeres Objekt; Position und Blickrichtung des Spielers |
+| Spawnpunkt | `spawn` | Leeres Objekt; Position und Blickrichtung des Spielers — der Spieler blickt entlang der +Y-Achse des Empties |
 | Waffe | `weapon_mg`, `weapon_rl`, `weapon_rail` | Leeres Objekt; dort liegt die Waffe |
 | Munition | `ammo_mg`, `ammo_rl`, `ammo_rail` | Leeres Objekt |
 | Rüstung | `armor_25`, `armor_50`, `armor_100` | Leeres Objekt, Zahl = Punkte |
@@ -104,7 +104,7 @@ Freie Assets gibt es unter CC0 unter anderem von Kenney und Quaternius (Modelle)
 |---|---|---|
 | 1 | Animationssystem, am Original gemessen | Animierte `.x`-Modelle laufen wie in Blitz3D |
 | 2 | glTF statisch | Die Arena lädt, mit Lightmap |
-| 3 | Spiel: Bewegung und Kollision | Man läuft und springt durch die Arena |
+| 3 | Spiel: Bewegung und Kollision | Man läuft und springt durch die Arena — **läuft**, Platzhalter-Arena |
 | 4 | Spiel: Waffen | Drei Waffen feuern, Treffer und Explosionen |
 | 5 | glTF animiert | Waffenmodelle mit Animation in der Hand |
 | 6 | 3D-Klang | Schüsse und Items sind räumlich zu hören |
@@ -113,11 +113,27 @@ Freie Assets gibt es unter CC0 unter anderem von Kenney und Quaternius (Modelle)
 Schritt 3 kann mit einem Platzhalter beginnen, sobald Schritt 2 steht; die Waffen in Schritt 4
 dürfen bis Schritt 5 statisch sein.
 
+## Stand im Repository
+
+`samples/leuchtturm/`:
+
+| Datei | Inhalt |
+|---|---|
+| `leuchtturm.bb` | Hauptprogramm: fester Takt zu 1/60 s, Maus und Tastatur, Anzeige (F1); die Maus wird erst nach einem Klick ins Fenster gefangen, Tab oder Esc gibt sie frei |
+| `spieler.bb` | Bewegung: Reibung, Beschleunigung am Boden und in der Luft, Sprung, Schwerkraft; Kollision als Ellipsoid (0,4 × 0,9) mit `Collisions …,2,3`; Bodenprüfung per `LinePick` |
+| `karte.bb` | Karte laden: `-col` wird unsichtbare Kollisionsgeometrie, `spawn` der Startpunkt; ohne `-col` kollidiert die sichtbare Geometrie |
+| `daten/arena.glb` | Platzhalter-Arena aus `werkzeug/arena.py`: Boden, Wände, Säule, Block, Rampe, Treppe, zwei Plattformen |
+
+Werte der Bewegung: Laufen 8 m/s, Sprung gut 1,1 m hoch, Schwerkraft 20 m/s², Stufen bis 25 cm
+geht man hinauf. `tests/test_leuchtturm_bewegung.bb` steuert den Spieler mit künstlicher Eingabe
+durch die Arena und prüft Fallen, Laufen, Wand, Sprung, Block, Rampe hinauf und hinab, Treppe und
+Stehen am Hang.
+
 ## Offene Entscheidungen
 
 - [ ] **Gegen wen spielt man?** Zuerst Ziele und Zeitrennen, dann Bots (Wegpunkte als leere
   Objekte `waypoint` in Blender) oder Mehrspieler (Listen-Server, siehe VISION.md, Abschnitt
   Netzwerk)?
 - [ ] **Assets:** selbst gebaut, CC0-Pakete oder gemischt?
-- [ ] **Wo lebt das Spiel:** im Repository unter `samples/`, oder als eigenes Repository?
+- [x] **Wo lebt das Spiel:** im Repository unter `samples/leuchtturm/` (entschieden 2026-09-27).
 - [ ] **Name** des Spiels.

@@ -26,6 +26,10 @@ tests/*.cpp
 tests/*.dat
 tests/content.txt
 
+# Beispielprogramme: kompiliertes Programm und die DLLs, die blitzcc daneben legt
+samples/**/*.exe
+samples/**/*.dll
+
 # Testartefakte, die die Testsuite im Repo-Wurzelverzeichnis erzeugt
 # (test_m45/m46 schreiben ihre PNG-Ausgabe ins CWD)
 /__test_*.png
