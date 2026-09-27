@@ -1,0 +1,189 @@
+{
+ "asset": {
+  "version": "2.0",
+  "generator": "make_gltf_asset.py"
+ },
+ "scenes": [
+  {
+   "nodes": [
+    0
+   ]
+  }
+ ],
+ "nodes": [
+  {
+   "name": "kiste",
+   "mesh": 0,
+   "children": [
+    1
+   ]
+  },
+  {
+   "name": "anker",
+   "translation": [
+    0,
+    1,
+    0
+   ]
+  }
+ ],
+ "meshes": [
+  {
+   "primitives": [
+    {
+     "attributes": {
+      "POSITION": 0
+     }
+    }
+   ]
+  }
+ ],
+ "animations": [
+  {
+   "name": "fahren",
+   "samplers": [
+    {
+     "input": 1,
+     "output": 2
+    },
+    {
+     "input": 3,
+     "output": 4,
+     "interpolation": "STEP"
+    }
+   ],
+   "channels": [
+    {
+     "sampler": 0,
+     "target": {
+      "node": 0,
+      "path": "translation"
+     }
+    },
+    {
+     "sampler": 1,
+     "target": {
+      "node": 0,
+      "path": "scale"
+     }
+    }
+   ]
+  },
+  {
+   "name": "drehen",
+   "samplers": [
+    {
+     "input": 5,
+     "output": 6,
+     "interpolation": "CUBICSPLINE"
+    }
+   ],
+   "channels": [
+    {
+     "sampler": 0,
+     "target": {
+      "node": 0,
+      "path": "rotation"
+     }
+    }
+   ]
+  }
+ ],
+ "bufferViews": [
+  {
+   "buffer": 0,
+   "byteOffset": 0,
+   "byteLength": 36
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 36,
+   "byteLength": 8
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 44,
+   "byteLength": 24
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 68,
+   "byteLength": 12
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 80,
+   "byteLength": 36
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 116,
+   "byteLength": 8
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 124,
+   "byteLength": 96
+  }
+ ],
+ "accessors": [
+  {
+   "bufferView": 0,
+   "componentType": 5126,
+   "count": 3,
+   "type": "VEC3",
+   "min": [
+    0,
+    0,
+    0
+   ],
+   "max": [
+    1,
+    1,
+    0
+   ]
+  },
+  {
+   "bufferView": 1,
+   "componentType": 5126,
+   "count": 2,
+   "type": "SCALAR"
+  },
+  {
+   "bufferView": 2,
+   "componentType": 5126,
+   "count": 2,
+   "type": "VEC3"
+  },
+  {
+   "bufferView": 3,
+   "componentType": 5126,
+   "count": 3,
+   "type": "SCALAR"
+  },
+  {
+   "bufferView": 4,
+   "componentType": 5126,
+   "count": 3,
+   "type": "VEC3"
+  },
+  {
+   "bufferView": 5,
+   "componentType": 5126,
+   "count": 2,
+   "type": "SCALAR"
+  },
+  {
+   "bufferView": 6,
+   "componentType": 5126,
+   "count": 6,
+   "type": "VEC4"
+  }
+ ],
+ "buffers": [
+  {
+   "byteLength": 220,
+   "uri": "data:application/octet-stream;base64,AAAAAAAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAgD8AAAAAAAAAPwAAgD8AAAAAAAAAAAAAAAAAAEBAAAAAAAAAwMAAAAA/AABAPwAAgD8AAIA/AACAPwAAgD8AAABAAAAAQAAAAEAAAEBAAABAQAAAQEAAAAAAq6oqPgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIA/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8wQ1PwAAAADzBDU/AAAAAAAAAAAAAAAAAAAAAA=="
+  }
+ ]
+}

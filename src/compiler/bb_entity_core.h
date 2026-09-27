@@ -130,6 +130,11 @@ struct bb_Entity_ {
   // Original darum "Pivot", ebenso fuer eine Kamera (gemessen 2026-09-11).
   // Wer eine Art wirklich kopierbar machen will, ueberschreibt hier.
   virtual std::unique_ptr<bb_Entity_> clone() const;
+
+  // Nach CopyEntity, wenn der ganze Teilbaum kopiert ist: Verweise auf
+  // andere Entities umhaengen (glTF-Knochen, 3D-24). `stamp` ist bb_entity_seq_
+  // vor dem Kopieren - wer danach entstand, gehoert zu dieser Kopie.
+  virtual void after_copy(unsigned long long /*stamp*/) {}
 };
 
 // ============================================================
@@ -761,8 +766,17 @@ inline int bb_copy_entity_tree_(int h, int parent) {
 inline int bb_CopyEntity(int h, int parent = 0) {
   bb_ent_chk_(h);
   bb_parent_chk_(parent);
+  const unsigned long long stamp = bb_entity_seq_;
   int nh = bb_copy_entity_tree_(h, parent);
   if (!nh) return 0;
+  std::vector<int> todo{ nh };
+  while (!todo.empty()) {
+    bb_Entity_* e = bb_entity_get_(todo.back());
+    todo.pop_back();
+    if (!e) continue;
+    e->after_copy(stamp);
+    todo.insert(todo.end(), e->children.begin(), e->children.end());
+  }
 
   bb_Entity_* ne = bb_entity_get_(nh);
   bb_Entity_* p  = parent ? bb_entity_get_(parent) : nullptr;

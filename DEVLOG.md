@@ -38,6 +38,34 @@ running Blitz3D 11.8. The entries below this one describe each step; this is the
 
 ---
 
+## 2026-09-27 — glTF: skinning and animations (3D-24, part 2)
+
+glTF models from Blender now move: skins and animations run on the animation system from 3D-19.
+
+- **Skins**: joints without a mesh become pivots, as `.b3d` bones do. Each vertex keeps its four
+  heaviest joints from `JOINTS_0/1` and `WEIGHTS_0/1`, normalized; the inverse bind matrices are
+  the rest pose. Skinning uses the `.b3d` path (joint world matrix × inverse bind matrix, on the
+  CPU). The bone list now lives on the mesh (`bb_MeshEntity_::bones`), because in glTF the
+  animator sits on the root that `LoadAnimMesh` returns while the joints hang anywhere in the
+  tree; `CopyEntity` points the copy at the copied joints. `LoadMesh` bakes the pose at load.
+- **Animations** become sequences of the root's animator, in file order. glTF counts seconds,
+  Blitz3D frames: one second is 60 frames, so `Animate` at speed 1 plays in real time at 60
+  `UpdateWorld` calls per second. Each sequence starts at its earliest key. `LINEAR` maps onto
+  Blitz's linear/slerp keys, `STEP` holds a value until one frame before the next key,
+  `CUBICSPLINE` keeps the values without tangents. A channel animated by one sequence but not
+  by another rests at its rest pose there, so switching sequences does not leave the old pose.
+  `LoadAnimSeq` reads the animations of a second glTF file and matches entities by name.
+
+The skinning has a measured anchor: `test_gltf_skin.glb` rebuilds the strip from
+`test_skin.b3d` (measured against Blitz3D 11.8 in 3D-19), and `test_3d24_gltf_anim` runs both
+through the same scenario — rest pose, frames 10 and 15, a copy with its own pose, `Animate`,
+`LoadMesh`. All seven images are pixel-identical. The node animations are checked against
+values computed by hand.
+
+Not yet: morph targets (including the `weights` animation channel), `KHR_texture_transform`.
+
+---
+
 ## 2026-09-27 — glTF loader for the Blitz3D renderer (3D-24)
 
 `LoadMesh` and `LoadAnimMesh` read glTF 2.0 (`.gltf` and `.glb`), so models from Blender reach the

@@ -95,7 +95,7 @@ Freie Assets gibt es unter CC0 unter anderem von Kenney und Quaternius (Modelle)
 | `FindChild`, `GetChild`, `EntityName`, `CopyEntity` | vorhanden | — |
 | Animationssystem (`Animate`, `SetAnimTime`, `AnimSeq`, `ExtractAnimSeq` …), `.b3d` mit Knochen | vorhanden (3D-19) | — |
 | glTF-Lader, statisch: Geometrie, Hierarchie, Brushes, zwei UV-Sätze | vorhanden (3D-24) | — |
-| glTF-Lader, animiert: Skinning, Animationen auf dem Blitz-System | fehlt | Leuchtturm, nach dem Animationssystem |
+| glTF-Lader, animiert: Skinning, Animationen auf dem Blitz-System | vorhanden (3D-24) | — |
 | 3D-Klang (`CreateListener`, `EmitSound`) | fehlt | Phase 1 |
 
 ## Reihenfolge

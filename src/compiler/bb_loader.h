@@ -1467,10 +1467,10 @@ inline int bb_load_b3d_collapsed_(const bbString& file, int parent) {
 inline bool bb_is_gltf_ext_(const bbString& ext) { return ext == ".gltf" || ext == ".glb"; }
 
 // glTF mit der Loadermatrix seiner Endung laden, als Baum (3D-24).
-inline int bb_load_gltf_tree_(const bbString& file, int parent) {
+inline int bb_load_gltf_tree_(const bbString& file, int parent, bool animonly = false) {
   const auto it = bb_loader_mats_.find(bb_loader_key_(bb_file_ext_lower_(file)));
   const bb_LoaderMat_ lm = it != bb_loader_mats_.end() ? it->second : bb_LoaderMat_{ { 1,0,0, 0,1,0, 0,0,1 } };
-  return bb_load_gltf_(file, lm.m, parent);
+  return bb_load_gltf_(file, lm.m, parent, animonly);
 }
 
 inline int bb_LoadMesh(const bbString& file, int parent = 0) {
@@ -1482,6 +1482,8 @@ inline int bb_LoadMesh(const bbString& file, int parent = 0) {
   if (bb_is_gltf_ext_(ext)) {
     const int t = bb_load_gltf_tree_(file, 0);
     if (!t) return 0;
+    bb_update_entity_world_(bb_entity_get_(t), nullptr);
+    bb_gltf_bake_skins_(t);
     auto ent = std::make_unique<bb_MeshEntity_>();
     bb_collapse_(ent.get(), t);
     bb_free_entity_(t);
@@ -1507,8 +1509,8 @@ inline int bb_load_anim_(const bbString& file, int parent, bool animonly) {
     if (h) bb_b3d_attach_(h, parent);
     return h;
   }
-  // glTF: noch ohne Animation (3D-24) - bei LoadAnimSeq kommt nichts dazu.
-  if (bb_is_gltf_ext_(ext)) return animonly ? 0 : bb_load_gltf_tree_(file, parent);
+  // glTF (3D-24): mit animonly nur Knoten und Animationen, ohne Netze.
+  if (bb_is_gltf_ext_(ext)) return bb_load_gltf_tree_(file, parent, animonly);
   return 0;
 }
 

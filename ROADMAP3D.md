@@ -1157,9 +1157,13 @@ Leuchtturm-Projekt (LEUCHTTURM.md). Gelesen wird, was der alte Renderer darstell
       Koordinaten wie Blender -> .3ds
 - [x] Renderer: zweiter UV-Satz im Shader (`TextureCoords 1`), Alphatest fuer MASK; die
       Texturbindung loest im ersten Bild nicht mehr die vorige Lage
-- [ ] Skinning und Animationen auf dem Blitz-System (3D-19)
+- [x] Skinning: Gelenke als Pivots, bis zu vier Gewichte je Vertex (JOINTS/WEIGHTS_0/1),
+      inverse Bind-Matrizen; die Knochenliste haengt am Netz, `CopyEntity` haengt sie um
+- [x] Animationen -> Sequenzen am Animator der Wurzel, 60 Bilder je Sekunde; LINEAR, STEP,
+      CUBICSPLINE (nur Werte); `LoadAnimSeq` aus einer zweiten glTF-Datei
 - [ ] KHR_texture_transform, Morph Targets
-- **Test:** `tests/test_3d24_gltf.bb` (Dateien aus `scripts/make_gltf_asset.py`)
+- **Test:** `tests/test_3d24_gltf.bb`, `tests/test_3d24_gltf_anim.bb` (Skinning pixelgleich mit
+  `test_skin.b3d`; Dateien aus `scripts/make_gltf_asset.py`)
 
 ---
 

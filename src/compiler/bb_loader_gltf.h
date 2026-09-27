@@ -32,6 +32,27 @@
 //    unlit
 //    COLOR_0                                      Vertexfarbe, FX 2
 //    Sampler CLAMP_TO_EDGE                        Textur-Flag 16 / 32
+//    Gelenk einer Skin (ohne Netz)                Pivot
+//    Skin: JOINTS/WEIGHTS, inverseBindMatrices    Knochen des Netzes
+//    animations[n]                                Sequenz n (AnimSeq)
+//
+//  Skinning: Ein Vertex folgt bis zu vier Gelenken (die schwersten aus
+//  JOINTS_0/1, auf Summe 1 gebracht), gezeichnet wie bei .b3d: Weltlage des
+//  Gelenks jetzt mal seine inverse Bind-Matrix. Die Knochenliste haengt am
+//  Netz (bb_MeshEntity_::bones), der Animator an der Wurzel - Animate,
+//  SetAnimTime & Co. gelten also dem Rueckgabewert von LoadAnimMesh, wie bei
+//  .x. LoadMesh backt die Haltung beim Laden ein.
+//
+//  Animationen: glTF zaehlt in Sekunden, Blitz3D in Bildern, und Animate mit
+//  Tempo 1 schaltet je UpdateWorld ein Bild weiter. Eine Sekunde sind hier
+//  60 Bilder - bei 60 UpdateWorld je Sekunde laeuft eine Animation mit
+//  Tempo 1 also in der Zeit, in der sie in Blender lief. Jede Sequenz
+//  beginnt bei ihrem fruehesten Schluessel. LINEAR wird linear bzw. mit
+//  Slerp gemischt wie jeder Blitz-Schluessel, STEP haelt den Wert bis ein
+//  Bild vor dem naechsten, CUBICSPLINE nimmt nur die Werte (ohne Tangenten).
+//  Bewegt eine Sequenz einen Kanal nicht, den eine andere bewegt, steht er
+//  dort auf der Ruhelage - sonst bliebe beim Wechsel die alte Haltung
+//  stehen.
 //
 //  Achsen: glTF ist rechtshaendig mit +Y oben, Blitz3D linkshaendig. Die
 //  Vorgabe ist LoaderMatrix "glb"/"gltf" 1,0,0, 0,1,0, 0,0,-1 - z wird
@@ -47,14 +68,15 @@
 //  mit den Werten, die man sieht. Beide werden deshalb nach sRGB gewandelt;
 //  Bilder sind schon sRGB.
 //
-//  Noch nicht: Skinning und Animationen (kommen auf das Blitz-System aus
-//  3D-19), Morph Targets, KHR_texture_transform. Draco- und meshopt-
-//  komprimierte Dateien werden abgelehnt.
+//  Noch nicht: Morph Targets (auch als Animationskanal "weights"),
+//  KHR_texture_transform. Draco- und meshopt-komprimierte Dateien werden
+//  abgelehnt.
 // ============================================================
 
 #include "bb_mesh.h"
 #include "bb_texture.h"
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <charconv>
 #include <cmath>
@@ -317,6 +339,12 @@ struct bb_GltfLoad_ {
   float                             conv[16] = {}, conv_inv[16] = {};
   std::map<std::string, int>        texcache;   // Textur + Flags -> Handle
   std::vector<bool>                 node_seen;  // gegen Zyklen im Knotenbaum
+  std::vector<int>                  node_h;     // Handle je Knoten, 0 = keins
+  std::vector<bool>                 is_joint;   // Gelenk irgendeiner Skin
+  struct Rest { bb_Vec3_ p, s; bb_Quat_ r; };
+  std::vector<Rest>                 rest;       // lokale Lage beim Laden
+  std::vector<std::pair<int, int>>  skinned;    // (Netz-Handle, Skin)
+  bool                              animonly = false;
   bool                              warned = false;
 
   void warn(const std::string& what) {
@@ -585,7 +613,23 @@ inline bb_Brush_ bb_gltf_brush_(bb_GltfLoad_& L, int mi, bool vcolors) {
 
 // ---- Netze ----
 
-inline void bb_gltf_mesh_(bb_GltfLoad_& L, int h, int mi) {
+// Die Einfluesse eines Vertex: Knochen absteigend nach Gewicht, 255 = keiner.
+struct bb_GltfBones_ {
+  uint8_t id[4] = { 255, 255, 255, 255 };
+  float   w[4]  = { 0, 0, 0, 0 };
+  void add(int b, float wt) {
+    int i = 0;
+    for (; i < 4; ++i) if (id[i] == 255 || wt > w[i]) break;
+    if (i == 4) return;
+    for (int k = 3; k > i; --k) { id[k] = id[k - 1]; w[k] = w[k - 1]; }
+    id[i] = static_cast<uint8_t>(b);
+    w[i] = wt;
+  }
+};
+
+// `skin` >= 0: das Netz haengt an dieser Skin, die Vertices bekommen Knochen
+// (1 + Gelenknummer; 0 ist das Netz selbst).
+inline void bb_gltf_mesh_(bb_GltfLoad_& L, int h, int mi, int skin) {
   auto* me = static_cast<bb_MeshEntity_*>(bb_entity_get_(h));
   const bb_Json_& mesh = L.doc["meshes"][mi];
   bool need_normals = false;
@@ -608,6 +652,20 @@ inline void bb_gltf_mesh_(bb_GltfLoad_& L, int h, int mi) {
     const bool has_u1 = bb_gltf_accessor_(L, at["TEXCOORD_1"].i(), uv1, u1c) && u1c == 2;
     const bool has_c  = bb_gltf_accessor_(L, at["COLOR_0"].i(), col, cc) && (cc == 3 || cc == 4);
     if (!has_n) need_normals = true;
+
+    std::vector<double> jn[2], wt[2];
+    int sets = 0;
+    const int njoints = skin >= 0 ? static_cast<int>(L.doc["skins"][skin]["joints"].size()) : 0;
+    if (njoints > 254) L.warn("mehr als 254 Gelenke - die uebrigen werden uebergangen");
+    for (int k = 0; k < 2 && skin >= 0; ++k) {
+      int jc = 0, wc = 0;
+      const std::string n = std::to_string(k);
+      if (!bb_gltf_accessor_(L, at[("JOINTS_" + n).c_str()].i(), jn[k], jc) || jc != 4 ||
+          !bb_gltf_accessor_(L, at[("WEIGHTS_" + n).c_str()].i(), wt[k], wc) || wc != 4 ||
+          jn[k].size() != nv * 4 || wt[k].size() != nv * 4)
+        break;
+      sets = k + 1;
+    }
 
     // Dreiecke als Liste; Streifen und Faecher werden aufgeloest.
     std::vector<uint32_t> list;
@@ -641,7 +699,25 @@ inline void bb_gltf_mesh_(bb_GltfLoad_& L, int h, int mi) {
     if (!s) { me->surfaces().emplace_back(); s = &me->surfaces().back(); s->brush = br; }
 
     const unsigned base = static_cast<unsigned>(s->vertices.size() / BB_VF);
+    if (skin >= 0) {
+      s->bone_ids.resize(static_cast<size_t>(base) * 4, 255);
+      s->bone_w.resize(static_cast<size_t>(base) * 4, 0.0f);
+    }
     for (size_t v = 0; v < nv; ++v) {
+      if (skin >= 0) {
+        bb_GltfBones_ bn;
+        for (int k = 0; k < sets; ++k)
+          for (int c = 0; c < 4; ++c) {
+            const int j = static_cast<int>(jn[k][v * 4 + c]);
+            const float w = static_cast<float>(wt[k][v * 4 + c]);
+            if (w > 0 && j >= 0 && j < std::min(njoints, 254)) bn.add(j + 1, w);
+          }
+        float sum = 0;
+        for (int k = 0; k < 4 && bn.id[k] != 255; ++k) sum += bn.w[k];
+        if (sum > 0) for (float& w : bn.w) w /= sum;
+        s->bone_ids.insert(s->bone_ids.end(), bn.id, bn.id + 4);
+        s->bone_w.insert(s->bone_w.end(), bn.w, bn.w + 4);
+      }
       float vd[BB_VF] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1 };
       bb_gltf_lm_apply_(L, &pos[v * 3], vd);
       if (has_n) {
@@ -675,6 +751,36 @@ inline void bb_gltf_mesh_(bb_GltfLoad_& L, int h, int mi) {
 
 // Die lokale Matrix eines Knotens (spaltenweise, wie die Entities): matrix,
 // oder T * R * S.
+// T * R * S aus einer glTF-Quaternion (x,y,z,w; rechtshaendig wie jede
+// Matrix hier, erst die Loadermatrix macht Blitz daraus).
+inline void bb_gltf_trs_matrix_(double tx, double ty, double tz, double x, double y, double z,
+                                double w, double sx, double sy, double sz, float t[16]) {
+  const double l = std::sqrt(x * x + y * y + z * z + w * w);
+  if (l > 0) { x /= l; y /= l; z /= l; w /= l; } else { w = 1; }
+  const double r[3][3] = {
+    { 1 - 2 * (y * y + z * z), 2 * (x * y - z * w),     2 * (x * z + y * w) },
+    { 2 * (x * y + z * w),     1 - 2 * (x * x + z * z), 2 * (y * z - x * w) },
+    { 2 * (x * z - y * w),     2 * (y * z + x * w),     1 - 2 * (x * x + y * y) },
+  };
+  const double s[3] = { sx, sy, sz };
+  for (int c = 0; c < 3; ++c) {
+    for (int row = 0; row < 3; ++row) t[c * 4 + row] = static_cast<float>(r[row][c] * s[c]);
+    t[c * 4 + 3] = 0;
+  }
+  t[12] = static_cast<float>(tx);
+  t[13] = static_cast<float>(ty);
+  t[14] = static_cast<float>(tz);
+  t[15] = 1;
+}
+
+// Eine Matrix aus glTF in Blitz-Koordinaten: conv * M * conv^-1.
+inline void bb_gltf_conv_(const bb_GltfLoad_& L, float t[16]) {
+  if (!L.conv_on) return;
+  float a[16];
+  mat4_mul_(a, L.conv, t);
+  mat4_mul_(t, a, L.conv_inv);
+}
+
 inline void bb_gltf_node_matrix_(const bb_Json_& n, float t[16]) {
   const bb_Json_& m = n["matrix"];
   if (m.size() == 16) {
@@ -684,23 +790,8 @@ inline void bb_gltf_node_matrix_(const bb_Json_& n, float t[16]) {
   const bb_Json_& T = n["translation"];
   const bb_Json_& R = n["rotation"];
   const bb_Json_& S = n["scale"];
-  double x = R[0].n(0), y = R[1].n(0), z = R[2].n(0), w = R[3].n(1);
-  const double l = std::sqrt(x * x + y * y + z * z + w * w);
-  if (l > 0) { x /= l; y /= l; z /= l; w /= l; } else { w = 1; }
-  const double r[3][3] = {
-    { 1 - 2 * (y * y + z * z), 2 * (x * y - z * w),     2 * (x * z + y * w) },
-    { 2 * (x * y + z * w),     1 - 2 * (x * x + z * z), 2 * (y * z - x * w) },
-    { 2 * (x * z - y * w),     2 * (y * z + x * w),     1 - 2 * (x * x + y * y) },
-  };
-  const double s[3] = { S[0].n(1), S[1].n(1), S[2].n(1) };
-  for (int c = 0; c < 3; ++c) {
-    for (int row = 0; row < 3; ++row) t[c * 4 + row] = static_cast<float>(r[row][c] * s[c]);
-    t[c * 4 + 3] = 0;
-  }
-  t[12] = static_cast<float>(T[0].n(0));
-  t[13] = static_cast<float>(T[1].n(0));
-  t[14] = static_cast<float>(T[2].n(0));
-  t[15] = 1;
+  bb_gltf_trs_matrix_(T[0].n(0), T[1].n(0), T[2].n(0), R[0].n(0), R[1].n(0), R[2].n(0), R[3].n(1),
+                      S[0].n(1), S[1].n(1), S[2].n(1), t);
 }
 
 inline void bb_gltf_node_(bb_GltfLoad_& L, int ni, int parent) {
@@ -710,28 +801,204 @@ inline void bb_gltf_node_(bb_GltfLoad_& L, int ni, int parent) {
   }
   L.node_seen[ni] = true;
   const bb_Json_& n = L.doc["nodes"][ni];
-  auto ent = std::make_unique<bb_MeshEntity_>();
+  // Ein Gelenk ohne Netz wird ein Pivot, wie ein Knochen aus einer .b3d.
+  std::unique_ptr<bb_Entity_> ent;
+  if (L.is_joint[ni] && !n["mesh"].has()) ent = std::make_unique<bb_PivotEntity_>();
+  else                                     ent = std::make_unique<bb_MeshEntity_>();
   ent->name = n["name"].str;
   const int h = bb_entity_register_(std::move(ent), parent);
+  L.node_h[ni] = h;
 
   float t[16];
   bb_gltf_node_matrix_(n, t);
-  if (L.conv_on) {
-    float a[16];
-    mat4_mul_(a, L.conv, t);
-    mat4_mul_(t, a, L.conv_inv);
-  }
-  bb_ent_set_local_tform_(bb_entity_get_(h), t);
+  bb_gltf_conv_(L, t);
+  bb_Entity_* e = bb_entity_get_(h);
+  bb_ent_set_local_tform_(e, t);
+  L.rest[ni] = { bb_ent_local_pos_(e), bb_ent_local_scl_(e), bb_ent_local_rot_(e) };
 
-  if (n["mesh"].has()) bb_gltf_mesh_(L, h, n["mesh"].i());
+  if (n["mesh"].has() && !L.animonly) {
+    const int skin = n["skin"].i();
+    const bool skinned = skin >= 0 && skin < static_cast<int>(L.doc["skins"].size());
+    bb_gltf_mesh_(L, h, n["mesh"].i(), skinned ? skin : -1);
+    if (skinned) L.skinned.emplace_back(h, skin);
+  }
   const bb_Json_& kids = n["children"];
   for (size_t k = 0; k < kids.size(); ++k) bb_gltf_node_(L, kids[k].i(), h);
+}
+
+// ---- Skins ----
+
+// Die Knochen jedes Netzes mit Skin: [0] das Netz selbst (fuer Vertices ohne
+// Gewicht, es bewegt sie mit sich), dann die Gelenke in der Reihenfolge der
+// Skin. Die Ruhelage ist die inverse Bind-Matrix (ohne sie die Einheit),
+// wie die Gelenke in Blitz-Koordinaten gebracht.
+inline void bb_gltf_skins_(bb_GltfLoad_& L) {
+  for (const auto& [h, si] : L.skinned) {
+    auto* me = static_cast<bb_MeshEntity_*>(bb_entity_get_(h));
+    const bb_Json_& sk = L.doc["skins"][si];
+    const bb_Json_& joints = sk["joints"];
+    const int n = std::min(static_cast<int>(joints.size()), 254);
+    std::vector<double> ibm;
+    int ic = 0;
+    const bool has_ibm = sk["inverseBindMatrices"].has() &&
+                         bb_gltf_accessor_(L, sk["inverseBindMatrices"].i(), ibm, ic) &&
+                         ic == 16 && ibm.size() >= static_cast<size_t>(n) * 16;
+    if (sk["inverseBindMatrices"].has() && !has_ibm)
+      L.warn("inverseBindMatrices nicht lesbar - die Gelenke gelten als Einheit");
+    me->bones.assign(1, h);
+    me->rep->bone_inv.clear();
+    std::array<float, 16> m;
+    mat4_identity_(m.data());
+    me->rep->bone_inv.push_back(m);
+    for (int j = 0; j < n; ++j) {
+      const int ni = joints[j].i();
+      const int jh = (ni >= 0 && ni < static_cast<int>(L.node_h.size())) ? L.node_h[ni] : 0;
+      me->bones.push_back(jh ? jh : h);
+      if (has_ibm) for (int k = 0; k < 16; ++k) m[k] = static_cast<float>(ibm[j * 16 + k]);
+      else         mat4_identity_(m.data());
+      bb_gltf_conv_(L, m.data());
+      me->rep->bone_inv.push_back(m);
+    }
+    me->boned = true;
+  }
+}
+
+// LoadMesh: die Haltung beim Laden in die Vertices backen, im Raum der
+// Entity des Netzes - danach schmilzt bb_collapse_ es ein wie jedes andere.
+// Die Weltmatrizen muessen stimmen (bb_update_entity_world_ vorher).
+inline void bb_gltf_bake_skins_(int h) {
+  bb_Entity_* e = bb_entity_get_(h);
+  if (!e) return;
+  for (int c : e->children) bb_gltf_bake_skins_(c);
+  if (e->kind() != bb_EntityKind_::Mesh) return;
+  auto* me = static_cast<bb_MeshEntity_*>(e);
+  if (!me->boned || me->rep->bone_inv.empty()) return;
+  bb_skin_build_(me);
+  float inv[16], co[9];
+  if (!mat4_inverse_(inv, me->world)) mat4_identity_(inv);
+  mat4_cofactor3_(co, inv);
+  for (size_t si = 0; si < me->surfaces().size() && si < me->skinned.size(); ++si) {
+    bb_MeshData_& d = me->surfaces()[si];
+    d.vertices = me->skinned[si].vertices;
+    for (size_t i = 0; i + BB_VF <= d.vertices.size(); i += BB_VF) {
+      float* v = &d.vertices[i];
+      const float p[3] = { v[0], v[1], v[2] }, n[3] = { v[3], v[4], v[5] };
+      mat4_xform_pt_(v, inv, p[0], p[1], p[2]);
+      mat3_xform_vec_(v + 3, co, n[0], n[1], n[2]);
+      const float l = std::sqrt(v[3] * v[3] + v[4] * v[4] + v[5] * v[5]);
+      if (l > 0) { v[3] /= l; v[4] /= l; v[5] /= l; }
+    }
+    d.bone_ids.clear();
+    d.bone_w.clear();
+    d.dirty = true;
+  }
+  for (auto& s : me->skinned) bb_mesh_free_gpu_(&s);
+  me->skinned.clear();
+  me->bones.clear();
+  me->rep->bone_inv.clear();
+  me->boned = false;
+}
+
+// ---- Animationen ----
+
+inline constexpr double BB_GLTF_FPS = 60.0;   // Bilder je Sekunde, siehe oben
+
+// Jede Animation wird eine Sequenz des Animators an der Wurzel.
+inline void bb_gltf_anims_(bb_GltfLoad_& L, int root) {
+  const bb_Json_& anims = L.doc["animations"];
+  const int na = static_cast<int>(anims.size());
+  if (!na) return;
+  const size_t nn = L.node_h.size();
+  std::vector<uint8_t> used(nn, 0);                      // 1 Lage, 2 Skalierung, 4 Drehung
+  std::vector<std::map<int, std::shared_ptr<bb_AnimKeys_>>> keys(na);
+  std::vector<int> len(na, 0);
+
+  for (int a = 0; a < na; ++a) {
+    const bb_Json_& an = anims[a];
+    const bb_Json_& sm = an["samplers"];
+    const bb_Json_& ch = an["channels"];
+    const int ns = static_cast<int>(sm.size());
+    std::vector<std::vector<double>> in(ns), out(ns);
+    std::vector<int> oc(ns, 0);
+    std::vector<bool> ok(ns, false);
+    double t0 = 1e300;
+    for (int s = 0; s < ns; ++s) {
+      int ic = 0;
+      ok[s] = bb_gltf_accessor_(L, sm[s]["input"].i(), in[s], ic) && ic == 1 && !in[s].empty() &&
+              bb_gltf_accessor_(L, sm[s]["output"].i(), out[s], oc[s]);
+      if (ok[s]) for (double t : in[s]) t0 = std::min(t0, t);
+    }
+    for (int c = 0; c < static_cast<int>(ch.size()); ++c) {
+      const bb_Json_& tg = ch[c]["target"];
+      const int ni = tg["node"].i();
+      const int s = ch[c]["sampler"].i();
+      if (ni < 0 || ni >= static_cast<int>(nn) || !L.node_h[ni] || s < 0 || s >= ns || !ok[s]) continue;
+      const std::string& path = tg["path"].str;
+      const int kind = path == "translation" ? 1 : path == "scale" ? 2 : path == "rotation" ? 4 : 0;
+      if (!kind) { L.warn("Morph-Animationen (weights) werden uebergangen"); continue; }
+      const int comps = kind == 4 ? 4 : 3;
+      if (oc[s] != comps) continue;
+      const std::string& ip = sm[s]["interpolation"].str;
+      const bool cubic = ip == "CUBICSPLINE", step = ip == "STEP";
+      const size_t n = in[s].size();
+      const size_t stride = static_cast<size_t>(comps) * (cubic ? 3 : 1);
+      if (out[s].size() < n * stride) continue;
+      auto& kp = keys[a][ni];
+      if (!kp) kp = std::make_shared<bb_AnimKeys_>();
+      bb_AnimKeys_& k = *kp;
+      auto frame = [&](double t) { return static_cast<int>(std::lround((t - t0) * BB_GLTF_FPS)); };
+      for (size_t i = 0; i < n; ++i) {
+        const double* v = &out[s][i * stride + (cubic ? comps : 0)];
+        const int f = frame(in[s][i]);
+        int until = f;                                   // STEP: bis ein Bild vor dem naechsten
+        if (step && i + 1 < n) until = std::max(f, frame(in[s][i + 1]) - 1);
+        for (int g : { f, until }) {
+          if (kind == 1) {
+            float p[3];
+            bb_gltf_lm_apply_(L, v, p);
+            k.pos[g] = { p[0], p[1], p[2] };
+          } else if (kind == 2) {
+            float p[3];
+            bb_gltf_lm_apply_(L, v, p);
+            k.scl[g] = { std::fabs(p[0]), std::fabs(p[1]), std::fabs(p[2]) };
+          } else {
+            float m[16];
+            bb_gltf_trs_matrix_(0, 0, 0, v[0], v[1], v[2], v[3], 1, 1, 1, m);
+            bb_gltf_conv_(L, m);
+            k.rot[g] = bb_quat_from_mat_(m);
+          }
+          len[a] = std::max(len[a], g);
+        }
+      }
+      used[ni] |= kind;
+    }
+  }
+
+  // Kanaele, die nur andere Sequenzen bewegen, stehen auf der Ruhelage.
+  for (int a = 0; a < na; ++a)
+    for (size_t ni = 0; ni < nn; ++ni) {
+      if (!used[ni]) continue;
+      auto& kp = keys[a][static_cast<int>(ni)];
+      if (!kp) kp = std::make_shared<bb_AnimKeys_>();
+      if ((used[ni] & 1) && kp->pos.empty()) kp->pos[0] = L.rest[ni].p;
+      if ((used[ni] & 2) && kp->scl.empty()) kp->scl[0] = L.rest[ni].s;
+      if ((used[ni] & 4) && kp->rot.empty()) kp->rot[0] = L.rest[ni].r;
+    }
+
+  bb_Entity_* re = bb_entity_get_(root);
+  for (int a = 0; a < na; ++a) {
+    for (const auto& [ni, kp] : keys[a])
+      if (bb_Entity_* e = bb_entity_get_(L.node_h[ni])) e->anim = kp;
+    const int frames = std::max(len[a], 1);
+    if (!a) re->animator = bb_animator_new_(root, frames);
+    else    re->animator->add_seq(frames);
+  }
 }
 
 // Datei lesen und in die Welt bringen: eine namenlose Wurzel, darunter die
 // Wurzelknoten der Szene. 0 mit Meldung, wenn die Datei nicht lesbar ist.
 // `lm` ist die Loadermatrix (spaltenweise, wie bb_LoaderMat_).
-inline int bb_load_gltf_(const bbString& file, const float lm[9], int parent) {
+inline int bb_load_gltf_(const bbString& file, const float lm[9], int parent, bool animonly = false) {
   std::vector<uint8_t> data;
   if (!bb_gltf_read_file_(file, data)) {
     std::cerr << "[runtime] LoadMesh: cannot open '" << file << "'\n";
@@ -744,6 +1011,7 @@ inline int bb_load_gltf_(const bbString& file, const float lm[9], int parent) {
 
   bb_GltfLoad_ L;
   L.file = file;
+  L.animonly = animonly;
   L.dir  = std::filesystem::path(file).parent_path();
   std::memcpy(L.lm, lm, sizeof L.lm);
 
@@ -829,6 +1097,15 @@ inline int bb_load_gltf_(const bbString& file, const float lm[9], int parent) {
 
   const bb_Json_& nodes = L.doc["nodes"];
   L.node_seen.assign(nodes.size(), false);
+  L.node_h.assign(nodes.size(), 0);
+  L.rest.resize(nodes.size());
+  L.is_joint.assign(nodes.size(), false);
+  const bb_Json_& skins = L.doc["skins"];
+  for (int s = 0; s < static_cast<int>(skins.size()); ++s)
+    for (int j = 0; j < static_cast<int>(skins[s]["joints"].size()); ++j) {
+      const int ni = skins[s]["joints"][j].i();
+      if (ni >= 0 && ni < static_cast<int>(nodes.size())) L.is_joint[ni] = true;
+    }
 
   // Die Szene: "scene", sonst die erste; ohne Szenen alle Knoten, die
   // niemandes Kind sind.
@@ -849,6 +1126,8 @@ inline int bb_load_gltf_(const bbString& file, const float lm[9], int parent) {
 
   const int root = bb_entity_register_(std::make_unique<bb_MeshEntity_>(), parent);
   for (int r : roots) bb_gltf_node_(L, r, root);
+  bb_gltf_skins_(L);
+  bb_gltf_anims_(L, root);
   return root;
 }
 

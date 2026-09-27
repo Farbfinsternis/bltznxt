@@ -70,6 +70,10 @@ struct bb_MeshEntity_ : bb_Entity_ {
   // Haltung, der `rep` bleibt die Ruhelage.
   bool                      boned = false;
   std::vector<bb_MeshData_> skinned;
+  // Die Knochen in der Reihenfolge von bone_inv, wenn sie nicht die Liste
+  // des eigenen Animators sind: bei glTF sitzt der Animator an der Wurzel,
+  // und die Gelenke haengen irgendwo im Baum (3D-24). [0] ist das Netz.
+  std::vector<int>          bones;
 
   ~bb_MeshEntity_() override {
     for (auto& s : skinned) bb_mesh_free_gpu_(&s);
@@ -86,7 +90,20 @@ struct bb_MeshEntity_ : bb_Entity_ {
     bb_entity_copy_fields_(*c, *this);
     c->rep = rep;
     c->boned = boned;
+    c->bones = bones;
     return c;
+  }
+
+  // Knochen, die mitkopiert wurden, durch ihre Kopie ersetzen; [0] ist die
+  // Kopie selbst. Knochen ausserhalb der Kopie bleiben die des Originals.
+  void after_copy(unsigned long long stamp) override {
+    if (bones.empty()) return;
+    bones[0] = handle;
+    for (size_t k = 1; k < bones.size(); ++k) {
+      const bb_Entity_* b = bb_entity_get_(bones[k]);
+      const bb_Entity_* c = b ? bb_entity_get_(b->lastCopy) : nullptr;
+      if (c && c->seq > stamp) bones[k] = c->handle;
+    }
   }
 };
 
@@ -970,7 +987,8 @@ static inline void bb_skin_build_(bb_MeshEntity_* me) {
   std::vector<std::array<float, 16>> T(nb);
   std::vector<std::array<float, 9>>  N(nb);
   for (size_t k = 0; k < nb; ++k) {
-    const int h = (an && k < an->objs.size()) ? an->objs[k] : 0;
+    const int h = !me->bones.empty() ? (k < me->bones.size() ? me->bones[k] : 0)
+                : (an && k < an->objs.size()) ? an->objs[k] : 0;
     const bb_Entity_* be = h ? bb_entity_get_(h) : nullptr;
     if (!be) be = me;
     mat4_mul_(T[k].data(), be->world, rep.bone_inv[k].data());

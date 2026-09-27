@@ -40,6 +40,30 @@ gebaut und treffen die Stellen, an denen ein glTF-Leser danebengreifen kann:
     test_gltf_kaputt.gltf kein JSON
     test_gltf_draco.gltf  verlangt KHR_draco_mesh_compression
 
+    test_gltf_skin.glb    der Streifen aus test_skin.b3d (make_b3d_asset.py),
+                          als glTF nachgebaut, damit beide dasselbe Bild
+                          geben muessen: zehn Vertices (x = -2..2,
+                          y = +-0.5), links rot, rechts gruen (unlit).
+                          "koerper" traegt Netz und Skin, darunter die
+                          Gelenke "knochen1" (-2,0,0) und "knochen2"
+                          (+4 lokal) mit inversen Bind-Matrizen; Gewichte
+                          wie in der .b3d. Zwei Animationen:
+                          "biegen" (20 Bilder): knochen1 dreht bis Bild 20
+                          um -90 Grad um z (glTF) - das ist rotz(90) der
+                          .b3d, Blitz baut aus (w,x,y,z) die transponierte
+                          Matrix -, knochen2 hebt sich zu Bild 10 um 1.
+                          "heben" (6 Bilder): nur knochen2 nach (4,0,2).
+
+    test_gltf_knoten.gltf Knotenanimation ohne Skin. "kiste" (ein Dreieck)
+                          mit Kind "anker" bei (0,1,0):
+                          "fahren": Lage (0,0,0) -> (3,0,-6) von 0.5 s bis
+                          1 s (Beginn 0.5 s -> Bild 0..30), Skalierung STEP
+                          1 / 2 / 3 bei 0.5, 0.75, 1 s.
+                          "drehen": Drehung CUBICSPLINE um +Y von 0 auf 90
+                          Grad in 1/6 s (Bild 0..10).
+    test_gltf_knoten_seq.glb  fuer LoadAnimSeq: "kiste" von (0,0,0) nach
+                          (0,5,0) in 0.2 s (12 Bilder).
+
 Aufruf aus dem Projektwurzelverzeichnis:
 
     python scripts/make_gltf_asset.py
@@ -83,7 +107,7 @@ class Buf:
         return len(self.views) - 1
 
     def acc(self, fmt, ctype, typ, values, normalized=False, minmax=False, sparse=None):
-        n = {"SCALAR": 1, "VEC2": 2, "VEC3": 3, "VEC4": 4}[typ]
+        n = {"SCALAR": 1, "VEC2": 2, "VEC3": 3, "VEC4": 4, "MAT4": 16}[typ]
         flat = [c for v in values for c in (v if isinstance(v, (list, tuple)) else [v])]
         a = {"bufferView": self.view(struct.pack("<%d%s" % (len(flat), fmt), *flat)),
              "componentType": ctype, "count": len(values), "type": typ}
@@ -169,11 +193,15 @@ def szene():
         "accessors": b.accessors,
         "buffers": [{"byteLength": len(b.data)}],
     }
+    glb("test_gltf_szene.glb", doc, b)
+
+
+def glb(name, doc, b):
     js = json.dumps(doc, separators=(",", ":")).encode()
     js += b" " * (-len(js) % 4)
     bn = bytes(b.data) + b"\0" * (-len(b.data) % 4)
     body = (struct.pack("<II", len(js), 0x4E4F534A) + js + struct.pack("<II", len(bn), 0x004E4942) + bn)
-    with open(os.path.join(OUT, "test_gltf_szene.glb"), "wb") as f:
+    with open(os.path.join(OUT, name), "wb") as f:
         f.write(b"glTF" + struct.pack("<II", 2, 12 + len(body)) + body)
 
 
@@ -232,6 +260,130 @@ def bild():
         f.write(png(2, 1, [0, 255, 0, 255, 0, 255, 0, 0]))
 
 
+def skin():
+    b = Buf()
+    pos = []
+    for x in range(-2, 3):
+        pos += [(x, -0.5, 0), (x, 0.5, 0)]
+    joints, weights = [], []
+    for v in range(10):
+        if v < 4:
+            joints.append((0, 0, 0, 0)); weights.append((1, 0, 0, 0))
+        elif v < 6:
+            joints.append((0, 1, 0, 0)); weights.append((0.5, 0.5, 0, 0))
+        else:
+            joints.append((1, 0, 0, 0)); weights.append((1, 0, 0, 0))
+    at = {"POSITION": b.acc("f", F32, "VEC3", pos, minmax=True),
+          "JOINTS_0": b.acc("B", U8, "VEC4", joints),
+          "WEIGHTS_0": b.acc("f", F32, "VEC4", weights)}
+    left, right = [], []
+    for k in range(4):
+        a, bb, c, d = 2 * k, 2 * k + 1, 2 * k + 2, 2 * k + 3
+        # von +Z gegen den Uhrzeigersinn; der Lader macht daraus (a,b,d),(a,d,c)
+        (left if k < 2 else right).extend([a, d, bb, a, c, d])
+    prims = [{"attributes": at, "indices": b.acc("B", U8, "SCALAR", left), "material": 0},
+             {"attributes": at, "indices": b.acc("B", U8, "SCALAR", right), "material": 1}]
+    ibm = b.acc("f", F32, "MAT4", [
+        (1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 2, 0, 0, 1),
+        (1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, -2, 0, 0, 1)])
+    s = math.sqrt(0.5)
+    t = lambda frames: [f / 60.0 for f in frames]
+    doc = {
+        "asset": {"version": "2.0", "generator": "make_gltf_asset.py"},
+        "extensionsUsed": ["KHR_materials_unlit"],
+        "scenes": [{"nodes": [0]}],
+        "nodes": [
+            {"name": "koerper", "mesh": 0, "skin": 0, "children": [1]},
+            {"name": "knochen1", "translation": [-2, 0, 0], "children": [2]},
+            {"name": "knochen2", "translation": [4, 0, 0]},
+        ],
+        "skins": [{"joints": [1, 2], "inverseBindMatrices": ibm, "skeleton": 1}],
+        "meshes": [{"primitives": prims}],
+        "materials": [
+            {"name": "rot", "pbrMetallicRoughness": {"baseColorFactor": [1, 0, 0, 1]},
+             "extensions": {"KHR_materials_unlit": {}}},
+            {"name": "gruen", "pbrMetallicRoughness": {"baseColorFactor": [0, 1, 0, 1]},
+             "extensions": {"KHR_materials_unlit": {}}},
+        ],
+        "animations": [
+            {"name": "biegen",
+             "samplers": [
+                 {"input": b.acc("f", F32, "SCALAR", t([0, 20])),
+                  "output": b.acc("f", F32, "VEC4", [(0, 0, 0, 1), (0, 0, -s, s)])},
+                 {"input": b.acc("f", F32, "SCALAR", t([0, 10, 20])),
+                  "output": b.acc("f", F32, "VEC3", [(4, 0, 0), (4, 1, 0), (4, 0, 0)])}],
+             "channels": [
+                 {"sampler": 0, "target": {"node": 1, "path": "rotation"}},
+                 {"sampler": 1, "target": {"node": 2, "path": "translation"}}]},
+            {"name": "heben",
+             "samplers": [
+                 {"input": b.acc("f", F32, "SCALAR", t([0, 6])),
+                  "output": b.acc("f", F32, "VEC3", [(4, 0, 0), (4, 0, 2)])}],
+             "channels": [{"sampler": 0, "target": {"node": 2, "path": "translation"}}]},
+        ],
+        "bufferViews": b.views,
+        "accessors": b.accessors,
+        "buffers": [{"byteLength": len(b.data)}],
+    }
+    glb("test_gltf_skin.glb", doc, b)
+
+
+def knoten():
+    b = Buf()
+    tri = {"POSITION": b.acc("f", F32, "VEC3", [(0, 0, 0), (1, 0, 0), (0, 1, 0)], minmax=True)}
+    s = math.sqrt(0.5)
+    doc = {
+        "asset": {"version": "2.0", "generator": "make_gltf_asset.py"},
+        "scenes": [{"nodes": [0]}],
+        "nodes": [
+            {"name": "kiste", "mesh": 0, "children": [1]},
+            {"name": "anker", "translation": [0, 1, 0]},
+        ],
+        "meshes": [{"primitives": [{"attributes": tri}]}],
+        "animations": [
+            {"name": "fahren",
+             "samplers": [
+                 {"input": b.acc("f", F32, "SCALAR", [0.5, 1.0]),
+                  "output": b.acc("f", F32, "VEC3", [(0, 0, 0), (3, 0, -6)])},
+                 {"input": b.acc("f", F32, "SCALAR", [0.5, 0.75, 1.0]),
+                  "output": b.acc("f", F32, "VEC3", [(1, 1, 1), (2, 2, 2), (3, 3, 3)]),
+                  "interpolation": "STEP"}],
+             "channels": [
+                 {"sampler": 0, "target": {"node": 0, "path": "translation"}},
+                 {"sampler": 1, "target": {"node": 0, "path": "scale"}}]},
+            {"name": "drehen",
+             "samplers": [
+                 {"input": b.acc("f", F32, "SCALAR", [0, 1 / 6.0]),
+                  "output": b.acc("f", F32, "VEC4", [(0, 0, 0, 0), (0, 0, 0, 1), (0, 0, 0, 0),
+                                                     (0, 0, 0, 0), (0, s, 0, s), (0, 0, 0, 0)]),
+                  "interpolation": "CUBICSPLINE"}],
+             "channels": [{"sampler": 0, "target": {"node": 0, "path": "rotation"}}]},
+        ],
+        "bufferViews": b.views,
+        "accessors": b.accessors,
+        "buffers": [{"byteLength": len(b.data),
+                     "uri": "data:application/octet-stream;base64," + base64.b64encode(bytes(b.data)).decode()}],
+    }
+    with open(os.path.join(OUT, "test_gltf_knoten.gltf"), "w", newline="\n") as f:
+        json.dump(doc, f, indent=1)
+
+    b = Buf()
+    doc = {
+        "asset": {"version": "2.0", "generator": "make_gltf_asset.py"},
+        "scenes": [{"nodes": [0]}],
+        "nodes": [{"name": "kiste"}],
+        "animations": [
+            {"name": "springen",
+             "samplers": [{"input": b.acc("f", F32, "SCALAR", [0, 0.2]),
+                           "output": b.acc("f", F32, "VEC3", [(0, 0, 0), (0, 5, 0)])}],
+             "channels": [{"sampler": 0, "target": {"node": 0, "path": "translation"}}]}],
+        "bufferViews": b.views,
+        "accessors": b.accessors,
+        "buffers": [{"byteLength": len(b.data)}],
+    }
+    glb("test_gltf_knoten_seq.glb", doc, b)
+
+
 def fehler():
     with open(os.path.join(OUT, "test_gltf_kaputt.gltf"), "w", newline="\n") as f:
         f.write('{ "asset": { "version": "2.0" }, nope }\n')
@@ -246,3 +398,5 @@ if __name__ == "__main__":
     szene()
     bild()
     fehler()
+    skin()
+    knoten()
