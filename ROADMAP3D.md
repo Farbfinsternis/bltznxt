@@ -1141,6 +1141,28 @@ Schritt am Original gemessen (2026-09-26).
 
 ---
 
+### 3D-24 · glTF-Lader
+*Dateien: `bb_loader_gltf.h` (neu), `bb_loader.h`, `bb_shader.h`, `bb_texture.h`, `bb_mesh_core.h`*
+
+Kein Blitz3D-Format: der Weg aus heutigen Werkzeugen (Blender) in den Blitz3D-Renderer, fuer das
+Leuchtturm-Projekt (LEUCHTTURM.md). Gelesen wird, was der alte Renderer darstellen kann.
+
+- [x] `.gltf` (JSON, Puffer/Bilder als Datei oder data:-URI) und `.glb`; eigener JSON-Leser
+- [x] Knoten -> Mesh-Entities mit Namen und Lage (matrix oder TRS); `LoadMesh` schmilzt ein
+- [x] Primitive (Liste, Streifen, Faecher), Accessoren mit allen Komponententypen, normiert,
+      Stride, sparse; gleiche Brushes teilen sich eine Flaeche
+- [x] Material -> Brush: Grundfarbe (linear -> sRGB), Grundtextur (Lage 0), Occlusion als
+      Lightmap (Lage 1), `texCoord` -> `TextureCoords`, BLEND/MASK, doubleSided, unlit/emissiv
+- [x] Achsen: `LoaderMatrix "glb"/"gltf"` spiegelt z - Blender -> glTF ergibt dieselben
+      Koordinaten wie Blender -> .3ds
+- [x] Renderer: zweiter UV-Satz im Shader (`TextureCoords 1`), Alphatest fuer MASK; die
+      Texturbindung loest im ersten Bild nicht mehr die vorige Lage
+- [ ] Skinning und Animationen auf dem Blitz-System (3D-19)
+- [ ] KHR_texture_transform, Morph Targets
+- **Test:** `tests/test_3d24_gltf.bb` (Dateien aus `scripts/make_gltf_asset.py`)
+
+---
+
 ## Implementierungs-Reihenfolge (kritischer Pfad)
 
 ```

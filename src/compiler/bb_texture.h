@@ -51,6 +51,10 @@ inline constexpr int BB_TEX_MASKED = 4;
 inline constexpr int BB_TEX_MIPMAP = 8;
 inline constexpr int BB_TEX_CLAMPU = 16;
 inline constexpr int BB_TEX_CLAMPV = 32;
+// Kein Blitz-Flag: Alphatest fuer glTF-Texturen mit alphaMode MASK (3D-24).
+// Der Shader verwirft Pixel mit Alpha unter 0.5; ohne Flag 2 wird dabei nicht
+// geblendet.
+inline constexpr int BB_TEX_ALPHATEST_ = 0x10000;
 
 // EntityTexture nimmt laut Doku Index 0-7. Gemischt werden im Shader die
 // ersten vier belegten Lagen; HWTexUnits() meldet genau diese Zahl.
@@ -339,8 +343,7 @@ inline void bb_TextureBlend(int texture, int blend) {
   if (auto *t = bb_texture_get_(texture)) t->blend = blend;
 }
 
-// Es gibt bei uns nur einen UV-Satz je Vertex; der zweite kommt mit den
-// Vertexbefehlen (3D-15). Der Wert wird gemerkt, damit er nicht verloren geht.
+// 0 = erster, 1 = zweiter Texturkoordinatensatz des Vertex (3D-24).
 inline void bb_TextureCoords(int texture, int coords) {
   if (auto *t = bb_texture_get_(texture)) t->coords = coords;
 }
@@ -408,6 +411,7 @@ inline bool bb_texture_bind_(bb_Shader_ *sh, const bb_TexSlots_ &slots) {
   int   n = 0;
   int   blend[BB_MAX_TEX_UNITS]     = {};
   int   flags[BB_MAX_TEX_UNITS]     = {};
+  int   coords[BB_MAX_TEX_UNITS]    = {};
   float mats[BB_MAX_TEX_UNITS * 9]  = {};
   bool  needs_blend = false;
   static const char *unit_name[BB_MAX_TEX_UNITS] = { "u_tex0", "u_tex1",
@@ -417,6 +421,10 @@ inline bool bb_texture_bind_(bb_Shader_ *sh, const bb_TexSlots_ &slots) {
     bb_Texture_ *t = slots.tex[i].get();
     if (!t) continue;
     if (t->blend == 0) continue;          // 0 = "do not blend", Lage ist aus
+    // Erst die Einheit waehlen, dann hochladen: das Hochladen bindet auf der
+    // aktiven Einheit und loest danach - vorher war das die Einheit der
+    // vorigen Lage, deren Textur im ersten Bild dann fehlte (3D-24).
+    glActiveTexture(GL_TEXTURE0 + n);
     if (t->dirty) bb_texture_upload_(t);
     if (t->frames.empty()) continue;
 
@@ -431,6 +439,7 @@ inline bool bb_texture_bind_(bb_Shader_ *sh, const bb_TexSlots_ &slots) {
 
     blend[n] = t->blend;
     flags[n] = t->flags;
+    coords[n] = t->coords == 1 ? 1 : 0;
     bb_texture_matrix_(t, &mats[n * 9]);
     if (t->flags & BB_TEX_ALPHA) needs_blend = true;
     ++n;
@@ -440,6 +449,7 @@ inline bool bb_texture_bind_(bb_Shader_ *sh, const bb_TexSlots_ &slots) {
   if (n > 0) {
     bb_shader_uniform_iv (sh, "u_tex_blend", n, blend);
     bb_shader_uniform_iv (sh, "u_tex_flags", n, flags);
+    bb_shader_uniform_iv (sh, "u_tex_coords", n, coords);
     bb_shader_uniform_m3v(sh, "u_tex_mat",   n, mats);
   }
   glActiveTexture(GL_TEXTURE0);

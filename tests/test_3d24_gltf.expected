@@ -1,0 +1,32 @@
+[] Mesh kinder 4 | 0,0,0 r 0,0,0 | welt 0,0,0
+ [rahmen] Mesh kinder 1 | 1000,2000,-3000 r 0,90000,0 | welt 1000,2000,-3000
+  [quad] Mesh kinder 0 6/2 4/2 | 2000,0,0 r 0,0,0 | welt 1000,2000,-1000
+ [leer] Mesh kinder 0 | 0,0,-5000 r 0,0,0 | welt 0,0,-5000
+ [spawn] Mesh kinder 0 | 4000,5000,-6000 r 0,0,0 | welt 4000,5000,-6000
+ [bild] Mesh kinder 0 | 0,0,0 r 0,0,0 | welt 0,0,0
+v0 0,0,-250 n 0,0,-1000 uv 100,200 / 300,400 rgb 255,64,0
+v1 1000,0,-250 n 0,0,-1000 uv 500,200 / 700,400 rgb 255,64,0
+v2 0,1000,-250 n 0,0,-1000 uv 100,600 / 300,800 rgb 255,64,0
+v3 0,0,-500 n 0,0,-1000 uv 0,0 / 0,0 rgb 255,64,0
+v4 -1000,0,0 n 0,0,-1000 uv 0,0 / 0,0 rgb 255,64,0
+v5 0,-1000,0 n 0,0,-1000 uv 0,0 / 0,0 rgb 255,64,0
+t0 0,2,1
+t1 3,4,5
+v0 0,0,0 n 0,0,-1000 uv 0,0 / 0,0 rgb 255,255,255
+v1 1000,0,0 n 0,0,-1000 uv 0,0 / 0,0 rgb 255,255,255
+v2 0,-1000,0 n 0,0,-1000 uv 0,0 / 0,0 rgb 255,255,255
+v3 1000,-1000,0 n 0,0,-1000 uv 0,0 / 0,0 rgb 255,255,255
+t0 0,2,1
+t1 2,3,1
+animseq -1
+loadmesh kinder 0 flaechen 2
+v0 1250,2000,-1000 n 1000,0,0 uv 100,200 / 300,400 rgb 255,64,0
+roh quad welt 1000,2000,1000 t0 0,1,2
+bild flaechen 3
+lightmap rot
+maske links gruen rechts schwarz
+blend grau
+daneben schwarz
+fehlt 0
+kaputt 0
+draco 0

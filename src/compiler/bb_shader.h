@@ -129,18 +129,22 @@ void main() {
 // damit TEXTURED und LIT nachweislich dieselbe Texturbehandlung haben statt
 // zwei Kopien, die auseinanderlaufen koennen.
 
+// TextureCoords waehlt je Lage den Koordinatensatz: 0 = erster, 1 = zweiter
+// (a_uv1, Lightmaps; 3D-24).
 static constexpr const char* BB_GLSL_TEX_VERT = R"glsl(
 uniform mat3 u_tex_mat[4];
+uniform int  u_tex_coords[4];
 out vec2 v_uv0;
 out vec2 v_uv1;
 out vec2 v_uv2;
 out vec2 v_uv3;
-void bb_tex_vert(vec2 uv) {
-    vec3 h = vec3(uv, 1.0);
-    v_uv0 = (u_tex_mat[0] * h).xy;
-    v_uv1 = (u_tex_mat[1] * h).xy;
-    v_uv2 = (u_tex_mat[2] * h).xy;
-    v_uv3 = (u_tex_mat[3] * h).xy;
+void bb_tex_vert(vec2 uv0, vec2 uv1) {
+    vec3 h0 = vec3(uv0, 1.0);
+    vec3 h1 = vec3(uv1, 1.0);
+    v_uv0 = (u_tex_mat[0] * (u_tex_coords[0] == 1 ? h1 : h0)).xy;
+    v_uv1 = (u_tex_mat[1] * (u_tex_coords[1] == 1 ? h1 : h0)).xy;
+    v_uv2 = (u_tex_mat[2] * (u_tex_coords[2] == 1 ? h1 : h0)).xy;
+    v_uv3 = (u_tex_mat[3] * (u_tex_coords[3] == 1 ? h1 : h0)).xy;
 }
 )glsl";
 
@@ -170,25 +174,32 @@ vec4 bb_tex_layer(vec4 c, vec4 t, int blend, int flags) {
 }
 
 // Flag 4 (Masked): "all areas of a texture coloured 0,0,0 will not be drawn".
+// Bit 0x10000 ist kein Blitz-Flag: der Alphatest einer glTF-Textur mit
+// alphaMode MASK (3D-24). Ihr Alphakanal steht beim Laden schon auf 0 oder 1.
+bool bb_tex_cut(vec4 t, int flags) {
+    if ((flags & 65536) != 0) return t.a < 0.5;
+    return (flags & 4) != 0 && all(lessThan(t.rgb, vec3(0.02)));
+}
+
 vec4 bb_tex_apply(vec4 c) {
     if (u_tex_count > 0) {
         vec4 t = texture(u_tex0, v_uv0);
-        if ((u_tex_flags[0] & 4) != 0 && all(lessThan(t.rgb, vec3(0.02)))) discard;
+        if (bb_tex_cut(t, u_tex_flags[0])) discard;
         c = bb_tex_layer(c, t, u_tex_blend[0], u_tex_flags[0]);
     }
     if (u_tex_count > 1) {
         vec4 t = texture(u_tex1, v_uv1);
-        if ((u_tex_flags[1] & 4) != 0 && all(lessThan(t.rgb, vec3(0.02)))) discard;
+        if (bb_tex_cut(t, u_tex_flags[1])) discard;
         c = bb_tex_layer(c, t, u_tex_blend[1], u_tex_flags[1]);
     }
     if (u_tex_count > 2) {
         vec4 t = texture(u_tex2, v_uv2);
-        if ((u_tex_flags[2] & 4) != 0 && all(lessThan(t.rgb, vec3(0.02)))) discard;
+        if (bb_tex_cut(t, u_tex_flags[2])) discard;
         c = bb_tex_layer(c, t, u_tex_blend[2], u_tex_flags[2]);
     }
     if (u_tex_count > 3) {
         vec4 t = texture(u_tex3, v_uv3);
-        if ((u_tex_flags[3] & 4) != 0 && all(lessThan(t.rgb, vec3(0.02)))) discard;
+        if (bb_tex_cut(t, u_tex_flags[3])) discard;
         c = bb_tex_layer(c, t, u_tex_blend[3], u_tex_flags[3]);
     }
     return c;
@@ -205,6 +216,7 @@ static constexpr const char* BB_GLSL_TEXTURED_VERT = R"glsl(
 layout(location = 0) in vec3 a_pos;
 layout(location = 2) in vec2 a_uv;
 layout(location = 3) in vec4 a_color;
+layout(location = 4) in vec2 a_uv1;
 uniform mat4 u_mvp;
 out vec4 v_color;
 )glsl";
@@ -212,7 +224,7 @@ out vec4 v_color;
 static constexpr const char* BB_GLSL_TEXTURED_VERT_MAIN = R"glsl(
 void main() {
     v_color = a_color;
-    bb_tex_vert(a_uv);
+    bb_tex_vert(a_uv, a_uv1);
     gl_Position = u_mvp * vec4(a_pos, 1.0);
 }
 )glsl";
@@ -255,6 +267,7 @@ layout(location = 0) in vec3 a_pos;
 layout(location = 1) in vec3 a_normal;
 layout(location = 2) in vec2 a_uv;
 layout(location = 3) in vec4 a_color;
+layout(location = 4) in vec2 a_uv1;
 uniform mat4 u_mvp;
 uniform mat4 u_model;
 out vec3 v_pos;
@@ -289,7 +302,7 @@ void main() {
     v_normal = mat3(u_model) * a_normal;
     v_normal_flat = v_normal;
     v_color  = a_color;
-    bb_tex_vert(a_uv);
+    bb_tex_vert(a_uv, a_uv1);
     gl_Position = u_mvp * vec4(a_pos, 1.0);
 
     // Das Original rechnet das Licht in der festen Direct3D-7-Pipeline je

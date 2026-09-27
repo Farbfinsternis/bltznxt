@@ -36,9 +36,8 @@
 //   [6..7]  u,v Satz 0     [8..9]  u,v Satz 1
 //   [10..13] r,g,b,a       (0-1)
 //
-// Satz 1 wird gespeichert und ueber VertexU/VertexV ausgelesen, aber noch
-// nicht gezeichnet - TextureCoords 1 waehlt ihn im Original aus, und diese
-// Auswahl gibt es bei uns bisher weder vorher noch jetzt.
+// Satz 1 geht als a_uv1 an den Shader; TextureCoords 1 waehlt ihn fuer eine
+// Texturlage aus (3D-24).
 inline constexpr int BB_VF = 14;
 
 // Jede Aenderung an der Geometrie zaehlt hoch. Der Dreiecksbaum fuer
@@ -122,6 +121,9 @@ inline void bb_mesh_upload_(bb_MeshData_* m) {
   glEnableVertexAttribArray(3);  // a_color   — vier Werte ab Float 10
   glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, stride,
                         (const void*)(uintptr_t)(10 * sizeof(float)));
+  glEnableVertexAttribArray(4);  // a_uv1     — zweiter Satz ab Float 8 (TextureCoords 1)
+  glVertexAttribPointer(4, 2, GL_FLOAT, GL_FALSE, stride,
+                        (const void*)(uintptr_t)(8 * sizeof(float)));
 
   glBindVertexArray(0);
 

@@ -5,6 +5,7 @@
 #include "bb_loader_x.h"
 #include "bb_animation.h"
 #include "bb_loader_b3d.h"
+#include "bb_loader_gltf.h"
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -97,6 +98,9 @@ struct bb_LoaderMat_ { float m[9]; };
 inline std::unordered_map<std::string, bb_LoaderMat_> bb_loader_mats_ = {
   { "x"  , { { 1,0,0, 0,1,0, 0,0,1 } } },
   { "3ds", { { 1,0,0, 0,0,1, 0,1,0 } } },
+  // glTF ist rechtshaendig: z gespiegelt (3D-24, siehe bb_loader_gltf.h).
+  { "gltf", { { 1,0,0, 0,1,0, 0,0,-1 } } },
+  { "glb" , { { 1,0,0, 0,1,0, 0,0,-1 } } },
 };
 
 inline std::string bb_loader_key_(const bbString& ext) {
@@ -1460,16 +1464,33 @@ inline int bb_load_b3d_collapsed_(const bbString& file, int parent) {
   return bb_entity_register_(std::move(ent), parent);
 }
 
+inline bool bb_is_gltf_ext_(const bbString& ext) { return ext == ".gltf" || ext == ".glb"; }
+
+// glTF mit der Loadermatrix seiner Endung laden, als Baum (3D-24).
+inline int bb_load_gltf_tree_(const bbString& file, int parent) {
+  const auto it = bb_loader_mats_.find(bb_loader_key_(bb_file_ext_lower_(file)));
+  const bb_LoaderMat_ lm = it != bb_loader_mats_.end() ? it->second : bb_LoaderMat_{ { 1,0,0, 0,1,0, 0,0,1 } };
+  return bb_load_gltf_(file, lm.m, parent);
+}
+
 inline int bb_LoadMesh(const bbString& file, int parent = 0) {
   bb_parent_chk_(parent);   // vor dem Laden, wie bbLoadMesh (BUG-170)
   const bbString ext = bb_file_ext_lower_(file);
   if (ext == ".3ds") return bb_load_3ds_(file, parent);
   if (ext == ".x")   return bb_load_x_(file, parent);
   if (ext == ".b3d") return bb_load_b3d_collapsed_(file, parent);
+  if (bb_is_gltf_ext_(ext)) {
+    const int t = bb_load_gltf_tree_(file, 0);
+    if (!t) return 0;
+    auto ent = std::make_unique<bb_MeshEntity_>();
+    bb_collapse_(ent.get(), t);
+    bb_free_entity_(t);
+    return bb_entity_register_(std::move(ent), parent);
+  }
   // Ein stilles 0 waere hier besonders irrefuehrend, weil das Programm dann
   // ohne Modell weiterlaeuft.
   std::cerr << "[runtime] LoadMesh: '" << file << "' - gelesen werden .x, "
-               ".3ds und .b3d\n";
+               ".3ds, .b3d, .gltf und .glb\n";
   return 0;
 }
 
@@ -1486,6 +1507,8 @@ inline int bb_load_anim_(const bbString& file, int parent, bool animonly) {
     if (h) bb_b3d_attach_(h, parent);
     return h;
   }
+  // glTF: noch ohne Animation (3D-24) - bei LoadAnimSeq kommt nichts dazu.
+  if (bb_is_gltf_ext_(ext)) return animonly ? 0 : bb_load_gltf_tree_(file, parent);
   return 0;
 }
 
@@ -1495,7 +1518,8 @@ inline int bb_load_anim_(const bbString& file, int parent, bool animonly) {
 inline int bb_LoadAnimMesh(const bbString& file, int parent = 0) {
   bb_parent_chk_(parent);
   const bbString ext = bb_file_ext_lower_(file);
-  if (ext != ".x" && ext != ".3ds" && ext != ".b3d") return bb_LoadMesh(file, parent);
+  if (ext != ".x" && ext != ".3ds" && ext != ".b3d" && !bb_is_gltf_ext_(ext))
+    return bb_LoadMesh(file, parent);
   const int h = bb_load_anim_(file, parent, false);
   if (!h) return 0;
   bb_Entity_* e = bb_entity_get_(h);

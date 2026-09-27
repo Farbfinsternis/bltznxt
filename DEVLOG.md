@@ -38,6 +38,38 @@ running Blitz3D 11.8. The entries below this one describe each step; this is the
 
 ---
 
+## 2026-09-27 — glTF loader for the Blitz3D renderer (3D-24)
+
+`LoadMesh` and `LoadAnimMesh` read glTF 2.0 (`.gltf` and `.glb`), so models from Blender reach the
+Blitz3D renderer without a detour through `.x` or `.3ds`. Blitz3D has no glTF, so nothing is
+measured against the original; the expected values in the test are computed by hand from the
+glTF geometry.
+
+- **Nodes** become mesh entities with their names and local transforms (matrix or TRS), under an
+  unnamed root, as `.x` frames do. `LoadMesh` collapses the tree like `.b3d`.
+- **Primitives** (lists, strips, fans) become surfaces; equal brushes in one entity share one.
+  Accessors handle every component type, normalized integers, strides and sparse data.
+- **Materials** become brushes: base colour and alpha (converted from linear to sRGB, as are
+  vertex colours), base colour texture in layer 0, occlusion texture as lightmap in layer 1,
+  `texCoord` as `TextureCoords`, `BLEND` as texture flag 2, `MASK` as an alpha test,
+  `doubleSided` as FX 16, unlit or emissive as FX 1, `COLOR_0` as vertex colours with FX 2.
+- **Axes**: the default `LoaderMatrix "glb"`/`"gltf"` mirrors z and flips the winding. Blender's
+  glTF export writes (x, z, −y), so a model ends up at (x, z, y) — the same place Blender's
+  `.3ds` export lands in Blitz3D.
+- Files that require Draco or meshopt compression are rejected with a message on stderr.
+
+Two renderer fixes came with it. `TextureCoords 1` now reaches the shader: the second UV set is
+a vertex attribute and each layer picks its set. And `bb_texture_bind_` uploaded a texture before
+selecting its unit, which unbound the previous layer — every multi-texture brush lost a layer in
+the first frame it was drawn.
+
+Test `test_3d24_gltf` with files from `scripts/make_gltf_asset.py` (new).
+
+Not yet: skinning and animations (they will use the 3D-19 system), `KHR_texture_transform`,
+morph targets.
+
+---
+
 ## 2026-09-26 — Animation: keys, sequences, `.x`/`.3ds` hierarchies, `.b3d` with bones (3D-19)
 
 Blitz3D's animation system, rebuilt from `animation.cpp`, `animator.cpp`, the three loaders and
