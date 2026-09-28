@@ -132,7 +132,7 @@ counted as bugs and are not planned to be fixed:
 
 ## Missing commands
 
-92 of Blitz3D's commands (not counting language keywords) are not available yet. A
+91 of Blitz3D's commands (not counting language keywords) are not available yet. A
 program that uses one of them is rejected with `unknown function or command`. `blitzcc -k` lists
 everything that is available.
 
@@ -141,7 +141,6 @@ everything that is available.
 | Networking | all UDP and DirectPlay commands (`CreateUDPStream`, `SendUDPMsg`, `HostNetGame`, `SendNetMsg`, …) and `CopyStream`; TCP is available |
 | Picking and projection | `CameraPick`, `CameraProject`, `ProjectedX/Y/Z`, `EntityInView` |
 | Terrain, BSP | `CreateTerrain`, `LoadTerrain`, `ModifyTerrain`, `TerrainHeight`, …, `LoadBSP`, `BSPAmbientLight`, `BSPLighting` |
-| Planes | `CreatePlane` |
 | Camera fog | `CameraFogMode`, `CameraFogRange`, `CameraFogColor` |
 | 3D maths | `VectorYaw`, `VectorPitch`, `DeltaYaw`, `DeltaPitch`, `GetMatElement`, `TFormFilter` |
 | Movies | `OpenMovie`, `DrawMovie`, `CloseMovie`, `MovieWidth`, `MovieHeight`, `MoviePlaying` |

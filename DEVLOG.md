@@ -38,6 +38,26 @@ running Blitz3D 11.8. The entries below this one describe each step; this is the
 
 ---
 
+## 2026-09-28 — CreatePlane
+
+`CreatePlane([segments[, parent]])` exists now (`bb_plane.h`), built after Blitz3D's
+`planemodel.cpp`. A plane has no fixed geometry: for each camera the far face of the view frustum
+is brought into the plane's space, split into segments × segments cells, and each cell is
+projected from the eye onto y = 0 — corners below the plane move along the view ray, edges that
+cross it are cut there. With the eye not above the plane nothing is drawn, so a plane is invisible
+from below. Texture coordinates are the plane's x and z, one repeat per unit, growing with
+`ScaleEntity`. Collisions and picks with method 2 hit the plane equation itself, raised by the
+radius, with the normal brought back through the cofactor matrix — a sphere comes to rest on it,
+coming from below passes through. It is a model (`EntityTexture`, `EntityColor`, …) but not a
+mesh; `EntityClass` reports "Plane". Segments outside 1–20 end with "Illegal number of segments",
+as in Blitz3D's debug mode.
+
+`tests/test_3d_createplane.bb` checks class and copy, a sphere falling onto the plane and one
+coming from below, picks straight, tilted, stretched and with a radius, the colour from above and
+below and towards the horizon, the triangle counts for 1 and 4 segments, and the texture mapping.
+Its output is line for line what Blitz3D 11.8 prints for the same file. The command table has
+469 entries.
+
 ## 2026-09-28 — Lighthouse: CC0 models from Kenney replace the placeholders
 
 Weapons, targets and items are now models from Kenney's CC0 packs: from the Blaster Kit the

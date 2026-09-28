@@ -378,7 +378,7 @@ Where the 3D engine is heading — one modern material model, per-pixel lighting
 | L — 3D Foundation | GL context, UpdateWorld/RenderWorld, entity system, camera (3D-01–06) | ✓ Done |
 | 3D-07 – 3D-12 | Shaders, geometry buffers, primitives, appearance, textures, lighting | ✓ Done |
 | 3D-13, 3D-15 | `.x`/`.3ds` mesh loading, brushes and surfaces available; remaining loader work in the roadmap | Partial / implemented subsets |
-| 3D-16 | Sprites and mirrors available; `CreatePlane` missing | Partial |
+| 3D-16 | Sprites, mirrors and planes | Implemented, reference-tested |
 | 3D-17 | Line/entity picking available; camera picking, projection and fog missing | Partial |
 | 3D-18 | Collision methods, responses and result queries | Implemented, reference-tested |
 | 3D-19 | Keyframe and skeletal animation, `.x`/`.3ds` hierarchies, `.b3d`; tweening missing | Implemented, reference-tested |

@@ -441,6 +441,26 @@ static inline bool bb_coll_mesh_(bb_Coll_& c, const bb_Line_& line, float radius
   return bb_collider_walk_(c, *col, col->root, lb.a, lb.b, line, radius, tf);
 }
 
+// PlaneModel::collide: die Linie in den Raum der Ebene (volle Umkehrung,
+// samt Skalierung), dort gegen y = radius schneiden - ohne Pruefung, ob der
+// Schnitt auf der Linie liegt; das erledigt Collision::update. Die Normale
+// kommt mit der Kofaktormatrix zurueck in die Welt.
+static inline bool bb_coll_plane_(bb_Coll_& c, const bb_Line_& line, float radius,
+                                  const float* tf) {
+  float inv[16];
+  if (!mat4_inverse_(inv, tf)) return false;
+  const bb_V3_ o = bb_xf_pt_(inv, line.o);
+  const bb_V3_ e = bb_xf_pt_(inv, line.o + line.d);
+  const float dy = e.y - o.y;
+  const float t = -(o.y - radius) / dy;   // Plane(0,1,0; d = -radius)::t_intersect
+  if (t >= c.time) return false;
+  float cof[9];
+  mat4_cofactor3_(cof, tf);
+  bb_V3_ n{ cof[3], cof[4], cof[5] };      // Kofaktormatrix * (0,1,0)
+  n = bb_norm_(n);
+  return bb_coll_update_(c, line, t, n);
+}
+
 // Die Weltmatrix ohne Verschiebung umkehren, wie ~Transform (transponierte
 // Drehung); die Skalierung bleibt dabei aussen vor - so auch im Original.
 static inline void bb_tf_invert_(const float* m, float* out) {
@@ -459,6 +479,7 @@ static inline bool bb_hit_test_(const bb_Line_& line, float radius, bb_Entity_* 
     case 1:   // Kugel
       return bb_coll_sphere_(c, line, radius, { tf[12], tf[13], tf[14] }, obj->collRadX);
     case 2: { // Dreiecke
+      if (obj->kind() == bb_EntityKind_::Plane) return bb_coll_plane_(c, line, radius, tf);
       auto* me = (obj->kind() == bb_EntityKind_::Mesh)
                    ? static_cast<bb_MeshEntity_*>(obj) : nullptr;
       if (!me) return false;   // Object::collide liefert sonst false

@@ -740,7 +740,7 @@ Each milestone is scoped to fit within a single AI-session context window:
 - [ ] `bb_CreateSprite(parent)`, `bb_LoadSprite(file, flags, parent)`
 - [ ] `bb_RotateSprite(sprite, angle)`, `bb_ScaleSprite(sprite, sx, sy)`
 - [ ] `bb_HandleSprite(sprite, hx, hy)`, `bb_SpriteViewMode(sprite, mode)`
-- [ ] `bb_CreatePlane(segs, parent)`, `bb_CreateMirror(parent)`
+- [x] `bb_CreatePlane(segs, parent)`, `bb_CreateMirror(parent)`
 - **Test:** `Local s = CreateSprite() : ScaleSprite s, 2, 2`
 
 ---
@@ -866,7 +866,7 @@ Blitz3D itself does not have (e.g. `FreeSurface`, `VectorDistance`) are not coun
     - [ ] CreateCamera, CameraProjMode, CameraFogMode, CameraFogRange, CameraFogColor, CameraViewport, CameraClsMode, CameraClsColor, CameraRange, CameraZoom, CameraPick, PickedX/Y/Z, PickedNX/NY/NZ, PickedTime, PickedEntity, PickedSurface, PickedTriangle, CameraProject, ProjectedX/Y/Z, EntityInView — *missing: CameraFogMode, CameraFogRange, CameraFogColor, CameraPick, CameraProject, ProjectedX, ProjectedY, ProjectedZ, EntityInView*
     - [x] CreateLight, LightColor, LightRange
     - [x] CreatePivot, CreateSprite, LoadSprite, RotateSprite, ScaleSprite, HandleSprite, SpriteViewMode
-    - [ ] CreatePlane, CreateMirror — *missing: CreatePlane*
+    - [x] CreatePlane, CreateMirror
 - [ ] **Logic (Movement/Collision/Animation/State/3D Maths)** *(M58–M70)*
     - [x] ScaleEntity, PositionEntity, MoveEntity, TranslateEntity, RotateEntity, TurnEntity, PointEntity, AlignToVector
     - [x] ResetEntity, EntityRadius, EntityBox, EntityType, EntityPickMode, EntityCollided, CountCollisions, CollisionX/Y/Z, CollisionNX/NY/NZ, CollisionTime, CollisionEntity, CollisionSurface, CollisionTriangle, GetEntityType, LinePick, EntityPick

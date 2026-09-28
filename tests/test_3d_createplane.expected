@@ -1,0 +1,19 @@
+1 klasse Plane kopie Plane
+2 fallen: y 501 x 1500 kollisionen 1
+2 treffer: y 0 n 0,1000,0 mit ebene 1 dreieck 65535
+2 von unten: y 1000 kollisionen 0
+3 ohne pickmode: 0
+3 senkrecht: 1 500,0,250 n 0,1000,0
+3 von unten: 0
+3 zu kurz: 0
+3 gekippt: 1 1000,-1423,0 n -500,866,0
+3 gestreckt: 1 -2577 n 0,866,500
+3 radius: 1 -2000
+4 von oben: 255,0,0 dreiecke 2
+4 von unten: 0,0,80 dreiecke 0
+4 horizont: oben 0,0,80 unten 255,0,0 dreiecke 2
+4 vier felder: dreiecke 24
+5 textur: 255,0,0
+5 textur daneben: 0,255,0
+5 textur naechste einheit: 255,0,0
+5 textur gestreckt: 0,255,0

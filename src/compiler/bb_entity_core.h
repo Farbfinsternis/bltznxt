@@ -23,7 +23,7 @@
 // ============================================================
 
 enum class bb_EntityKind_ {
-  Pivot, Mesh, Camera, Light, Sprite, Mirror, Md2, Listener
+  Pivot, Mesh, Camera, Light, Sprite, Mirror, Md2, Listener, Plane
 };
 
 // Animation (3D-19, bb_animation.h). Hier nur vorab genannt: die Entity
@@ -222,13 +222,13 @@ inline void bb_parent_chk_(int p) {
   if (p && !bb_entity_get_(p)) bb_RuntimeError("Parent entity does not exist");
 }
 
-// Model im Original: Mesh, Sprite, MD2 (auch Plane, Terrain, BSP, die es
+// Model im Original: Mesh, Sprite, MD2, Plane (auch Terrain und BSP, die es
 // hier noch nicht gibt). Kamera, Licht, Pivot und Spiegel sind keine.
 inline bb_Entity_* bb_model_chk_(int h) {
   bb_Entity_* e = bb_ent_chk_(h);
   const bb_EntityKind_ k = e->kind();
   if (k != bb_EntityKind_::Mesh && k != bb_EntityKind_::Sprite &&
-      k != bb_EntityKind_::Md2)
+      k != bb_EntityKind_::Md2 && k != bb_EntityKind_::Plane)
     bb_RuntimeError("Entity is not a model");
   return e;
 }
@@ -1338,6 +1338,7 @@ inline bbString bb_EntityClass(int h) {
     case bb_EntityKind_::Mirror: return "Mirror";
     case bb_EntityKind_::Md2:    return "MD2";   // bbblitz3d.cpp: p="MD2"
     case bb_EntityKind_::Listener: return "Listener";
+    case bb_EntityKind_::Plane:  return "Plane";
   }
   return "";
 }
