@@ -1,40 +1,49 @@
 # BlitzNext Developer Log
 
-## v0.5.5 - "MD2 models, transparent bitmaps, more samples running" (2026-09-19)
+## v0.6.0 - "glTF, animation, 3D sound - and a new game" (2026-09-28)
 
-Three days after v0.5.0. More of the samples that ship with Blitz3D now compile unmodified and
-look the same as in Blitz3D: AGore/BirdDemo, mak/dragon and the GCUK `animation.bb` tutorial
-through the new MD2 support, and birdie/Mirror, mak/flag, mak/primitives, mak/multicam,
-birdie/lodBalls and si/matrix through the rendering fixes. Every fix was measured against a
-running Blitz3D 11.8. The entries below this one describe each step; this is the overview.
+Nine days after v0.5.5. BlitzNext is no longer only for old programs: `samples/leuchtturm/`
+is a small arena shooter in the style of Quake III, written as an ordinary Blitz3D program. It
+loads its arena and weapons as glTF (the format Blender and most tools export today), plays
+their animations with `Animate`, places its sounds in 3D, and runs on the Blitz3D renderer
+without any new commands. The entries below this one describe each step; this is the overview.
+
+**Leuchtturm**
+- Quake III movement (values converted over the player's height), three weapons (machine gun,
+  rocket launcher with rocket jump, railgun), targets, ammunition, armor and health with
+  Quake's respawn times, HUD, self-damage and death.
+- Weapons, targets and items are CC0 models from Kenney, prepared by `werkzeug/kenney.py`;
+  arena and sounds are still placeholders. A ready-to-run ZIP is attached to the release.
 
 **3D**
-- New: sprites (3D-16), mirrors, collisions and line/entity picking (3D-17, 3D-18), MD2 models
-  with animation (3D-23).
-- Rendering as in Blitz3D: triangle winding for all meshes, sphere/cylinder/cone vertex tables,
-  several cameras with viewports and render order, cameras with an empty viewport, the half-pixel
-  offset, hidden parents, copies of hidden entities, translucency and the depth buffer,
-  drawing order of see-through objects, and lighting limited before the texture is applied.
-- Entities: `TurnEntity`, `TranslateEntity`, world rotation under scaled parents, `EntityParent`
-  keeping the world position, `ClearWorld` flags.
+- Animation system (3D-19): keys, sequences, `.x`/`.3ds` hierarchies, `.b3d` with bones,
+  measured against Blitz3D.
+- glTF loader for the Blitz3D renderer (3D-24): nodes, meshes, materials as brushes, lightmaps,
+  skinning, animations, morph targets, `KHR_texture_transform`. A converter turns MD2 models
+  into glTF.
+- 3D sound with `CreateListener` and `EmitSound`, with its own mixer. Seven audio commands that
+  Blitz3D never had are gone.
+- `CreatePlane`, measured line for line against Blitz3D.
+- Objects outside the camera's view are skipped, sprites appear in mirrors, screenshots see the
+  3D fullscreen, a pixel centred on a right edge is left out as in Direct3D.
 
-**2D and runtime**
-- Drawing into image and texture buffers, `CopyRect` between all buffers, loaded images masked
-  with black, a graphics mode change resets the drawing state.
-- The same random numbers as Blitz3D, floats printed like Blitz3D, math functions as the x87
-  computes them, runtime errors end with Blitz3D's message.
-- Fullscreen scales the program's resolution, mouse movement is not lost around `MoveMouse`.
-- TCP streams and hostname lookup, `DebugLog`.
+**Runtime**
+- Graphics programs are window applications without a console; the mouse look keeps the
+  pointer in the window; `HidePointer`/`ShowPointer` work; `MoveMouse` leaves the pointer
+  alone without input focus.
+- `SaveBuffer`/`SaveImage` write Blitz3D's BMP, `LoadBuffer` scales like Blitz3D, entity
+  commands check their handles like debug mode, deleted objects behave as in Blitz3D, `Flip`
+  waits for the display only in fullscreen.
 
 **Compiler**
-- Float-to-int conversion rounds everywhere, float literals are floats, `Abs`/`Sgn` keep their
-  type, division by a constant power of two, field assignments convert to the field type.
-- `Gosub` keeps a return stack, jumps into `Case` branches work, `Read` uses the declared type
-  and stops with "Out of data", `Include` paths are relative to the main file.
+- Constants, `Data` values and parameter defaults are folded like Blitz3D.
+- `Delete`/`Insert` on any expression, `For Each` over fields, `Handle`/`Object`, `Str` of an
+  object. A program that calls a userlib gets a message naming the `.decls` file.
 
 **Documentation**
-- `KNOWN_ISSUES.md` lists 47 open deviations, each reproduced against Blitz3D. 104 of
-  Blitz3D's commands are still missing; the command table has 463 entries.
+- `KNOWN_ISSUES.md` is split into open bugs and accepted differences; 17 open bugs. 91 of
+  Blitz3D's commands are still missing; the command table has 469 entries.
+- `VISION.md` describes the phase after compatibility, `LEUCHTTURM.md` the game.
 
 ---
 
@@ -820,6 +829,44 @@ Test: `tests/test_bug178_flip_fenster.bb`, in a 2D and a 3D window: `Flip 1` mus
 than `Flip 0`, and both must stay under the time the refresh rate would impose. Fullscreen stays
 out of the suite because it would switch the screen during a run; it was measured by hand
 against Blitz3D.
+
+---
+
+## v0.5.5 - "MD2 models, transparent bitmaps, more samples running" (2026-09-19)
+
+Three days after v0.5.0. More of the samples that ship with Blitz3D now compile unmodified and
+look the same as in Blitz3D: AGore/BirdDemo, mak/dragon and the GCUK `animation.bb` tutorial
+through the new MD2 support, and birdie/Mirror, mak/flag, mak/primitives, mak/multicam,
+birdie/lodBalls and si/matrix through the rendering fixes. Every fix was measured against a
+running Blitz3D 11.8. The entries below this one describe each step; this is the overview.
+
+**3D**
+- New: sprites (3D-16), mirrors, collisions and line/entity picking (3D-17, 3D-18), MD2 models
+  with animation (3D-23).
+- Rendering as in Blitz3D: triangle winding for all meshes, sphere/cylinder/cone vertex tables,
+  several cameras with viewports and render order, cameras with an empty viewport, the half-pixel
+  offset, hidden parents, copies of hidden entities, translucency and the depth buffer,
+  drawing order of see-through objects, and lighting limited before the texture is applied.
+- Entities: `TurnEntity`, `TranslateEntity`, world rotation under scaled parents, `EntityParent`
+  keeping the world position, `ClearWorld` flags.
+
+**2D and runtime**
+- Drawing into image and texture buffers, `CopyRect` between all buffers, loaded images masked
+  with black, a graphics mode change resets the drawing state.
+- The same random numbers as Blitz3D, floats printed like Blitz3D, math functions as the x87
+  computes them, runtime errors end with Blitz3D's message.
+- Fullscreen scales the program's resolution, mouse movement is not lost around `MoveMouse`.
+- TCP streams and hostname lookup, `DebugLog`.
+
+**Compiler**
+- Float-to-int conversion rounds everywhere, float literals are floats, `Abs`/`Sgn` keep their
+  type, division by a constant power of two, field assignments convert to the field type.
+- `Gosub` keeps a return stack, jumps into `Case` branches work, `Read` uses the declared type
+  and stops with "Out of data", `Include` paths are relative to the main file.
+
+**Documentation**
+- `KNOWN_ISSUES.md` lists 47 open deviations, each reproduced against Blitz3D. 104 of
+  Blitz3D's commands are still missing; the command table has 463 entries.
 
 ---
 

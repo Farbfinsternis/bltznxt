@@ -6,7 +6,7 @@
 
 **BlitzNext** is the successor to Blitz3D: a modern compiler that turns Blitz3D (`.bb`) source files into native Windows executables via a C++17 transpilation pipeline, using a bundled MinGW toolchain and SDL3 for audio and graphics. It aims to do everything the original could — and to run the programs written for it, unchanged.
 
-> **Status: active development — v0.5.5.** BlitzNext compiles and runs the unmodified game **blox-n-balls**: it loads, its menus work, and levels can be played. The runtime now includes sprites, mirrors, MD2 models, collisions and line/entity picking; full gameplay compatibility is still being verified.
+> **Status: active development — v0.6.0.** BlitzNext compiles and runs the unmodified game **blox-n-balls**, and it can be used to make new games: [Leuchtturm](samples/leuchtturm/), a small Quake III style arena shooter, is an ordinary Blitz3D program that loads its models as glTF from Blender and plays its sounds in 3D. The runtime now includes keyframe and skeletal animation, glTF, 3D sound and planes; full gameplay compatibility of old programs is still being verified.
 > **[KNOWN_ISSUES.md](KNOWN_ISSUES.md) lists everything that does not yet behave like Blitz3D** — please check it before reporting a bug.
 > See [roadmap.md](roadmap.md) and [ROADMAP3D.md](ROADMAP3D.md) for the milestones and [DEVLOG.md](DEVLOG.md) for the changelog.
 
@@ -80,8 +80,8 @@ commands remain incomplete, including pixel-accurate `ImagesCollide` and `System
 compatibility fixes. In 3D, entities, cameras, lights, textures, brushes, primitive meshes,
 `.x`/`.3ds`/`.b3d` loading with hierarchies, keyframe and skeletal animation, glTF
 (`.gltf`/`.glb`, e.g. from Blender, with skinning, animations and morph targets), the surface API,
-sprites, mirrors, MD2 models, collisions and line/entity picking are available. Camera
-picking/projection, render tweening, terrain, fog and planes remain missing.
+sprites, mirrors, planes, MD2 models, collisions, line/entity picking and 3D sound are available.
+Camera picking/projection, render tweening, terrain and fog remain missing.
 TCP streams and hostname lookup are available; UDP and DirectPlay remain missing.
 
 **Blitz2D compatibility** is a practical secondary target. The 2D runtime is available, with
@@ -348,6 +348,7 @@ src/compiler/
   bb_surface.h      ← surfaces, vertices, triangles (3D-15)
   bb_sprite.h       ← sprites and view modes (3D-16)
   bb_mirror.h       ← reflected scene passes (3D-16)
+  bb_plane.h        ← infinite planes, built per camera (CreatePlane)
   bb_collision.h    ← collisions, line/entity picking and visibility (3D-17–18)
   suggest.h         ← "did you mean …?" for unknown names
 ```

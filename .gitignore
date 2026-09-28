@@ -98,3 +98,6 @@ __pycache__/
 
 # Leuchtturm: Kenney-Pakete, von werkzeug/kenney.py heruntergeladen
 samples/leuchtturm/werkzeug/kenney/
+
+# Fertige Pakete zum Verteilen
+dist/
