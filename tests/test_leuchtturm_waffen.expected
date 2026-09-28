@@ -1,0 +1,17 @@
+laden:     ziele 6 muendung 1 munition 200/200/200 waffe 1
+ziel 0:    0,140,0
+1 heben:   nach 14 takten 0 schuesse, nach 15 1, nach 65 9
+2 mg:      schuesse 10 treffer 10 leben 30 munition 181
+2 mg:      leben -5 zerstoert 1 weg 1
+3 wieder:  nach 4 s weg 1, nach 5 s weg 0 leben 100
+4 wechsel: neue waffe im 13. takt, bereit im 28. takt, waffe 3
+5 rail:    zerstoert 1 schuesse nach 90 takten 1, nach 91 2
+5 rail:    ende 0,7,2000
+6 rakete:  fliegt 1 explodiert nach 42 takten, explosionen 1
+7 direkt:  zerstoert 1 raketen 0
+8 flaeche: treffer 1 leben 47
+9 sprung:  hoechstens 140
+10 rj:     hoechstens 915 explosionen 1 fuesse 500,0,-1533 boden 1
+11 stand:  hoechstens 485
+12 wand:   raketen 0 explosionen 1 vz -1576 vy 276
+13 leer:   zustand nach 56 takten 2, nach 58 0;   waffe 3 munition 0

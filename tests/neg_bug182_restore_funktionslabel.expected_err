@@ -1,0 +1,1 @@
+tests/neg_bug182_restore_funktionslabel.bb:5:2: error: Undefined label 'innen'

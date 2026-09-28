@@ -116,6 +116,14 @@ public:
     if (!globalVarNames.empty() || !hoistedDims_.empty() ||
         !hoistedConsts_.empty()) output << "\n";
 
+    // Die Stelle jedes Labels in der Data-Liste, fuer `Restore label` - auf
+    // Dateiebene, denn auch ein Restore in einer Funktion springt auf ein
+    // Label des Hauptprogramms (BUG-182).
+    {
+      size_t dataIdx = 0;
+      collectData(prog->nodes, dataIdx, /*labelsOnly=*/true);
+    }
+
     // Forward-declare every function first, so that calls do not depend on
     // the order of definition — mutual recursion included.
     bool anyFn = false;
@@ -138,9 +146,9 @@ public:
     // also beliebig tief verschachtelt und rekursiv (BUG-106).
     output << "    std::vector<int> __gosub_ret__;\n";
 
-    // Emit Data pool initialisation + label index constants.
+    // Emit Data pool initialisation.
     size_t dataIdx = 0;
-    collectData(prog->nodes, dataIdx);
+    collectData(prog->nodes, dataIdx, /*labelsOnly=*/false);
 
     // Declare the locals of main() up front when it contains a label.
     hoistedLocals_.clear();
@@ -1786,26 +1794,29 @@ private:
 
   // Recursively collect all DataStmt values and push them into the pool.
   // Walks the full AST so Data inside any block also works.
-  // Also records `const size_t __data_at_label__ = N;` for every LabelStmt
-  // encountered, enabling "Restore labelname" to jump to the right pool index.
+  // With `labelsOnly` it emits nothing but `const size_t __data_at_label__ = N;`
+  // for every LabelStmt, at file scope, enabling "Restore labelname" to jump
+  // to the right pool index from main() and from functions alike.
   void collectData(const std::vector<std::unique_ptr<ASTNode>> &nodes,
-                   size_t &idx) {
+                   size_t &idx, bool labelsOnly) {
     for (auto &n : nodes) {
       if (auto *lbl = dynamic_cast<LabelStmt *>(n.get())) {
         // Capture the pool index at this label so "Restore lbl" can use it.
-        output << "    const size_t __data_at_" << toLower(lbl->name)
-               << "__ = " << idx << ";\n";
+        if (labelsOnly)
+          output << "const size_t __data_at_" << toLower(lbl->name)
+                 << "__ = " << idx << ";\n";
       } else if (auto *ds = dynamic_cast<DataStmt *>(n.get())) {
         // Der semantische Pass hat jeden Wert gefaltet (BUG-107); sein Typ
         // bleibt erhalten, gewandelt wird erst beim Read.
         for (auto &v : ds->folded) {
           if (!v.ok()) continue; // schon als Fehler gemeldet
-          output << "    bb_data_pool_.push_back(bb_DataVal("
-                 << constLiteral(v) << "));\n";
+          if (!labelsOnly)
+            output << "    bb_data_pool_.push_back(bb_DataVal("
+                   << constLiteral(v) << "));\n";
           ++idx;
         }
       } else if (auto *prog = dynamic_cast<Program *>(n.get())) {
-        collectData(prog->nodes, idx);
+        collectData(prog->nodes, idx, labelsOnly);
       } else if (dynamic_cast<FunctionDecl *>(n.get())) {
         // **Nicht** in eine Funktion hinein. Data gibt es dort ohnehin nicht
         // ("'Data' can only appear in main program", compiler/parser.cpp:302),
@@ -1817,19 +1828,19 @@ private:
         // C++ mit einer doppelten Deklaration.
         continue;
       } else if (auto *if_ = dynamic_cast<IfStmt *>(n.get())) {
-        collectData(if_->thenBlock, idx);
-        collectData(if_->elseBlock, idx);
+        collectData(if_->thenBlock, idx, labelsOnly);
+        collectData(if_->elseBlock, idx, labelsOnly);
       } else if (auto *wh = dynamic_cast<WhileStmt *>(n.get())) {
-        collectData(wh->block, idx);
+        collectData(wh->block, idx, labelsOnly);
       } else if (auto *rp = dynamic_cast<RepeatStmt *>(n.get())) {
-        collectData(rp->block, idx);
+        collectData(rp->block, idx, labelsOnly);
       } else if (auto *fr = dynamic_cast<ForStmt *>(n.get())) {
-        collectData(fr->block, idx);
+        collectData(fr->block, idx, labelsOnly);
       } else if (auto *sel = dynamic_cast<SelectStmt *>(n.get())) {
-        for (auto &c : sel->cases) collectData(c.block, idx);
-        collectData(sel->defaultBlock, idx);
+        for (auto &c : sel->cases) collectData(c.block, idx, labelsOnly);
+        collectData(sel->defaultBlock, idx, labelsOnly);
       } else if (auto *fe = dynamic_cast<ForEachStmt *>(n.get())) {
-        collectData(fe->block, idx);
+        collectData(fe->block, idx, labelsOnly);
       }
     }
   }

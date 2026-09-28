@@ -1,14 +1,18 @@
 ; Leuchtturm - ein kleiner Arena-Shooter im Stil von Quake III, geschrieben
 ; als gewoehnliches Blitz3D-Programm. Konzept: LEUCHTTURM.md.
 ;
-; Stand: Schritt 3 - Bewegung und Kollision in der Platzhalter-Arena
-; (daten/arena.glb, erzeugt von werkzeug/arena.py). Eine Karte aus Blender
-; ersetzt sie ohne Codeaenderung, wenn sie den Namensregeln folgt.
+; Stand: Schritt 4 - Waffen und Zielscheiben in der Platzhalter-Arena
+; (daten/arena.glb von werkzeug/arena.py, Waffen und Scheiben von
+; werkzeug/waffen.py). Eine Karte aus Blender ersetzt sie ohne
+; Codeaenderung, wenn sie den Namensregeln folgt.
 ;
 ; Steuerung:  Klick ins Fenster faengt die Maus, Tab oder Esc gibt sie frei;
 ;             Esc bei freier Maus beendet.
 ;             Maus schauen   W A S D / Pfeile laufen   Leertaste springen
+;             linke Maustaste feuern   1 2 3 / Mausrad Waffe waehlen
 ;             F1 Anzeige
+;
+; Rocket-Jump: nach unten schauen, springen und im selben Moment feuern.
 ;
 ; Die Maus wird nur gefangen, solange man spielt: zum Umsehen setzt das
 ; Programm sie in jedem Bild in die Fenstermitte, und das darf nicht
@@ -20,6 +24,9 @@
 
 Include "karte.bb"
 Include "spieler.bb"
+Include "effekte.bb"
+Include "ziele.bb"
+Include "waffen.bb"
 
 Const MAUS_EMPF# = 0.15     ; Grad je Pixel
 
@@ -40,10 +47,14 @@ Else
 EndIf
 ich.Spieler = Spieler_Neu(sx, sy, sz, sg)
 CameraClsColor ich\kamera, 110, 150, 200
+Effekte_Laden()
+Ziele_Laden("daten/ziel.glb")
+Waffen_Laden(ich, "daten")
 
 anzeige = True
 sprung_merken = False
 gefangen = False
+abzug_frei = False          ; der Klick, der die Maus faengt, schiesst nicht
 
 zeit = MilliSecs()
 rest# = 0
@@ -63,15 +74,27 @@ While Not ende
 		If KeyHit(1) Then ende = True
 		If MouseHit(1)
 			gefangen = True
+			abzug_frei = False
 			HidePointer
 			MoveMouse GraphicsWidth() / 2, GraphicsHeight() / 2
 			MouseXSpeed() : MouseYSpeed()
 		EndIf
 	EndIf
 
-	vor# = 0 : seit# = 0
+	vor# = 0 : seit# = 0 : abzug = False
 	If gefangen
 		If KeyHit(57) Then sprung_merken = True
+		If MouseDown(1)
+			abzug = abzug_frei
+		Else
+			abzug_frei = True
+		EndIf
+		For i = 1 To W_ANZAHL
+			If KeyHit(1 + i) Then Waffe_Waehlen(i)
+		Next
+		rad = MouseZSpeed()
+		If rad > 0 Then Waffe_Blaettern(1)
+		If rad < 0 Then Waffe_Blaettern(-1)
 		; Schauen einmal je Bild, nicht je Takt - die Maus soll sofort folgen.
 		Spieler_Schauen(ich, -MouseXSpeed() * MAUS_EMPF, MouseYSpeed() * MAUS_EMPF)
 		MoveMouse GraphicsWidth() / 2, GraphicsHeight() / 2
@@ -90,8 +113,13 @@ While Not ende
 	While rest >= TAKT
 		Spieler_Takt(ich, vor, seit, sprung_merken)
 		sprung_merken = False
+		Raketen_Fliegen()
+		Ziele_Takt()
 		UpdateWorld
 		Spieler_Nach(ich)
+		Raketen_Nach(ich)
+		Waffen_Takt(ich, abzug)
+		Effekte_Takt()
 		rest = rest - TAKT
 	Wend
 
@@ -106,11 +134,20 @@ While Not ende
 	EndIf
 	If anzeige
 		Color 255, 255, 255
-		Text 10, 10, "Leuchtturm - Schritt 3: Bewegung   (F1 Anzeige, Tab Maus frei)"
+		Text 10, 10, "Leuchtturm - Schritt 4: Waffen   (F1 Anzeige, Tab Maus frei)"
 		Text 10, 30, "Tempo " + Int(Spieler_Tempo(ich) * 10) / 10.0 + " m/s   " + fps + " fps"
 		If ich\boden Then b$ = "Boden" Else b$ = "Luft"
 		Text 10, 50, "x " + Int(EntityX(ich\koerper)) + "  y " + Int(EntityY(ich\koerper) - SP_HALB) + "  z " + Int(EntityZ(ich\koerper)) + "   " + b
+		Text 10, 70, "Treffer " + zl_treffer + "   Scheiben zerstoert " + zl_zerstoert + "   Schuesse " + w_schuesse
 	EndIf
+	; Waffen und Munition, die gewaehlte hervorgehoben
+	x = 10
+	For i = 1 To W_ANZAHL
+		If i = w_wunsch Then Color 255, 230, 120 Else Color 150, 150, 150
+		t$ = i + " " + w_name(i) + " " + w_munition(i)
+		Text x, GraphicsHeight() - 24, t
+		x = x + StringWidth(t) + 24
+	Next
 	If gefangen
 		; Fadenkreuz
 		Color 255, 255, 255

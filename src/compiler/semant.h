@@ -64,6 +64,7 @@ public:
     // eigenen haben.
     labels_.clear();
     sammleLabels(prog->nodes);
+    mainLabels_ = labels_;
 
     // Main body: everything that is not a function declaration.
     Scope main;
@@ -168,6 +169,13 @@ private:
   // Name -> Zeile und Spalte der Definition.
   std::unordered_map<std::string, std::pair<int, int>> labels_;
 
+  // Die Labels des Hauptprogramms, fuer `Restore`: Data gibt es nur dort, und
+  // RestoreNode::semant schaltet in einer Funktion auf die globale Umgebung
+  // um ("if( e->level>0 ) e=e->globals"). Ein `Restore` in einer Funktion
+  // erreicht also ein Label des Hauptprogramms, aber keines der Funktion
+  // selbst - beides am Original gemessen (BUG-182).
+  std::unordered_map<std::string, std::pair<int, int>> mainLabels_;
+
   // Labels eines Bereichs einsammeln - rekursiv durch alle Bloecke, aber
   // **nicht** in eine Funktionsdeklaration hinein, denn deren Labels gehoeren
   // ihr allein. Ein Vorlauf ist noetig, weil ein Label hinter seiner
@@ -211,9 +219,10 @@ private:
   // Ein Sprungziel, das es nicht gibt (BUG-87). Ohne diese Pruefung erzeugt
   // der Emitter `goto lbl_x;` bzw. `bb_DataRestore(__data_at_x__)` und der
   // Nutzer bekommt eine g++-Meldung ueber Code, den er nie geschrieben hat.
-  void pruefeLabel(const std::string &name, int line, int col) {
+  void pruefeLabel(const std::string &name, int line, int col,
+                   bool restore = false) {
     if (name.empty()) return;
-    if (labels_.count(toLower(name))) return;
+    if ((restore ? mainLabels_ : labels_).count(toLower(name))) return;
     error(line, col, "Undefined label '" + name + "'");
   }
 
@@ -746,7 +755,7 @@ private:
     } else if (auto *gs = dynamic_cast<GosubStmt *>(n)) {
       pruefeLabel(gs->label, gs->line, gs->col);
     } else if (auto *rst = dynamic_cast<RestoreStmt *>(n)) {
-      pruefeLabel(rst->label, rst->line, rst->col);
+      pruefeLabel(rst->label, rst->line, rst->col, /*restore=*/true);
     } else if (auto *aas = dynamic_cast<ArrayAssignStmt *>(n)) {
       Ty val = expr(aas->value.get());
       for (auto &i : aas->indices) integerContext(i.get());

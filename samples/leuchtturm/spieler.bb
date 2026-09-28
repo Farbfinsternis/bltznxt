@@ -168,6 +168,16 @@ Function Spieler_Nach(p.Spieler)
 	EndIf
 End Function
 
+; Ein Stoss von aussen (Explosion): die Geschwindigkeit bekommt (vx, vy, vz)
+; dazu, und der Spieler hebt ab - sonst frisst die Reibung am Boden den
+; Stoss im naechsten Takt, und die Schwerkraft setzte nicht ein.
+Function Spieler_Stoss(p.Spieler, vx#, vy#, vz#)
+	p\vx = p\vx + vx
+	p\vy = p\vy + vy
+	p\vz = p\vz + vz
+	If p\vy > 0 Then p\boden = False
+End Function
+
 Function Spieler_Tempo#(p.Spieler)
 	Return Sqr(p\vx * p\vx + p\vz * p\vz)
 End Function

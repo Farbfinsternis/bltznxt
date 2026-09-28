@@ -1,6 +1,6 @@
 # BLTZNXT — Leuchtturm
 
-Stand: 2026-09-27 · Schritt 3 läuft (Bewegung und Kollision in einer Platzhalter-Arena)
+Stand: 2026-09-28 · Schritt 4 läuft (drei Waffen und Zielscheiben in der Platzhalter-Arena)
 
 Ein kleiner Arena-Shooter im Stil von Quake III, geschrieben als **gewöhnliches Blitz3D-Programm**:
 Blitz-Code, Blitz-Befehle, der Blitz3D-kompatible Renderer. Neu sind nur die Daten — Karte, Waffen
@@ -67,6 +67,7 @@ neuen Befehl.
 | Sichtbare Geometrie | frei | Gerendert, nicht kollidierend |
 | Kollisionsgeometrie | endet auf `-col` | Unsichtbar, `EntityType` für die Kollision; einfacher als die sichtbare |
 | Spawnpunkt | `spawn` | Leeres Objekt; Position und Blickrichtung des Spielers — der Spieler blickt entlang der +Y-Achse des Empties |
+| Zielscheibe | `ziel` | Leeres Objekt; dort schwebt eine Scheibe, auf die man schießen kann |
 | Waffe | `weapon_mg`, `weapon_rl`, `weapon_rail` | Leeres Objekt; dort liegt die Waffe |
 | Munition | `ammo_mg`, `ammo_rl`, `ammo_rail` | Leeres Objekt |
 | Rüstung | `armor_25`, `armor_50`, `armor_100` | Leeres Objekt, Zahl = Punkte |
@@ -105,7 +106,7 @@ Freie Assets gibt es unter CC0 unter anderem von Kenney und Quaternius (Modelle)
 | 1 | Animationssystem, am Original gemessen | Animierte `.x`-Modelle laufen wie in Blitz3D |
 | 2 | glTF statisch | Die Arena lädt, mit Lightmap |
 | 3 | Spiel: Bewegung und Kollision | Man läuft und springt durch die Arena — **läuft**, Platzhalter-Arena |
-| 4 | Spiel: Waffen | Drei Waffen feuern, Treffer und Explosionen |
+| 4 | Spiel: Waffen | Drei Waffen feuern, Treffer und Explosionen — **läuft**, mit Zielscheiben und Platzhaltermodellen |
 | 5 | glTF animiert | Waffenmodelle mit Animation in der Hand |
 | 6 | 3D-Klang | Schüsse und Items sind räumlich zu hören |
 | 7 | Spiel: Items und Anzeige | Aufsammeln, Wiedererscheinen, HUD — Umfang erfüllt |
@@ -121,8 +122,13 @@ dürfen bis Schritt 5 statisch sein.
 |---|---|
 | `leuchtturm.bb` | Hauptprogramm: fester Takt zu 1/60 s, Maus und Tastatur, Anzeige (F1); die Maus wird erst nach einem Klick ins Fenster gefangen, Tab oder Esc gibt sie frei |
 | `spieler.bb` | Bewegung: Reibung, Beschleunigung am Boden und in der Luft, Sprung, Schwerkraft; Kollision als Ellipsoid (0,4 × 0,9) mit `Collisions …,2,3`; Bodenprüfung per `LinePick` |
-| `karte.bb` | Karte laden: `-col` wird unsichtbare Kollisionsgeometrie, `spawn` der Startpunkt; ohne `-col` kollidiert die sichtbare Geometrie |
-| `daten/arena.glb` | Platzhalter-Arena aus `werkzeug/arena.py`: Boden, Wände, Säule, Block, Rampe, Treppe, zwei Plattformen |
+| `karte.bb` | Karte laden: `-col` wird unsichtbare Kollisionsgeometrie, `spawn` der Startpunkt, andere leere Objekte werden Marken (`ziel`, später die Items); ohne `-col` kollidiert die sichtbare Geometrie |
+| `waffen.bb` | MG und Railgun per `LinePick`, Raketen als Entity mit Kollision, Explosion mit Flächenschaden und Rückstoß; Wechsel, Munition, Waffe in der Hand |
+| `ziele.bb` | Zielscheiben an den Marken `ziel`: drehen sich, blitzen bei Treffern, zerplatzen, kommen nach 5 s wieder |
+| `effekte.bb` | Funken, Rauch, Feuerball, Einschlagflecken, Railspur, Explosionslicht; die Texturen erzeugt das Programm |
+| `daten/arena.glb` | Platzhalter-Arena aus `werkzeug/arena.py`: Boden, Wände, Säule, Block, Rampe, Treppe, zwei Plattformen, sechs Zielmarken |
+| `daten/mg.glb`, `rl.glb`, `rail.glb`, `ziel.glb` | Platzhaltermodelle aus `werkzeug/waffen.py`; jede Waffe hat ein leeres Kind `muendung` |
+| `werkzeug/glb.py` | Gemeinsames der Werkzeuge: Körper bauen, `.glb` schreiben |
 
 Werte der Bewegung: die von Quake III, umgerechnet über die Spielergröße (56 Einheiten = 1,8 m,
 eine Einheit ≈ 3,2 cm): Laufen 10,3 m/s, Absprung 8,7 m/s, Schwerkraft 25,7 m/s², Sprunghöhe
@@ -130,9 +136,25 @@ eine Einheit ≈ 3,2 cm): Laufen 10,3 m/s, Absprung 8,7 m/s, Schwerkraft 25,7 m/
 durch die Arena und prüft Fallen, Laufen, Wand, Sprung, Block, Rampe hinauf und hinab, Treppe und
 Stehen am Hang.
 
+Werte der Waffen, ebenso aus Quake III umgerechnet; Zeiten in ganzen Takten zu 1/60 s:
+
+| Waffe | Takt | Schaden | Sonst |
+|---|---|---|---|
+| MG | 0,1 s | 7 | Streuung 1,4 Grad |
+| Raketenwerfer | 0,8 s | 100 direkt, bis 100 als Fläche in 3,85 m | Rakete 28,9 m/s |
+| Railgun | 1,5 s | 100 | Spur aus zwei gekreuzten Bändern und Funken |
+
+Der Rückstoß einer Explosion ist 0,16 m/s je Schadenspunkt, von der Explosion zur Spielermitte und
+0,77 m nach oben gerichtet — ein Rocket-Jump trägt so gut 9 m hoch, eine Rakete aus dem Stand
+knapp 5 m. Wechsel: 0,2 s senken, 0,25 s heben, erst wenn die Waffe feuerbereit ist. Eigenschaden
+und Munitions-Items kommen mit Schritt 7; bis dahin hat jede Waffe 200 Schuss.
+`tests/test_leuchtturm_waffen.bb` feuert mit künstlicher Eingabe und prüft Takt, Treffer,
+Zerstören und Wiedererscheinen, Wechsel, Railspur, Raketenflug, Direkt- und Flächentreffer,
+Rocket-Jump, die Rakete an der Wand und den Wechsel bei leerer Waffe.
+
 ## Offene Entscheidungen
 
-- [ ] **Gegen wen spielt man?** Zuerst Ziele und Zeitrennen, dann Bots (Wegpunkte als leere
+- [ ] **Gegen wen spielt man?** Zielscheiben gibt es seit Schritt 4 (entschieden 2026-09-28); offen, ob danach Zeitrennen, Bots (Wegpunkte als leere
   Objekte `waypoint` in Blender) oder Mehrspieler (Listen-Server, siehe VISION.md, Abschnitt
   Netzwerk)?
 - [ ] **Assets:** selbst gebaut, CC0-Pakete oder gemischt?

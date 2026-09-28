@@ -38,6 +38,38 @@ running Blitz3D 11.8. The entries below this one describe each step; this is the
 
 ---
 
+## 2026-09-28 — Lighthouse step 4: weapons and targets
+
+Three weapons, three techniques, all plain Blitz3D. The machine gun and the railgun are instant
+hits with `LinePick` from the eye; the rocket is a pivot with `EntityType` and `Collisions …,2,1`
+against the map and the targets, and its explosion deals area damage that falls off linearly with
+the distance to the nearest point of whatever it hits, checked for line of sight with another
+`LinePick`. Values are Quake III's, converted like the movement: machine gun every 0.1 s for 7
+with 1.4° spread, rocket every 0.8 s at 28.9 m/s for 100 direct and up to 100 in 3.85 m, railgun
+every 1.5 s for 100. The knockback is Quake's too (1000 · damage / 200 units/s, aimed from the
+explosion at the player's centre and 24 units up), which makes the rocket jump work: jump and
+fire at your feet and you rise about 9 m instead of 1.4 m. Self-damage waits for health in step 7.
+
+Weapon switching follows Quake: only when the weapon is ready, 0.2 s down, 0.25 s up. All
+weapon times count whole ticks — the first version counted seconds as floats and let the waiting
+time run negative while the weapon was being raised, so the next shots came twice as fast.
+
+Targets hover at empties named `ziel` in the map, spin and bob, flash on a hit, burst after
+100 points and come back after 5 s. The placeholder models (`mg.glb`, `rl.glb`, `rail.glb`,
+`ziel.glb`) come from `werkzeug/waffen.py`; each weapon has an empty child `muendung` that the game
+finds with `FindChild`, so a Blender model can take its place. `werkzeug/glb.py` now holds what
+both tool scripts share; `arena.py` writes the same file as before plus six target markers.
+Effects — sparks, smoke, fireball, impact marks, the rail trail, a fading point light — are
+sprites and one small mesh with textures the program draws itself.
+
+The game found a compiler bug: `Restore` inside a function did not see the main program's labels
+(BUG-182). Blitz3D resolves `Restore` against the global labels even inside a function — unlike
+`Goto` — so now we do too. `test_leuchtturm_waffen` fires with synthetic input and checks rate of
+fire, hits, respawn, switching, the rail end point, rocket flight time, direct and area hits,
+rocket jump, a rocket fired into a wall and the switch away from an empty weapon.
+
+---
+
 ## 2026-09-27 — Lighthouse: Quake III values, mouse look fixed
 
 After the first play test the jump felt too low. The movement now uses Quake III's own values,
