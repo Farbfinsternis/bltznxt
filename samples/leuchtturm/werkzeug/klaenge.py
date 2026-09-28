@@ -15,6 +15,13 @@ Mono, 16 Bit, 44.1 kHz, nach daten/klang/:
     wieder.wav      Scheibe erscheint wieder
     wechsel.wav     Klacken beim Waffenwechsel
     leer.wav        Klicken ohne Munition
+    nehmen.wav      Munition aufgesammelt
+    waffe.wav       Waffe aufgesammelt
+    ruestung.wav    Ruestung aufgesammelt
+    gesundheit.wav  Gesundheit aufgesammelt
+    mega.wav        die grosse Gesundheit
+    schmerz.wav     Schaden genommen
+    tod.wav         gestorben
 
 Aufruf aus dem Projektwurzelverzeichnis:
 
@@ -134,6 +141,35 @@ def main():
 
     n = sek(0.06)
     schreibe("leer", mal(ton(n, 1500, 1500), huelle(n, 0.0005, 0.008)), 0.5)
+
+    n = sek(0.25)
+    schreibe("nehmen", mische(mal(ton(n, 700, 700), huelle(n, 0.002, 0.05), 0.6),
+                              mal(ton(n, 1050, 1050), huelle(n, 0.06, 0.06), 0.5)), 0.6)
+
+    n = sek(0.45)
+    schreibe("waffe", mische(mal(tiefpass(rauschen(n, 11), 0.5), huelle(n, 0.001, 0.02)),
+                             mal(ton(n, 220, 220), huelle(n, 0.002, 0.1), 0.6),
+                             mal(ton(n, 330, 330), huelle(n, 0.12, 0.12), 0.5)), 0.7)
+
+    n = sek(0.4)
+    schreibe("ruestung", mische(*[mal(ton(n, f, f), huelle(n, 0.002, 0.1 + 0.03 * i), 0.4)
+                                  for i, f in enumerate((520, 780, 1170))],
+                                mal(tiefpass(rauschen(n, 12), 0.6), huelle(n, 0.001, 0.03), 0.5)), 0.6)
+
+    n = sek(0.4)
+    schreibe("gesundheit", mal(mische(ton(n, 500, 800), ton(n, 750, 1200)), huelle(n, 0.03, 0.12)), 0.6)
+
+    n = sek(0.9)
+    schreibe("mega", mal(mische(ton(n, 300, 900), ton(n, 450, 1350), ton(n, 600, 1800)),
+                         huelle(n, 0.05, 0.3)), 0.7)
+
+    n = sek(0.25)
+    schreibe("schmerz", mische(mal(ton(n, 180, 110), huelle(n, 0.01, 0.08)),
+                               mal(tiefpass(rauschen(n, 13), 0.8), huelle(n, 0.01, 0.06), 0.8)), 0.7)
+
+    n = sek(1.0)
+    schreibe("tod", mische(mal(ton(n, 220, 55), huelle(n, 0.01, 0.35)),
+                           mal(tiefpass(rauschen(n, 14), 0.9), huelle(n, 0.01, 0.3), 0.8)), 0.8)
 
 
 if __name__ == "__main__":

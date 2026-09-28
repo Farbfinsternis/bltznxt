@@ -64,6 +64,7 @@ End Function
 ; Stellen und schauen: Fuesse bei (x,y,z), Gierwinkel, Nickwinkel (+ = nach unten)
 Function Hin(p.Spieler, x#, y#, z#, gier#, nick#)
 	Spieler_Setzen(p, x, y, z, gier)
+	Spieler_Beleben(p)          ; die eigenen Raketen schaden seit Schritt 7
 	Spieler_Schauen(p, 0, nick)
 	Lauf(p, 5, False)
 End Function
@@ -87,6 +88,10 @@ Effekte_Laden()
 Ziele_Laden("samples/leuchtturm/daten/ziel.glb")
 p.Spieler = Spieler_Neu(EntityX(karte_spawn, True), EntityY(karte_spawn, True), EntityZ(karte_spawn, True), EntityYaw(karte_spawn, True))
 Waffen_Laden(p, "samples/leuchtturm/daten")
+; Dieser Test prueft die Waffen, nicht die Items: alle drei, volle Munition.
+For i = 1 To W_ANZAHL
+	w_besitz(i) = True : w_munition(i) = W_VOLL
+Next
 
 n = 0
 For z.Ziel = Each Ziel

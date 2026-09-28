@@ -1,9 +1,11 @@
-; Leuchtturm - Klang (Schritt 6).
+; Leuchtturm - Klang (Schritt 6, Items und Schmerz Schritt 7).
 ;
 ; Alles klingt dort, wo es passiert: der Listener sitzt an der Kamera, jeder
 ; Klang wird mit EmitSound an eine Entity gehaengt - Schuesse an die
 ; Muendung der Waffe, der Schub an die fliegende Rakete, Treffer an die
-; Scheibe, eine Explosion an einen Pivot an ihrem Ort (Effekt_Klang). Die
+; Scheibe, eine Explosion an einen Pivot an ihrem Ort (Effekt_Klang).
+; Was den Spieler selbst betrifft - Aufsammeln, Schmerz, Tod - klingt an der
+; Kamera, also genau beim Listener: voll und in der Mitte. Die
 ; Klaenge sind mit Load3DSound geladen; der Schub der Rakete ist mit
 ; LoopSound auf Wiederholung gestellt und laeuft, bis sie explodiert.
 ;
@@ -24,6 +26,7 @@ Const KL_DOPPLER# = 60
 Global kl_hoerer
 Global kl_mg, kl_rl, kl_rakete, kl_explosion, kl_rail
 Global kl_treffer, kl_zerplatzen, kl_wieder, kl_wechsel, kl_leer
+Global kl_nehmen, kl_waffe, kl_ruestung, kl_gesundheit, kl_mega, kl_schmerz, kl_tod
 
 Function Klang_Laden(kamera, ordner$)
 	kl_hoerer = CreateListener(kamera, KL_ROLLOFF, KL_DOPPLER)
@@ -37,6 +40,13 @@ Function Klang_Laden(kamera, ordner$)
 	kl_wieder = Load3DSound(ordner + "/wieder.wav")
 	kl_wechsel = Load3DSound(ordner + "/wechsel.wav")
 	kl_leer = Load3DSound(ordner + "/leer.wav")
+	kl_nehmen = Load3DSound(ordner + "/nehmen.wav")
+	kl_waffe = Load3DSound(ordner + "/waffe.wav")
+	kl_ruestung = Load3DSound(ordner + "/ruestung.wav")
+	kl_gesundheit = Load3DSound(ordner + "/gesundheit.wav")
+	kl_mega = Load3DSound(ordner + "/mega.wav")
+	kl_schmerz = Load3DSound(ordner + "/schmerz.wav")
+	kl_tod = Load3DSound(ordner + "/tod.wav")
 	If kl_rakete Then LoopSound kl_rakete
 	SoundVolume kl_treffer, 0.6
 End Function

@@ -1,0 +1,23 @@
+laden:      items 11 waffen 2 munition 3 ruestung 3 gesundheit 3
+1 start:    leben 125 ruestung 0 munition 100/0/0 besitz 100 waffe 1
+1 abklingen nach 3 s: leben 122 (je 60 Takte eins)
+2 waffe:    leben 122 ruestung 0 munition 100/10/0 besitz 110 wunsch 2 meldung Raketenwerfer weg noch 299 takte
+2 wieder:   nach 5 s munition 10 weg 0
+2 wieder:   einen takt spaeter munition 11 weg noch 300 takte
+3 munition: leben 117 ruestung 0 munition 100/11/10 besitz 110
+3 waehlen:  railgun waehlbar ohne die waffe 0
+4 voll:     leben 100 liegt noch 1
+4 genommen: leben 85 weg noch 2099 takte
+4 gross:    leben 100 (hoechstens 100)
+5 mega:     leben 200
+6 ruestung: 50
+6 ruestung: 150
+6 ruestung: 175 meldung Ruestung +25
+6 voll:     200
+7 schaden 30:   leben 90 ruestung 30 wunden 1
+7 wenig panzer: leben 65 ruestung 0
+8 eigen:    leben 50 (Quake: halbiert) vy 9
+9 tot:      1 leben -10
+9 tot:      nimmt nichts, leben -10 liegt noch 1
+9 tot:      kein weiterer schaden, leben -10
+10 neu:     leben 125 ruestung 0 munition 100/0/0 besitz 100 tot 0 waffe 1

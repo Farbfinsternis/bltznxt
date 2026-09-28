@@ -19,13 +19,15 @@
 ; Flaechenschaden faellt mit dem Abstand zur naechsten Stelle des Getroffenen
 ; linear auf null. Der Rueckstoss ist der von Quake: 1000 * Schaden / 200
 ; u/s, also 0.16 m/s je Schadenspunkt, gerichtet von der Explosion zur
-; Mitte des Spielers, 24 u (0.77 m) nach oben verschoben. Eigenschaden gibt
-; es noch nicht (Gesundheit kommt mit Schritt 7), der Rueckstoss wirkt aber
-; schon - wer vor die Fuesse schiesst und springt, fliegt.
+; Mitte des Spielers, 24 u (0.77 m) nach oben verschoben. Die eigene Rakete
+; schadet nur halb, stoesst aber voll - so rechnet Quake ("calculated after
+; knockback, so rocket jumping works"): wer vor die Fuesse schiesst und
+; springt, fliegt, und bezahlt dafuer mit Leben oder Ruestung.
 ;
 ; Wechsel wie in Quake: erst wenn die Waffe wieder feuerbereit ist, dann
-; 0.2 s senken, 0.25 s heben. Munition: bis es Items gibt (Schritt 7), hat
-; jede Waffe die Hoechstmenge aus Quake, 200 Schuss.
+; 0.2 s senken, 0.25 s heben. Man erscheint mit dem MG und 100 Schuss; die
+; anderen Waffen und mehr Munition bringen die Items (items.bb), bis
+; hoechstens 200 Schuss je Waffe.
 ;
 ; Die Modelle (daten/mg.glb, rl.glb, rail.glb) haengen an der Kamera. Ihr
 ; Kind "muendung" ist der Ort von Muendungsfeuer und Railspur (die Rakete
@@ -52,7 +54,8 @@ Const W_WEITE# = 263.0          ; 8192 u
 Const W_STOSS# = 0.16           ; Rueckstoss in m/s je Schadenspunkt
 Const W_SENKEN = 12, W_HEBEN = 15  ; Takte: 0.2 s und 0.25 s
 Const W_ANIM_FEUERN = 0, W_ANIM_HEBEN = 1
-Const W_VOLL = 200              ; Munition je Waffe
+Const W_VOLL = 200              ; hoechstens so viel Munition je Waffe
+Const W_START = 100             ; Munition des MG beim Erscheinen
 
 Const MG_SCHADEN = 7
 Const MG_STREU# = 0.0244
@@ -66,6 +69,7 @@ Const RK_START# = 0.45          ; so weit vor dem Auge beginnt die Rakete
 
 Dim w_name$(W_ANZAHL), w_takt(W_ANZAHL), w_munition(W_ANZAHL)
 Dim w_modell(W_ANZAHL), w_muendung(W_ANZAHL), w_feuer(W_ANZAHL), w_heben_len#(W_ANZAHL)
+Dim w_besitz(W_ANZAHL)
 
 Global w_aktiv, w_wunsch
 Global w_warte                  ; Takte bis zum naechsten Schuss
@@ -105,15 +109,50 @@ Function Waffen_Laden(p.Spieler, ordner$)
 		SetAnimTime w_modell(i), 0, W_ANIM_HEBEN
 		w_heben_len(i) = AnimLength(w_modell(i))
 		HideEntity w_modell(i)
-		w_munition(i) = W_VOLL
 	Next
 	Collisions TYP_RAKETE, TYP_WELT, 2, 1
 	Collisions TYP_RAKETE, TYP_ZIEL, 2, 1
+	w_aktiv = W_MG
+	w_schuesse = 0
+	Waffen_Neu(p)
+End Function
+
+; Ausruestung beim Erscheinen: nur das MG, mit 100 Schuss.
+Function Waffen_Neu(p.Spieler)
+	For i = 1 To W_ANZAHL
+		w_besitz(i) = False
+		w_munition(i) = 0
+		HideEntity w_feuer(i)
+	Next
+	w_besitz(W_MG) = True
+	w_munition(W_MG) = W_START
+	HideEntity w_modell(w_aktiv)
 	w_aktiv = W_MG : w_wunsch = W_MG
 	w_warte = 0
-	w_schuesse = 0
 	Waffe_Heben()
 	Waffen_Zeigen(p)
+End Function
+
+; Eine Waffe aufsammeln, wie Pickup_Weapon in Quake: die Munition steigt auf
+; `menge`, und wer schon mehr hat, bekommt einen Schuss dazu. Eine neue
+; Waffe wird gleich genommen.
+Function Waffe_Nehmen(nr, menge)
+	If w_munition(nr) < menge Then w_munition(nr) = menge Else w_munition(nr) = w_munition(nr) + 1
+	If w_munition(nr) > W_VOLL Then w_munition(nr) = W_VOLL
+	If Not w_besitz(nr)
+		w_besitz(nr) = True
+		w_wunsch = nr
+	EndIf
+	Return True
+End Function
+
+; Munition aufsammeln - auch fuer eine Waffe, die man noch nicht hat; nicht,
+; wenn schon die Hoechstmenge da ist.
+Function Munition_Nehmen(nr, menge)
+	If w_munition(nr) >= W_VOLL Then Return False
+	w_munition(nr) = w_munition(nr) + menge
+	If w_munition(nr) > W_VOLL Then w_munition(nr) = W_VOLL
+	Return True
 End Function
 
 .Waffen_Dateien
@@ -123,18 +162,18 @@ Data "rail.glb", 120, 220, 255
 
 Function Waffe_Waehlen(nr)
 	If nr >= 1 And nr <= W_ANZAHL
-		If w_munition(nr) > 0 Then w_wunsch = nr
+		If w_besitz(nr) And w_munition(nr) > 0 Then w_wunsch = nr
 	EndIf
 End Function
 
-; Naechste (1) oder vorige (-1) Waffe mit Munition.
+; Naechste (1) oder vorige (-1) Waffe, die man hat, mit Munition.
 Function Waffe_Blaettern(richtung)
 	nr = w_wunsch
 	For i = 1 To W_ANZAHL
 		nr = nr + richtung
 		If nr > W_ANZAHL Then nr = 1
 		If nr < 1 Then nr = W_ANZAHL
-		If w_munition(nr) > 0 Then w_wunsch = nr : Return
+		If w_besitz(nr) And w_munition(nr) > 0 Then w_wunsch = nr : Return
 	Next
 End Function
 
@@ -363,6 +402,8 @@ Function Explosion(x#, y#, z#, nx#, ny#, nz#, direkt.Ziel, p.Spieler)
 				f# = punkte * W_STOSS / l
 				Spieler_Stoss(p, rx * f, ry * f, rz * f)
 			EndIf
+			; Quake rechnet ganze Punkte und halbiert beim Eigenschaden
+			Spieler_Schaden(p, Floor(Floor(punkte) * 0.5))
 		EndIf
 	EndIf
 

@@ -1,4 +1,5 @@
-; Leuchtturm - der Spieler: Bewegung und Kollision (Schritt 3).
+; Leuchtturm - der Spieler: Bewegung und Kollision (Schritt 3), Leben und
+; Ruestung (Schritt 7).
 ;
 ; Das Ziel ist das Gefuehl von Quake III: schnelles Laufen, das sofort
 ; anspricht, ein Sprung von fast anderthalb Metern, und in der Luft genug Kontrolle,
@@ -55,11 +56,24 @@ Const SP_FUSS_R#   = 0.3    ; Kugel der Bodenpruefung
 Const SP_SCHNAPP#  = 0.1    ; so weit werden die Fuesse zum Boden gezogen
 Const TAKT#        = 1.0 / 60.0
 
+; Leben und Ruestung wie in Quake III: man erscheint mit 125 Leben, und was
+; ueber 100 liegt - Leben wie Ruestung - klingt um 1 je Sekunde ab. Die
+; Ruestung faengt zwei Drittel jedes Schadens ab (aufgerundet), solange sie
+; reicht. Bei 0 Leben ist man tot; das Hauptprogramm laesst einen neu
+; erscheinen.
+Const SP_START_LEBEN = 125
+Const SP_RUESTUNG# = 0.66
+
 Type Spieler
 	Field koerper, kamera
 	Field vx#, vy#, vz#
 	Field boden
 	Field gier#, nick#
+	Field leben, panzer
+	Field tot
+	Field uhr               ; Takte bis zur vollen Sekunde, fuer das Abklingen
+	Field schmerz#          ; fuer die Anzeige: wie frisch der letzte Schaden ist
+	Field wunden            ; zaehlt jeden Schaden, fuer den Schmerzklang
 End Type
 
 Function Spieler_Neu.Spieler(x#, y#, z#, gier#)
@@ -72,6 +86,7 @@ Function Spieler_Neu.Spieler(x#, y#, z#, gier#)
 	CameraRange p\kamera, 0.05, 1000
 	Collisions TYP_SPIELER, TYP_WELT, 2, 3
 	Spieler_Setzen(p, x, y, z, gier)
+	Spieler_Beleben(p)
 	Return p
 End Function
 
@@ -84,6 +99,28 @@ Function Spieler_Setzen(p.Spieler, x#, y#, z#, gier#)
 	p\gier = gier : p\nick = 0
 	RotateEntity p\koerper, 0, p\gier, 0
 	RotateEntity p\kamera, 0, 0, 0
+End Function
+
+; Neu ins Leben: Startwerte fuer Leben und Ruestung.
+Function Spieler_Beleben(p.Spieler)
+	p\leben = SP_START_LEBEN
+	p\panzer = 0
+	p\tot = False
+	p\uhr = 0
+	p\schmerz = 0
+End Function
+
+; Schaden nehmen: erst die Ruestung, dann das Leben.
+Function Spieler_Schaden(p.Spieler, schaden)
+	If schaden <= 0 Or p\tot Then Return
+	schutz = Ceil(schaden * SP_RUESTUNG)
+	If schutz > p\panzer Then schutz = p\panzer
+	p\panzer = p\panzer - schutz
+	p\leben = p\leben - (schaden - schutz)
+	p\schmerz = p\schmerz + schaden / 50.0
+	p\wunden = p\wunden + 1
+	If p\schmerz > 1 Then p\schmerz = 1
+	If p\leben <= 0 Then p\tot = True
 End Function
 
 ; Maus: Drehen um die Hochachse am Koerper, Nicken nur mit der Kamera.
@@ -136,6 +173,16 @@ Function Spieler_Takt(p.Spieler, vor#, seit#, springen)
 	If p\boden Then p\vy = 0 Else p\vy = p\vy - SP_SCHWERE * TAKT
 
 	TranslateEntity p\koerper, p\vx * TAKT, p\vy * TAKT, p\vz * TAKT
+
+	; Ueber 100 klingt es ab, einmal je Sekunde (60 Takte)
+	p\uhr = p\uhr + 1
+	If p\uhr >= 60
+		p\uhr = 0
+		If p\leben > 100 Then p\leben = p\leben - 1
+		If p\panzer > 100 Then p\panzer = p\panzer - 1
+	EndIf
+	p\schmerz = p\schmerz - 2 * TAKT
+	If p\schmerz < 0 Then p\schmerz = 0
 End Function
 
 Function Spieler_Nach(p.Spieler)

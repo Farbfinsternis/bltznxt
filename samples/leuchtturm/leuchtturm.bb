@@ -1,18 +1,24 @@
 ; Leuchtturm - ein kleiner Arena-Shooter im Stil von Quake III, geschrieben
 ; als gewoehnliches Blitz3D-Programm. Konzept: LEUCHTTURM.md.
 ;
-; Stand: Schritt 6 - Waffen mit glTF-Animationen, Zielscheiben und 3D-Klang
-; in der Platzhalter-Arena (daten/arena.glb von werkzeug/arena.py, Waffen
-; und Scheiben von werkzeug/waffen.py, Klaenge von werkzeug/klaenge.py). Eine Karte aus Blender ersetzt sie ohne
+; Stand: Schritt 7 - der Umfang ist erreicht: Bewegung, drei Waffen mit
+; glTF-Animationen, Zielscheiben, 3D-Klang, Items und Anzeige, in der
+; Platzhalter-Arena (daten/arena.glb von werkzeug/arena.py, Waffen und
+; Scheiben von werkzeug/waffen.py, Items von werkzeug/items.py, Klaenge von
+; werkzeug/klaenge.py). Eine Karte aus Blender ersetzt sie ohne
 ; Codeaenderung, wenn sie den Namensregeln folgt.
 ;
-; Steuerung:  Klick ins Fenster faengt die Maus, Tab oder Esc gibt sie frei;
-;             Esc bei freier Maus beendet.
+; Steuerung:  Klick ins Fenster faengt die Maus, Tab gibt sie frei;
+;             Esc beendet.
 ;             Maus schauen   W A S D / Pfeile laufen   Leertaste springen
 ;             linke Maustaste feuern   1 2 3 / Mausrad Waffe waehlen
 ;             F1 Anzeige
 ;
-; Rocket-Jump: nach unten schauen, springen und im selben Moment feuern.
+; Rocket-Jump: nach unten schauen, springen und im selben Moment feuern -
+; die grosse Gesundheit liegt oben auf der Saeule.
+;
+; Wer stirbt (auch durch die eigene Rakete oder beim Sturz aus der Welt),
+; erscheint nach zwei Sekunden am Start neu, mit 125 Leben und dem MG.
 ;
 ; Die Maus wird nur gefangen, solange man spielt: zum Umsehen setzt das
 ; Programm sie in jedem Bild in die Fenstermitte, und das darf nicht
@@ -28,6 +34,10 @@ Include "effekte.bb"
 Include "ziele.bb"
 Include "waffen.bb"
 Include "klang.bb"
+Include "items.bb"
+Include "anzeige.bb"
+
+Const TOT_WARTEN# = 2.0     ; so lange liegt man tot, dann erscheint man neu
 
 Const MAUS_EMPF# = 0.15     ; Grad je Pixel
 
@@ -52,6 +62,9 @@ Effekte_Laden()
 Ziele_Laden("daten/ziel.glb")
 Waffen_Laden(ich, "daten")
 Klang_Laden(ich\kamera, "daten/klang")
+Items_Laden("daten/items", "daten")
+Anzeige_Laden(ich)
+wunden = 0 : war_tot = False : tot_zeit# = 0
 
 anzeige = True
 sprung_merken = False
@@ -66,14 +79,14 @@ ende = False
 While Not ende
 	If KeyHit(59) Then anzeige = Not anzeige
 
-	; Maus fangen und freigeben
+	; Esc beendet immer; Tab gibt die Maus frei, ein Klick faengt sie wieder
+	If KeyHit(1) Then ende = True
 	If gefangen
-		If KeyHit(15) Or KeyHit(1)
+		If KeyHit(15)
 			gefangen = False
 			ShowPointer
 		EndIf
 	Else
-		If KeyHit(1) Then ende = True
 		If MouseHit(1)
 			gefangen = True
 			abzug_frei = False
@@ -84,7 +97,12 @@ While Not ende
 	EndIf
 
 	vor# = 0 : seit# = 0 : abzug = False
-	If gefangen
+	If gefangen And ich\tot
+		; tot: nur umsehen
+		Spieler_Schauen(ich, -MouseXSpeed() * MAUS_EMPF, MouseYSpeed() * MAUS_EMPF)
+		MoveMouse GraphicsWidth() / 2, GraphicsHeight() / 2
+		KeyHit(57) : abzug_frei = False
+	ElseIf gefangen
 		If KeyHit(57) Then sprung_merken = True
 		If MouseDown(1)
 			abzug = abzug_frei
@@ -121,12 +139,26 @@ While Not ende
 		Spieler_Nach(ich)
 		Raketen_Nach(ich)
 		Waffen_Takt(ich, abzug)
+		Items_Takt(ich)
 		Effekte_Takt()
+
+		; Aus der Welt gefallen: das ist tot, wie in Quake.
+		If EntityY(ich\koerper) < -50 Then Spieler_Schaden(ich, 1000)
+		If ich\wunden > wunden And (Not ich\tot) Then Klang(kl_schmerz, ich\kamera)
+		wunden = ich\wunden
+		If ich\tot
+			If Not war_tot Then Klang(kl_tod, ich\kamera) : tot_zeit = 0
+			tot_zeit = tot_zeit + TAKT
+			If tot_zeit >= TOT_WARTEN
+				Spieler_Setzen(ich, sx, sy, sz, sg)
+				Spieler_Beleben(ich)
+				Waffen_Neu(ich)
+			EndIf
+		EndIf
+		war_tot = ich\tot
+		Anzeige_Takt(ich)
 		rest = rest - TAKT
 	Wend
-
-	; Aus der Welt gefallen: zurueck zum Start.
-	If EntityY(ich\koerper) < -50 Then Spieler_Setzen(ich, sx, sy, sz, sg)
 
 	RenderWorld
 
@@ -136,27 +168,20 @@ While Not ende
 	EndIf
 	If anzeige
 		Color 255, 255, 255
-		Text 10, 10, "Leuchtturm - Schritt 6: 3D-Klang   (F1 Anzeige, Tab Maus frei)"
+		Text 10, 10, "Leuchtturm - Schritt 7: Items und Anzeige   (F1 Anzeige, Tab Maus frei)"
 		Text 10, 30, "Tempo " + Int(Spieler_Tempo(ich) * 10) / 10.0 + " m/s   " + fps + " fps"
 		If ich\boden Then b$ = "Boden" Else b$ = "Luft"
 		Text 10, 50, "x " + Int(EntityX(ich\koerper)) + "  y " + Int(EntityY(ich\koerper) - SP_HALB) + "  z " + Int(EntityZ(ich\koerper)) + "   " + b
 		Text 10, 70, "Treffer " + zl_treffer + "   Scheiben zerstoert " + zl_zerstoert + "   Schuesse " + w_schuesse
 	EndIf
-	; Waffen und Munition, die gewaehlte hervorgehoben
-	x = 10
-	For i = 1 To W_ANZAHL
-		If i = w_wunsch Then Color 255, 230, 120 Else Color 150, 150, 150
-		t$ = i + " " + w_name(i) + " " + w_munition(i)
-		Text x, GraphicsHeight() - 24, t
-		x = x + StringWidth(t) + 24
-	Next
+	Anzeige_Zeichnen(ich)
 	If gefangen
 		; Fadenkreuz
 		Color 255, 255, 255
 		Rect GraphicsWidth() / 2 - 1, GraphicsHeight() / 2 - 1, 3, 3
 	Else
 		Color 255, 255, 255
-		Text GraphicsWidth() / 2, GraphicsHeight() / 2, "Klick ins Fenster zum Spielen - Esc beendet", True, True
+		Text GraphicsWidth() / 2, GraphicsHeight() / 2, "Klick ins Fenster zum Spielen - Tab gibt die Maus frei, Esc beendet", True, True
 	EndIf
 	Flip
 Wend

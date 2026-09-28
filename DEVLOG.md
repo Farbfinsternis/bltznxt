@@ -38,6 +38,51 @@ running Blitz3D 11.8. The entries below this one describe each step; this is the
 
 ---
 
+## 2026-09-28 — No console window for graphics programs, mouse look stays in the window
+
+Playing step 7 showed two things that got in the way. Every program was linked as a console
+application, so starting the game by double-click opened a console window that pushed itself in
+front of the game and took its focus (BUG-186). Blitz3D programs are window applications; now a
+program that calls `Graphics` or `Graphics3D` is linked with `-mwindows` too, and at start it
+attaches to the console of whoever started it — run from a terminal, `Print` still shows up there,
+and redirected output (the test suite) stays where it is. A text-only program keeps its console.
+
+The second: with the pointer hidden and recentred every frame, a fast movement or a moment without
+focus let it out of the window, and the next click landed on whatever was behind (BUG-187).
+Blitz3D does not confine it in windowed mode either, but on today's desktops that makes mouse look
+unplayable. Now the first `MoveMouse` after `HidePointer` confines the pointer to the window while
+it has focus; `ShowPointer` or switching windows releases it. The game quits with Esc; Tab
+releases the mouse.
+
+---
+
+## 2026-09-28 — Lighthouse step 7: items and HUD — the scope is reached
+
+The lighthouse game now has everything its concept asked for: movement, three weapons with
+animated models, items, a HUD and 3D sound — all with placeholder art, all plain Blitz3D.
+
+Items sit at empties named after LEUCHTTURM.md's rules (`weapon_rl`, `ammo_mg`, `armor_50`,
+`health_100` …); the placeholder arena has eleven, the mega health on top of the six-metre pillar
+where only a rocket jump reaches it. The rules are Quake III's: you spawn with 125 health, no armour
+and the machine gun with 100 rounds; health and armour above 100 count down by one per second;
+armour absorbs two thirds of each hit, rounded up; weapons come back after 5 s, armour after 25,
+health after 35, ammunition after 40; an item that would not help stays where it is. The own rocket
+now hurts — half damage, full knockback, as Quake computes it so rocket jumps work. Dying (also by
+falling out of the world) respawns you after two seconds.
+
+The HUD shows ammunition, health and armour large along the bottom, the weapons you own, a message
+for each pickup, and a red flash when you are hit — a red sprite just in front of the camera. Pickup,
+pain and death have their own placeholder sounds.
+
+Two slips of my own are worth writing down. `Not` binds weaker than `And` in Blitz — `If Not dead And
+touching` meant `Not (dead And touching)` and picked up every item on the map at once; BLTZNXT already
+asks for parentheses when `Not` stands in the middle of an expression, but not at its start. And timers
+counted in float seconds landed one tick late; like the weapon times, item respawn and the one-second
+decay now count whole ticks. `test_leuchtturm_items` walks the player onto the items and checks
+pickups, limits, respawn, decay, armour, self-damage, death and respawn.
+
+---
+
 ## 2026-09-28 — Audio: seven invented commands removed
 
 Blitz3D's whole 3D sound API is three commands: `CreateListener`, `Load3DSound` and `EmitSound`.

@@ -9,6 +9,8 @@ Wissen steckt in den Objektnamen.
     arena-col   dieselben Koerper als Kollisionsgeometrie (unsichtbar)
     spawn       leeres Objekt: Startpunkt, Blick nach Blitz +z
     ziel        leere Objekte: dort schweben Zielscheiben (Schritt 4)
+    weapon_... ammo_... armor_... health_...
+                leere Objekte: Items (Schritt 7), Name nach LEUCHTTURM.md
 
 Masse in Metern, 1 Einheit = 1 m. Angaben unten in Blitz-Koordinaten (y oben,
 z nach vorn); geschrieben wird glTF (z gespiegelt), der Lader spiegelt zurueck.
@@ -24,6 +26,11 @@ z nach vorn); geschrieben wird glTF (z gespiegelt), der Lader spiegelt zurueck.
     spawn        (0, 0, -15)
     ziel         Mitte, ueber Plattform A und B, ueber dem Block, rechts,
                  und hoch vor der Nordwand
+    Items        Raketenwerfer auf Plattform A, Railgun auf Plattform B,
+                 Munition in drei Ecken, Ruestung auf dem Block, rechts
+                 hinten und vor der Nordwand, Gesundheit links und rechts -
+                 und die grosse Gesundheit oben auf der Saeule, nur mit
+                 einem Rocket-Jump zu erreichen
 
 Aufruf aus dem Projektwurzelverzeichnis:
 
@@ -58,6 +65,14 @@ for i in range(6):                                                  # Treppe
 # Zielscheiben (Blitz-Koordinaten, Mitte der Scheibe)
 ZIELE = [(0, 1.4, 0), (11, 3.4, 11), (-11, 2.9, 11), (-8.5, 2.4, -8.5), (12, 1.4, -10), (0, 4.5, 17)]
 
+# Items (Blitz-Koordinaten, Mitte des Items, etwa einen halben Meter ueber dem Boden)
+ITEMS = [
+    ("weapon_rl", (11, 2.5, 10)), ("weapon_rail", (-11, 2.0, 10)),
+    ("ammo_mg", (-17, 0.5, -17)), ("ammo_rl", (17, 0.5, -5)), ("ammo_rail", (-17, 0.5, 2)),
+    ("armor_25", (-8.5, 1.5, -8.5)), ("armor_50", (17, 0.5, 17)), ("armor_100", (0, 0.5, 18)),
+    ("health_25", (-6, 0.5, -17)), ("health_50", (17, 0.5, 4)), ("health_100", (0, 6.5, -8)),
+]
+
 
 def main():
     nodes = [
@@ -67,6 +82,8 @@ def main():
     ]
     for i, (x, y, z) in enumerate(ZIELE):
         name = "ziel" if i == 0 else "ziel.%03d" % i               # wie Blenders Kopien
+        nodes.append({"name": name, "translation": [x, y, -z]})
+    for name, (x, y, z) in ITEMS:
         nodes.append({"name": name, "translation": [x, y, -z]})
     write(OUT, nodes, [mesh(SOLIDS, True), mesh(SOLIDS, False)],
           "BLTZNXT samples/leuchtturm/werkzeug/arena.py")
