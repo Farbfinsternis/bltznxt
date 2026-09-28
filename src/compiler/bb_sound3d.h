@@ -48,11 +48,12 @@ inline float bb_snd3d_lvx_ = 0.0f, bb_snd3d_lvy_ = 0.0f, bb_snd3d_lvz_ = 0.0f;
 
 // ---- Sound API ----
 
-// Load a sound file for 3D playback.
-// Identical to LoadSound — the handle is used with PlaySound / LoopSound and
-// then positioned via Channel3DPosition.
+// Load a sound file for 3D playback: like LoadSound, but EmitSound places it
+// in space (bb_listener.h). PlaySound and LoopSound play it as usual.
 inline int bb_Load3DSound(const bbString& file) {
-  return bb_LoadSound(file);
+  const int snd = bb_LoadSound(file);
+  if (snd) bb_snd_sounds_[snd].is3d = true;
+  return snd;
 }
 
 // Set the default falloff range for a 3D sound.

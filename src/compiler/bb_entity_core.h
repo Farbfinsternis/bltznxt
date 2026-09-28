@@ -23,7 +23,7 @@
 // ============================================================
 
 enum class bb_EntityKind_ {
-  Pivot, Mesh, Camera, Light, Sprite, Mirror, Md2
+  Pivot, Mesh, Camera, Light, Sprite, Mirror, Md2, Listener
 };
 
 // Animation (3D-19, bb_animation.h). Hier nur vorab genannt: die Entity
@@ -1337,6 +1337,7 @@ inline bbString bb_EntityClass(int h) {
     case bb_EntityKind_::Sprite: return "Sprite";
     case bb_EntityKind_::Mirror: return "Mirror";
     case bb_EntityKind_::Md2:    return "MD2";   // bbblitz3d.cpp: p="MD2"
+    case bb_EntityKind_::Listener: return "Listener";
   }
   return "";
 }

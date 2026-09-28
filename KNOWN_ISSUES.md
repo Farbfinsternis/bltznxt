@@ -122,7 +122,7 @@ counted as bugs and are not planned to be fixed:
 
 ## Missing commands
 
-94 of Blitz3D's commands (not counting language keywords) are not available yet. A
+92 of Blitz3D's commands (not counting language keywords) are not available yet. A
 program that uses one of them is rejected with `unknown function or command`. `blitzcc -k` lists
 everything that is available.
 
@@ -135,7 +135,7 @@ everything that is available.
 | Camera fog | `CameraFogMode`, `CameraFogRange`, `CameraFogColor` |
 | 3D maths | `VectorYaw`, `VectorPitch`, `DeltaYaw`, `DeltaPitch`, `GetMatElement`, `TFormFilter` |
 | Movies | `OpenMovie`, `DrawMovie`, `CloseMovie`, `MovieWidth`, `MovieHeight`, `MoviePlaying` |
-| Other | `RectsOverlap`, `ResizeImage`, `TFormImage`, `VWait`, `ScanLine`, `GraphicsBuffer`, `BufferDirty`, `Stop`, `MouseWait`, `JoyWait`, the gamma commands, `CreateListener`, `EmitSound`, `MeshCullBox`, `Stats3D`, `RuntimeStats`, a few graphics-driver queries and joystick axis variants |
+| Other | `RectsOverlap`, `ResizeImage`, `TFormImage`, `VWait`, `ScanLine`, `GraphicsBuffer`, `BufferDirty`, `Stop`, `MouseWait`, `JoyWait`, the gamma commands, `MeshCullBox`, `Stats3D`, `RuntimeStats`, a few graphics-driver queries and joystick axis variants |
 
 ---
 

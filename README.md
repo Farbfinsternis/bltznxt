@@ -175,7 +175,7 @@ yet work like Blitz3D are listed in [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 
 **Input** — `KeyDown`, `KeyHit`, `GetKey`, `WaitKey`, `FlushKeys`, `Input`, `MouseX`, `MouseY`, `MouseZ`, `MouseXSpeed`, `MouseYSpeed`, `MouseZSpeed`, `MouseDown`, `GetMouse`, `MouseHit`, `WaitMouse`, `FlushMouse`, `MoveMouse`, `JoyType`, `JoyX`, `JoyY`, `JoyZ`, `JoyU`, `JoyV`, `JoyHat`, `JoyDown`, `JoyHit`, `WaitJoy`, `GetJoy`, `FlushJoy`
 
-**Audio** — `LoadSound`, `FreeSound`, `PlaySound`, `LoopSound`, `StopChannel`, `ChannelPlaying`, `ChannelVolume`, `ChannelPan`, `ChannelPitch`, `PauseChannel`, `ResumeChannel`, `SoundVolume`, `SoundPan`, `SoundPitch`, `PlayMusic`, `StopMusic`, `MusicPlaying`, `PlayCDTrack`, `Load3DSound`, `SoundRange`, `Channel3DPosition`, `Channel3DVelocity`, `ListenerPosition`, `ListenerOrientation`, `ListenerVelocity`, `WaitSound`
+**Audio** — `LoadSound`, `FreeSound`, `PlaySound`, `LoopSound`, `StopChannel`, `ChannelPlaying`, `ChannelVolume`, `ChannelPan`, `ChannelPitch`, `PauseChannel`, `ResumeChannel`, `SoundVolume`, `SoundPan`, `SoundPitch`, `PlayMusic`, `StopMusic`, `MusicPlaying`, `PlayCDTrack`, `Load3DSound`, `CreateListener`, `EmitSound`, `SoundRange`, `Channel3DPosition`, `Channel3DVelocity`, `ListenerPosition`, `ListenerOrientation`, `ListenerVelocity`, `WaitSound`
 
 **2D Graphics — Window & Buffer** — `Graphics`, `EndGraphics`, `GraphicsWidth`, `GraphicsHeight`, `GraphicsDepth`, `GraphicsRate`, `GraphicsMode`, `TotalVidMem`, `AvailVidMem`, `BackBuffer`, `FrontBuffer`, `SetBuffer`, `Cls`, `Flip`, `CopyRect`, `Origin`, `Viewport`
 

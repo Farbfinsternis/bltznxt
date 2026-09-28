@@ -31,6 +31,7 @@ inline int bb_tris_rendered_ = 0;
 #include "bb_mirror.h"
 #include "bb_animation.h"
 #include "bb_loader.h"
+#include "bb_listener.h"
 
 // ============================================================
 // UpdateWorld — propagate world transforms + future systems
@@ -51,6 +52,8 @@ inline void bb_UpdateWorld(float elapsed_time = 1.0f) {
   // Kollisionen (3D-18): jedes Entity mit Typ wird von seiner Lage beim
   // vorigen UpdateWorld zur neuen bewegt, Treffer werden eingetragen.
   bb_world_update_collisions_();
+  // Object::endUpdate: Geschwindigkeiten fuer den Doppler-Effekt (3D-Klang)
+  bb_snd3d_update_(elapsed_time);
 }
 
 // ============================================================
@@ -173,8 +176,9 @@ inline void bb_RenderWorld(float tween = 1.0f) {
   // was vorher im Backbuffer stand (Cls, 2D, das letzte Bild), bleibt stehen.
   // Gemessen am 2026-09-17 ohne jede Kamera, mit versteckter Kamera und mit
   // CameraProjMode 0 (BUG-137). Bis dahin loeschte hier ein erfundener
-  // Ersatzzustand das Bild.
-  if (cams.empty()) return;
+  // Ersatzzustand das Bild. Listener und Klaenge fuehrt World::render auch
+  // ohne Kamera nach.
+  if (cams.empty()) { bb_snd3d_render_(); return; }
 
   glEnable(GL_DEPTH_TEST);
   glDepthFunc(GL_LEQUAL);
@@ -303,6 +307,8 @@ inline void bb_RenderWorld(float tween = 1.0f) {
     }
   }
   glDisable(GL_SCISSOR_TEST);
+  // World::render fuehrt nach dem Zeichnen Listener und Klaenge nach.
+  bb_snd3d_render_();
 }
 
 // ============================================================
