@@ -1,6 +1,6 @@
 # BLTZNXT — Leuchtturm
 
-Stand: 2026-09-28 · Schritt 4 läuft (drei Waffen und Zielscheiben in der Platzhalter-Arena)
+Stand: 2026-09-28 · Schritt 5 läuft (die Waffen bewegen sich mit ihren eigenen glTF-Animationen)
 
 Ein kleiner Arena-Shooter im Stil von Quake III, geschrieben als **gewöhnliches Blitz3D-Programm**:
 Blitz-Code, Blitz-Befehle, der Blitz3D-kompatible Renderer. Neu sind nur die Daten — Karte, Waffen
@@ -84,6 +84,23 @@ Weitere Regeln:
   werden aber nicht gebraucht.
 - **Sichtbarkeit:** Für eine Arena genügt das vorhandene Frustum-Culling; kein PVS, keine Portale.
 
+## Waffen in Blender
+
+Eine Waffe ist eine eigene `.glb`, gebaut so, wie man sie in der Hand sieht: Ursprung am Griff,
+der Lauf zeigt nach vorn (in Blender −Y, im Spiel +z). Das Spiel lädt sie mit `LoadAnimMesh`,
+hängt sie an die Kamera und spielt ihre Animationen mit `Animate`.
+
+| Teil | Regel |
+|---|---|
+| Mündung | Leeres Objekt `muendung` an der Spitze des Laufs: Mündungsfeuer und Railspur gehen von dort aus |
+| Bewegliche Teile | Eigene Objekte unter der Waffe (Läufe, Ringe …), damit eine Animation sie einzeln bewegen kann |
+| Animation 0: `feuern` | Ein Schuss, einmal abgespielt; Länge frei, sinnvoll höchstens der Feuertakt (MG 6 Bilder) |
+| Animation 1: `heben` | Von unten (erstes Bild) in die Hand (letztes Bild); das Spiel streckt sie auf 0,25 s und spielt sie zum Senken rückwärts in 0,2 s |
+
+Es zählt die **Reihenfolge der Animationen in der Datei**, nicht ihr Name — Blitz3D kennt nur
+Sequenznummern. Blender zählt Bilder in seiner eigenen Rate (Vorgabe 24 je Sekunde), das Spiel 60: gezählt wird in
+Sekunden, eine Animation läuft im Spiel also so lange wie in Blender.
+
 Freie Assets gibt es unter CC0 unter anderem von Kenney und Quaternius (Modelle) und Poly Haven
 (Texturen). Inhalte aus Quake III sind tabu.
 
@@ -107,7 +124,7 @@ Freie Assets gibt es unter CC0 unter anderem von Kenney und Quaternius (Modelle)
 | 2 | glTF statisch | Die Arena lädt, mit Lightmap |
 | 3 | Spiel: Bewegung und Kollision | Man läuft und springt durch die Arena — **läuft**, Platzhalter-Arena |
 | 4 | Spiel: Waffen | Drei Waffen feuern, Treffer und Explosionen — **läuft**, mit Zielscheiben und Platzhaltermodellen |
-| 5 | glTF animiert | Waffenmodelle mit Animation in der Hand |
+| 5 | glTF animiert | Waffenmodelle mit Animation in der Hand — **läuft**, Platzhalter mit Feuer- und Hebeanimation |
 | 6 | 3D-Klang | Schüsse und Items sind räumlich zu hören |
 | 7 | Spiel: Items und Anzeige | Aufsammeln, Wiedererscheinen, HUD — Umfang erfüllt |
 
@@ -127,7 +144,7 @@ dürfen bis Schritt 5 statisch sein.
 | `ziele.bb` | Zielscheiben an den Marken `ziel`: drehen sich, blitzen bei Treffern, zerplatzen, kommen nach 5 s wieder |
 | `effekte.bb` | Funken, Rauch, Feuerball, Einschlagflecken, Railspur, Explosionslicht; die Texturen erzeugt das Programm |
 | `daten/arena.glb` | Platzhalter-Arena aus `werkzeug/arena.py`: Boden, Wände, Säule, Block, Rampe, Treppe, zwei Plattformen, sechs Zielmarken |
-| `daten/mg.glb`, `rl.glb`, `rail.glb`, `ziel.glb` | Platzhaltermodelle aus `werkzeug/waffen.py`; jede Waffe hat ein leeres Kind `muendung` |
+| `daten/mg.glb`, `rl.glb`, `rail.glb`, `ziel.glb` | Platzhaltermodelle aus `werkzeug/waffen.py` nach den Regeln „Waffen in Blender“: MG mit drehenden Läufen, Railgun mit Ringen, die sich beim Nachladen drehen und aufblähen |
 | `werkzeug/glb.py` | Gemeinsames der Werkzeuge: Körper bauen, `.glb` schreiben |
 
 Werte der Bewegung: die von Quake III, umgerechnet über die Spielergröße (56 Einheiten = 1,8 m,
@@ -150,7 +167,8 @@ knapp 5 m. Wechsel: 0,2 s senken, 0,25 s heben, erst wenn die Waffe feuerbereit 
 und Munitions-Items kommen mit Schritt 7; bis dahin hat jede Waffe 200 Schuss.
 `tests/test_leuchtturm_waffen.bb` feuert mit künstlicher Eingabe und prüft Takt, Treffer,
 Zerstören und Wiedererscheinen, Wechsel, Railspur, Raketenflug, Direkt- und Flächentreffer,
-Rocket-Jump, die Rakete an der Wand und den Wechsel bei leerer Waffe.
+Rocket-Jump, die Rakete an der Wand und den Wechsel bei leerer Waffe, dazu die Animationen der
+Modelle: Sequenz, Drehung der Läufe und Ringe, Rückstoß, halb gesenkt beim Wechsel.
 
 ## Offene Entscheidungen
 

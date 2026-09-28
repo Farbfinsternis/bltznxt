@@ -94,3 +94,4 @@ src/libs/content.txt
 # CMakeLists.txt
 # build_windows.bat / build_linux.sh
 /OPUS_NOTES.md
+__pycache__/

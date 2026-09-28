@@ -1,4 +1,4 @@
-; Leuchtturm - die Waffen (Schritt 4).
+; Leuchtturm - die Waffen (Schritt 4, Animationen Schritt 5).
 ;
 ; Drei Waffen, drei Techniken (LEUCHTTURM.md):
 ;
@@ -27,10 +27,18 @@
 ; 0.2 s senken, 0.25 s heben. Munition: bis es Items gibt (Schritt 7), hat
 ; jede Waffe die Hoechstmenge aus Quake, 200 Schuss.
 ;
-; Die Modelle (daten/mg.glb, rl.glb, rail.glb, bis Schritt 5 ohne Animation)
-; haengen an der Kamera; ihr Kind "muendung" ist der Ort von Muendungsfeuer,
-; Railspur und - wie in Quake nicht dort, sondern auf der Blicklinie - der
-; Start der Rakete.
+; Die Modelle (daten/mg.glb, rl.glb, rail.glb) haengen an der Kamera. Ihr
+; Kind "muendung" ist der Ort von Muendungsfeuer und Railspur (die Rakete
+; startet wie in Quake nicht dort, sondern auf der Blicklinie). Bewegt
+; werden sie von ihren eigenen Animationen aus der Datei, abgespielt mit
+; Animate wie jede Blitz3D-Animation:
+;
+;   Sequenz 0  feuern   einmal je Schuss
+;   Sequenz 1  heben    beim Wechsel vorwaerts in W_HEBEN Takten, zum
+;                       Senken rueckwaerts in W_SENKEN Takten - wie lang die
+;                       Animation in der Datei ist, gleicht das Tempo aus
+;
+; Nur das Wippen beim Laufen rechnet das Programm selbst.
 ;
 ;   Waffen_Laden p, ordner$
 ;   Waffe_Waehlen nr   /   Waffe_Blaettern richtung       ; bei Eingabe
@@ -43,6 +51,7 @@ Const W_ANZAHL = 3
 Const W_WEITE# = 263.0          ; 8192 u
 Const W_STOSS# = 0.16           ; Rueckstoss in m/s je Schadenspunkt
 Const W_SENKEN = 12, W_HEBEN = 15  ; Takte: 0.2 s und 0.25 s
+Const W_ANIM_FEUERN = 0, W_ANIM_HEBEN = 1
 Const W_VOLL = 200              ; Munition je Waffe
 
 Const MG_SCHADEN = 7
@@ -56,12 +65,11 @@ Const RK_LEBEN# = 15.0
 Const RK_START# = 0.45          ; so weit vor dem Auge beginnt die Rakete
 
 Dim w_name$(W_ANZAHL), w_takt(W_ANZAHL), w_munition(W_ANZAHL)
-Dim w_modell(W_ANZAHL), w_muendung(W_ANZAHL), w_feuer(W_ANZAHL), w_kick#(W_ANZAHL)
+Dim w_modell(W_ANZAHL), w_muendung(W_ANZAHL), w_feuer(W_ANZAHL), w_heben_len#(W_ANZAHL)
 
 Global w_aktiv, w_wunsch
 Global w_warte                  ; Takte bis zum naechsten Schuss
 Global w_zustand, w_zeit        ; 0 bereit, 1 senken, 2 heben; Takte uebrig
-Global w_rueck#                 ; Rueckstoss des Modells in m
 Global w_feuer_zeit             ; Takte Muendungsfeuer
 Global w_bob#
 Global w_ex#, w_ey#, w_ez#      ; Endpunkt des letzten Strahls
@@ -77,7 +85,6 @@ End Type
 Function Waffen_Laden(p.Spieler, ordner$)
 	w_name(W_MG) = "MG" : w_name(W_RL) = "Raketenwerfer" : w_name(W_RAIL) = "Railgun"
 	w_takt(W_MG) = 6 : w_takt(W_RL) = 48 : w_takt(W_RAIL) = 90     ; 0.1, 0.8, 1.5 s
-	w_kick(W_MG) = 0.015 : w_kick(W_RL) = 0.05 : w_kick(W_RAIL) = 0.07
 	Restore Waffen_Dateien
 	For i = 1 To W_ANZAHL
 		Read datei$, r, g, b
@@ -93,15 +100,18 @@ Function Waffen_Laden(p.Spieler, ordner$)
 		EntityColor w_feuer(i), r, g, b
 		ScaleSprite w_feuer(i), 0.07, 0.07
 		HideEntity w_feuer(i)
+		; Laenge der Animation "heben", und bis zum ersten Wechsel unten
+		SetAnimTime w_modell(i), 0, W_ANIM_HEBEN
+		w_heben_len(i) = AnimLength(w_modell(i))
 		HideEntity w_modell(i)
 		w_munition(i) = W_VOLL
 	Next
 	Collisions TYP_RAKETE, TYP_WELT, 2, 1
 	Collisions TYP_RAKETE, TYP_ZIEL, 2, 1
 	w_aktiv = W_MG : w_wunsch = W_MG
-	w_warte = 0 : w_zustand = 2 : w_zeit = W_HEBEN
-	w_rueck = 0 : w_schuesse = 0
-	ShowEntity w_modell(w_aktiv)
+	w_warte = 0
+	w_schuesse = 0
+	Waffe_Heben()
 	Waffen_Zeigen(p)
 End Function
 
@@ -135,6 +145,7 @@ Function Waffen_Takt(p.Spieler, abzug)
 	Case 0
 		If w_wunsch <> w_aktiv And w_warte <= 0
 			w_zustand = 1 : w_zeit = W_SENKEN
+			Animate w_modell(w_aktiv), 3, -w_heben_len(w_aktiv) / W_SENKEN, W_ANIM_HEBEN
 		EndIf
 	Case 1
 		w_zeit = w_zeit - 1
@@ -142,8 +153,7 @@ Function Waffen_Takt(p.Spieler, abzug)
 			HideEntity w_modell(w_aktiv)
 			HideEntity w_feuer(w_aktiv)
 			w_aktiv = w_wunsch
-			ShowEntity w_modell(w_aktiv)
-			w_zustand = 2 : w_zeit = W_HEBEN
+			Waffe_Heben()
 		EndIf
 	Case 2
 		w_zeit = w_zeit - 1
@@ -171,24 +181,24 @@ Function Waffen_Takt(p.Spieler, abzug)
 		w_feuer_zeit = w_feuer_zeit - 1
 		If w_feuer_zeit <= 0 Then HideEntity w_feuer(w_aktiv)
 	EndIf
-	w_rueck = w_rueck - 0.4 * TAKT
-	If w_rueck < 0 Then w_rueck = 0
 	If p\boden Then w_bob = w_bob + TAKT * Spieler_Tempo(p) / SP_LAUF
 	Waffen_Zeigen(p)
 End Function
 
-; Das Modell in der Hand: gesenkt beim Wechsel, Rueckstoss nach hinten,
-; beim Laufen ein leichtes Wippen.
+Function Waffe_Heben()
+	ShowEntity w_modell(w_aktiv)
+	Animate w_modell(w_aktiv), 3, w_heben_len(w_aktiv) / W_HEBEN, W_ANIM_HEBEN
+	w_zustand = 2 : w_zeit = W_HEBEN
+End Function
+
+; Das Modell in der Hand; beim Laufen wippt es leicht.
 Function Waffen_Zeigen(p.Spieler)
-	tief# = 0
-	If w_zustand = 1 Then tief = 0.25 * (1 - Float(w_zeit) / W_SENKEN)
-	If w_zustand = 2 Then tief = 0.25 * Float(w_zeit) / W_HEBEN
 	st# = Spieler_Tempo(p) / SP_LAUF
 	If st > 1 Then st = 1
 	If Not p\boden Then st = 0
 	bx# = 0.008 * st * Sin(w_bob * 360)
 	by# = 0.005 * st * Abs(Cos(w_bob * 360))
-	PositionEntity w_modell(w_aktiv), 0.13 + bx, -0.12 - tief + by, 0.10 - w_rueck
+	PositionEntity w_modell(w_aktiv), 0.13 + bx, -0.12 + by, 0.10
 End Function
 
 Function Waffe_Feuern(p.Spieler)
@@ -199,7 +209,7 @@ Function Waffe_Feuern(p.Spieler)
 	ShowEntity w_feuer(w_aktiv)
 	RotateSprite w_feuer(w_aktiv), Rnd(360)
 	w_feuer_zeit = 3
-	w_rueck = w_kick(w_aktiv)
+	Animate w_modell(w_aktiv), 3, 1, W_ANIM_FEUERN
 
 	Select w_aktiv
 	Case W_MG

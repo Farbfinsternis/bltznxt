@@ -38,6 +38,27 @@ running Blitz3D 11.8. The entries below this one describe each step; this is the
 
 ---
 
+## 2026-09-28 — Lighthouse step 5: animated weapon models
+
+The weapons in the player's hand now move with their own glTF animations, played with plain
+`Animate` — no new command. Each weapon file has two animations, addressed by their order in the
+file because Blitz3D only knows sequence numbers: `feuern` (0) plays once per shot, `heben` (1)
+raises the weapon when it is selected and runs backwards to lower it. The game scales the speed
+from the animation's length, so a Blender model can use any length and still takes 0.25 s up and
+0.2 s down. The recoil and lowering the code used to fake are gone; only the walking bob is left
+to the program.
+
+The placeholder models have moving parts: the machine gun's three barrels turn by a third per
+shot (6 frames — continuous fire spins them without a seam), the rocket launcher kicks back and
+tips up, the railgun's rings swell and turn once while it recharges. `werkzeug/glb.py` writes
+node animations now, with helpers that take positions and rotations in Blitz coordinates; the
+signs were checked against `RotateEntity` (a positive pitch tips the muzzle down, as for a
+camera). LEUCHTTURM.md has a new section with the rules for weapons made in Blender.
+`test_leuchtturm_waffen` checks sequence, barrel and ring angles, the recoil and a weapon lowered
+halfway, against values computed from the keyframes.
+
+---
+
 ## 2026-09-28 — Lighthouse step 4: weapons and targets
 
 Three weapons, three techniques, all plain Blitz3D. The machine gun and the railgun are instant

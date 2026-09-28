@@ -15,3 +15,9 @@ ziel 0:    0,140,0
 11 stand:  hoechstens 485
 12 wand:   raketen 0 explosionen 1 vz -1576 vy 276
 13 leer:   zustand nach 56 takten 2, nach 58 0;   waffe 3 munition 0
+14 bereit: seq 1 animating 0 mg y 0 pitch 0
+14 feuern: seq 0 animating 1 laeufe roll 60 mg z -7
+14 feuern: animating 0 laeufe roll 120
+14 senken: seq 1 mg y -12 pitch 20
+14 heben:  seq 1 rail y 0
+14 rail:   rail z -7 ringe roll 12

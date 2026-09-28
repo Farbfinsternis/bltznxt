@@ -1,4 +1,5 @@
-; Leuchtturm Schritt 4 - Waffen und Zielscheiben in der Platzhalter-Arena.
+; Leuchtturm Schritt 4 und 5 - Waffen, Zielscheiben und die Animationen der
+; Waffenmodelle in der Platzhalter-Arena.
 ;
 ; Bindet die Spielmodule ein und feuert mit kuenstlicher Eingabe, 60 Takte
 ; je Sekunde, in derselben Reihenfolge wie das Spiel. Arena, Waffen und
@@ -210,4 +211,28 @@ Lauf(p, 55, False)
 a = w_zustand
 Lauf(p, 2, False)
 Print "13 leer:   zustand nach 56 takten " + a + ", nach 58 " + w_zustand + ";   waffe " + w_aktiv + " munition " + w_munition(W_RL)
+
+; 14) Animationen aus der glTF-Datei (Sequenz 0 feuern, 1 heben)
+w_munition(W_RL) = W_VOLL
+Nimm(p, W_MG)
+mg = FindChild(w_modell(W_MG), "mg")
+lf = FindChild(w_modell(W_MG), "laeufe")
+Print "14 bereit: seq " + AnimSeq(w_modell(W_MG)) + " animating " + Animating(w_modell(W_MG)) + " mg y " + C(EntityY(mg)) + " pitch " + Int(EntityPitch(mg))
+; ein Schuss: die Laeufe drehen sich in 6 Takten um 120 Grad
+Lauf(p, 1, True)
+Lauf(p, 3, False)
+Print "14 feuern: seq " + AnimSeq(w_modell(W_MG)) + " animating " + Animating(w_modell(W_MG)) + " laeufe roll " + Int(EntityRoll(lf)) + " mg z " + C(EntityZ(mg) * 10)
+Lauf(p, 3, False)
+Print "14 feuern: animating " + Animating(w_modell(W_MG)) + " laeufe roll " + Int(EntityRoll(lf))
+; Wechsel: "heben" rueckwaerts, 6 von 12 Takten gesenkt ist halb unten
+Bereit(p)
+Waffe_Waehlen(W_RAIL)
+Lauf(p, 7, False)
+Print "14 senken: seq " + AnimSeq(w_modell(W_MG)) + " mg y " + C(EntityY(mg)) + " pitch " + Int(EntityPitch(mg))
+Bereit(p)
+Print "14 heben:  seq " + AnimSeq(w_modell(W_RAIL)) + " rail y " + C(EntityY(FindChild(w_modell(W_RAIL), "rail")))
+; Railgun: Rueckstoss, die Ringe drehen sich
+Lauf(p, 1, True)
+Lauf(p, 2, False)
+Print "14 rail:   rail z " + C(EntityZ(FindChild(w_modell(W_RAIL), "rail"))) + " ringe roll " + Int(EntityRoll(FindChild(w_modell(W_RAIL), "ringe")))
 End

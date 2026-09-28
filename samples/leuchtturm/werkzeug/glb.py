@@ -95,10 +95,28 @@ def mesh(solids, with_color=True):
     return pos, nrm, (col if with_color else None), idx
 
 
-def write(path, nodes, meshes, generator):
+def pos(x, y, z):
+    """Eine Lage in Blitz-Koordinaten als glTF-translation."""
+    return (x, y, -z)
+
+
+def quat(ax, ay, az, deg):
+    """Drehung um die Achse (ax, ay, az) in Blitz-Koordinaten, als glTF-Quaternion.
+    Positiv dreht wie Blitz3D: um x hebt sich die Spitze (+z) nach unten, wie
+    ein positiver Nickwinkel; um z dreht es im Uhrzeigersinn, von hinten gesehen.
+    Der Lader spiegelt z: aus glTF (x, y, z, w) wird Blitz (-x, -y, z, w)."""
+    l = (ax * ax + ay * ay + az * az) ** 0.5
+    s, c = math.sin(math.radians(deg) / 2), math.cos(math.radians(deg) / 2)
+    return (-ax / l * s, -ay / l * s, az / l * s, c)
+
+
+def write(path, nodes, meshes, generator, animations=()):
     """nodes: glTF-Knoten (dicts, "mesh" verweist in meshes); in der Szene stehen
     die, die nicht Kind eines anderen sind.
-    meshes: Liste von (pos, nrm, col, idx) aus mesh(). Ein Material fuer alle."""
+    meshes: Liste von (pos, nrm, col, idx) aus mesh(). Ein Material fuer alle.
+    animations: Liste von (name, [(knoten, pfad, [(bild, wert), ...]), ...]) -
+    pfad "translation" (Wert aus pos()), "rotation" (aus quat()) oder "scale";
+    Bilder zu 60 je Sekunde, wie der Lader sie zaehlt. Linear gemischt."""
     data = bytearray()
     views, accessors = [], []
 
@@ -111,6 +129,8 @@ def write(path, nodes, meshes, generator):
         views.append({"buffer": 0, "byteOffset": len(data), "byteLength": len(blob)})
         data.extend(blob)
         a = {"bufferView": len(views) - 1, "componentType": ctype, "count": len(values), "type": typ}
+        if typ == "SCALAR" and fmt == "f":                          # Zeiten einer Animation
+            a["min"], a["max"] = [min(values)], [max(values)]
         if typ == "VEC3" and fmt == "f":
             a["min"] = [min(v[i] for v in values) for i in range(n)]
             a["max"] = [max(v[i] for v in values) for i in range(n)]
@@ -125,6 +145,17 @@ def write(path, nodes, meshes, generator):
         gmeshes.append({"primitives": [{"attributes": at, "indices": acc("H", 5123, "SCALAR", idx),
                                         "material": 0}]})
 
+    ganims = []
+    for name, channels in animations:
+        samplers, chans = [], []
+        for node, kanal, keys in channels:
+            typ = "VEC4" if kanal == "rotation" else "VEC3"
+            samplers.append({"input": acc("f", 5126, "SCALAR", [k[0] / 60.0 for k in keys]),
+                             "output": acc("f", 5126, typ, [tuple(k[1]) for k in keys]),
+                             "interpolation": "LINEAR"})
+            chans.append({"sampler": len(samplers) - 1, "target": {"node": node, "path": kanal}})
+        ganims.append({"name": name, "samplers": samplers, "channels": chans})
+
     doc = {
         "asset": {"version": "2.0", "generator": generator},
         "scene": 0,
@@ -138,6 +169,8 @@ def write(path, nodes, meshes, generator):
         "accessors": accessors,
         "buffers": [{"byteLength": len(data)}],
     }
+    if ganims:
+        doc["animations"] = ganims
     js = json.dumps(doc, separators=(",", ":")).encode()
     js += b" " * (-len(js) % 4)
     bn = bytes(data) + b"\0" * (-len(data) % 4)
