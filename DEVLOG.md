@@ -1,5 +1,35 @@
 # BlitzNext Developer Log
 
+## 2026-09-28 — The Blitz3D IDE runs BLTZNXT
+
+The original Blitz3D IDE can now use BLTZNXT as its compiler: put our `blitzcc.exe` (with its
+three MinGW DLLs) into the IDE's `bin` folder and link `tools`, `src` and `libs` next to it
+(README, "Using the Blitz3D IDE"). Before, the IDE quit at startup with "Compiler environment
+error", because `blitzcc -q` without a file printed our help.
+
+The IDE talks to its compiler through one pipe for stdout and stderr (`blitzide/libs.cpp`,
+`mainframe.cpp`); `blitzcc` now answers the way Blitz3D's own `blitz/main.cpp` does:
+
+- `blitzcc -q` without a file checks the toolchain and stays silent when it is complete,
+  otherwise it names what is missing — the IDE shows that as "Compiler environment error".
+- `blitzcc +k` prints the language keywords and the commands in Blitz3D's format
+  (`EntityX# ( h[,glob] )`, `PositionEntity h,x#,y#,z#[,glob]`), which the IDE splits into
+  highlighting and quick help. The IDE calls it before it sets `blitzide`, so this is now
+  always the format; our own IDE (`ide/electron/backend.js`) reads it too.
+- With `blitzide` set, a build prints only progress lines ending in "..." and, on failure, one
+  line `"file":row:col:row:col:message`, after which the IDE opens the file at that place.
+  Without `-o` and `-c` the program is built in its own folder under `%TEMP%`, started in the
+  folder of its source with the arguments that follow the file name, and the folder is removed
+  when it ends. g++ runs without a console window.
+
+`scripts/blitzide_sim.cpp` replays the IDE's side — the same process creation and the same
+parsing, taken from the IDE's source — and was used for the checks: startup, keywords, syntax
+error, unknown command, error in an included file, running a text and a graphics program with
+arguments and working directory, *Create Executable*, *Check*, and all of it from a Blitz3D-like
+folder with only Windows on the PATH. Without the three DLLs the IDE gets no keywords and quits,
+so they are part of the setup. The command line is unchanged; the 107 negative tests and a
+sample of the others pass.
+
 ## v0.6.0 - "glTF, animation, 3D sound - and a new game" (2026-09-28)
 
 Nine days after v0.5.5. BlitzNext is no longer only for old programs: `samples/leuchtturm/`

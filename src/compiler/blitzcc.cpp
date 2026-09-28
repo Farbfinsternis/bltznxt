@@ -4,6 +4,8 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <regex>
+#include <sstream>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -37,8 +39,14 @@ struct Config {
   bool        compileOnly = false;
   bool        debug       = false;
   bool        quiet       = false;
+  bool        veryQuiet   = false;
+  // Aufruf aus der Original-IDE von Blitz3D: sie setzt die Umgebungsvariable
+  // `blitzide` (blitzide/mainframe.cpp). Dann antwortet blitzcc so, wie die
+  // IDE es vom Original-Compiler erwartet - siehe transpileIde.
+  bool        ide         = false;
   std::string outputName;
   std::string inputPath;
+  std::vector<std::string> progArgs;   // mit IDE: alles nach der Quelldatei
 };
 
 // ---- Path helper -----------------------------------------------------------
@@ -71,15 +79,121 @@ static fs::path resolvePath(const std::string &rel) {
 
 
 // -k  → one name per line
-// +k  → name(sig) per line
-static void listCommands(bool withSigs) {
+// +k  → keywords and signatures as the original prints them (listCommandsBlitz)
+static void listCommands() {
+  for (const auto &c : kCommands) std::cout << c.name << "\n";
+}
+
+// ---- Die Original-IDE von Blitz3D ------------------------------------------
+//
+// Die IDE ruft blitzcc so auf (blitzide/libs.cpp, mainframe.cpp) und liest
+// stdout und stderr aus derselben Leitung:
+//
+//   blitzcc -q                   beim Start: jede Ausgabe ist ein Fehler
+//                                ("Compiler environment error"), die IDE
+//                                beendet sich
+//   blitzcc +k                   Schluesselwoerter fuer Faerbung und
+//                                Kurzhilfe, getrennt am ersten Leerzeichen
+//   blitzcc -q [-d] [-c] [-o "x.exe"] "datei.bb" [Programmargumente]
+//                                Zeilen auf "..." sind Fortschritt; die
+//                                erste andere Zeile ist ein Fehler, im
+//                                Format "datei":z:s:z:s:meldung springt die
+//                                IDE dorthin; ohne -o und -c laeuft das
+//                                Programm nach "Executing..."
+//
+// Nachgebaut nach blitz/main.cpp des Originals.
+
+// +k im Format des Originals, immer - die IDE ruft es beim Start auf, bevor
+// sie `blitzide` setzt: die Schluesselwoerter der Sprache nackt,
+// Funktionen mit Rueckgabe `Name# ( a,b[,c] )`, Befehle `Name a,b[,c]`,
+// Ganzzahlen ohne `%`. Die Liste der Schluesselwoerter ist die, die das
+// Original-blitzcc +k ausgibt.
+static const char *const kBlitzKeywords[] = {
+  "Abs", "After", "And", "Before", "Case", "Const", "Data", "Default",
+  "Delete", "Dim", "Each", "Else", "ElseIf", "EndIf", "Exit", "False",
+  "Field", "First", "Float", "For", "Forever", "Function", "Global", "Gosub",
+  "Goto", "Handle", "If", "Include", "Insert", "Int", "Last", "Local", "Mod",
+  "New", "Next", "Not", "Null", "Object", "Or", "Pi", "Read", "Repeat",
+  "Restore", "Return", "Sar", "Select", "Sgn", "Shl", "Shr", "Step", "Str",
+  "Then", "To", "True", "Type", "Until", "Wend", "While", "Xor",
+};
+
+static std::string blitzParams(const std::string &params) {
+  std::string out;
+  size_t pos = 0;
+  bool first = true;
+  while (pos < params.size()) {
+    size_t comma = params.find(',', pos);
+    std::string tok = params.substr(pos, comma == std::string::npos
+                                             ? std::string::npos
+                                             : comma - pos);
+    pos = (comma == std::string::npos) ? params.size() : comma + 1;
+    const bool optional = !tok.empty() && tok.back() == '?';
+    if (optional) tok.pop_back();
+    if (!tok.empty() && tok.back() == '%') tok.pop_back();
+    const std::string sep = first ? "" : ",";
+    out += optional ? "[" + sep + tok + "]" : sep + tok;
+    first = false;
+  }
+  return out;
+}
+
+static void listCommandsBlitz() {
+  std::unordered_set<std::string> kw;
+  for (const char *k : kBlitzKeywords) {
+    std::cout << k << "\n";
+    kw.insert(toUpper(k));
+  }
   for (const auto &c : kCommands) {
-    if (withSigs)
-      std::cout << c.name << "(" << commandSignature(c) << ")\n";
-    else
-      std::cout << c.name << "\n";
+    if (kw.count(toUpper(c.name))) continue;
+    const std::string ret = c.ret, p = blitzParams(c.params);
+    if (ret.empty()) {
+      std::cout << c.name << " " << p << "\n";
+    } else {
+      const std::string suffix = (ret == "#" || ret == "$") ? ret : "";
+      std::cout << c.name << suffix << " ( " << (p.empty() ? "" : p + " ") << ")\n";
+    }
   }
 }
+
+// Was dem Compiler fehlt, um zu uebersetzen; leer, wenn alles da ist. Das
+// Original prueft beim nackten Aufruf ebenso seine Umgebung.
+static std::string toolchainProblem() {
+  if (!fs::exists(resolvePath("tools/mingw64/bin/g++.exe")))
+    return "BLTZNXT: g++ not found (tools/mingw64)";
+  if (!fs::exists(resolvePath("src/compiler/bb_runtime.h")))
+    return "BLTZNXT: runtime headers not found (src/compiler)";
+  if (!fs::exists(resolvePath("libs/sd3/x86_64-w64-mingw32/lib/libSDL3.dll.a")))
+    return "BLTZNXT: SDL3 not found (libs/sd3)";
+  return "";
+}
+
+// Die erste Fehlermeldung im Format der IDE. Unsere Meldungen lauten
+// `datei:zeile:spalte: error: text`; das Original schreibt
+// `"datei":zeile:spalte:zeile:spalte:text` (blitz/main.cpp). Eine Meldung
+// ohne Stelle geht als einfache Zeile hinaus - die IDE zeigt sie dann nur an.
+static std::string ideError(const std::string &log) {
+  static const std::regex re(R"(^(.*):(\d+):(\d+): (?:fatal )?error: (.*)$)");
+  std::istringstream in(log);
+  std::string line, plain;
+  while (std::getline(in, line)) {
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+    if (line.empty()) continue;
+    std::smatch m;
+    const bool diag = std::regex_match(line, m, re);
+    if (diag && m[2] != "0") {
+      const std::string rc = m[2].str() + ":" + m[3].str();
+      return "\"" + m[1].str() + "\":" + rc + ":" + rc + ":" + m[4].str();
+    }
+    if (plain.empty()) plain = diag ? m[4].str() : line;
+  }
+  return plain.empty() ? "Compilation failed" : plain;
+}
+
+// g++ ohne eigenes Konsolenfenster starten: die IDE startet blitzcc ohne
+// Konsole (DETACHED_PROCESS), und jedes Konsolenprogramm darunter bekaeme
+// sonst ein eigenes Fenster.
+static bool g_noConsole_ = false;
 
 // ---- Semantic check: unknown calls (WEAK-03, Stufe 1 und 2) ----------------
 //
@@ -437,7 +551,8 @@ public:
     si.cb = sizeof(si);
     PROCESS_INFORMATION pi = {};
     if (!CreateProcessW(nullptr, wcmd.data(),
-                        nullptr, nullptr, FALSE, 0, nullptr, nullptr,
+                        nullptr, nullptr, FALSE,
+                        g_noConsole_ ? CREATE_NO_WINDOW : 0, nullptr, nullptr,
                         &si, &pi)) {
       std::cerr << "[ERROR] CreateProcessW failed (code " << GetLastError() << ")\n";
       return false;
@@ -472,8 +587,94 @@ public:
     return true;
   }
 
+  // Aus der Blitz3D-IDE (Config::ide). Wie blitz/main.cpp des Originals:
+  // Fortschritt als Zeilen auf "...", ein Fehler als eine Zeile im Format der
+  // IDE, ohne -o und -c laeuft das Programm - im Ordner der Quelldatei, mit
+  // den Argumenten nach ihr. Unsere eigenen Ausgaben werden dafuer
+  // eingesammelt, damit keine andere Zeile die IDE erreicht.
+  //
+  // Ohne -o entsteht das Programm in einem eigenen Ordner unter %TEMP% und
+  // wird danach geloescht; neben der Quelle bleibt nichts liegen. -d
+  // (Debugger des Originals) gibt es hier nicht und wird uebergangen.
+  int transpileIde(Config cfg) const {
+    std::ostream ide(std::cout.rdbuf());
+    std::ostringstream log;
+    std::streambuf *oldOut = std::cout.rdbuf(log.rdbuf());
+    std::streambuf *oldErr = std::cerr.rdbuf(log.rdbuf());
+
+    const fs::path src = fs::absolute(cfg.inputPath);
+    const bool run = cfg.outputName.empty() && !cfg.compileOnly;
+    fs::path tmp;
+    if (cfg.outputName.empty()) {
+      tmp = fs::temp_directory_path() / "bltznxt-ide" /
+            (src.stem().string() + "-" + std::to_string(GetCurrentProcessId()));
+      std::error_code ec;
+      fs::create_directories(tmp, ec);
+      cfg.outputName = (tmp / src.stem()).string();
+    } else if (cfg.outputName.size() > 4 &&
+               toUpper(cfg.outputName.substr(cfg.outputName.size() - 4)) == ".EXE") {
+      cfg.outputName.resize(cfg.outputName.size() - 4);   // die IDE gibt "x.exe"
+    }
+    auto cleanup = [&tmp] {
+      std::error_code ec;
+      if (!tmp.empty()) fs::remove_all(tmp, ec);
+    };
+
+    cfg.ide = false;
+    cfg.quiet = true;
+    cfg.debug = false;
+    g_noConsole_ = true;
+
+    if (!cfg.veryQuiet) ide << "Compiling..." << std::endl;
+    const int rc = transpile(cfg);
+    std::cout.rdbuf(oldOut);
+    std::cerr.rdbuf(oldErr);
+
+    if (rc != 0) {
+      std::string msg = ideError(log.str());
+      if (rc == 2 && msg == "compilation failed")
+        msg = "C++ compilation failed - run blitzcc from a terminal to see why";
+      ide << msg << std::endl;
+      cleanup();
+      return -1;
+    }
+    if (!run) {
+      if (!cfg.compileOnly && !cfg.veryQuiet)
+        ide << "Creating executable \"" << cfg.outputName << ".exe\"..." << std::endl;
+      cleanup();
+      return 0;
+    }
+
+    if (!cfg.veryQuiet) ide << "Executing..." << std::endl;
+
+    // Das Programm mit eigenem Fenster; ein Textprogramm bekommt seine
+    // eigene Konsole, weil blitzcc selbst keine hat. blitzcc wartet, damit
+    // der Ordner danach geloescht werden kann.
+    const fs::path exe = fs::path(cfg.outputName + ".exe");
+    std::wstring cmd = L"\"" + exe.wstring() + L"\"";
+    for (const auto &a : cfg.progArgs) {
+      const int n = MultiByteToWideChar(CP_ACP, 0, a.c_str(), -1, nullptr, 0);
+      std::wstring w(n > 0 ? n - 1 : 0, L'\0');
+      if (n > 1) MultiByteToWideChar(CP_ACP, 0, a.c_str(), -1, w.data(), n);
+      cmd += L" " + (w.find(L' ') != std::wstring::npos ? L"\"" + w + L"\"" : w);
+    }
+    const std::wstring dir = src.parent_path().wstring();
+    STARTUPINFOW si = {};
+    si.cb = sizeof(si);
+    PROCESS_INFORMATION pi = {};
+    if (CreateProcessW(exe.wstring().c_str(), cmd.data(), nullptr, nullptr, FALSE,
+                       0, nullptr, dir.c_str(), &si, &pi)) {
+      WaitForSingleObject(pi.hProcess, INFINITE);
+      CloseHandle(pi.hProcess);
+      CloseHandle(pi.hThread);
+    }
+    cleanup();
+    return 0;
+  }
+
   // Returns: 0 = success, 1 = parse error, 2 = compile error
   int transpile(const Config &cfg) const {
+    if (cfg.ide) return transpileIde(cfg);
     std::string output = cfg.outputName;
     if (output.empty()) {
       fs::path p = cfg.inputPath;
@@ -554,9 +755,11 @@ static void showHelp() {
       << "  -v          Show version\n"
       << "  -o <name>   Output executable name (without .exe)\n"
       << "  -k          List all known built-in command names\n"
-      << "  +k          List all known built-in commands with signatures\n"
+      << "  +k          List keywords and commands with signatures (Blitz3D format)\n"
       << "\nEnvironment:\n"
-      << "  BLITZPATH   Installation root fallback for toolchain lookup\n";
+      << "  BLITZPATH   Installation root fallback for toolchain lookup\n"
+      << "  blitzide    Set by the Blitz3D IDE: run after compiling, errors in\n"
+      << "              its format, program arguments after the source file\n";
 }
 
 int main(int argc, char **argv) {
@@ -564,14 +767,18 @@ int main(int argc, char **argv) {
     g_exeDir_ = fs::absolute(argv[0]).parent_path();
 
   Config cfg;
+  cfg.ide = std::getenv("blitzide") != nullptr;
 
   for (int i = 1; i < argc; ++i) {
     std::string arg = argv[i];
+    // Aus der IDE gehoert alles nach der Quelldatei dem Programm - dort
+    // haengt sie die Programmargumente an (blitz/main.cpp).
+    if (cfg.ide && !cfg.inputPath.empty()) { cfg.progArgs.push_back(arg); continue; }
     if      (arg == "-h")                { showHelp(); return 0; }
-    else if (arg == "-k")                { listCommands(false); return 0; }
-    else if (arg == "+k")                { listCommands(true);  return 0; }
+    else if (arg == "-k")                { listCommands(); return 0; }
+    else if (arg == "+k")                { listCommandsBlitz(); return 0; }
     else if (arg == "-q")                  cfg.quiet       = true;
-    else if (arg == "+q")                  cfg.quiet       = true;
+    else if (arg == "+q")                { cfg.quiet = true; cfg.veryQuiet = true; }
     else if (arg == "-c")                  cfg.compileOnly = true;
     else if (arg == "-d")                  cfg.debug       = true;
     else if (arg == "-release")            cfg.debug       = false;
@@ -580,7 +787,16 @@ int main(int argc, char **argv) {
     else if (arg[0] != '-' && arg[0] != '+') cfg.inputPath = arg;
   }
 
+  // Ohne Quelldatei: mit -q oder aus der IDE nur die Umgebung pruefen und
+  // bei Erfolg schweigen, wie das Original. Die IDE ruft beim Start genau
+  // das auf und beendet sich bei jeder Ausgabe.
   if (cfg.inputPath.empty()) {
+    if (cfg.quiet || cfg.ide) {
+      const std::string problem = toolchainProblem();
+      if (problem.empty()) return 0;
+      std::cout << problem << "\n";
+      return 1;
+    }
     showHelp();
     return 1;
   }

@@ -253,11 +253,44 @@ blitzcc [options] <file.bb>
   -release    Release build (default; explicit flag for IDE compatibility)
   -o <name>   Output executable name (without .exe)
   -k          List all known built-in command names
-  +k          List built-in commands with parameter signatures
+  +k          List keywords and commands with signatures, in Blitz3D's format
 
 Environment:
   BLITZPATH   Fallback root for toolchain lookup (after CWD and ../)
+  blitzide    Set by the Blitz3D IDE (see below)
 ```
+
+---
+
+## Using the Blitz3D IDE
+
+The original Blitz3D IDE can use BLTZNXT instead of its own compiler. `blitzcc` answers the
+IDE the way Blitz3D's compiler does: it checks its environment when the IDE starts, delivers the
+keywords for syntax highlighting and quick help, runs the program after compiling (F5), reports
+an error so that the IDE jumps to its line — also inside an `Include`d file —, and supports
+*Check* and *Create Executable*. The program runs in the folder of its source file and gets the
+IDE's command line.
+
+Setup, in PowerShell (adjust both paths; an installation under *Program Files* needs an
+administrator prompt):
+
+```powershell
+$b3d = "C:\Blitz3D"        # the Blitz3D installation
+$bn  = "F:\bltznxt"        # a built BLTZNXT checkout
+Rename-Item "$b3d\bin\blitzcc.exe" blitzcc_blitz3d.exe
+Copy-Item "$bn\bin\blitzcc.exe", "$bn\bin\libstdc++-6.dll", "$bn\bin\libgcc_s_seh-1.dll",
+          "$bn\bin\libwinpthread-1.dll" "$b3d\bin\"
+foreach ($d in "tools", "src", "libs") { New-Item -ItemType Junction -Path "$b3d\$d" -Target "$bn\$d" }
+```
+
+The junctions make BLTZNXT's toolchain, runtime and SDL visible from the Blitz3D folder without
+copying them. To go back, delete the four copied files, remove the junctions with
+`cmd /c rmdir "$b3d\tools"` (and `src`, `libs` — this removes only the link) and rename
+`blitzcc_blitz3d.exe` back.
+
+Not available: Blitz3D's debugger — programs always run with BLTZNXT's runtime checks, and the
+IDE's debug switch is ignored. The quick help shows BLTZNXT's parameter names (`h` instead of
+`entity`).
 
 ---
 

@@ -252,6 +252,9 @@ The 3D layer is under active development — see [ROADMAP3D.md](ROADMAP3D.md). B
 
 - **Windows only.** `build_linux.sh` exists, but the compiler currently depends on the
   Windows API and the bundled MinGW toolchain; a Linux build does not work. (WEAK-24)
+- **In the Blitz3D IDE there is no debugger.** BLTZNXT runs from the original IDE (README,
+  "Using the Blitz3D IDE"), but the IDE's debug switch is ignored: programs always run with
+  BLTZNXT's runtime checks and stop with a message, without stepping or a variable view.
 - **The IDE smoke test** (`ide/test/smoke.js`) reports two failures because its test file
   for the C++-error path is now caught earlier by the compiler. The IDE itself is not
   affected. (BUG-121)

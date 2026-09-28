@@ -157,6 +157,39 @@ async function getInfo() {
 // sobald der Compiler neue Befehle bekommt.
 let commandCache = null; // { key, commands }
 
+/**
+ * Parameter aus einer Signatur im Blitz3D-Format: "x#,y#[,z#]" oder
+ * "[segs][,parent]". Optionale kommen in eckigen Klammern zurück, wie sie
+ * die Vervollständigung einsetzt: ["x#", "y#", "[z#]"].
+ */
+function blitzParams(sig) {
+	const out = [];
+	let cur = '';
+	let opt = false;
+	let depth = 0;
+	const push = () => {
+		const t = cur.trim();
+		if (t) out.push(opt ? `[${t}]` : t);
+		cur = '';
+	};
+	for (const ch of sig) {
+		if (ch === '[') {
+			push();
+			depth++;
+			opt = true;
+		} else if (ch === ']') {
+			depth--;
+		} else if (ch === ',') {
+			push();
+			opt = depth > 0;
+		} else {
+			cur += ch;
+		}
+	}
+	push();
+	return out;
+}
+
 async function listCommands() {
 	const found = resolveCompiler();
 	if (!found.available) return [];
@@ -169,20 +202,23 @@ async function listCommands() {
 	}
 	if (commandCache && commandCache.key === key) return commandCache.commands;
 
-	// +k liefert je Zeile "Name(param1, param2)"
+	// +k liefert das Format des Original-blitzcc: Schlüsselwörter der Sprache
+	// nackt ("If"), Funktionen "EntityX# ( h[,glob] )", Befehle
+	// "PositionEntity h,x#,y#,z#[,glob]" oder "Cls " ohne Parameter.
 	const res = await runCompiler(found.path, ['+k'], path.dirname(found.path));
 	if (res.exitCode !== 0) return [];
 
 	const commands = [];
-	for (const line of res.stdout.split(/\r?\n/)) {
-		const m = /^([A-Za-z_][A-Za-z0-9_]*)\((.*)\)\s*$/.exec(line.trim());
+	for (const raw of res.stdout.split(/\r?\n/)) {
+		const line = raw.replace(/\s+$/, '');
+		const fn = /^([A-Za-z_][A-Za-z0-9_]*)[#$%]?\s*\(\s*(.*?)\s*\)$/.exec(line);
+		const cmd = fn ? null : /^([A-Za-z_][A-Za-z0-9_]*)(?: (.*))?$/.exec(raw);
+		const m = fn || cmd;
 		if (!m) continue;
-		const [, name, sig] = m;
-		commands.push({
-			name,
-			signature: sig,
-			params: sig ? sig.split(',').map((s) => s.trim()) : []
-		});
+		// ohne Leerzeichen dahinter ist es ein Schlüsselwort, kein Befehl
+		if (!fn && !/ /.test(raw)) continue;
+		const sig = (m[2] || '').trim();
+		commands.push({ name: m[1], signature: sig, params: blitzParams(sig) });
 	}
 
 	commandCache = { key, commands };
