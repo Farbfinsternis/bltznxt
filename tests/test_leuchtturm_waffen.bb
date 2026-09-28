@@ -11,6 +11,7 @@ Include "../samples/leuchtturm/spieler.bb"
 Include "../samples/leuchtturm/effekte.bb"
 Include "../samples/leuchtturm/ziele.bb"
 Include "../samples/leuchtturm/waffen.bb"
+Include "../samples/leuchtturm/klang.bb"
 
 Graphics3D 320,240,0,2
 SetBuffer BackBuffer()

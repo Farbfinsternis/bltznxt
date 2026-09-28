@@ -1,6 +1,6 @@
 # BLTZNXT — Leuchtturm
 
-Stand: 2026-09-28 · Schritt 5 läuft (die Waffen bewegen sich mit ihren eigenen glTF-Animationen)
+Stand: 2026-09-28 · Schritt 6 läuft (Schüsse, Raketen, Explosionen und Treffer klingen dort, wo sie passieren)
 
 Ein kleiner Arena-Shooter im Stil von Quake III, geschrieben als **gewöhnliches Blitz3D-Programm**:
 Blitz-Code, Blitz-Befehle, der Blitz3D-kompatible Renderer. Neu sind nur die Daten — Karte, Waffen
@@ -114,7 +114,7 @@ Freie Assets gibt es unter CC0 unter anderem von Kenney und Quaternius (Modelle)
 | Animationssystem (`Animate`, `SetAnimTime`, `AnimSeq`, `ExtractAnimSeq` …), `.b3d` mit Knochen | vorhanden (3D-19) | — |
 | glTF-Lader, statisch: Geometrie, Hierarchie, Brushes, zwei UV-Sätze | vorhanden (3D-24) | — |
 | glTF-Lader, animiert: Skinning, Animationen auf dem Blitz-System | vorhanden (3D-24) | — |
-| 3D-Klang (`CreateListener`, `EmitSound`) | fehlt | Phase 1 |
+| 3D-Klang (`CreateListener`, `EmitSound`), Panorama im Mischer | vorhanden (Schritt 6) | — |
 
 ## Reihenfolge
 
@@ -125,7 +125,7 @@ Freie Assets gibt es unter CC0 unter anderem von Kenney und Quaternius (Modelle)
 | 3 | Spiel: Bewegung und Kollision | Man läuft und springt durch die Arena — **läuft**, Platzhalter-Arena |
 | 4 | Spiel: Waffen | Drei Waffen feuern, Treffer und Explosionen — **läuft**, mit Zielscheiben und Platzhaltermodellen |
 | 5 | glTF animiert | Waffenmodelle mit Animation in der Hand — **läuft**, Platzhalter mit Feuer- und Hebeanimation |
-| 6 | 3D-Klang | Schüsse und Items sind räumlich zu hören |
+| 6 | 3D-Klang | Schüsse und Items sind räumlich zu hören — **läuft**, mit Platzhalterklängen |
 | 7 | Spiel: Items und Anzeige | Aufsammeln, Wiedererscheinen, HUD — Umfang erfüllt |
 
 Schritt 3 kann mit einem Platzhalter beginnen, sobald Schritt 2 steht; die Waffen in Schritt 4
@@ -142,9 +142,11 @@ dürfen bis Schritt 5 statisch sein.
 | `karte.bb` | Karte laden: `-col` wird unsichtbare Kollisionsgeometrie, `spawn` der Startpunkt, andere leere Objekte werden Marken (`ziel`, später die Items); ohne `-col` kollidiert die sichtbare Geometrie |
 | `waffen.bb` | MG und Railgun per `LinePick`, Raketen als Entity mit Kollision, Explosion mit Flächenschaden und Rückstoß; Wechsel, Munition, Waffe in der Hand |
 | `ziele.bb` | Zielscheiben an den Marken `ziel`: drehen sich, blitzen bei Treffern, zerplatzen, kommen nach 5 s wieder |
+| `klang.bb` | Listener an der Kamera, Klänge mit `Load3DSound`, jeder an seiner Entity per `EmitSound`: Schüsse an der Mündung, Schub an der Rakete (mit `LoopSound`), Treffer an der Scheibe, Explosionen an einem Pivot an ihrem Ort |
 | `effekte.bb` | Funken, Rauch, Feuerball, Einschlagflecken, Railspur, Explosionslicht; die Texturen erzeugt das Programm |
 | `daten/arena.glb` | Platzhalter-Arena aus `werkzeug/arena.py`: Boden, Wände, Säule, Block, Rampe, Treppe, zwei Plattformen, sechs Zielmarken |
 | `daten/mg.glb`, `rl.glb`, `rail.glb`, `ziel.glb` | Platzhaltermodelle aus `werkzeug/waffen.py` nach den Regeln „Waffen in Blender“: MG mit drehenden Läufen, Railgun mit Ringen, die sich beim Nachladen drehen und aufblähen |
+| `daten/klang/*.wav` | Platzhalterklänge aus `werkzeug/klaenge.py`, aus Rauschen und Sinustönen gerechnet |
 | `werkzeug/glb.py` | Gemeinsames der Werkzeuge: Körper bauen, `.glb` schreiben |
 
 Werte der Bewegung: die von Quake III, umgerechnet über die Spielergröße (56 Einheiten = 1,8 m,

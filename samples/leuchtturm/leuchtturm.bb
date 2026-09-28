@@ -1,9 +1,9 @@
 ; Leuchtturm - ein kleiner Arena-Shooter im Stil von Quake III, geschrieben
 ; als gewoehnliches Blitz3D-Programm. Konzept: LEUCHTTURM.md.
 ;
-; Stand: Schritt 5 - Waffen mit glTF-Animationen und Zielscheiben in der
-; Platzhalter-Arena (daten/arena.glb von werkzeug/arena.py, Waffen und
-; Scheiben von werkzeug/waffen.py). Eine Karte aus Blender ersetzt sie ohne
+; Stand: Schritt 6 - Waffen mit glTF-Animationen, Zielscheiben und 3D-Klang
+; in der Platzhalter-Arena (daten/arena.glb von werkzeug/arena.py, Waffen
+; und Scheiben von werkzeug/waffen.py, Klaenge von werkzeug/klaenge.py). Eine Karte aus Blender ersetzt sie ohne
 ; Codeaenderung, wenn sie den Namensregeln folgt.
 ;
 ; Steuerung:  Klick ins Fenster faengt die Maus, Tab oder Esc gibt sie frei;
@@ -27,6 +27,7 @@ Include "spieler.bb"
 Include "effekte.bb"
 Include "ziele.bb"
 Include "waffen.bb"
+Include "klang.bb"
 
 Const MAUS_EMPF# = 0.15     ; Grad je Pixel
 
@@ -50,6 +51,7 @@ CameraClsColor ich\kamera, 110, 150, 200
 Effekte_Laden()
 Ziele_Laden("daten/ziel.glb")
 Waffen_Laden(ich, "daten")
+Klang_Laden(ich\kamera, "daten/klang")
 
 anzeige = True
 sprung_merken = False
@@ -134,7 +136,7 @@ While Not ende
 	EndIf
 	If anzeige
 		Color 255, 255, 255
-		Text 10, 10, "Leuchtturm - Schritt 5: Waffen mit Animation   (F1 Anzeige, Tab Maus frei)"
+		Text 10, 10, "Leuchtturm - Schritt 6: 3D-Klang   (F1 Anzeige, Tab Maus frei)"
 		Text 10, 30, "Tempo " + Int(Spieler_Tempo(ich) * 10) / 10.0 + " m/s   " + fps + " fps"
 		If ich\boden Then b$ = "Boden" Else b$ = "Luft"
 		Text 10, 50, "x " + Int(EntityX(ich\koerper)) + "  y " + Int(EntityY(ich\koerper) - SP_HALB) + "  z " + Int(EntityZ(ich\koerper)) + "   " + b

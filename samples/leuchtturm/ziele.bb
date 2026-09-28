@@ -71,7 +71,7 @@ Function Ziel_Treffer(z.Ziel, schaden)
 	zl_treffer = zl_treffer + 1
 	z\leben = z\leben - schaden
 	z\blitz = 0.08
-	If z\leben > 0 Then Return
+	If z\leben > 0 Then Klang(kl_treffer, z\ent) : Return
 
 	; Zerplatzen: rote und weisse Splitter in alle Richtungen
 	zl_zerstoert = zl_zerstoert + 1
@@ -79,6 +79,7 @@ Function Ziel_Treffer(z.Ziel, schaden)
 	HideEntity z\ent
 	EntityPickMode z\ent, 0
 	x# = EntityX(z\ent) : y# = EntityY(z\ent) : zz# = EntityZ(z\ent)
+	Effekt_Klang(x, y, zz, kl_zerplatzen, 0.8)
 	Effekt_Sprite(x, y, zz, fx_glanz, 3, 255, 200, 160, 0.6, 2.2, 1, 0, 0.35)
 	For i = 1 To 14
 		If i Mod 2 Then r = 255 : g = 60 : b = 40 Else r = 255 : g = 255 : b = 255
@@ -93,6 +94,7 @@ Function Ziele_Takt()
 			z\weg = z\weg - TAKT
 			If z\weg <= 0
 				Ziel_Neu(z)
+				Klang(kl_wieder, z\ent)
 				Effekt_Sprite(z\x, z\y, z\z, fx_glanz, 3, 160, 220, 255, 1.6, 0.4, 0, 1, 0.3)
 			EndIf
 		Else

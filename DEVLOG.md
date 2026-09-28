@@ -38,6 +38,38 @@ running Blitz3D 11.8. The entries below this one describe each step; this is the
 
 ---
 
+## 2026-09-28 — Lighthouse step 6: 3D sound
+
+Blitz3D's 3D sound is now there: `CreateListener` and `EmitSound`, as in the original a listener
+entity (usually on the camera, at most one) and sounds that follow the entity they were emitted
+from while they play. The maths is FMOD 3's, which Blitz3D used: volume
+`1 / (1 + rolloff * (d - 1))` beyond one unit, pan from the direction on the listener's right
+axis, Doppler from the velocities `UpdateWorld` measures — per `UpdateWorld`, not per second, as
+in `Object::endUpdate`, so old programs keep their Doppler factor. Only a sound loaded with
+`Load3DSound` is placed; `EmitSound` plays one from `LoadSound` flat, like FMOD's `FSOUND_2D`.
+Updates happen after each `RenderWorld`, also without a camera; hidden entities keep their last
+position, a freed one's sound fades out where it was.
+
+This needed a mixer first. Every channel used to be its own SDL stream bound straight to the
+device, and SDL3 has no panning — `ChannelPan` and `SoundPan` stored their value and did nothing
+(BUG-185). Channels now convert into unbound streams (pitch and volume stay with SDL), and the
+output stream's callback mixes them with pan as a balance: centre is full on both sides, so
+nothing got quieter. `LoopSound` turned out to be wrong too (BUG-184): it started an endless
+channel the program could never stop; in Blitz3D it only marks the sound to loop, and the next
+`PlaySound` or `EmitSound` loops it.
+
+`test_3d_klang` listens to itself: with SDL3's `disk` audio driver the mix goes into a file, and a
+constant test tone shows the level on each side directly — thirteen cases from "5 m to the right"
+to Doppler and a sound following its entity, all matching the formulas to the thousandth. SDL
+keeps that file locked until the device closes, so the test runs itself as a second process.
+
+In the game, shots sound at the muzzle, the rocket's thrust loops on the rocket until it explodes
+(with Doppler 60 for 60 ticks per second a passing rocket drops audibly), explosions at a pivot
+where they happen, hits and bursts at the target. The sounds are placeholders computed from noise
+and sine tones by `werkzeug/klaenge.py`.
+
+---
+
 ## 2026-09-28 — Lighthouse step 5: animated weapon models
 
 The weapons in the player's hand now move with their own glTF animations, played with plain

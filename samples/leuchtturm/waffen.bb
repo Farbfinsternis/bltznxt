@@ -80,6 +80,7 @@ Type Rakete
 	Field vx#, vy#, vz#
 	Field alter#
 	Field takte
+	Field kanal             ; Schub, bis sie explodiert
 End Type
 
 Function Waffen_Laden(p.Spieler, ordner$)
@@ -170,6 +171,7 @@ Function Waffen_Takt(p.Spieler, abzug)
 			Else
 				; Leer: kurz warten, dann zur naechsten Waffe mit Munition.
 				w_warte = 30
+				Klang(kl_leer, w_muendung(w_aktiv))
 				Waffe_Blaettern(1)
 			EndIf
 		Else
@@ -187,6 +189,7 @@ End Function
 
 Function Waffe_Heben()
 	ShowEntity w_modell(w_aktiv)
+	Klang(kl_wechsel, w_muendung(w_aktiv))
 	Animate w_modell(w_aktiv), 3, w_heben_len(w_aktiv) / W_HEBEN, W_ANIM_HEBEN
 	w_zustand = 2 : w_zeit = W_HEBEN
 End Function
@@ -213,11 +216,13 @@ Function Waffe_Feuern(p.Spieler)
 
 	Select w_aktiv
 	Case W_MG
+		Klang(kl_mg, m)
 		; Streuung wie in Quake: zufaellige Richtung, zufaelliger Anteil
 		w# = Rnd(360)
 		TFormVector Sin(w) * Rnd(-1, 1) * MG_STREU, Cos(w) * Rnd(-1, 1) * MG_STREU, 1, k, 0
 		Waffe_Strahl(ax, ay, az, TFormedX(), TFormedY(), TFormedZ(), MG_SCHADEN, W_MG)
 	Case W_RAIL
+		Klang(kl_rail, m)
 		TFormVector 0, 0, 1, k, 0
 		Waffe_Strahl(ax, ay, az, TFormedX(), TFormedY(), TFormedZ(), RAIL_SCHADEN, W_RAIL)
 		Effekt_Spur(mx, my, mz, w_ex, w_ey, w_ez, 120, 220, 255, 0.07, 0.9)
@@ -231,6 +236,7 @@ Function Waffe_Feuern(p.Spieler)
 			Effekt_Sprite(mx + dx * t, my + dy * t, mz + dz * t, fx_glanz, 3, 90, 180, 255, 0.1, 0.35, 0.7, 0, 0.8, Rnd(-0.3, 0.3), Rnd(-0.3, 0.3), Rnd(-0.3, 0.3))
 		Next
 	Case W_RL
+		Klang(kl_rl, m)
 		TFormVector 0, 0, 1, k, 0
 		Rakete_Neu(ax, ay, az, TFormedX(), TFormedY(), TFormedZ(), p)
 	End Select
@@ -287,6 +293,7 @@ Function Rakete_Neu(x#, y#, z#, dx#, dy#, dz#, p.Spieler)
 	EntityColor s, 255, 190, 100
 	ScaleSprite s, 0.2, 0.2
 	r\vx = dx * RK_TEMPO : r\vy = dy * RK_TEMPO : r\vz = dz * RK_TEMPO
+	r\kanal = Klang(kl_rakete, r\ent)
 End Function
 
 Function Raketen_Fliegen()
@@ -304,14 +311,18 @@ Function Raketen_Nach(p.Spieler)
 	For r.Rakete = Each Rakete
 		If CountCollisions(r\ent) > 0
 			Explosion(EntityX(r\ent), EntityY(r\ent), EntityZ(r\ent), CollisionNX(r\ent, 1), CollisionNY(r\ent, 1), CollisionNZ(r\ent, 1), Ziel_Von(CollisionEntity(r\ent, 1)), p)
-			FreeEntity r\ent
-			Delete r
+			Rakete_Weg(r)
 		ElseIf r\alter >= RK_LEBEN
 			Explosion(EntityX(r\ent), EntityY(r\ent), EntityZ(r\ent), 0, 0, 0, Null, p)
-			FreeEntity r\ent
-			Delete r
+			Rakete_Weg(r)
 		EndIf
 	Next
+End Function
+
+Function Rakete_Weg(r.Rakete)
+	If r\kanal Then StopChannel r\kanal
+	FreeEntity r\ent
+	Delete r
 End Function
 
 ; Explosion bei (x,y,z) an einer Flaeche mit der Normalen (nx,ny,nz) - oder
@@ -365,6 +376,7 @@ Function Explosion(x#, y#, z#, nx#, ny#, nz#, direkt.Ziel, p.Spieler)
 		Effekt_Sprite(x, y, z, fx_glanz, 3, 255, 200, 100, 0.12, 0.03, 1, 0, Rnd(0.3, 0.6), nx * 3 + Rnd(-5, 5), ny * 3 + Rnd(-2, 6), nz * 3 + Rnd(-5, 5))
 	Next
 	Effekt_Licht(x, y, z, 255, 170, 90, 9, 0.4)
+	Effekt_Klang(x, y, z, kl_explosion, 1.7)
 	If nx <> 0 Or ny <> 0 Or nz <> 0
 		Effekt_Fleck(x - nx * 0.1, y - ny * 0.1, z - nz * 0.1, nx, ny, nz, 1.3)
 	EndIf
@@ -380,7 +392,6 @@ End Function
 
 Function Waffen_Leeren()
 	For r.Rakete = Each Rakete
-		FreeEntity r\ent
-		Delete r
+		Rakete_Weg(r)
 	Next
 End Function

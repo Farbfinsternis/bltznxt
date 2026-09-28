@@ -1,11 +1,14 @@
 ; Leuchtturm - Effekte (Schritt 4): Funken, Rauch, Explosionen,
-; Einschlagflecken, die Spur der Railgun und das Licht einer Explosion.
+; Einschlagflecken, die Spur der Railgun und das Licht einer Explosion,
+; dazu Klaenge an einem festen Ort (Effekt_Klang).
 ;
 ; Alles, was nur zu sehen ist und nach einer Zeit verschwindet, ist ein
 ; Effekt: eine Entity, die ueber ihre Lebensdauer die Groesse (Sprites) und
 ; die Deckkraft von einem Anfangs- zu einem Endwert aendert und dabei
 ; driften kann. Danach wird sie freigegeben. Ein Licht wird statt blasser
-; dunkler.
+; dunkler. Ein Ort ist ein Pivot, an dem ein Klang haengt: er verschwindet
+; nach der Laenge des Klangs, der Klang bliebe sonst an seiner letzten
+; Stelle ohnehin stehen.
 ;
 ; Die Texturen erzeugt das Programm selbst - drei weiche Kreise:
 ;
@@ -20,7 +23,7 @@
 ;   Effekte_Takt                ; je Takt
 ;   Effekte_Leeren              ; alle weg
 
-Const FX_SPRITE = 1, FX_NETZ = 2, FX_LICHT = 3
+Const FX_SPRITE = 1, FX_NETZ = 2, FX_LICHT = 3, FX_ORT = 4
 Const FX_FLECK_MAX = 64
 Const FX_FLECK_DAUER# = 12.0
 
@@ -158,6 +161,17 @@ Function Effekt_Licht(x#, y#, z#, r, g, b, reichweite#, dauer#)
 	f\g0 = reichweite : f\g1 = reichweite
 	f\a0 = 1 : f\a1 = 0
 	Effekt_Stellen(f)
+End Function
+
+; Klang an einem Ort, fuer `dauer` Sekunden (klang.bb).
+Function Effekt_Klang(x#, y#, z#, snd, dauer#)
+	If snd = 0 Then Return
+	o = CreatePivot()
+	PositionEntity o, x, y, z
+	f.Effekt = New Effekt
+	f\ent = o : f\art = FX_ORT
+	f\dauer = dauer
+	Klang(snd, o)
 End Function
 
 Function Effekt_Stellen(f.Effekt)
