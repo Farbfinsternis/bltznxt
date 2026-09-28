@@ -380,6 +380,10 @@ Each milestone is scoped to fit within a single AI-session context window:
 *Touch: `bb_sound3d.h` (new file)*
 - [x] `bb_Load3DSound(file)` → delegates to `bb_LoadSound`; handle usable with `PlaySound`/`LoopSound`
 - [x] `bb_SoundRange(snd, inner, outer)` — stores falloff radii for future distance attenuation
+  > **Entfernt am 2026-09-28** samt den folgenden vier Punkten: `SoundRange`, `Channel3DPosition`,
+  > `Channel3DVelocity`, `ListenerPosition`, `ListenerOrientation`, `ListenerVelocity` und `WaitSound`
+  > waren keine Blitz3D-Befehle und speicherten nur Werte. 3D-Klang gibt es seitdem wie in Blitz3D
+  > über `CreateListener`, `Load3DSound` und `EmitSound` (`bb_listener.h`).
 - [x] `bb_Channel3DPosition`, `bb_Channel3DVelocity` — per-channel world position + Doppler state (stored)
 - [x] `bb_ListenerPosition`, `bb_ListenerOrientation`, `bb_ListenerVelocity` — global listener state (stored)
 - [x] `bb_WaitSound(ch)` — blocks until channel finishes (10 ms poll loop via `bb_snd_update_`)

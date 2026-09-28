@@ -38,6 +38,21 @@ running Blitz3D 11.8. The entries below this one describe each step; this is the
 
 ---
 
+## 2026-09-28 — Audio: seven invented commands removed
+
+Blitz3D's whole 3D sound API is three commands: `CreateListener`, `Load3DSound` and `EmitSound`.
+An early milestone had added seven more that Blitz3D never had — `ListenerPosition`,
+`ListenerOrientation`, `ListenerVelocity`, `Channel3DPosition`, `Channel3DVelocity`, `SoundRange`
+and `WaitSound`. Six only stored values that nothing ever read, and with the real listener in place
+they would only have misled. Everything they were meant for is covered by the three: the listener
+is an entity (parent it to the camera or move it), a sound hangs on an entity (a pivot for a fixed
+spot), and velocities come from `UpdateWorld`. The one thing Blitz3D cannot do is a range per sound
+— one rolloff applies to all; that would be a NEXT extension if it is ever wanted. `WaitSound` is
+`While ChannelPlaying(ch) : Wend`. `bb_sound3d.h` is gone, `Load3DSound` lives next to `LoadSound`,
+and the command table has 468 entries.
+
+---
+
 ## 2026-09-28 — Lighthouse step 6: 3D sound
 
 Blitz3D's 3D sound is now there: `CreateListener` and `EmitSound`, as in the original a listener

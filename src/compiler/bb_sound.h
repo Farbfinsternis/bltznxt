@@ -70,7 +70,7 @@ struct bb_Channel_ {
   float            gain    = 1.0f;   // Lautstaerke des Programms (ChannelVolume)
   float            pan     = 0.0f;   // Panorama des Programms (ChannelPan), -1..1
   float            ratio   = 1.0f;   // Tonhoehe des Programms als Frequenzverhaeltnis
-  // 3D (EmitSound): vom Listener aus berechnet, bb_sound3d.h
+  // 3D (EmitSound): vom Listener aus berechnet, bb_listener.h
   bool             is3d    = false;
   float            gain3d  = 1.0f;
   float            pan3d   = 0.0f;
@@ -325,6 +325,16 @@ inline int bb_LoadSound(const bbString& file) {
     }
   }
   return 0;
+}
+
+// Load a sound file for 3D playback: like LoadSound, but EmitSound places it
+// in space (bb_listener.h). PlaySound and LoopSound play it as usual. FMOD
+// laedt ihn im Original als Mono (FSOUND_FORCEMONO); hier bleibt er, wie er
+// ist - das Panorama gilt fuer beide Seiten gleich.
+inline int bb_Load3DSound(const bbString& file) {
+  const int snd = bb_LoadSound(file);
+  if (snd) bb_snd_sounds_[snd].is3d = true;
+  return snd;
 }
 
 // Free a sound and stop any channels currently playing it.
