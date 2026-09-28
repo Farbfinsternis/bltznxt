@@ -414,6 +414,21 @@ public:
     // Link opengl32 for OpenGL (3D programs via bb_gl_ctx.h)
     cmd += " -lopengl32";
 
+    // Ein Programm mit Graphics oder Graphics3D wird ein Fensterprogramm wie
+    // in Blitz3D: ohne eigenes Konsolenfenster, das sich sonst beim Start
+    // per Doppelklick vor das Spielfenster schiebt und ihm den Fokus nimmt.
+    // Print erreicht ein Terminal trotzdem (bbInit haengt sich an die
+    // Konsole des Aufrufers), umgeleitete Ausgabe bleibt umgeleitet. Ein
+    // reines Textprogramm behaelt seine Konsole.
+    {
+      std::ifstream in(cppPath, std::ios::binary);
+      const std::string src((std::istreambuf_iterator<char>(in)),
+                            std::istreambuf_iterator<char>());
+      if (src.find("bb_Graphics(") != std::string::npos ||
+          src.find("bb_Graphics3D(") != std::string::npos)
+        cmd += " -mwindows";
+    }
+
     if (debug) cmd += " -g";
 
     // Launch g++ directly via CreateProcessW — no shell, no injection risk.

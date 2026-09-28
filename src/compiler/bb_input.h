@@ -255,6 +255,9 @@ inline void bb_FlushMouse() {
     SDL_FlushEvents(SDL_EVENT_MOUSE_BUTTON_DOWN, SDL_EVENT_MOUSE_WHEEL);
 }
 
+// HidePointer hat den Zeiger versteckt (ShowPointer zeigt ihn wieder).
+inline bool bb_pointer_hidden_ = false;
+
 // Setzt die Maus auf (x, y) in Spielkoordinaten. Wie im Original gilt die neue
 // Position sofort und ist zugleich Ausgangspunkt fuer MouseXSpeed/YSpeed. Im
 // skalierten Vollbild wird in Fensterkoordinaten umgerechnet (BUG-159).
@@ -282,9 +285,17 @@ inline void bb_MoveMouse(int x, int y) {
   // (2026-09-27). Das Programm merkt davon nichts: MouseX/Y und der
   // Ausgangspunkt fuer MouseXSpeed sind oben schon gesetzt.
   if (bb_window_) {
-    if (SDL_GetWindowFlags(bb_window_) & SDL_WINDOW_INPUT_FOCUS)
+    if (SDL_GetWindowFlags(bb_window_) & SDL_WINDOW_INPUT_FOCUS) {
       SDL_WarpMouseInWindow(bb_window_, bb_present_to_window_x_((float)x),
                                         bb_present_to_window_y_((float)y));
+      // Versteckter Zeiger, der je Bild zurueckgeholt wird: Mausblick. Der
+      // Zeiger bleibt dann im Fenster, bis ShowPointer oder ein Wechsel in
+      // ein anderes Fenster ihn freigibt - sonst entwischt er bei einer
+      // schnellen Bewegung, und ein Klick trifft das Fenster dahinter.
+      // Blitz3D sperrt ihn im Fenstermodus nicht; auf einem heutigen
+      // Desktop macht erst das ein Spiel mit Mausblick spielbar.
+      if (bb_pointer_hidden_) SDL_SetWindowMouseGrab(bb_window_, true);
+    }
   } else {
     SDL_WarpMouseGlobal((float)x, (float)y);
   }
@@ -314,11 +325,16 @@ inline void bb_MoveMouse(int x, int y) {
 // Fenster den Fokus, gibt SDL den Zeiger frei.
 inline void bb_HidePointer() {
   bb_sdl_ensure_();
-  if (bb_sdl_initialized_) SDL_HideCursor();
+  if (!bb_sdl_initialized_) return;
+  SDL_HideCursor();
+  bb_pointer_hidden_ = true;
 }
 inline void bb_ShowPointer() {
   bb_sdl_ensure_();
-  if (bb_sdl_initialized_) SDL_ShowCursor();
+  if (!bb_sdl_initialized_) return;
+  SDL_ShowCursor();
+  bb_pointer_hidden_ = false;
+  if (bb_window_) SDL_SetWindowMouseGrab(bb_window_, false);
 }
 
 // ---- Joystick API ----

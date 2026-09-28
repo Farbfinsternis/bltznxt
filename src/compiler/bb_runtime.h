@@ -66,6 +66,19 @@ inline void bbInit(int argc = 0, char** argv = nullptr) {
 #ifdef _WIN32
   AddVectoredExceptionHandler(1, bb_seh_vectored_);
   SetUnhandledExceptionFilter(bb_seh_filter_);
+  // Ein Programm mit Graphics ist ein Fensterprogramm (blitzcc linkt es mit
+  // -mwindows) und hat keine eigene Konsole, wie in Blitz3D. Aus einem
+  // Terminal gestartet, schreibt es Print und Meldungen trotzdem dorthin;
+  // ist die Ausgabe umgeleitet (Datei, Pipe), bleibt sie, wo sie ist.
+  auto no_out = [](DWORD std) {
+    const HANDLE h = GetStdHandle(std);
+    return !h || h == INVALID_HANDLE_VALUE || GetFileType(h) == FILE_TYPE_UNKNOWN;
+  };
+  const bool out_missing = no_out(STD_OUTPUT_HANDLE), err_missing = no_out(STD_ERROR_HANDLE);
+  if ((out_missing || err_missing) && AttachConsole(ATTACH_PARENT_PROCESS)) {
+    if (out_missing) freopen("CONOUT$", "w", stdout);
+    if (err_missing) freopen("CONOUT$", "w", stderr);
+  }
 #endif
   // SDL is initialised lazily by bb_sdl_ensure_() when a window is first needed.
 #ifdef _WIN32

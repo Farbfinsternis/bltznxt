@@ -50,6 +50,16 @@ These are not bugs but decisions, and they will stay:
   game that recentres the mouse every frame traps the pointer of the whole desktop as soon as
   you switch to another window. `MouseX`, `MouseY` and the starting point for `MouseXSpeed`
   are still set, so the program sees no difference.
+- **A hidden pointer that the program recentres stays inside the window.** After `HidePointer`,
+  the first `MoveMouse` while the window has focus confines the pointer to the window — the usual
+  mouse-look pattern. Blitz3D does not confine it in windowed mode, so a fast movement could
+  carry the pointer out and a click would hit the window behind. `ShowPointer` or switching to
+  another window (Alt+Tab) releases it. A program that hides the pointer to draw its own and never
+  calls `MoveMouse` is not affected.
+- **A program with graphics has no console window.** `blitzcc` links a program that calls
+  `Graphics` or `Graphics3D` as a Windows GUI application, like Blitz3D. Started from a
+  terminal, it still writes `Print` and error messages there; redirected output stays
+  redirected. A text-only program keeps its console.
 - **Colours read back from the rendered 3D image are not guaranteed.** `ReadPixel` or
   `CopyRect` after `RenderWorld` return BlitzNext's shading, not Direct3D 7's. What is in the
   image — geometry, visibility, texture contents — does match.
