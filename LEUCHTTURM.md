@@ -1,6 +1,6 @@
 # BLTZNXT — Leuchtturm
 
-Stand: 2026-09-28 · Schritt 7 läuft — der Umfang ist erreicht: Bewegung, drei Waffen, Items, Anzeige, 3D-Klang, alles mit Platzhaltern
+Stand: 2026-09-28 · Schritt 7 läuft — der Umfang ist erreicht: Bewegung, drei Waffen, Items, Anzeige, 3D-Klang; Waffen, Zielscheiben und Items sind Modelle von Kenney (CC0), Arena und Klänge noch Platzhalter
 
 Ein kleiner Arena-Shooter im Stil von Quake III, geschrieben als **gewöhnliches Blitz3D-Programm**:
 Blitz-Code, Blitz-Befehle, der Blitz3D-kompatible Renderer. Neu sind nur die Daten — Karte, Waffen
@@ -123,8 +123,8 @@ Freie Assets gibt es unter CC0 unter anderem von Kenney und Quaternius (Modelle)
 | 1 | Animationssystem, am Original gemessen | Animierte `.x`-Modelle laufen wie in Blitz3D |
 | 2 | glTF statisch | Die Arena lädt, mit Lightmap |
 | 3 | Spiel: Bewegung und Kollision | Man läuft und springt durch die Arena — **läuft**, Platzhalter-Arena |
-| 4 | Spiel: Waffen | Drei Waffen feuern, Treffer und Explosionen — **läuft**, mit Zielscheiben und Platzhaltermodellen |
-| 5 | glTF animiert | Waffenmodelle mit Animation in der Hand — **läuft**, Platzhalter mit Feuer- und Hebeanimation |
+| 4 | Spiel: Waffen | Drei Waffen feuern, Treffer und Explosionen — **läuft**, mit Zielscheiben, Modelle von Kenney (CC0) |
+| 5 | glTF animiert | Waffenmodelle mit Animation in der Hand — **läuft**, Kenney-Modelle mit Feuer- und Hebeanimation |
 | 6 | 3D-Klang | Schüsse und Items sind räumlich zu hören — **läuft**, mit Platzhalterklängen |
 | 7 | Spiel: Items und Anzeige | Aufsammeln, Wiedererscheinen, HUD — Umfang erfüllt — **läuft**, mit Platzhaltern |
 
@@ -145,12 +145,13 @@ dürfen bis Schritt 5 statisch sein.
 | `klang.bb` | Listener an der Kamera, Klänge mit `Load3DSound`, jeder an seiner Entity per `EmitSound`: Schüsse an der Mündung, Schub an der Rakete (mit `LoopSound`), Treffer an der Scheibe, Explosionen an einem Pivot an ihrem Ort |
 | `effekte.bb` | Funken, Rauch, Feuerball, Einschlagflecken, Railspur, Explosionslicht; die Texturen erzeugt das Programm |
 | `daten/arena.glb` | Platzhalter-Arena aus `werkzeug/arena.py`: Boden, Wände, Säule, Block, Rampe, Treppe, zwei Plattformen, sechs Zielmarken |
-| `daten/mg.glb`, `rl.glb`, `rail.glb`, `ziel.glb` | Platzhaltermodelle aus `werkzeug/waffen.py` nach den Regeln „Waffen in Blender“: MG mit drehenden Läufen, Railgun mit Ringen, die sich beim Nachladen drehen und aufblähen |
+| `daten/mg.glb`, `rl.glb`, `rail.glb`, `ziel.glb` | Aus Kenneys Blaster Kit (CC0), aufbereitet von `werkzeug/kenney.py` nach den Regeln „Waffen in Blender“: Größe, Mündung, der vordere Teil als eigener Knoten `lauf` (beim MG stößt er zurück, bei der Railgun fährt er zurück und dreht sich beim Nachladen), Animationen `feuern` und `heben`; Textur in der Datei |
 | `daten/klang/*.wav` | Platzhalterklänge aus `werkzeug/klaenge.py`, aus Rauschen und Sinustönen gerechnet |
 | `items.bb` | Items an den Marken `weapon_…`, `ammo_…`, `armor_N`, `health_N`: drehen sich, werden bei Berührung genommen, wenn sie etwas bringen, und kommen nach Quake-Zeiten wieder |
 | `anzeige.bb` | Munition, Leben und Rüstung groß am unteren Rand, die eigenen Waffen, Meldungen beim Aufsammeln, rotes Aufblitzen bei Schaden |
-| `daten/items/*.glb` | Platzhalter aus `werkzeug/items.py`: Munitionskisten, Westen, Kreuze; Waffen-Items sind die Waffenmodelle selbst |
-| `werkzeug/glb.py` | Gemeinsames der Werkzeuge: Körper bauen, `.glb` schreiben |
+| `daten/items/*.glb` | Aus `werkzeug/kenney.py`: Koffer aus dem Blaster Kit in den Farben der Waffen (Munition), Rundschild aus Mini Dungeon (Rüstung: grün, gelb, rot), Herz aus dem Platformer Kit (Gesundheit: gelb, orange, groß und blau); umgefärbt, indem die Texturkoordinaten in ein anderes Feld der Farbtafel rücken. Waffen-Items sind die Waffenmodelle selbst |
+| `werkzeug/glb.py` | Gemeinsames der Werkzeuge: Körper bauen, `.glb` schreiben, auch mit eingebetteter Textur |
+| `werkzeug/kenney.py` | Lädt die Kenney-Pakete nach `werkzeug/kenney/` (nicht im Repository) und schreibt daraus Waffen, Zielscheibe und Items |
 
 Werte der Bewegung: die von Quake III, umgerechnet über die Spielergröße (56 Einheiten = 1,8 m,
 eine Einheit ≈ 3,2 cm): Laufen 10,3 m/s, Absprung 8,7 m/s, Schwerkraft 25,7 m/s², Sprunghöhe
@@ -172,7 +173,7 @@ knapp 5 m. Wechsel: 0,2 s senken, 0,25 s heben, erst wenn die Waffe feuerbereit 
 `tests/test_leuchtturm_waffen.bb` feuert mit künstlicher Eingabe und prüft Takt, Treffer,
 Zerstören und Wiedererscheinen, Wechsel, Railspur, Raketenflug, Direkt- und Flächentreffer,
 Rocket-Jump, die Rakete an der Wand und den Wechsel bei leerer Waffe, dazu die Animationen der
-Modelle: Sequenz, Drehung der Läufe und Ringe, Rückstoß, halb gesenkt beim Wechsel.
+Modelle: Sequenz, Rückstoß des Laufs beim MG, Drehung des Railgun-Laufs, halb gesenkt beim Wechsel.
 
 Items, Leben und Rüstung, ebenfalls nach Quake III; alle Zeiten in ganzen Takten:
 
@@ -195,6 +196,6 @@ prüft Aufnahme, Grenzen, Wiederkehr, Abklingen, Rüstung, Eigenschaden, Tod und
 - [ ] **Gegen wen spielt man?** Zielscheiben gibt es seit Schritt 4 (entschieden 2026-09-28); offen, ob danach Zeitrennen, Bots (Wegpunkte als leere
   Objekte `waypoint` in Blender) oder Mehrspieler (Listen-Server, siehe VISION.md, Abschnitt
   Netzwerk)?
-- [ ] **Assets:** selbst gebaut, CC0-Pakete oder gemischt?
+- [ ] **Assets:** Waffen, Zielscheiben und Items aus CC0-Paketen von Kenney (2026-09-28); offen: Arena und Klänge.
 - [x] **Wo lebt das Spiel:** im Repository unter `samples/leuchtturm/` (entschieden 2026-09-27).
 - [ ] **Name** des Spiels.

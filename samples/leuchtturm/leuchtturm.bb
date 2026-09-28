@@ -3,9 +3,9 @@
 ;
 ; Stand: Schritt 7 - der Umfang ist erreicht: Bewegung, drei Waffen mit
 ; glTF-Animationen, Zielscheiben, 3D-Klang, Items und Anzeige, in der
-; Platzhalter-Arena (daten/arena.glb von werkzeug/arena.py, Waffen und
-; Scheiben von werkzeug/waffen.py, Items von werkzeug/items.py, Klaenge von
-; werkzeug/klaenge.py). Eine Karte aus Blender ersetzt sie ohne
+; Platzhalter-Arena (daten/arena.glb von werkzeug/arena.py, Klaenge von
+; werkzeug/klaenge.py). Waffen, Scheiben und Items sind Modelle von Kenney
+; (www.kenney.nl, CC0), aufbereitet von werkzeug/kenney.py. Eine Karte aus Blender ersetzt sie ohne
 ; Codeaenderung, wenn sie den Namensregeln folgt.
 ;
 ; Steuerung:  Klick ins Fenster faengt die Maus, Tab gibt sie frei;

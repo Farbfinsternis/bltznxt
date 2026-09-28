@@ -110,10 +110,12 @@ def quat(ax, ay, az, deg):
     return (-ax / l * s, -ay / l * s, az / l * s, c)
 
 
-def write(path, nodes, meshes, generator, animations=()):
+def write(path, nodes, meshes, generator, animations=(), texture=None):
     """nodes: glTF-Knoten (dicts, "mesh" verweist in meshes); in der Szene stehen
     die, die nicht Kind eines anderen sind.
-    meshes: Liste von (pos, nrm, col, idx) aus mesh(). Ein Material fuer alle.
+    meshes: Liste von (pos, nrm, col, idx) aus mesh(), oder (pos, nrm, col,
+    idx, uv) mit Texturkoordinaten. Ein Material fuer alle; mit `texture`
+    (Inhalt einer PNG-Datei) liegt die als Textur in der Datei.
     animations: Liste von (name, [(knoten, pfad, [(bild, wert), ...]), ...]) -
     pfad "translation" (Wert aus pos()), "rotation" (aus quat()) oder "scale";
     Bilder zu 60 je Sekunde, wie der Lader sie zaehlt. Linear gemischt."""
@@ -121,7 +123,7 @@ def write(path, nodes, meshes, generator, animations=()):
     views, accessors = [], []
 
     def acc(fmt, ctype, typ, values):
-        n = {"SCALAR": 1, "VEC3": 3, "VEC4": 4}[typ]
+        n = {"SCALAR": 1, "VEC2": 2, "VEC3": 3, "VEC4": 4}[typ]
         flat = [c for v in values for c in (v if isinstance(v, tuple) else (v,))]
         while len(data) % 4:
             data.append(0)
@@ -138,10 +140,13 @@ def write(path, nodes, meshes, generator, animations=()):
         return len(accessors) - 1
 
     gmeshes = []
-    for pos, nrm, col, idx in meshes:
+    for m in meshes:
+        pos, nrm, col, idx = m[:4]
         at = {"POSITION": acc("f", 5126, "VEC3", pos), "NORMAL": acc("f", 5126, "VEC3", nrm)}
         if col:
             at["COLOR_0"] = acc("f", 5126, "VEC4", col)
+        if len(m) > 4:
+            at["TEXCOORD_0"] = acc("f", 5126, "VEC2", m[4])
         gmeshes.append({"primitives": [{"attributes": at, "indices": acc("H", 5123, "SCALAR", idx),
                                         "material": 0}]})
 
@@ -171,6 +176,17 @@ def write(path, nodes, meshes, generator, animations=()):
     }
     if ganims:
         doc["animations"] = ganims
+    if texture:
+        while len(data) % 4:
+            data.append(0)
+        views.append({"buffer": 0, "byteOffset": len(data), "byteLength": len(texture)})
+        data.extend(texture)
+        doc["buffers"][0]["byteLength"] = len(data)
+        doc["images"] = [{"bufferView": len(views) - 1, "mimeType": "image/png"}]
+        doc["samplers"] = [{"magFilter": 9729, "minFilter": 9987}]
+        doc["textures"] = [{"sampler": 0, "source": 0}]
+        doc["materials"] = [{"name": "colormap", "pbrMetallicRoughness": {
+            "baseColorTexture": {"index": 0}, "metallicFactor": 0.0, "roughnessFactor": 1.0}}]
     js = json.dumps(doc, separators=(",", ":")).encode()
     js += b" " * (-len(js) % 4)
     bn = bytes(data) + b"\0" * (-len(data) % 4)

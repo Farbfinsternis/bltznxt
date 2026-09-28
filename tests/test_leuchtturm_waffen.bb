@@ -2,8 +2,8 @@
 ; Waffenmodelle in der Platzhalter-Arena.
 ;
 ; Bindet die Spielmodule ein und feuert mit kuenstlicher Eingabe, 60 Takte
-; je Sekunde, in derselben Reihenfolge wie das Spiel. Arena, Waffen und
-; Scheiben erzeugen samples/leuchtturm/werkzeug/arena.py und waffen.py.
+; je Sekunde, in derselben Reihenfolge wie das Spiel. Die Arena erzeugt
+; samples/leuchtturm/werkzeug/arena.py, Waffen und Scheiben kenney.py.
 ; Laengen in Zentimetern, Zeiten in Takten.
 
 Include "../samples/leuchtturm/karte.bb"
@@ -222,14 +222,15 @@ Print "13 leer:   zustand nach 56 takten " + a + ", nach 58 " + w_zustand + ";  
 w_munition(W_RL) = W_VOLL
 Nimm(p, W_MG)
 mg = FindChild(w_modell(W_MG), "mg")
-lf = FindChild(w_modell(W_MG), "laeufe")
+lf = FindChild(w_modell(W_MG), "lauf")
+lz# = EntityZ(lf)
 Print "14 bereit: seq " + AnimSeq(w_modell(W_MG)) + " animating " + Animating(w_modell(W_MG)) + " mg y " + C(EntityY(mg)) + " pitch " + Int(EntityPitch(mg))
-; ein Schuss: die Laeufe drehen sich in 6 Takten um 120 Grad
+; ein Schuss: die Laeufe stossen in 2 Takten 2 cm zurueck und sind nach 6 wieder vorn
 Lauf(p, 1, True)
 Lauf(p, 3, False)
-Print "14 feuern: seq " + AnimSeq(w_modell(W_MG)) + " animating " + Animating(w_modell(W_MG)) + " laeufe roll " + Int(EntityRoll(lf)) + " mg z " + C(EntityZ(mg) * 10)
+Print "14 feuern: seq " + AnimSeq(w_modell(W_MG)) + " animating " + Animating(w_modell(W_MG)) + " lauf z " + C(EntityZ(lf) - lz) + " mg z " + C(EntityZ(mg) * 10)
 Lauf(p, 3, False)
-Print "14 feuern: animating " + Animating(w_modell(W_MG)) + " laeufe roll " + Int(EntityRoll(lf))
+Print "14 feuern: animating " + Animating(w_modell(W_MG)) + " lauf z " + C(EntityZ(lf) - lz)
 ; Wechsel: "heben" rueckwaerts, 6 von 12 Takten gesenkt ist halb unten
 Bereit(p)
 Waffe_Waehlen(W_RAIL)
@@ -237,8 +238,8 @@ Lauf(p, 7, False)
 Print "14 senken: seq " + AnimSeq(w_modell(W_MG)) + " mg y " + C(EntityY(mg)) + " pitch " + Int(EntityPitch(mg))
 Bereit(p)
 Print "14 heben:  seq " + AnimSeq(w_modell(W_RAIL)) + " rail y " + C(EntityY(FindChild(w_modell(W_RAIL), "rail")))
-; Railgun: Rueckstoss, die Ringe drehen sich
+; Railgun: Rueckstoss, der Lauf faehrt zurueck und dreht sich
 Lauf(p, 1, True)
 Lauf(p, 2, False)
-Print "14 rail:   rail z " + C(EntityZ(FindChild(w_modell(W_RAIL), "rail"))) + " ringe roll " + Int(EntityRoll(FindChild(w_modell(W_RAIL), "ringe")))
+Print "14 rail:   rail z " + C(EntityZ(FindChild(w_modell(W_RAIL), "rail"))) + " lauf roll " + Int(EntityRoll(FindChild(w_modell(W_RAIL), "lauf")))
 End

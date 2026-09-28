@@ -95,3 +95,6 @@ src/libs/content.txt
 # build_windows.bat / build_linux.sh
 /OPUS_NOTES.md
 __pycache__/
+
+# Leuchtturm: Kenney-Pakete, von werkzeug/kenney.py heruntergeladen
+samples/leuchtturm/werkzeug/kenney/

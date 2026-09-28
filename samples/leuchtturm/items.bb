@@ -19,7 +19,7 @@
 ; das Item (Quake: 30 Einheiten).
 ;
 ; Die Modelle: Waffen sind ihre eigenen Modelle (daten/mg.glb ...), gross
-; genug zum Sehen; der Rest liegt in daten/items/ (werkzeug/items.py). Fehlt
+; genug zum Sehen; der Rest liegt in daten/items/ (werkzeug/kenney.py). Fehlt
 ; die Datei zu armor_75, nimmt das Spiel die naechstkleinere, die es gibt.
 ;
 ;   Items_Laden ordner$, waffen_ordner$

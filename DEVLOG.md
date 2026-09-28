@@ -38,6 +38,25 @@ running Blitz3D 11.8. The entries below this one describe each step; this is the
 
 ---
 
+## 2026-09-28 — Lighthouse: CC0 models from Kenney replace the placeholders
+
+Weapons, targets and items are now models from Kenney's CC0 packs: from the Blaster Kit the
+machine gun (`blaster-p`), rocket launcher (`blaster-h`), railgun (`blaster-f`), the target disc
+and the case used as ammo box; the round shield from Mini Dungeon for armor and the heart from the
+Platformer Kit for health. `werkzeug/kenney.py` downloads the packs into `werkzeug/kenney/` (not in
+the repository) and writes the game's files: flattened into one mesh, scaled to the old sizes,
+the weapon's front part split off as node `lauf` so the fire animation can move it, `muendung` at
+the tip of the barrel, the animations `feuern` and `heben` as before, and the texture embedded so
+every `.glb` stands alone. Kenney's texture is a colour chart of 32 × 128 pixel fields; the item
+tiers (green/yellow/red armor, yellow/orange/blue health, the ammo colours) come from shifting the
+texture coordinates into another field. The target is two discs back to back, red on both sides.
+
+The game code did not change — the models follow the same naming rules as before, and the loader
+read all Kenney files (textures, `KHR_texture_transform`, child nodes) without complaint.
+`waffen.py` and `items.py` are gone; `glb.py` can now write texture coordinates and an embedded
+PNG. `test_leuchtturm_waffen` checks the new moving parts (the MG barrel recoils 2 cm, the
+railgun barrel turns while recharging); all hit and damage results are unchanged.
+
 ## 2026-09-28 — No console window for graphics programs, mouse look stays in the window
 
 Playing step 7 showed two things that got in the way. Every program was linked as a console
