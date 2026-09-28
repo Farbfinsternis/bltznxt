@@ -659,6 +659,11 @@ public:
       cmd += L" " + (w.find(L' ') != std::wstring::npos ? L"\"" + w + L"\"" : w);
     }
     const std::wstring dir = src.parent_path().wstring();
+    // Nach vorn darf ein Fenster nur, wer von der Anwendung im Vordergrund
+    // gestartet wurde - das ist blitzcc (von der IDE), nicht das Programm
+    // (von blitzcc). Ohne diese Weitergabe gehen Grafik- und Textfenster
+    // hinter der IDE auf.
+    AllowSetForegroundWindow(ASFW_ANY);
     STARTUPINFOW si = {};
     si.cb = sizeof(si);
     PROCESS_INFORMATION pi = {};

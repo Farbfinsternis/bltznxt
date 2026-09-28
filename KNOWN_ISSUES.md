@@ -59,7 +59,9 @@ These are not bugs but decisions, and they will stay:
 - **A program with graphics has no console window.** `blitzcc` links a program that calls
   `Graphics` or `Graphics3D` as a Windows GUI application, like Blitz3D. Started from a
   terminal, it still writes `Print` and error messages there; redirected output stays
-  redirected. A text-only program keeps its console.
+  redirected. Started without a terminal (double-click, Blitz3D IDE), `Print`, `Write` and
+  `Input` before `Graphics` open a console of their own, which `Graphics` closes again — where
+  Blitz3D shows its text window. A text-only program keeps its console. (BUG-188)
 - **Colours read back from the rendered 3D image are not guaranteed.** `ReadPixel` or
   `CopyRect` after `RenderWorld` return BlitzNext's shading, not Direct3D 7's. What is in the
   image — geometry, visibility, texture contents — does match.

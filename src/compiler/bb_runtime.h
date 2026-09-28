@@ -101,25 +101,28 @@ inline void bbEnd() {
 // ---- Output ----
 
 // Accepts any printable type (int, float, bbString, …)
+// Vor Graphics braucht Text ein Fenster: bb_console_ensure_ (bb_sdl.h).
 template <typename T>
 inline void bb_Print(const T &val) {
+  bb_console_ensure_();
   std::cout << val << "\n";
 }
 // Print nimmt im Original einen String; eine Kommazahl geht also durch
 // ftoa wie bei Str() - "Print 2.0" schreibt "2.0" (BUG-68).
-inline void bb_Print(float val)  { std::cout << bb_Str((double)val) << "\n"; }
-inline void bb_Print(double val) { std::cout << bb_Str(val) << "\n"; }
-inline void bb_Print(const bb_Ext &val) { std::cout << bb_Str(static_cast<double>(val.v)) << "\n"; }
+inline void bb_Print(float val)  { bb_console_ensure_(); std::cout << bb_Str((double)val) << "\n"; }
+inline void bb_Print(double val) { bb_console_ensure_(); std::cout << bb_Str(val) << "\n"; }
+inline void bb_Print(const bb_Ext &val) { bb_console_ensure_(); std::cout << bb_Str(static_cast<double>(val.v)) << "\n"; }
 
 // `Print` ohne Argument gibt eine Leerzeile aus - im Original `Print
 // [string$]`, eine der haeufigsten Formen ueberhaupt. Wir haben sie bis
 // 2026-09-07 abgelehnt: 'Not enough parameters for Print' (BUG-44).
-inline void bb_Print() { std::cout << "\n"; }
+inline void bb_Print() { bb_console_ensure_(); std::cout << "\n"; }
 
 // ---- Input ----
 // bb_WaitKey() is defined in bb_sdl.h
 
 inline bbString bb_Input(const bbString &prompt = "") {
+  bb_console_ensure_();
   if (!prompt.empty()) std::cout << prompt;
   bbString line;
   std::getline(std::cin, line);

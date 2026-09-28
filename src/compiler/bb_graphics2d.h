@@ -76,6 +76,7 @@ inline void bb_close_scene_() {
 }
 
 inline void bb_Graphics(int width, int height, int depth = 32, int mode = 0) {
+  bb_console_release_();   // das Grafikfenster ersetzt das Textfenster (bb_sdl.h)
   // Store requested parameters unconditionally so query functions always work.
   bb_gfx_width_  = width;
   bb_gfx_height_ = height;
@@ -792,12 +793,13 @@ static constexpr uint8_t bb_font8x8_[128][8] = {
 
 template <typename T>
 inline void bb_Write(const T& val) {
+    bb_console_ensure_();
     std::cout << val << std::flush;
 }
 // Wie Print: eine Kommazahl wird wie mit Str() geschrieben (BUG-68).
-inline void bb_Write(float val)  { std::cout << bb_Str((double)val) << std::flush; }
-inline void bb_Write(double val) { std::cout << bb_Str(val) << std::flush; }
-inline void bb_Write(const bb_Ext &val) { std::cout << bb_Str(static_cast<double>(val.v)) << std::flush; }
+inline void bb_Write(float val)  { bb_console_ensure_(); std::cout << bb_Str((double)val) << std::flush; }
+inline void bb_Write(double val) { bb_console_ensure_(); std::cout << bb_Str(val) << std::flush; }
+inline void bb_Write(const bb_Ext &val) { bb_console_ensure_(); std::cout << bb_Str(static_cast<double>(val.v)) << std::flush; }
 
 // ---- Locate(x, y) ----
 //

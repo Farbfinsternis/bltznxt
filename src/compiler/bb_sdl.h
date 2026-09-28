@@ -35,6 +35,58 @@ inline void bb_gl_use_() {
     SDL_GL_MakeCurrent(bb_window_, bb_gl_ctx_);
 }
 
+// ---- Textfenster vor Graphics ----
+//
+// Blitz3D zeigt Print, Write und Input vor Graphics in einem eigenen
+// Textfenster, das Graphics dann ersetzt. Bei uns ist das die Konsole. Ein
+// Programm mit Graphics ist aber ein Fensterprogramm ohne eigene Konsole
+// (BUG-186); aus einem Terminal haengt es sich an dessen Konsole (bbInit),
+// aus der Blitz3D-IDE oder per Doppelklick gestartet hat es keine. Dann
+// verschwand der Text, und Input$ lieferte sofort "" - eine Abfrage wie die
+// in samples/AGore/start.bb ("Use windowed mode?") drehte sich unsichtbar
+// mit voller Last im Kreis. Deshalb bekommt ein solches Programm beim
+// ersten Text eine eigene Konsole, und Graphics/Graphics3D schliessen sie
+// wieder. Umgeleitete Ein- und Ausgabe (Datei, Pipe, Testsuite) bleibt,
+// wo sie ist.
+inline bool bb_console_own_  = false;   // von uns geoeffnet, Graphics schliesst
+inline bool bb_console_done_ = false;   // schon geprueft
+
+inline void bb_console_ensure_() {
+#ifdef _WIN32
+  if (bb_console_done_ || bb_window_) return;
+  bb_console_done_ = true;
+  auto missing = [](DWORD std) {
+    const HANDLE h = GetStdHandle(std);
+    return !h || h == INVALID_HANDLE_VALUE || GetFileType(h) == FILE_TYPE_UNKNOWN;
+  };
+  const bool out = missing(STD_OUTPUT_HANDLE), err = missing(STD_ERROR_HANDLE),
+             in  = missing(STD_INPUT_HANDLE);
+  if (!out && !in) return;
+  if (!GetConsoleWindow() && !AttachConsole(ATTACH_PARENT_PROCESS)) {
+    if (!AllocConsole()) return;
+    bb_console_own_ = true;
+    SetForegroundWindow(GetConsoleWindow());
+  }
+  if (out) freopen("CONOUT$", "w", stdout);
+  if (err) freopen("CONOUT$", "w", stderr);
+  if (in) {
+    freopen("CONIN$", "r", stdin);
+    std::cin.clear();
+  }
+#endif
+}
+
+inline void bb_console_release_() {
+#ifdef _WIN32
+  if (!bb_console_own_) return;
+  std::cout.flush();
+  fflush(stdout);
+  FreeConsole();
+  bb_console_own_  = false;
+  bb_console_done_ = false;   // nach EndGraphics oeffnet Text sie neu
+#endif
+}
+
 // ---- Keyboard state (raw SDL scancodes; read by bb_input.h) ----
 //
 // Indexed by SDL_Scancode (max value 511; we allocate 512 slots).

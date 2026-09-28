@@ -30,6 +30,21 @@ folder with only Windows on the PATH. Without the three DLLs the IDE gets no key
 so they are part of the setup. The command line is unchanged; the 107 negative tests and a
 sample of the others pass.
 
+The first run in the real IDE found a bug of our own: the Birds demo compiled and started, but
+nothing appeared. `samples/AGore/start.bb` asks "Use windowed mode?" with `Input$` before
+`Graphics3D`. Since BUG-186 a graphics program has no console; started from the IDE or by
+double-click it had none to borrow, so `Input$` returned "" at once and the mode question
+looped invisibly at full load (BUG-188). Blitz3D shows such text in a window of its own, which
+`Graphics` then replaces. Now `Print`, `Write` and `Input` before `Graphics` open a console
+when the program has none, and `Graphics`/`Graphics3D` close it; redirected input and output
+(files, pipes, the test suite) are left alone. And because a window may only come to the front
+when its process was started by the foreground application, `blitzcc` passes that right on to
+the program it starts — otherwise text and graphics windows opened behind the IDE. With both
+fixes the Birds demo runs from the original IDE; checked by the user. Tested beforehand through
+the IDE path with keystrokes written into the new console: the program waits for its answer
+instead of spinning, reads it, switches to graphics and ends. `test_m*`, `test_3d*` and the
+Lighthouse tests pass (71).
+
 ## v0.6.0 - "glTF, animation, 3D sound - and a new game" (2026-09-28)
 
 Nine days after v0.5.5. BlitzNext is no longer only for old programs: `samples/leuchtturm/`

@@ -518,6 +518,7 @@ inline void bb_gl_fullscreen_overhang_(int gw, int gh) {
 // ============================================================
 
 inline void bb_Graphics3D(int w, int h, int depth = 32, int mode = 0) {
+  bb_console_release_();   // das Grafikfenster ersetzt das Textfenster (bb_sdl.h)
   bb_gfx_width_  = w;
   bb_gfx_height_ = h;
   bb_gfx_depth_  = depth;
