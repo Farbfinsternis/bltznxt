@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="logo.png" alt="BlitzNext Logo" width="480">
+  <img src="logo.webp" alt="BLTZNXT 0.6.0" width="720">
 </p>
 
 # BlitzNext
