@@ -1,48 +1,30 @@
-// Backend im Electron-Main-Prozess: alles, was das Betriebssystem berührt.
+// Dienst "toolchain" im Main-Prozess: der Compiler als Prozess.
 //
 // Das ist die einzige Stelle der IDE, die blitzcc kennt — und sie kennt ihn
 // ausschließlich als Prozess: Argumente rein, stdout/stderr und Exit-Code
 // raus. Kein Include, kein Linken, kein Lesen von src/compiler/.
 // Siehe README.md, Abschnitt "Repository Layout".
+//
+// Der Dienst hat keinen eigenen Zustand außer einem Cache: den Pfad des
+// Compilers bekommt er bei jedem Aufruf mit (`compilerPath`), denn die
+// Einstellung gehört der IDE (Einstellungen der Erweiterung "toolchain"),
+// nicht diesem Dienst.
 
 'use strict';
 
-const { ipcMain, app } = require('electron');
 const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-const { parseDiagnostics, isSourceDiagnostic, statusFromExitCode } = require('./diagnostics');
+const { parseDiagnostics, isSourceDiagnostic, statusFromExitCode } = require('../diagnostics');
 
 const EXE = process.platform === 'win32' ? 'blitzcc.exe' : 'blitzcc';
-
-// ---------------------------------------------------------------------------
-// Einstellungen (nur der Compiler-Pfad, mehr braucht es hier noch nicht)
-// ---------------------------------------------------------------------------
-
-function settingsFile() {
-	return path.join(app.getPath('userData'), 'settings.json');
-}
-
-function readSettings() {
-	try {
-		return JSON.parse(fs.readFileSync(settingsFile(), 'utf8'));
-	} catch {
-		return {};
-	}
-}
-
-function writeSettings(next) {
-	const file = settingsFile();
-	fs.mkdirSync(path.dirname(file), { recursive: true });
-	fs.writeFileSync(file, JSON.stringify(next, null, 2), 'utf8');
-}
 
 // ---------------------------------------------------------------------------
 // Compiler finden
 // ---------------------------------------------------------------------------
 //
-// Reihenfolge: IDE-Einstellung -> BLITZPATH -> PATH -> Entwickler-Fallback.
+// Reihenfolge: eingestellter Pfad -> BLITZPATH -> PATH -> Entwickler-Fallback.
 //
 // Der Fallback auf ../bin/ ist reine Bequemlichkeit für das Monorepo und darf
 // nie Voraussetzung sein: die IDE muss gegen eine beliebig installierte
@@ -67,16 +49,15 @@ function fromPathEnv() {
 }
 
 function devFallback() {
-	// __dirname ist ide/electron/ — zwei Ebenen höher liegt im Monorepo das
+	// __dirname ist ide/electron/services/ — drei Ebenen höher liegt im Monorepo das
 	// bin/ des Compilers. Bewusst nicht app.getAppPath(): das zeigt je nach
 	// Startart woanders hin. Im gepackten Build liegt __dirname in der asar,
 	// der Kandidat existiert dann nicht und der Fallback greift korrekt nicht.
-	const candidate = path.resolve(__dirname, '..', '..', 'bin', EXE);
+	const candidate = path.resolve(__dirname, '..', '..', '..', 'bin', EXE);
 	return isExecutable(candidate) ? candidate : null;
 }
 
-function resolveCompiler() {
-	const configured = readSettings().compilerPath;
+function resolveCompiler(configured) {
 	if (configured) {
 		return {
 			path: configured,
@@ -140,8 +121,8 @@ function runCompiler(exe, args, cwd) {
 // API
 // ---------------------------------------------------------------------------
 
-async function getInfo() {
-	const found = resolveCompiler();
+async function getInfo({ compilerPath } = {}) {
+	const found = resolveCompiler(compilerPath);
 	if (!found.available) {
 		return { ...found, version: null };
 	}
@@ -190,8 +171,8 @@ function blitzParams(sig) {
 	return out;
 }
 
-async function listCommands() {
-	const found = resolveCompiler();
+async function listCommands({ compilerPath } = {}) {
+	const found = resolveCompiler(compilerPath);
 	if (!found.available) return [];
 
 	let key = found.path;
@@ -229,10 +210,10 @@ async function listCommands() {
  * Kompiliert eine .bb-Datei.
  *
  * @param {string} file  absoluter Pfad zur Quelldatei
- * @param {object} opts  { debug, transpileOnly, outputName }
+ * @param {object} opts  { debug, transpileOnly, outputName, compilerPath }
  */
 async function compile(file, opts = {}) {
-	const found = resolveCompiler();
+	const found = resolveCompiler(opts.compilerPath);
 	if (!found.available) {
 		return {
 			status: 'no-compiler',
@@ -284,32 +265,15 @@ async function compile(file, opts = {}) {
 	};
 }
 
-function setCompilerPath(p) {
-	const next = readSettings();
-	if (p) next.compilerPath = p; else delete next.compilerPath;
-	writeSettings(next);
-	commandCache = null; // anderer Compiler, andere Kommandoliste
-	return resolveCompiler();
-}
-
-// ---------------------------------------------------------------------------
-// IPC-Registrierung
-// ---------------------------------------------------------------------------
-
-function register() {
-	ipcMain.handle('bltznxt:getInfo', () => getInfo());
-	ipcMain.handle('bltznxt:listCommands', () => listCommands());
-	ipcMain.handle('bltznxt:compile', (_e, file, opts) => compile(file, opts));
-	ipcMain.handle('bltznxt:setCompilerPath', (_e, p) => setCompilerPath(p));
-}
+// Die Methoden, die der Renderer über die Brücke aufrufen darf.
+const api = { getInfo, listCommands, compile };
 
 module.exports = {
-	register,
-	// exportiert für Tests und für den Fall, dass das Backend einmal ohne
-	// Electron laufen soll (z.B. Headless-Prüfung der Compiler-Anbindung)
+	api,
+	// zusätzlich exportiert für Tests und für den Fall, dass die Anbindung
+	// einmal ohne Electron laufen soll (z.B. Headless-Prüfung)
 	getInfo,
 	listCommands,
 	compile,
-	setCompilerPath,
 	resolveCompiler
 };

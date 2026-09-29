@@ -1,5 +1,31 @@
 # BlitzNext Developer Log
 
+## 2026-09-29 — The BLTZNXT IDE gets a core (plan P0)
+
+The IDE under `ide/` had grown as one Monaco editor and a compiler bridge. Its goal for the first
+stage is the same as the compiler's: do what the original Blitz3D IDE does (`ide/PLAN.md`, drawn
+from `blitzide/` and `debugger/` in the official repository). P0, the foundation, is done:
+
+- **A small core with no IDE feature in it** (`ide/src/core/`, plain JavaScript without DOM,
+  tested under Node): commands, contribution points, services, events, context keys with
+  `when` expressions, key bindings, layered settings that keep unknown keys, a document model
+  (text always LF; encoding and line ending only apply on save), a menu model, and an
+  extension host. Every IDE function will be an extension using this interface; the built-in
+  ones (`workbench`, `toolchain`, `language-blitz`, `editor`) already are.
+- **One generic bridge** instead of a channel per function: `invoke(service, method, ...)`,
+  with `toolchain` (the compiler as a process) and `store` (settings file) as main-process
+  services. The compiler path now travels with each call, because the setting belongs to the IDE.
+- **The shell draws what extensions contribute**: menu bar, toolbar, tabs, views, status bar,
+  dialogs. A menu without items does not show; a broken extension does not stop the others.
+- **Tests**: 42 unit tests (`npm test`), the compiler smoke test (now plain Node, 14/14 —
+  BUG-121 closed; the error-classification path is tested on fixed compiler output), and a UI
+  test in Electron (`npm run test:ui`): menu item from an extension, key binding, dialog,
+  editor, saving settings, and a corrupt settings file being backed up instead of overwritten.
+
+The tests found two real mistakes on the way: extensions were switched off in the wrong order
+(a dependency before its user), and the "settings file unreadable" notice was sent before
+anything listened.
+
 ## 2026-09-28 — The Blitz3D IDE runs BLTZNXT
 
 The original Blitz3D IDE can now use BLTZNXT as its compiler: put our `blitzcc.exe` (with its

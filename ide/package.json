@@ -8,7 +8,10 @@
 		"vite": "vite",
 		"electron": "wait-on tcp:5173 && cross-env NODE_ENV=development electron .",
 		"build": "vite build",
-		"test:smoke": "electron test/smoke.js"
+		"test:smoke": "node test/smoke.js",
+		"test": "node --test \"test/unit/**/*.test.js\"",
+		"test:ui": "vite build && electron test/ui-smoke.js",
+		"test:all": "npm test && npm run test:smoke && npm run test:ui"
 	},
 	"dependencies": {
 		"electron": "^34.0.0",

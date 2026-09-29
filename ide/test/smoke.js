@@ -2,8 +2,8 @@
 //
 //   npm run test:smoke
 //
-// Läuft unter Electron (das Backend braucht app.getPath), öffnet aber kein
-// Fenster. Prüft die Prozessgrenze zum Compiler von beiden Seiten: dass wir ihn
+// Läuft unter reinem Node: der Dienst "toolchain" braucht kein Electron mehr.
+// Prüft die Prozessgrenze zum Compiler von beiden Seiten: dass wir ihn
 // finden, seine Kommandoliste lesen und beide Fehlerklassen korrekt einsortieren.
 //
 // Ohne gefundenen blitzcc wird der Test übersprungen statt zu scheitern — die
@@ -11,10 +11,9 @@
 
 'use strict';
 
-const { app } = require('electron');
 const path = require('path');
 
-const backend = require('../electron/backend');
+const backend = require('../electron/services/toolchain');
 
 const FIXTURES = path.join(__dirname, 'fixtures');
 const basename = (p) => String(p).split(/[\\/]/).pop();
@@ -25,14 +24,13 @@ function check(label, ok, detail) {
 	if (!ok) failures++;
 }
 
-app.whenReady().then(async () => {
+(async () => {
 	// --- Compiler finden ---------------------------------------------------
 	const info = await backend.getInfo();
 	if (!info.available) {
 		console.log('SKIP  blitzcc nicht gefunden — Test übersprungen.');
 		console.log('      Pfad via BLITZPATH setzen oder den Compiler nach bin/ bauen.');
-		app.exit(0);
-		return;
+		process.exit(0);
 	}
 	check('getInfo: Compiler gefunden', true, `${info.source}: ${info.path}`);
 	check('getInfo: Version gelesen', Boolean(info.version), `v${info.version}`);
@@ -72,5 +70,5 @@ app.whenReady().then(async () => {
 		cpp.diagnostics.map((d) => `${basename(d.file)}:${d.line}`).join(', ') || 'keine');
 
 	console.log(`\n${failures === 0 ? 'Alle Prüfungen bestanden.' : failures + ' fehlgeschlagen.'}`);
-	app.exit(failures === 0 ? 0 : 1);
-});
+	process.exit(failures === 0 ? 0 : 1);
+})();

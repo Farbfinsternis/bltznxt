@@ -1,55 +1,31 @@
-import './style.css';
-import * as monaco from 'monaco-editor';
-import './userWorker'; // Importiert unsere Worker-Konfiguration
-import { setCommands } from './blitz3d'; // Importiert unsere Sprachdefinition
-import platform from './platform';
+import './shell/shell.css';
+import platform from './platform/index.js';
+import { createApp } from './app.js';
+import { createShell } from './shell/shell.js';
+import { builtinExtensions } from './extensions/index.js';
 
-const app = document.querySelector('#app');
+const app = createApp({ platform, extensions: builtinExtensions });
+const shell = createShell({ root: document.querySelector('#app'), app });
 
-// Editor erstellen
-const editor = monaco.editor.create(app, {
-	value: `; Beispiel für Blitz3D Code mit Keywords und Commands
+// Zum Untersuchen in den DevTools und für die Oberflächentests (test/ui-smoke.js)
+window.__ide = { app, shell };
+
+app.start().then(() => {
+	// Vorläufig, bis die Dateierweiterung (P1) Start und Wiederherstellen regelt:
+	// ein namenloses Dokument, damit der Editor etwas zeigt.
+	if (app.documents.list().length === 0) {
+		app.documents.open({
+			text: `; Beispiel für Blitz3D Code mit Keywords und Commands
 Function Main()
 	Graphics 800, 600 ; Das ist ein Command
 	Print "Hallo Welt aus meiner IDE!"
-End Function`,
-	language: 'blitz3d', // Unsere neue Sprache verwenden
-	theme: 'vs-dark',
-	automaticLayout: true
+End Function
+`
+		});
+	}
+	shell.render();
 });
 
-// Befehlsliste und Compiler-Status beim Start vom Compiler holen.
-// Ohne Backend (reiner Browser via `npm run vite`) läuft der Editor weiter,
-// nur ohne Befehls-Vervollständigung.
-async function connectCompiler() {
-	if (!platform.hasBackend) {
-		console.info('[platform] Kein Backend — Editor läuft ohne Compiler-Anbindung.');
-		return;
-	}
-
-	const info = await platform.getInfo();
-	if (!info.available) {
-		console.warn('[platform] blitzcc nicht gefunden. Pfad setzen oder BLITZPATH belegen.');
-		return;
-	}
-	console.info(`[platform] blitzcc v${info.version ?? '?'} — ${info.path} (via ${info.source})`);
-
-	const count = setCommands(await platform.listCommands());
-	console.info(`[platform] ${count} eingebaute Befehle geladen.`);
-}
-
-/**
- * Kompiliert den aktuellen Editorinhalt und setzt die Fehler als Marker.
- * Noch ohne Dateiverwaltung: der Pfad kommt von außen herein.
- */
-export async function compileCurrentFile(file) {
-	const result = await platform.compile(file);
-	monaco.editor.setModelMarkers(
-		editor.getModel(),
-		'blitzcc',
-		platform.toMonacoMarkers(monaco, result.diagnostics)
-	);
-	return result;
-}
-
-connectCompiler();
+window.addEventListener('beforeunload', () => {
+	app.stop();
+});

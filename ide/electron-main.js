@@ -1,16 +1,19 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain } = require('electron');
 const path = require('path');
 
-const backend = require('./electron/backend');
+const bridge = require('./electron/bridge');
+const store = require('./electron/services/store');
 
 function createWindow() {
 	const win = new BrowserWindow({
-		width: 1000,
+		width: 1100,
 		height: 800,
+		backgroundColor: '#1e1e1e',
 		webPreferences: {
 			// Der Renderer bekommt kein Node. Alles, was das Betriebssystem
 			// berührt, läuft im Main-Prozess und wird über electron/preload.js
-			// als schmale API freigegeben — siehe src/platform/index.js.
+			// und electron/bridge.js als schmale API freigegeben — siehe
+			// src/platform/index.js.
 			nodeIntegration: false,
 			contextIsolation: true,
 			preload: path.join(__dirname, 'electron', 'preload.js'),
@@ -36,7 +39,12 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
-	backend.register();
+	// Die Menüleiste zeichnet die IDE selbst (src/shell/menubar.js) aus den
+	// Beiträgen der Erweiterungen; das Standardmenü von Electron stört nur.
+	Menu.setApplicationMenu(null);
+
+	store.setBaseDir(app.getPath('userData'));
+	bridge.register(ipcMain);
 	createWindow();
 });
 

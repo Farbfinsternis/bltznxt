@@ -1,0 +1,390 @@
+/* Shell: Gerüst, Menüs, Tabs, Statuszeile, Dialoge.
+ *
+ * Alle Farben sind Variablen. Ein Theme ist später eine Menge dieser Werte
+ * (PLAN.md, "Einstellungen"); nichts hier ist fest verdrahtet.
+ */
+
+:root {
+	--bg: #1e1e1e;
+	--bg-alt: #252526;
+	--bg-raised: #2d2d30;
+	--bg-hover: #37373d;
+	--bg-active: #094771;
+	--border: #3c3c3c;
+	--fg: #d4d4d4;
+	--fg-dim: #9d9d9d;
+	--fg-disabled: #6a6a6a;
+	--accent: #0e639c;
+	--accent-fg: #ffffff;
+	--danger: #f14c4c;
+	--font-ui: "Segoe UI", system-ui, -apple-system, sans-serif;
+	--font-size-ui: 13px;
+}
+
+html, body {
+	margin: 0;
+	padding: 0;
+	height: 100%;
+	width: 100%;
+	overflow: hidden;
+	background: var(--bg);
+	color: var(--fg);
+	font-family: var(--font-ui);
+	font-size: var(--font-size-ui);
+}
+
+#app {
+	height: 100vh;
+	width: 100vw;
+}
+
+[hidden] {
+	display: none !important;
+}
+
+.ide {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	width: 100%;
+	position: relative;
+}
+
+button {
+	font: inherit;
+	color: inherit;
+}
+
+/* ---- Menüleiste ---------------------------------------------------------- */
+
+.menubar {
+	display: flex;
+	flex: none;
+	background: var(--bg-alt);
+	border-bottom: 1px solid var(--border);
+	user-select: none;
+}
+
+.menu-title {
+	background: none;
+	border: 0;
+	padding: 5px 10px;
+	cursor: default;
+}
+
+.menu-title:hover,
+.menu-title.open {
+	background: var(--bg-hover);
+}
+
+.menu-layer {
+	position: absolute;
+	top: 0;
+	left: 0;
+	z-index: 50;
+}
+
+.menu-list {
+	background: var(--bg-raised);
+	border: 1px solid var(--border);
+	box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+	min-width: 220px;
+	padding: 4px 0;
+	user-select: none;
+}
+
+.menu-dropdown {
+	position: fixed;
+}
+
+.menu-item {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 4px 16px 4px 8px;
+	cursor: default;
+	position: relative;
+	white-space: nowrap;
+}
+
+.menu-item:hover {
+	background: var(--bg-active);
+	color: var(--accent-fg);
+}
+
+.menu-item.disabled {
+	color: var(--fg-disabled);
+	pointer-events: auto;
+}
+
+.menu-item.disabled:hover {
+	background: none;
+	color: var(--fg-disabled);
+}
+
+.menu-check {
+	width: 14px;
+	text-align: center;
+}
+
+.menu-label {
+	flex: 1;
+}
+
+.menu-key {
+	color: var(--fg-dim);
+	margin-left: 24px;
+}
+
+.menu-item:hover .menu-key {
+	color: inherit;
+}
+
+.menu-separator {
+	height: 1px;
+	background: var(--border);
+	margin: 4px 0;
+}
+
+.menu-sub {
+	display: none;
+	position: absolute;
+	left: 100%;
+	top: -5px;
+}
+
+.menu-item.has-sub:hover > .menu-sub {
+	display: block;
+}
+
+/* ---- Symbolleiste ---------------------------------------------------------- */
+
+.toolbar {
+	display: flex;
+	align-items: center;
+	flex: none;
+	gap: 2px;
+	padding: 3px 6px;
+	background: var(--bg-alt);
+	border-bottom: 1px solid var(--border);
+}
+
+.toolbar-button {
+	background: none;
+	border: 1px solid transparent;
+	border-radius: 3px;
+	min-width: 26px;
+	height: 26px;
+	padding: 0 4px;
+	cursor: default;
+}
+
+.toolbar-button:hover:not(:disabled) {
+	background: var(--bg-hover);
+	border-color: var(--border);
+}
+
+.toolbar-button:disabled {
+	color: var(--fg-disabled);
+}
+
+.toolbar-separator {
+	width: 1px;
+	height: 18px;
+	margin: 0 4px;
+	background: var(--border);
+}
+
+.icon svg {
+	width: 16px;
+	height: 16px;
+	fill: currentColor;
+	vertical-align: middle;
+}
+
+/* ---- Tabs ------------------------------------------------------------------ */
+
+.tabs {
+	display: flex;
+	flex: none;
+	overflow-x: auto;
+	background: var(--bg-alt);
+	border-bottom: 1px solid var(--border);
+	user-select: none;
+}
+
+.tab {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 5px 8px 5px 12px;
+	border-right: 1px solid var(--border);
+	color: var(--fg-dim);
+	cursor: default;
+	white-space: nowrap;
+}
+
+.tab:hover {
+	background: var(--bg-hover);
+}
+
+.tab.active {
+	background: var(--bg);
+	color: var(--fg);
+	box-shadow: inset 0 1px 0 var(--accent);
+}
+
+.tab-dirty {
+	width: 10px;
+	font-size: 10px;
+	text-align: center;
+}
+
+.tab-close {
+	background: none;
+	border: 0;
+	border-radius: 3px;
+	width: 18px;
+	height: 18px;
+	line-height: 16px;
+	padding: 0;
+	color: var(--fg-dim);
+}
+
+.tab-close:hover {
+	background: var(--bg-hover);
+	color: var(--fg);
+}
+
+/* ---- Arbeitsfläche ----------------------------------------------------------- */
+
+.editor-area {
+	position: relative;
+	flex: 1;
+	min-height: 0;
+}
+
+.view {
+	position: absolute;
+	inset: 0;
+}
+
+.view-error {
+	padding: 12px;
+	color: var(--danger);
+}
+
+.panel {
+	display: flex;
+	flex-direction: column;
+	flex: none;
+	height: 200px;
+	border-top: 1px solid var(--border);
+	background: var(--bg);
+}
+
+.panel-tabs {
+	display: flex;
+	flex: none;
+	background: var(--bg-alt);
+}
+
+.panel-tab {
+	background: none;
+	border: 0;
+	padding: 4px 12px;
+	color: var(--fg-dim);
+}
+
+.panel-tab.active {
+	color: var(--fg);
+	box-shadow: inset 0 -1px 0 var(--accent);
+}
+
+.panel-body {
+	position: relative;
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
+}
+
+/* ---- Statuszeile ---------------------------------------------------------------- */
+
+.statusbar {
+	display: flex;
+	justify-content: space-between;
+	flex: none;
+	background: var(--accent);
+	color: var(--accent-fg);
+	font-size: 12px;
+	user-select: none;
+}
+
+.status-left,
+.status-right {
+	display: flex;
+}
+
+.status-item {
+	background: none;
+	border: 0;
+	padding: 2px 10px;
+	color: inherit;
+	cursor: default;
+}
+
+.status-item.clickable:hover {
+	background: rgba(255, 255, 255, 0.15);
+}
+
+/* ---- Dialoge ---------------------------------------------------------------------- */
+
+.dialog-overlay {
+	position: absolute;
+	inset: 0;
+	z-index: 100;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: rgba(0, 0, 0, 0.45);
+}
+
+.dialog {
+	min-width: 320px;
+	max-width: 520px;
+	background: var(--bg-raised);
+	border: 1px solid var(--border);
+	box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6);
+	padding: 16px 18px 14px;
+}
+
+.dialog-title {
+	font-weight: 600;
+	margin-bottom: 10px;
+}
+
+.dialog-text {
+	white-space: pre-wrap;
+	margin-bottom: 16px;
+	color: var(--fg);
+}
+
+.dialog-buttons {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+}
+
+.dialog-button {
+	min-width: 72px;
+	padding: 4px 14px;
+	background: var(--bg-hover);
+	border: 1px solid var(--border);
+	border-radius: 3px;
+}
+
+.dialog-button:focus {
+	outline: 1px solid var(--accent);
+	background: var(--accent);
+	color: var(--accent-fg);
+}
