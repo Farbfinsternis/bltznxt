@@ -1,5 +1,29 @@
 # BlitzNext Developer Log
 
+## 2026-09-29 — The BLTZNXT IDE handles files (plan P1)
+
+The IDE now has the File menu of the original Blitz3D IDE: New, Open (several files), Close, Close
+All, Save, Save As, Save All, next/previous tab, ten recent files, Exit, start with a file name
+(`ide/src/extensions/files/`). Closing a modified file, closing all, and closing the window asks
+"Save changes?" as the original does, closing from the last tab to the first. Saving keeps
+`file.bb_bak1`, `_bak2` copies (setting `files.backups`, default 2, like `edit_backup`). An
+untitled tab is a real document (`scratch`) that becomes a file when saved.
+
+The first trap was encoding. Blitz3D sources are bytes — mostly Windows-1252 — and the editor
+thinks in UTF-16; reading and writing as UTF-8 would corrupt every umlaut in existing programs.
+`ide/src/core/encoding.js` reads a file as UTF-8 (with or without BOM) only if it is valid UTF-8
+with non-ASCII bytes, otherwise as Windows-1252, which has a character for each of the 256 bytes
+and so loses nothing; it writes it back the same way with the file's line ending. Characters the
+encoding cannot store are not replaced silently: the IDE asks whether to save as UTF-8. A file
+you did not change is never written, so it stays byte-identical. One known limit: a file with
+mixed CRLF and LF comes out with the more frequent one after saving.
+
+Also new: a main-process `files` service (bytes and backups), `dialog`, `host` (command-line
+files) and `window` (close only with the renderer's consent), a push channel from main to
+renderer, and `state.json` for what the IDE remembers, kept apart from `settings.json`.
+86 unit tests, and the UI test now types, saves, opens, closes with prompts and checks the bytes
+on disk.
+
 ## 2026-09-29 — The BLTZNXT IDE gets a core (plan P0)
 
 The IDE under `ide/` had grown as one Monaco editor and a compiler bridge. Its goal for the first

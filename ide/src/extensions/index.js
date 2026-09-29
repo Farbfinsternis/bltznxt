@@ -12,5 +12,6 @@ import workbench from './workbench/index.js';
 import toolchain from './toolchain/index.js';
 import languageBlitz from './language-blitz/index.js';
 import editor from './editor/index.js';
+import files from './files/index.js';
 
-export const builtinExtensions = [workbench, toolchain, languageBlitz, editor];
+export const builtinExtensions = [workbench, toolchain, languageBlitz, editor, files];

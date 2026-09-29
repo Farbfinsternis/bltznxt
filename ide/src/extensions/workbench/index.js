@@ -106,6 +106,16 @@ export default {
 		);
 		i18n.setLanguage(settings.get('workbench.language'));
 
+		// Fenstertitel: Pfad der aktiven Datei, wie im Original ("Blitz3D - <Datei>")
+		const syncTitle = () => {
+			const doc = ctx.documents.active;
+			document.title = doc ? `${doc.dirty ? '* ' : ''}${doc.uri || doc.title} - BLTZNXT IDE` : 'BLTZNXT IDE';
+		};
+		syncTitle();
+		for (const name of ['activated', 'saved', 'renamed', 'closed', 'changed']) {
+			ctx.subscriptions.add(ctx.documents.on(name, syncTitle));
+		}
+
 		ctx.subscriptions.add(
 			ctx.events.on('settings:corrupt', async ({ error, backup }) => {
 				const dialogs = await ctx.services.waitFor('dialogs');

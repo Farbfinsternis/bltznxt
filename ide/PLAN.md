@@ -230,15 +230,39 @@ mit `node --test` geprüft (kein Electron nötig); die Oberfläche mit dem Smoke
 - Ein Dokument ohne Datei behält seinen Text im Speicher; Temp-Ordner je Tab (Entscheidung 3)
   kommen mit P1/P3, wenn es zum Bauen etwas zu schreiben gibt.
 
-### P1 — Dateien
-Neu, Öffnen, Schließen, Alle schließen, Speichern (unter, alle), Tabs mit Änderungsmarke,
-Strg+Tab, zuletzt geöffnet (10), Sicherungskopien `_bakN`, Rückfrage beim Schließen und Beenden,
-Start mit Dateiname, doppelte Datei erkennen. Namenlose Dokumente (`scratch`).
+### P1 — Dateien ✓ (2026-09-29)
+Neu, Öffnen (mehrere Dateien), Schließen, Alle schließen, Speichern (unter, alle), Tabs mit
+Änderungsmarke, Strg+Tab, zuletzt geöffnet (10), Sicherungskopien `_bakN`, Rückfrage beim Schließen
+und Beenden (auch mit dem Kreuz des Fensters), Start mit Dateiname, doppelte Datei erkennen
+(ohne Rücksicht auf Groß-/Kleinschreibung), namenlose Dokumente (`scratch`), Fenstertitel mit dem
+Pfad, Willkommensansicht ohne offene Datei. Alles in der Erweiterung `files`
+(`ide/src/extensions/files/`), dazu die Dienste `files`, `dialog`, `host` und `window` im
+Main-Prozess und `core/encoding.js`, `core/state.js`.
 
-**Dateikodierung ist die erste Falle.** `.bb`-Dateien sind Bytes (Windows-1252), Monaco denkt in
-UTF-16. Ein naives „als UTF-8 lesen und schreiben“ zerstört Umlaute in bestehenden Programmen.
-Verhalten: lesen und schreiben verlustfrei in der Kodierung der Datei; Zeilenenden (CRLF) bleiben
-wie vorgefunden. Test: Runde Datei → Editor → Datei ist byte-gleich.
+**Dateikodierung war die erste Falle** und ist gelöst: `.bb`-Dateien sind Bytes (Windows-1252),
+Monaco denkt in UTF-16. Gelesen wird verlustfrei (BOM → UTF-8 mit BOM; gültiges UTF-8 mit
+Nicht-ASCII → UTF-8; sonst Windows-1252, das jedes der 256 Bytes kennt), geschrieben in derselben
+Kodierung mit dem Zeilenende der Datei. Zeichen, die die Kodierung nicht kennt (etwa „→“ in
+Windows-1252), werden nicht ersetzt: die IDE fragt, ob als UTF-8 gespeichert werden soll.
+**Geprüft durch:** alle 256 Bytes, Umlaut-Datei, UTF-8 mit/ohne BOM, ungültiges UTF-8, 1-MB-Datei
+(`test/unit/encoding.test.js`); Öffnen → Ändern → Speichern ergibt nur die geänderte Stelle
+(`files-extension.test.js`); Speichern in der echten Oberfläche schreibt `Größe €` als
+`47 72 F6 DF 65 20 80` mit CRLF (`ui-smoke.js`).
+
+**Beim Bauen entschieden:**
+- Gemischte Zeilenenden (CRLF und LF in einer Datei) kommen nach dem Speichern mit dem
+  häufigeren heraus; `decodeFile` meldet `mixedEol`, die IDE warnt bisher nicht. Eine unveränderte
+  Datei wird nie geschrieben, bleibt also byte-gleich.
+- Schließen aller Tabs (auch beim Beenden) geht wie im Original von hinten nach vorn; bricht der
+  Benutzer bei einem Tab ab, bleiben die schon geschlossenen zu.
+- Dateien mit NUL-Bytes fragen vor dem Öffnen nach; Medien über den Betrachter kommen mit P4.
+- Ein Speichern unter auf eine in einem anderen Tab offene Datei wird verweigert.
+- Temp-Ordner je namenlosem Tab (Entscheidung 3) braucht erst das Bauen; namenlose Dokumente
+  leben bis dahin im Speicher (P3).
+- Zustand (zuletzt geöffnet, letzter Ordner) liegt in `state.json`, getrennt von `settings.json`.
+- Neue Einstellungen: `files.backups` (2), `files.defaultEncoding`, `files.defaultEol`.
+
+**Noch offen aus P1:** Drucken (P5), Dateien per Ziehen ins Fenster öffnen.
 
 ### P2 — Editor
 Färbung (Sprachdefinition aus `blitzcc +k` plus feste Schlüsselwörter), Schreibweise der

@@ -14,12 +14,14 @@ import { createCommands } from './core/commands.js';
 import { createContributions } from './core/contributions.js';
 import { createServices } from './core/services.js';
 import { createSettings } from './core/settings.js';
+import { createState } from './core/state.js';
 import { createI18n } from './core/i18n.js';
 import { createDocuments } from './core/documents.js';
 import { createKeybindings } from './core/keybindings.js';
 import { createExtensionHost } from './core/extensions.js';
 
 const SETTINGS_FILE = 'settings.json';
+const STATE_FILE = 'state.json';
 const SAVE_DELAY_MS = 300;
 
 /**
@@ -37,6 +39,7 @@ export function createApp({ platform, extensions = [], schedule = setTimeout, ca
 	const contributions = createContributions();
 	const services = createServices();
 	const settings = createSettings();
+	const state = createState();
 	const i18n = createI18n({ language: 'en' });
 	const documents = createDocuments();
 	const keybindings = createKeybindings({ contributions, context });
@@ -44,7 +47,7 @@ export function createApp({ platform, extensions = [], schedule = setTimeout, ca
 	const host = createExtensionHost({
 		commands, contributions, services, context, settings, i18n, events,
 		// Was jede Erweiterung im ctx sieht, ohne es sich per Dienst zu holen
-		extra: { documents, platform, keybindings }
+		extra: { documents, platform, keybindings, state }
 	});
 
 	// ---- Dokumentzustand als Kontext ---------------------------------------
@@ -54,6 +57,7 @@ export function createApp({ platform, extensions = [], schedule = setTimeout, ca
 	function syncDocumentContext() {
 		const list = documents.list();
 		context.set('documents.count', list.length);
+		context.set('documents.multiple', list.length > 1);
 		context.set('documents.anyDirty', list.some((d) => d.dirty));
 		context.set('document.active', documents.active !== null);
 		context.set('document.dirty', Boolean(documents.active && documents.active.dirty));
@@ -85,69 +89,87 @@ export function createApp({ platform, extensions = [], schedule = setTimeout, ca
 		}
 	}
 
-	// ---- Einstellungen: laden und (verzögert) sichern ----------------------
-	let saveHandle = null;
-	let storeBroken = false;
+	// ---- Einstellungen und Zustand: laden und (verzögert) sichern -----------
+	//
+	// Beide Dateien gehen denselben Weg: laden, bei Unlesbarem die Datei
+	// sichern statt überschreiben, Änderungen gebündelt schreiben.
+	/**
+	 * @param {string} file
+	 * @param {{ load(text: string | null): { ok: boolean, error?: string }, serialize(): string, onDidChange(fn: () => void): any }} model
+	 */
+	function persist(file, model) {
+		let handle = null;
+		let broken = false;
 
-	async function saveSettingsNow() {
-		saveHandle = null;
-		try {
-			await platform.store.write(SETTINGS_FILE, settings.serialize());
-			storeBroken = false;
-		} catch (err) {
-			if (!storeBroken) console.error('[app] Einstellungen konnten nicht gesichert werden:', err);
-			storeBroken = true;
-		}
-	}
-
-	/** @returns {Promise<{ error: string, backup: string } | null>} Angabe, wenn die Datei unlesbar war */
-	async function loadSettings() {
-		let text = null;
-		try {
-			text = await platform.store.read(SETTINGS_FILE);
-		} catch (err) {
-			console.error('[app] Einstellungen konnten nicht gelesen werden:', err);
-		}
-		const result = settings.load(text);
-		if (!result.ok) {
-			// Nicht stillschweigend überschreiben: die kaputte Datei bleibt als
-			// settings.json.bad erhalten, bevor die nächste Sicherung sie ersetzt.
+		async function saveNow() {
+			handle = null;
 			try {
-				await platform.store.write(`${SETTINGS_FILE}.bad`, text ?? '');
+				await platform.store.write(file, model.serialize());
+				broken = false;
 			} catch (err) {
-				console.error('[app] Sicherung der kaputten Einstellungen fehlgeschlagen:', err);
+				if (!broken) console.error(`[app] ${file} konnte nicht gesichert werden:`, err);
+				broken = true;
 			}
-			return { error: result.error, backup: `${SETTINGS_FILE}.bad` };
 		}
-		return null;
+
+		model.onDidChange(() => {
+			if (handle !== null) cancel(handle);
+			handle = schedule(saveNow, SAVE_DELAY_MS);
+		});
+
+		return {
+			/** @returns {Promise<{ error: string, backup: string } | null>} Angabe, wenn die Datei unlesbar war */
+			async load() {
+				let text = null;
+				try {
+					text = await platform.store.read(file);
+				} catch (err) {
+					console.error(`[app] ${file} konnte nicht gelesen werden:`, err);
+				}
+				const result = model.load(text);
+				if (result.ok) return null;
+				// Nicht stillschweigend überschreiben: die kaputte Datei bleibt als
+				// "<name>.bad" erhalten, bevor die nächste Sicherung sie ersetzt.
+				try {
+					await platform.store.write(`${file}.bad`, text ?? '');
+				} catch (err) {
+					console.error(`[app] Sicherung der kaputten Datei ${file} fehlgeschlagen:`, err);
+				}
+				return { error: result.error, backup: `${file}.bad` };
+			},
+			/** Ausstehendes sofort schreiben. */
+			async flush() {
+				if (handle === null) return;
+				cancel(handle);
+				await saveNow();
+			}
+		};
 	}
 
-	settings.onDidChange(() => {
-		if (saveHandle !== null) cancel(saveHandle);
-		saveHandle = schedule(saveSettingsNow, SAVE_DELAY_MS);
-	});
+	const settingsFile = persist(SETTINGS_FILE, settings);
+	const stateFile = persist(STATE_FILE, state);
 
 	// ---- Start und Ende -----------------------------------------------------
 	for (const ext of extensions) host.add(ext);
 
 	async function start() {
-		const corrupt = await loadSettings();
+		const corruptSettings = await settingsFile.load();
+		const corruptState = await stateFile.load();
 		await host.activateAll();
 		// Erst jetzt: vorher hört noch keine Erweiterung zu.
-		if (corrupt) events.emit('settings:corrupt', corrupt);
+		if (corruptSettings) events.emit('settings:corrupt', corruptSettings);
+		if (corruptState) events.emit('state:corrupt', corruptState);
 		events.emit('app:started');
 	}
 
 	async function stop() {
-		if (saveHandle !== null) {
-			cancel(saveHandle);
-			await saveSettingsNow();
-		}
+		await settingsFile.flush();
+		await stateFile.flush();
 		await host.deactivateAll();
 	}
 
 	return {
-		events, context, commands, contributions, services, settings, i18n,
+		events, context, commands, contributions, services, settings, state, i18n,
 		documents, keybindings, host, platform,
 		run, start, stop
 	};

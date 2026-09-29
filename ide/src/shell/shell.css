@@ -388,3 +388,19 @@ button {
 	background: var(--accent);
 	color: var(--accent-fg);
 }
+
+/* ---- Ansicht ohne offene Datei (Erweiterung "files") ------------------------------- */
+
+.welcome {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	color: var(--fg-dim);
+	user-select: none;
+}
+
+.welcome-title {
+	font-size: 18px;
+}

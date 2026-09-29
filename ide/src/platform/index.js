@@ -35,6 +35,16 @@ export function invoke(service, method, ...args) {
 	return bridge.invoke(service, method, ...args);
 }
 
+/**
+ * Auf ein Ereignis des Backends hören (etwa "window:close-requested").
+ * @param {string} name
+ * @param {(payload: any) => void} fn
+ * @returns {() => void} Abmeldefunktion; ohne Backend eine leere
+ */
+export function on(name, fn) {
+	return bridge && typeof bridge.on === 'function' ? bridge.on(name, fn) : () => {};
+}
+
 // ---------------------------------------------------------------------------
 // Ohne Backend (reiner Browser via `npm run vite`) läuft die IDE weiter:
 // kleine Dateien liegen dann im localStorage, der Rest fehlt.
@@ -78,4 +88,4 @@ export const store = {
 	}
 };
 
-export default { hasBackend, invoke, store };
+export default { hasBackend, invoke, on, store };

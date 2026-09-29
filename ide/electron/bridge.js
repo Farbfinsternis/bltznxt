@@ -6,17 +6,25 @@
 // IPC-Kanal. Aufrufbar ist nur, was ein Dienst ausdrücklich in seinem `api`
 // anbietet; alles andere (Hilfsfunktionen, Zustand) bleibt unerreichbar.
 //
+// Dazu ein Weg in die andere Richtung: `send(win, name, payload)` schickt ein
+// Ereignis an den Renderer (etwa "window:close-requested").
+//
 // Ein Wechsel des Backends (etwa auf Tauri) ersetzt diese Datei, preload.js
 // und src/platform/index.js — die Dienste selbst sind gewöhnliche Module.
 
 'use strict';
 
 const CHANNEL = 'bltznxt:invoke';
+const EVENT_CHANNEL = 'bltznxt:event';
 
 /** @type {Record<string, { api: Record<string, Function> }>} */
 const services = {
 	toolchain: require('./services/toolchain'),
-	store: require('./services/store')
+	store: require('./services/store'),
+	files: require('./services/files'),
+	dialog: require('./services/dialog'),
+	host: require('./services/host'),
+	window: require('./services/window')
 };
 
 /** Dienste, die nach dem Start weitere aufnehmen wollen (Erweiterungen im Main-Prozess, später). */
@@ -25,17 +33,31 @@ function addService(name, service) {
 	services[name] = service;
 }
 
-async function dispatch(service, method, args) {
+/**
+ * @param {string} service
+ * @param {string} method
+ * @param {any[]} args
+ * @param {{ sender?: import('electron').WebContents }} [caller]  wer fragt — Methoden sehen es als `this`
+ */
+async function dispatch(service, method, args, caller = {}) {
 	const svc = services[service];
 	if (!svc) throw new Error(`Unbekannter Dienst "${service}"`);
 	const fn = Object.prototype.hasOwnProperty.call(svc.api, method) ? svc.api[method] : null;
 	if (typeof fn !== 'function') throw new Error(`Dienst "${service}" hat keine Methode "${method}"`);
-	return fn(...(Array.isArray(args) ? args : []));
+	return fn.apply(caller, Array.isArray(args) ? args : []);
 }
 
 /** @param {import('electron').IpcMain} ipcMain */
 function register(ipcMain) {
-	ipcMain.handle(CHANNEL, (_event, service, method, args) => dispatch(service, method, args));
+	ipcMain.handle(CHANNEL, (event, service, method, args) => dispatch(service, method, args, { sender: event.sender }));
 }
 
-module.exports = { CHANNEL, register, addService, dispatch };
+/**
+ * Ein Ereignis vom Main-Prozess an den Renderer eines Fensters. Der Renderer
+ * hört mit `platform.on(name, fn)`.
+ */
+function send(win, name, payload) {
+	if (!win.isDestroyed()) win.webContents.send(EVENT_CHANNEL, name, payload);
+}
+
+module.exports = { CHANNEL, EVENT_CHANNEL, register, addService, dispatch, send };

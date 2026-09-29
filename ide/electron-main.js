@@ -3,6 +3,8 @@ const path = require('path');
 
 const bridge = require('./electron/bridge');
 const store = require('./electron/services/store');
+const host = require('./electron/services/host');
+const windowService = require('./electron/services/window');
 
 function createWindow() {
 	const win = new BrowserWindow({
@@ -25,6 +27,9 @@ function createWindow() {
 		}
 	});
 
+	// Schließen nur mit Zustimmung des Renderers (Rückfrage bei ungespeicherten Dateien)
+	windowService.installCloseGuard(win, bridge.send);
+
 	// Prüfen, ob wir im Dev-Modus sind (Vite Server läuft)
 	const isDev = process.env.NODE_ENV === 'development';
 
@@ -44,6 +49,7 @@ app.whenReady().then(() => {
 	Menu.setApplicationMenu(null);
 
 	store.setBaseDir(app.getPath('userData'));
+	host.setLaunchArgs(process.argv, app.isPackaged);
 	bridge.register(ipcMain);
 	createWindow();
 });
