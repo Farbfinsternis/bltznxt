@@ -1,7 +1,7 @@
 // Die Shell: Fenster-Aufbau, sonst nichts.
 //
 // Sie zeichnet, was die Erweiterungen beitragen — Menüleiste, Symbolleiste,
-// Tab-Leiste, Ansichten, unteres Panel, Statuszeile — und gibt Tastendrücke an
+// Seitenleiste, Tab-Leiste, Ansichten, unteres Panel, Statuszeile — und gibt Tastendrücke an
 // das Kürzel-Register weiter. Sie kennt keine einzelne Funktion der IDE. Wer
 // sie durch etwas anderes ersetzt (anderes Layout, natives Menü), ersetzt
 // diese Dateien und nichts vom Kern.
@@ -33,19 +33,48 @@ export function createShell({ root, app }) {
 	// ---- Gerüst -------------------------------------------------------------
 	const menubarEl = h('div', { class: 'menubar', role: 'menubar' });
 	const toolbarEl = h('div', { class: 'toolbar', role: 'toolbar' });
+	const sidebarEl = h('div', { class: 'sidebar', hidden: true });
+	const sashEl = h('div', { class: 'sash', role: 'separator', 'aria-orientation': 'vertical', hidden: true });
 	const tabsEl = h('div', { class: 'tabs', role: 'tablist' });
 	const editorArea = h('div', { class: 'editor-area' });
 	const panelTabsEl = h('div', { class: 'panel-tabs', role: 'tablist' });
 	const panelBodyEl = h('div', { class: 'panel-body' });
 	const panelEl = h('div', { class: 'panel', hidden: true }, panelTabsEl, panelBodyEl);
+	const mainEl = h('div', { class: 'main' }, tabsEl, editorArea, panelEl);
+	const bodyEl = h('div', { class: 'body' }, sidebarEl, sashEl, mainEl);
 	const statusLeft = h('div', { class: 'status-left' });
 	const statusRight = h('div', { class: 'status-right' });
 	const statusbarEl = h('div', { class: 'statusbar' }, statusLeft, statusRight);
 	const menuLayer = h('div', { class: 'menu-layer' });
 	const dialogLayer = h('div', { class: 'dialog-layer' });
 
-	const ide = h('div', { class: 'ide' }, menubarEl, toolbarEl, tabsEl, editorArea, panelEl, statusbarEl, menuLayer, dialogLayer);
+	const ide = h('div', { class: 'ide' }, menubarEl, toolbarEl, bodyEl, statusbarEl, menuLayer, dialogLayer);
 	root.replaceChildren(ide);
+
+	// ---- Seitenleiste: Breite ziehen und merken --------------------------------
+	const SIDEBAR_MIN = 140;
+	const SIDEBAR_MAX = 640;
+	const clampWidth = (w) => Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, Math.round(w)));
+	function setSidebarWidth(w) {
+		ide.style.setProperty('--sidebar-width', `${clampWidth(w)}px`);
+	}
+	setSidebarWidth(app.state.get('workbench.sidebarWidth', 240));
+
+	sashEl.addEventListener('mousedown', (down) => {
+		down.preventDefault();
+		const startX = down.clientX;
+		const startWidth = sidebarEl.getBoundingClientRect().width;
+		const onMove = (move) => setSidebarWidth(startWidth + move.clientX - startX);
+		const onUp = (up) => {
+			document.removeEventListener('mousemove', onMove);
+			document.removeEventListener('mouseup', onUp);
+			document.body.classList.remove('resizing');
+			app.state.set('workbench.sidebarWidth', clampWidth(startWidth + up.clientX - startX));
+		};
+		document.body.classList.add('resizing');
+		document.addEventListener('mousemove', onMove);
+		document.addEventListener('mouseup', onUp);
+	});
 
 	// ---- Dienste ------------------------------------------------------------
 	const dialogs = createDialogs({ root: dialogLayer, context });
@@ -191,6 +220,22 @@ export function createShell({ root, app }) {
 			entry.el.hidden = !context.evaluate(view.when);
 		}
 
+		// Seitenleiste: die Ansichten mit location 'sidebar', untereinander. Sie
+		// zeigt sich, wenn der Benutzer sie nicht ausgeblendet hat (Einstellung
+		// `workbench.showSidebar`, Vorgabe an) und mindestens eine Ansicht bereit ist.
+		const sidebarViews = views.filter((v) => v.location === 'sidebar').sort(byOrder);
+		let anySidebarView = false;
+		for (const view of sidebarViews) {
+			const entry = mountView(view, sidebarEl);
+			const show = context.evaluate(view.when);
+			entry.el.hidden = !show;
+			if (show) anySidebarView = true;
+		}
+		const showSidebar = anySidebarView && settings.get('workbench.showSidebar', true);
+		sidebarEl.hidden = !showSidebar;
+		sashEl.hidden = !showSidebar;
+		ide.dataset.sidebar = showSidebar ? 'on' : 'off';
+
 		const panelViews = views.filter((v) => v.location === 'panel').sort(byOrder);
 		const visible = panelViews.filter((v) => context.evaluate(v.when));
 		if (!visible.some((v) => v.id === activePanelView)) activePanelView = visible.length ? visible[0].id : null;
@@ -291,7 +336,7 @@ export function createShell({ root, app }) {
 	return {
 		dialogs,
 		/** Für Tests und Diagnose. */
-		elements: { ide, menubar: menubarEl, toolbar: toolbarEl, tabs: tabsEl, editorArea, panel: panelEl, statusbar: statusbarEl },
+		elements: { ide, menubar: menubarEl, toolbar: toolbarEl, sidebar: sidebarEl, tabs: tabsEl, editorArea, panel: panelEl, statusbar: statusbarEl },
 		render() {
 			renderAll();
 			menubar.render();

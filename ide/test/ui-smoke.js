@@ -24,10 +24,11 @@ const hostService = require('../electron/services/host');
 const windowService = require('../electron/services/window');
 
 // Die Datei-Dialoge des Systems würden blockieren: der Test beantwortet sie selbst.
-const dialogStub = { openAnswers: [], saveAnswers: [] };
+const dialogStub = { openAnswers: [], saveAnswers: [], folderAnswers: [] };
 dialogService.setImpl({
 	open: async () => dialogStub.openAnswers.shift() ?? null,
-	save: async () => dialogStub.saveAnswers.shift() ?? null
+	save: async () => dialogStub.saveAnswers.shift() ?? null,
+	folder: async () => dialogStub.folderAnswers.shift() ?? null
 });
 
 const DIST = path.join(__dirname, '..', 'dist', 'index.html');
@@ -114,7 +115,7 @@ async function scenarioNormal() {
 	const fileMenu = await js(win, `[...document.querySelectorAll('.menu-dropdown > .menu-item, .menu-dropdown > .menu-separator')].map((el) =>
 		el.classList.contains('menu-separator') ? '-' : el.querySelector('.menu-label').textContent + (el.querySelector('.menu-key').textContent ? ' [' + el.querySelector('.menu-key').textContent + ']' : '') + (el.classList.contains('disabled') ? ' (aus)' : ''))`);
 	check('Datei-Menü wie im Original angeordnet, gesperrt was nichts tun kann',
-		fileMenu.join('|') === 'New [Ctrl+N]|Open... [Ctrl+O]|-|Close [Ctrl+F4] (aus)|Close All (aus)|-|Save [Ctrl+S] (aus)|Save As... (aus)|Save All (aus)|-|Next File [Ctrl+Tab] (aus)|Previous File [Ctrl+Shift+Tab] (aus)|-|Exit',
+		fileMenu.join('|') === 'New [Ctrl+N]|Open... [Ctrl+O]|Open Folder...|-|Close [Ctrl+F4] (aus)|Close All (aus)|-|Save [Ctrl+S] (aus)|Save As... (aus)|Save All (aus)|-|Next File [Ctrl+Tab] (aus)|Previous File [Ctrl+Shift+Tab] (aus)|-|Exit',
 		fileMenu.join('|'));
 	await js(win, `document.body.click()`);
 
@@ -448,7 +449,7 @@ async function scenarioEditor() {
 	const editMenu = await js(win, `[...document.querySelectorAll('.menu-dropdown > .menu-item, .menu-dropdown > .menu-separator')].map((el) =>
 		el.classList.contains('menu-separator') ? '-' : el.querySelector('.menu-label').textContent + (el.querySelector('.menu-key').textContent ? ' [' + el.querySelector('.menu-key').textContent + ']' : '') + (el.classList.contains('disabled') ? ' (aus)' : ''))`);
 	check('Bearbeiten-Menü: Anordnung des Originals (Zwischenablage, Auswahl, Suchen, Leisten)',
-		editMenu.join('|') === 'Undo [Ctrl+Z]|Redo [Ctrl+Y]|-|Cut [Ctrl+X] (aus)|Copy [Ctrl+C] (aus)|Paste [Ctrl+V]|-|Select All [Ctrl+A]|-|Find... [Ctrl+F]|Find Next [F3]|Replace... [Ctrl+R]|Find Previous [Shift+F3]|-|Show Toolbars [Shift+Escape]',
+		editMenu.join('|') === 'Undo [Ctrl+Z]|Redo [Ctrl+Y]|-|Cut [Ctrl+X] (aus)|Copy [Ctrl+C] (aus)|Paste [Ctrl+V]|-|Select All [Ctrl+A]|-|Find... [Ctrl+F]|Find Next [F3]|Replace... [Ctrl+R]|Find Previous [Shift+F3]|-|Show Toolbars [Shift+Escape]|Show Sidebar [Ctrl+B]',
 		editMenu.join('|'));
 	await js(win, `document.body.click()`);
 
@@ -670,6 +671,106 @@ async function scenarioBuild() {
 	fs.rmSync(dir, { recursive: true, force: true });
 }
 
+async function scenarioSidebar() {
+	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bltznxt-ui-'));
+	const game = path.join(dir, 'spiel');
+	const other = path.join(dir, 'anders');
+	fs.mkdirSync(path.join(game, 'daten'), { recursive: true });
+	fs.mkdirSync(other);
+	fs.writeFileSync(path.join(game, 'haupt.bb'), 'Print 1\r\n');
+	fs.writeFileSync(path.join(game, 'karte.bb'), 'Print 2\r\n');
+	fs.writeFileSync(path.join(game, 'spiel.exe'), 'MZ');
+	fs.writeFileSync(path.join(game, 'SDL3.dll'), 'MZ');
+	fs.writeFileSync(path.join(game, 'haupt.bb_bak1'), 'alt');
+	fs.writeFileSync(path.join(game, 'daten', 'level.bb'), 'Print 3\r\n');
+	fs.writeFileSync(path.join(other, 'fremd.bb'), 'Print 4\r\n');
+	hostService.setLaunchArgs(['electron', 'app', path.join(game, 'haupt.bb')], false, dir);
+	const { win, errors, started } = await openWindow(dir);
+	check('Seitenleiste: IDE gestartet', started);
+	if (!started) return win.destroy();
+	await waitFor(win, `document.querySelector('.explorer-row') !== null`, 8000);
+
+	const rows = () => js(win, `[...document.querySelectorAll('.explorer-row')].map((r) => (r.classList.contains('dir') ? '/' : '') + r.querySelector('.explorer-name').textContent + (r.classList.contains('active') ? '*' : ''))`);
+	check('Seitenleiste sichtbar, zeigt den Ordner der geöffneten Datei',
+		await js(win, `!document.querySelector('.sidebar').hidden && document.querySelector('.explorer-title').textContent === 'spiel'`));
+	const first = await rows();
+	check('Liste: Ordner zuerst, Programme/DLLs/Sicherungskopien ausgeblendet, die aktive Datei markiert',
+		first.join() === '/daten,haupt.bb*,karte.bb', first.join());
+
+	// Klick auf eine Datei öffnet sie
+	await js(win, `[...document.querySelectorAll('.explorer-row')].find((r) => r.querySelector('.explorer-name').textContent === 'karte.bb').click()`);
+	await waitFor(win, `window.__ide.app.documents.active?.title === 'karte.bb'`, 3000);
+	check('Klick auf eine Datei öffnet sie in einem Tab und markiert sie',
+		await js(win, `document.querySelectorAll('.tab').length === 2`) && (await rows()).includes('karte.bb*'));
+
+	// Klick auf einen Ordner klappt ihn auf und zu
+	await js(win, `document.querySelector('.explorer-row.dir').click()`);
+	await waitFor(win, `document.querySelectorAll('.explorer-row').length === 4`, 3000);
+	const opened = await rows();
+	check('Klick auf einen Ordner klappt ihn auf (Inhalt eingerückt)', opened.join() === '/daten,level.bb,haupt.bb,karte.bb*', opened.join());
+	check('aufgeklappt: Pfeil nach unten, Level-Datei tiefer eingerückt',
+		await js(win, `document.querySelector('.explorer-row.dir').getAttribute('aria-expanded') === 'true' && document.querySelectorAll('.explorer-row')[1].getAttribute('aria-level') === '2'`));
+	await js(win, `document.querySelector('.explorer-row.dir').click()`);
+	check('zweiter Klick klappt zu', (await rows()).join() === '/daten,haupt.bb,karte.bb*');
+
+	// Eine Datei aus einem Unterordner öffnen: die Liste bleibt im Ordner
+	await js(win, `document.querySelector('.explorer-row.dir').click()`);
+	await waitFor(win, `document.querySelectorAll('.explorer-row').length === 4`, 3000);
+	await js(win, `[...document.querySelectorAll('.explorer-row')].find((r) => r.querySelector('.explorer-name').textContent === 'level.bb').click()`);
+	await waitFor(win, `window.__ide.app.documents.active?.title === 'level.bb'`, 3000);
+	check('Datei im Unterordner: die Liste bleibt beim Ordner spiel', await js(win, `document.querySelector('.explorer-title').textContent === 'spiel'`));
+
+	// Tastatur: Pfeile und Enter
+	await js(win, `document.querySelectorAll('.explorer-row')[2].focus()`);
+	await js(win, `document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }))`);
+	check('Pfeil nach unten bewegt den Fokus', await js(win, `document.activeElement.querySelector('.explorer-name').textContent === 'karte.bb'`));
+	await js(win, `document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))`);
+	await waitFor(win, `window.__ide.app.documents.active?.title === 'karte.bb'`, 3000);
+	check('Enter öffnet die Datei', await js(win, `window.__ide.app.documents.active.title === 'karte.bb'`));
+
+	// Ordner fest wählen
+	dialogStub.folderAnswers.push(other);
+	await js(win, `void window.__ide.app.run('explorer.openFolder'); 0`);
+	await waitFor(win, `document.querySelector('.explorer-title').textContent === 'anders'`, 3000);
+	check('Open Folder…: die Liste zeigt den gewählten Ordner, ein Pin-Knopf erscheint',
+		(await rows()).join() === 'fremd.bb' && await js(win, `document.querySelector('.explorer-button[data-command="explorer.followActive"]') !== null`));
+	await js(win, `document.querySelector('.explorer-button[data-command="explorer.followActive"]').click()`);
+	await waitFor(win, `document.querySelector('.explorer-title').textContent !== 'anders'`, 3000);
+	check('Pin lösen: die Liste folgt wieder der aktiven Datei', await js(win, `document.querySelector('.explorer-title').textContent === 'spiel'`));
+
+	// Neue Datei im Ordner erscheint nach dem Speichern
+	fs.writeFileSync(path.join(game, 'neu.bb'), 'Print 5\r\n');
+	await js(win, `window.__ide.app.documents.markSaved(window.__ide.app.documents.active.id)`);
+	check('Nach dem Speichern liest die Liste neu (neue Datei erscheint)',
+		await waitFor(win, `[...document.querySelectorAll('.explorer-name')].some((n) => n.textContent === 'neu.bb')`, 3000));
+
+	// Seitenleiste aus/an (Strg+B), Breite ziehen und merken
+	await js(win, `${edApi}.editor.focus()`);
+	await key(win, { key: 'b', ctrlKey: true });
+	await sleep(150);
+	check('Strg+B blendet die Seitenleiste aus', await js(win, `document.querySelector('.sidebar').hidden && document.querySelector('.ide').dataset.sidebar === 'off'`));
+	await key(win, { key: 'b', ctrlKey: true });
+	await sleep(150);
+	check('Strg+B blendet sie wieder ein', await js(win, `!document.querySelector('.sidebar').hidden`));
+
+	const before = await js(win, `document.querySelector('.sidebar').getBoundingClientRect().width`);
+	await js(win, `(() => {
+		const sash = document.querySelector('.sash');
+		const x = sash.getBoundingClientRect().left + 2;
+		sash.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, clientX: x, button: 0 }));
+		document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: x + 60 }));
+		document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: x + 60 }));
+	})()`);
+	await sleep(150);
+	const after = await js(win, `document.querySelector('.sidebar').getBoundingClientRect().width`);
+	check('Trenner ziehen ändert die Breite (und merkt sie sich)', Math.abs(after - before - 60) <= 2 && await js(win, `window.__ide.app.state.get('workbench.sidebarWidth') === ${Math.round(after)}`), `${before} -> ${after}`);
+
+	check('Keine Fehler auf der Konsole der Seite', errors.length === 0, errors.slice(0, 3).join(' || '));
+	win.destroy();
+	hostService.setLaunchArgs(['electron', 'app'], false, dir);
+	fs.rmSync(dir, { recursive: true, force: true });
+}
+
 async function scenarioCorruptSettings() {
 	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bltznxt-ui-'));
 	fs.writeFileSync(path.join(dir, 'settings.json'), '{ das ist kein json', 'utf8');
@@ -703,6 +804,7 @@ app.whenReady().then(async () => {
 		await scenarioLaunchFilesAndAbschalten();
 		await scenarioEditor();
 		await scenarioBuild();
+		await scenarioSidebar();
 		await scenarioCorruptSettings();
 	} catch (err) {
 		console.log('FAIL  Testlauf abgebrochen:', err && err.stack ? err.stack : err);

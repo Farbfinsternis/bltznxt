@@ -51,4 +51,19 @@ async function save(opts = {}) {
 	return result.canceled || !result.filePath ? null : result.filePath;
 }
 
-module.exports = { api: { open, save }, setImpl };
+/**
+ * Einen Ordner wählen.
+ * @param {{ title?: string, defaultPath?: string }} [opts]
+ * @returns {Promise<string | null>}
+ */
+async function folder(opts = {}) {
+	if (impl && impl.folder) return impl.folder(opts);
+	const result = await dialog.showOpenDialog(parentOf(this), {
+		title: opts.title,
+		defaultPath: opts.defaultPath || undefined,
+		properties: ['openDirectory']
+	});
+	return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0];
+}
+
+module.exports = { api: { open, save, folder }, setImpl };

@@ -333,6 +333,22 @@ namenlosem Tab, F7 mit Fehler → Marker/Cursor/Dialog/Ausgabe, Kommandozeile, S
 - Neu gegenüber P2: Symbolleiste komplett (Ausschneiden, Kopieren, Einfügen, Suchen, Starten), Dialog
   mit Eingabefeld (`dialogs.prompt`), Dienst `panel.show(id)`.
 
+### Seitenleiste mit den Dateien ✓ (2026-09-30, auf Wunsch eingeschoben)
+Die Original-IDE hat keine Dateiübersicht; der Plan führte sie unter „Danach“ als spätere
+Erweiterung. Nach dem Ausprobieren am Leuchtturm (acht Dateien, drei Ordner) vorgezogen.
+Erweiterung `explorer` (`ide/src/extensions/explorer/`), Ansichtsort `sidebar` in der Shell, Trenner
+zum Ziehen (Breite wird gemerkt), Strg+B blendet aus und ein.
+
+- **Kein Projekt, ein Ordner**: die Liste folgt der aktiven Datei — deren Ordner steht oben. Liegt die
+  Datei schon im gezeigten Ordner (ein Include im Unterordner), bleibt sie stehen; ein namenloser
+  Tab ändert nichts. „Open Folder…“ (Datei-Menü) wählt einen Ordner fest, der Pin-Knopf löst ihn.
+- Klick öffnet die Datei; Bilder, Klänge, Modelle im Standardprogramm (Dienst `shell`, nur für
+  Medienformate — ein Klick startet nie ein Programm). Pfeiltasten, Enter.
+- Ausgeblendet (`explorer.hide`): `*.exe`, `*.dll`, `*.bb_bak*`, `.git`, `__pycache__` u.a.
+- Aktualisiert beim Speichern, nach einem Bau, beim Zurückkehren ins Fenster und auf Befehl — ohne
+  Dateiwächter. Aufgeklappte Ordner werden gemerkt.
+- Noch nicht: Neue Datei/Ordner, Umbenennen, Löschen, Kontextmenü, Ziehen und Ablegen.
+
 ### P4 — Hilfe
 HTML-Tab mit Start/Zurück/Vor (Strg+H), F1-Schnellhilfe (Signatur in der Statuszeile), zweites F1
 öffnet die Befehlsseite, Link auf `.bb` öffnet im Editor. Ort der Hilfe einstellbar (Original:

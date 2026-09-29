@@ -34,6 +34,30 @@ async function write(p, bytes) {
 	return full;
 }
 
+/**
+ * Der Inhalt eines Ordners: Name und ob es ein Ordner ist. Unsortiert und
+ * ungefiltert — was angezeigt wird, entscheidet die Seitenleiste.
+ * @returns {Promise<Array<{ name: string, dir: boolean }>>}
+ */
+async function list(p) {
+	const full = resolve(p);
+	const entries = await fs.promises.readdir(full, { withFileTypes: true });
+	const out = [];
+	for (const e of entries) {
+		let dir = e.isDirectory();
+		// Verknüpfungen: das Ziel entscheidet; ein kaputtes Ziel ist eine Datei
+		if (e.isSymbolicLink()) {
+			try {
+				dir = (await fs.promises.stat(path.join(full, e.name))).isDirectory();
+			} catch {
+				dir = false;
+			}
+		}
+		out.push({ name: e.name, dir });
+	}
+	return out;
+}
+
 async function exists(p) {
 	try {
 		await fs.promises.access(resolve(p));
@@ -145,7 +169,7 @@ async function cleanScratch({ own = false } = {}) {
 }
 
 module.exports = {
-	api: { resolve: async (p) => resolve(p), read, write, exists, backup, scratchFile },
+	api: { resolve: async (p) => resolve(p), read, write, exists, list, backup, scratchFile },
 	cleanScratch,
 	scratchRoot
 };

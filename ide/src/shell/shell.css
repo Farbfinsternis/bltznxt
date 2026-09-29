@@ -256,6 +256,63 @@ button {
 	color: var(--fg);
 }
 
+/* ---- Rumpf: Seitenleiste | Hauptbereich ------------------------------------------ */
+
+.body {
+	display: flex;
+	flex: 1;
+	min-height: 0;
+}
+
+.main {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-width: 0;
+}
+
+.sidebar {
+	box-sizing: border-box; /* die Breite schließt den Rand ein, sonst wächst sie bei jedem Ziehen um einen Pixel */
+	position: relative;
+	flex: none;
+	width: var(--sidebar-width, 240px);
+	display: flex;
+	flex-direction: column;
+	background: var(--bg-alt);
+	overflow: hidden;
+}
+
+.sidebar .view {
+	position: relative;
+	inset: auto;
+	flex: 1;
+	min-height: 0;
+}
+
+.sash {
+	flex: none;
+	width: 4px;
+	margin-left: -2px;
+	margin-right: -2px;
+	z-index: 5;
+	cursor: col-resize;
+	background: transparent;
+}
+
+.sash:hover,
+body.resizing .sash {
+	background: var(--accent);
+}
+
+body.resizing {
+	cursor: col-resize;
+	user-select: none;
+}
+
+.sidebar {
+	border-right: 1px solid var(--border);
+}
+
 /* ---- Arbeitsfläche ----------------------------------------------------------- */
 
 .editor-area {
@@ -424,6 +481,134 @@ button {
 
 .welcome-title {
 	font-size: 18px;
+}
+
+/* ---- Dateiliste (Erweiterung "explorer") ------------------------------------------------ */
+
+.explorer {
+	display: flex;
+	flex-direction: column;
+}
+
+.explorer-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	flex: none;
+	padding: 4px 6px 4px 10px;
+	text-transform: uppercase;
+	font-size: 11px;
+	letter-spacing: 0.04em;
+	color: var(--fg-dim);
+}
+
+.explorer-title {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.explorer-buttons {
+	display: flex;
+	flex: none;
+}
+
+.explorer-button {
+	background: none;
+	border: 0;
+	border-radius: 3px;
+	width: 22px;
+	height: 22px;
+	padding: 0;
+	color: var(--fg-dim);
+}
+
+.explorer-button:hover:not(:disabled) {
+	background: var(--bg-hover);
+	color: var(--fg);
+}
+
+.explorer-button:disabled {
+	color: var(--fg-disabled);
+}
+
+.explorer-button svg,
+.explorer-icon svg {
+	width: 14px;
+	height: 14px;
+	fill: currentColor;
+	vertical-align: middle;
+}
+
+.explorer-tree {
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
+	padding-bottom: 8px;
+}
+
+.explorer-row {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding-right: 8px;
+	height: 22px;
+	cursor: default;
+	white-space: nowrap;
+	user-select: none;
+	outline: none;
+}
+
+.explorer-row:hover {
+	background: var(--bg-hover);
+}
+
+.explorer-row:focus {
+	background: var(--bg-hover);
+	box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.explorer-row.active {
+	background: var(--bg-active);
+	color: var(--accent-fg);
+}
+
+.explorer-chevron {
+	width: 10px;
+	flex: none;
+	font-size: 10px;
+	color: var(--fg-dim);
+	text-align: center;
+}
+
+.explorer-icon {
+	flex: none;
+	color: var(--fg-dim);
+}
+
+.explorer-row.dir .explorer-icon {
+	color: #dcb67a;
+}
+
+.explorer-row.source .explorer-icon {
+	color: var(--accent);
+}
+
+.explorer-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.explorer-note {
+	padding: 2px 12px;
+	color: var(--fg-dim);
+	font-style: italic;
+}
+
+.explorer-empty {
+	padding: 12px;
+	color: var(--fg-dim);
+	white-space: pre-wrap;
 }
 
 /* ---- Ausgabe (Erweiterung "build-run") --------------------------------------------- */

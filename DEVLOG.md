@@ -1,5 +1,20 @@
 # BlitzNext Developer Log
 
+## 2026-09-30 — The BLTZNXT IDE gets a file sidebar
+
+The original Blitz3D IDE has no file tree, and the IDE plan listed one only as a later extension.
+Working on the lighthouse game (eight sources, three folders) showed it was needed. The sidebar
+shows a folder, not a project — a Blitz3D program has no project file, it is bound to the folder of
+its source. Without a choice, the list follows the active file: its folder is on top, and it stays
+put when you open an include from a subfolder. *File > Open Folder…* pins a folder; the pin button
+next to it lets go. Clicking a file opens it, media files open in the system's default program
+(never anything executable), programs, DLLs, backups and `__pycache__` are hidden (`explorer.hide`),
+and the list refreshes on save, after a build and when the window regains focus. Ctrl+B hides the
+sidebar, the divider can be dragged and the width is remembered.
+
+A test found a real slip on the way: folders that were restored as expanded from the saved state were
+never loaded, only the root.
+
 ## 2026-09-30 — Progress while building (IDE and compiler)
 
 Trying the IDE on the lighthouse game showed that nothing seemed to happen while it built: the

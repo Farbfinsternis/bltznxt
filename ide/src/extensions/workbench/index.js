@@ -22,6 +22,7 @@ export default {
 			'menu.help': 'Help',
 
 			'workbench.toggleToolbars': 'Show Toolbars',
+			'workbench.toggleSidebar': 'Show Sidebar',
 			'help.about': 'About BLTZNXT',
 			'help.about.title': 'About BLTZNXT IDE',
 			'help.about.text': 'BLTZNXT IDE {version}\nCompiler: {compiler}',
@@ -40,6 +41,11 @@ export default {
 
 	contributes: (ctx) => ({
 		settings: {
+			'workbench.showSidebar': {
+				type: 'boolean',
+				default: true,
+				description: 'Show the sidebar (file tree).'
+			},
 			'workbench.showToolbars': {
 				type: 'boolean',
 				default: true,
@@ -58,6 +64,11 @@ export default {
 		},
 
 		commands: [
+			{
+				id: 'workbench.toggleSidebar',
+				title: 'workbench.toggleSidebar',
+				run: () => ctx.settings.set('workbench.showSidebar', !ctx.settings.get('workbench.showSidebar'))
+			},
 			{
 				id: 'workbench.toggleToolbars',
 				title: 'workbench.toggleToolbars',
@@ -92,11 +103,15 @@ export default {
 		],
 
 		menus: [
-			{ menu: 'edit', command: 'workbench.toggleToolbars', group: '9_view', checkedWhen: 'workbench.toolbarsVisible' },
+			{ menu: 'edit', command: 'workbench.toggleToolbars', group: '9_view', order: 1, checkedWhen: 'workbench.toolbarsVisible' },
+			{ menu: 'edit', command: 'workbench.toggleSidebar', group: '9_view', order: 2, checkedWhen: 'workbench.sidebarVisible' },
 			{ menu: 'help', command: 'help.about', group: '9_about' }
 		],
 
-		keybindings: [{ command: 'workbench.toggleToolbars', key: 'Shift+Escape' }]
+		keybindings: [
+			{ command: 'workbench.toggleToolbars', key: 'Shift+Escape' },
+			{ command: 'workbench.toggleSidebar', key: 'Ctrl+B' }
+		]
 	}),
 
 	activate(ctx) {
@@ -121,10 +136,13 @@ export default {
 		};
 
 		const syncToolbars = () => context.set('workbench.toolbarsVisible', settings.get('workbench.showToolbars'));
+		const syncSidebar = () => context.set('workbench.sidebarVisible', settings.get('workbench.showSidebar'));
 		syncToolbars();
+		syncSidebar();
 		ctx.subscriptions.add(
 			settings.onDidChange((e) => {
 				if (e.key === 'workbench.showToolbars') syncToolbars();
+				if (e.key === 'workbench.showSidebar') syncSidebar();
 				if (e.key === 'workbench.language') i18n.setLanguage(e.value);
 				if (e.key === 'workbench.theme') applyUiTheme();
 			})

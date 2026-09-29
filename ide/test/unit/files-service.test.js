@@ -32,6 +32,19 @@ test('files: lesen einer fehlenden Datei wirft mit Code, exists sagt nein', asyn
 	fs.rmSync(dir, { recursive: true });
 });
 
+test('files: list liefert Namen und Ordnerkennung, unsortiert und ungefiltert; ein fehlender Ordner wirft', async () => {
+	const dir = tmp();
+	fs.mkdirSync(path.join(dir, 'unter'));
+	fs.writeFileSync(path.join(dir, 'a.bb'), 'x');
+	fs.writeFileSync(path.join(dir, 'b.exe'), 'x');
+	const entries = await api.list(dir);
+	const byName = Object.fromEntries(entries.map((e) => [e.name, e.dir]));
+	assert.deepEqual(byName, { unter: true, 'a.bb': false, 'b.exe': false });
+	await assert.rejects(() => api.list(path.join(dir, 'gibt-es-nicht')), { code: 'ENOENT' });
+	await assert.rejects(() => api.list(path.join(dir, 'a.bb')), { code: 'ENOTDIR' });
+	fs.rmSync(dir, { recursive: true });
+});
+
 test('files: Sicherungskopien rotieren wie im Original (_bak1, _bak2)', async () => {
 	const dir = tmp();
 	const file = path.join(dir, 'a.bb');

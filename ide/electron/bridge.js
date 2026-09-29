@@ -24,7 +24,8 @@ const services = {
 	dialog: require('./services/dialog'),
 	host: require('./services/host'),
 	window: require('./services/window'),
-	build: require('./services/build')
+	build: require('./services/build'),
+	shell: require('./services/shell')
 };
 
 /** Dienste, die nach dem Start weitere aufnehmen wollen (Erweiterungen im Main-Prozess, später). */
