@@ -24,7 +24,7 @@ const EXE = process.platform === 'win32' ? 'blitzcc.exe' : 'blitzcc';
 // Compiler finden
 // ---------------------------------------------------------------------------
 //
-// Reihenfolge: eingestellter Pfad -> BLITZPATH -> PATH -> Entwickler-Fallback.
+// Reihenfolge: eingestellter Pfad -> mitgelieferter Compiler (bin\ neben ide\) -> BLITZPATH -> PATH -> Entwickler-Fallback.
 //
 // Der Fallback auf ../bin/ ist reine Bequemlichkeit für das Monorepo und darf
 // nie Voraussetzung sein: die IDE muss gegen eine beliebig installierte
@@ -57,6 +57,15 @@ function devFallback() {
 	return isExecutable(candidate) ? candidate : null;
 }
 
+// Im Paket (ZIP) liegt die IDE unter `ide\` und der Compiler daneben unter
+// `bin\`: <Paket>\ide\BLTZNXT IDE.exe, <Paket>\bin\blitzcc.exe. Das gemeinsam
+// ausgelieferte Werkzeug gewinnt vor BLITZPATH — wer Blitz3D installiert hat,
+// hat BLITZPATH oft auf den *originalen* blitzcc gesetzt.
+function bundledCompiler() {
+	const candidate = path.resolve(path.dirname(process.execPath), '..', 'bin', EXE);
+	return isExecutable(candidate) ? candidate : null;
+}
+
 function resolveCompiler(configured) {
 	if (configured) {
 		return {
@@ -65,6 +74,9 @@ function resolveCompiler(configured) {
 			available: isExecutable(configured)
 		};
 	}
+
+	const bundled = bundledCompiler();
+	if (bundled) return { path: bundled, source: 'bundled', available: true };
 
 	const bp = process.env.BLITZPATH;
 	if (bp) {
@@ -127,7 +139,7 @@ async function getInfo({ compilerPath } = {}) {
 		return { ...found, version: null };
 	}
 
-	// -v gibt "BlitzNext v0.6.0" aus.
+	// -v gibt "BlitzNext vX.Y.Z" aus.
 	const res = await runCompiler(found.path, ['-v'], path.dirname(found.path));
 	const m = /v?(\d+\.\d+\.\d+)/.exec(res.stdout);
 	return { ...found, version: m ? m[1] : null };

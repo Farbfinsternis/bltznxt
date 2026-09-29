@@ -1,12 +1,12 @@
 <p align="center">
-  <img src="logo.webp" alt="BLTZNXT 0.6.0" width="720">
+  <img src="logo.webp" alt="BLTZNXT 0.6.2" width="720">
 </p>
 
 # BlitzNext
 
 **BlitzNext** is the successor to Blitz3D: a modern compiler that turns Blitz3D (`.bb`) source files into native Windows executables via a C++17 transpilation pipeline, using a bundled MinGW toolchain and SDL3 for audio and graphics. It aims to do everything the original could — and to run the programs written for it, unchanged.
 
-> **Status: active development — v0.6.0.** BlitzNext compiles and runs the unmodified game **blox-n-balls**, and it can be used to make new games: [Leuchtturm](samples/leuchtturm/), a small Quake III style arena shooter, is an ordinary Blitz3D program that loads its models as glTF from Blender and plays its sounds in 3D. The runtime now includes keyframe and skeletal animation, glTF, 3D sound and planes; full gameplay compatibility of old programs is still being verified.
+> **Status: active development — v0.6.2, "Birth of IDE".** BlitzNext now has its own IDE, and there is a self-contained Windows package to try it: [download the ZIP from the latest release](https://github.com/Farbfinsternis/bltznxt/releases/latest), unpack it, double-click `BLTZNXT IDE.bat`. BlitzNext compiles and runs the unmodified game **blox-n-balls**, and it can be used to make new games: [Leuchtturm](samples/leuchtturm/), a small Quake III style arena shooter, is an ordinary Blitz3D program that loads its models as glTF from Blender and plays its sounds in 3D. The runtime includes keyframe and skeletal animation, glTF, 3D sound and planes; full gameplay compatibility of old programs is still being verified.
 > **[KNOWN_ISSUES.md](KNOWN_ISSUES.md) lists everything that does not yet behave like Blitz3D** — please check it before reporting a bug.
 > See [roadmap.md](roadmap.md) and [ROADMAP3D.md](ROADMAP3D.md) for the milestones and [DEVLOG.md](DEVLOG.md) for the changelog.
 
@@ -99,11 +99,17 @@ demos/games must cover those gaps.
 
 ## Getting Started
 
-### Requirements
+### The easy way: the release package
+
+Download `bltznxt-v0.6.2-win64.zip` from the [releases page](https://github.com/Farbfinsternis/bltznxt/releases), unpack it anywhere and double-click `BLTZNXT IDE.bat`. Compiler, IDE, C++ toolchain and SDL3 are all inside — nothing to install. Then *File > Open Folder…* → `samples\leuchtturm`, open `leuchtturm.bb`, press **F5**. (Windows may warn about an unsigned program the first time: *More info > Run anyway*.) See [The BLTZNXT IDE](#the-bltznxt-ide).
+
+### From source
+
+#### Requirements
 - Windows 10/11
 - `curl` and `tar` (built into modern Windows)
 
-### Setup
+#### Setup
 ```bat
 git clone https://github.com/Farbfinsternis/bltznxt
 cd bltznxt
@@ -112,7 +118,7 @@ build_windows.bat
 
 `build_windows.bat` downloads the MinGW toolchain and SDL3, then builds `bin\blitzcc.exe`. No manual dependency installation required.
 
-### Your first program
+#### Your first program
 
 Create `hello.bb`:
 ```blitz3d
@@ -262,6 +268,37 @@ Environment:
 
 ---
 
+## The BLTZNXT IDE
+
+BlitzNext comes with its own IDE (`ide/`, an Electron application with the Monaco editor). Its first
+goal is the same as the compiler's: do what the original Blitz3D IDE does — same menus, same keys —
+and then go a little further. It is built from a small core and extensions; the plan and its
+reasons are in [ide/PLAN.md](ide/PLAN.md).
+
+| | |
+|---|---|
+| **F5** / **F6** / **F7** | Run program / run again / check for errors |
+| **Shift+F5** | Stop the program |
+| **Program > Create Executable…** | Build a standalone `.exe` |
+| **Ctrl+N** / **Ctrl+O** / **Ctrl+S** | New (untitled tabs run without saving) / open / save |
+| **Ctrl+B** | Show/hide the file sidebar; *File > Open Folder…* chooses its folder |
+| **Ctrl+F** / **F3** / **Ctrl+R** | Find / find next / replace |
+
+- **Editing** as in the original: the seven colours (theme "Blitz3D Classic" by default, Dark and Light
+  included), keywords corrected to their spelling as you type, tab/shift-tab indent, the funcs / types /
+  labels lists under the editor.
+- **Building**: the Output tab shows what the compiler does phase by phase with the elapsed time;
+  an error opens the file at the place, marks it in the editor and adds a clickable line.
+- **Files**: byte-exact for old programs — Windows-1252 and CRLF files come out as they went in, and
+  a file you did not change is never rewritten; `file.bb_bak1`, `_bak2` backups like the original.
+- **Not there yet**: a help browser (F1) and a debugger.
+
+From a checkout: `cd ide`, `npm install`, `npm run build`, `npm start` (it finds `../bin/blitzcc.exe`).
+Tests: `npm run test:all` (unit tests, the compiler protocol against the real `blitzcc`, and the UI in
+a real window). The release package is built by `py scripts/package_release.py --verify`.
+
+---
+
 ## Using the Blitz3D IDE
 
 The original Blitz3D IDE can use BLTZNXT instead of its own compiler. `blitzcc` answers the
@@ -313,8 +350,9 @@ arguments in, stdout/stderr and an exit code out. Concretely:
 
 - The IDE never includes, links against, or reads anything under `src/compiler/`.
 - The IDE never hard-codes a path to `bin/blitzcc.exe`. The compiler location is
-  configuration, resolved in this order: IDE setting → `BLITZPATH` → `PATH` →
-  optionally `../bin/blitzcc.exe` as a developer convenience. The IDE runs against
+  configuration, resolved in this order: IDE setting → the `blitzcc` shipped next to the
+  IDE (`../bin`, in the release package) → `BLITZPATH` → `PATH` → optionally
+  `../bin/blitzcc.exe` as a developer convenience. The IDE runs against
   any installed BlitzNext, and starts fine with no compiler present at all.
 - The IDE never freezes the built-in command list into its own source. It calls
   `blitzcc +k` at runtime, so autocomplete stays correct against a compiler that is
@@ -547,7 +585,9 @@ BlitzNext bundles the following open-source libraries. Their source files are in
 | [stb_image_write](https://github.com/nothings/stb) | Sean Barrett | Public Domain | Image saving (PNG, BMP, TGA) |
 | [stb_vorbis](https://github.com/nothings/stb) | Sean Barrett | Public Domain / MIT | OGG Vorbis audio decoding |
 | [dr_mp3](https://github.com/mackron/dr_libs) | David Reid | Public Domain / MIT-0 | MP3 audio decoding |
-| [MinGW-w64](https://www.mingw-w64.org) | Various | GCC Runtime Exception + LGPL | C++ toolchain (bundled, downloaded at build time) |
+| [MinGW-w64](https://www.mingw-w64.org) | Various | GCC Runtime Exception + LGPL | C++ toolchain (bundled, downloaded at build time; a reduced copy is in the release package) |
+| [Electron](https://www.electronjs.org) | OpenJS Foundation & contributors | MIT (Chromium: see `LICENSES.chromium.html`) | The IDE's application shell (release package) |
+| [Monaco Editor](https://github.com/microsoft/monaco-editor) | Microsoft | MIT | The IDE's code editor |
 
 The SDL3 and SDL3_ttf zlib licenses require that the license text is preserved in source and binary distributions and that the libraries are not misrepresented as original work. The stb libraries and dr_mp3 are public domain — no attribution is legally required, though it is given here as a matter of courtesy.
 

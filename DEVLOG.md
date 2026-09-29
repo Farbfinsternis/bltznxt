@@ -1,5 +1,26 @@
 # BlitzNext Developer Log
 
+## 2026-09-30 — v0.6.2 "Birth of IDE"
+
+Since v0.6.0 (the individual entries follow below):
+
+- **The BLTZNXT IDE** (`ide/`): a core with extensions (commands, menus, key bindings, settings,
+  documents) and everything the original Blitz3D IDE does — File menu with recent files, backups
+  `_bak1`/`_bak2` and byte-exact saving of Windows-1252 files; the editor with the original's seven
+  colours, keyword spelling, the funcs/types/labels lists, find/replace; the Program menu
+  (F5 run, F6 run again, F7 check, create executable, command line, stop) with errors marked in the
+  editor and a live Output tab. New: a file sidebar. Not yet: help browser, debugger. Plan and
+  reasons: `ide/PLAN.md`.
+- **A self-contained Windows package** (`scripts/package_release.py`): compiler, IDE, a reduced
+  MinGW toolchain, SDL3 and the Leuchtturm sources in one ZIP; nothing to install. The script
+  verifies the package in a clean environment (compiles and runs programs, builds the game) and
+  the packaged IDE was driven through the DevTools protocol (finds its compiler, F7, F5).
+- **The Blitz3D IDE can use BLTZNXT as its compiler** (0.6.1 work): `blitzcc` speaks the original
+  IDE's protocol; BUG-188 (text before `Graphics` without a console) fixed.
+- **`blitzcc` reports progress in IDE mode** (`Parsing...`, `Checking...`, `Generating C++...`,
+  `Compiling C++...`), which the original IDE turns into its progress bar.
+- Versions: `blitzcc -v` and the IDE now both report 0.6.2.
+
 ## 2026-09-30 — The BLTZNXT IDE gets a file sidebar
 
 The original Blitz3D IDE has no file tree, and the IDE plan listed one only as a later extension.
