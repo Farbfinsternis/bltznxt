@@ -1,5 +1,16 @@
 # BlitzNext Developer Log
 
+## 2026-09-30 — Progress while building (IDE and compiler)
+
+Trying the IDE on the lighthouse game showed that nothing seemed to happen while it built: the
+Outline tab stayed in front, and `blitzcc` in IDE mode printed a single line ("Compiling...")
+although nearly all of the time goes into the g++ run. Now `blitzcc` reports each phase in IDE mode —
+`Parsing...`, `Checking...`, `Generating C++...`, `Compiling C++...` — as lines ending in `...`,
+which the original Blitz3D IDE turns into steps of its progress bar (it has five). The BLTZNXT IDE
+brings the Output tab to the front when a build starts, shows "Building <file>" at once, the
+compiler's phases as they come, the elapsed seconds in the status bar (`Compiling C++... (12 s)`),
+and "Built in 12.3 s." before "Executing...".
+
 ## 2026-09-30 — The BLTZNXT IDE builds and runs programs (plan P3)
 
 Write, press F5, play: the IDE now has the Program menu of the original Blitz3D IDE — Run program

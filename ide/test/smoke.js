@@ -101,6 +101,11 @@ function check(label, ok, detail) {
 	check('build run: Fortschritt, "Executing", Ende 0 (blitzcc wartet auf das Programm)',
 		/^progress(,progress)*,running,exit$/.test(types(ran)) && ran.at(-1).code === 0, types(ran));
 
+	const phases = ran.filter((e) => e.type === 'progress').map((e) => e.text);
+	check('build run: Fortschritt je Phase des Compilers (Parsing, Checking, Generating C++, Compiling C++)',
+		JSON.stringify(phases) === JSON.stringify(['Compiling...', 'Parsing...', 'Checking...', 'Generating C++...', 'Compiling C++...']),
+		phases.join(' | '));
+
 	const exeBefore = fs.existsSync(path.join(FIXTURES, 'run-end.exe'));
 	check('build run: neben der Quelle bleibt nichts liegen', !exeBefore);
 

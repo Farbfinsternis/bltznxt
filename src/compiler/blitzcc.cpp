@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <regex>
 #include <sstream>
@@ -44,6 +45,9 @@ struct Config {
   // `blitzide` (blitzide/mainframe.cpp). Dann antwortet blitzcc so, wie die
   // IDE es vom Original-Compiler erwartet - siehe transpileIde.
   bool        ide         = false;
+  // Meldet den Fortschritt (mit IDE: eine Zeile auf "..." je Phase, an der die
+  // IDE ihren Balken fuellt bzw. ihre Ausgabe zeigt). Ohne IDE nicht gesetzt.
+  std::function<void(const std::string &)> progress;
   std::string outputName;
   std::string inputPath;
   std::vector<std::string> progArgs;   // mit IDE: alles nach der Quelldatei
@@ -625,7 +629,10 @@ public:
     cfg.debug = false;
     g_noConsole_ = true;
 
-    if (!cfg.veryQuiet) ide << "Compiling..." << std::endl;
+    if (!cfg.veryQuiet) {
+      ide << "Compiling..." << std::endl;
+      cfg.progress = [&ide](const std::string &phase) { ide << phase << std::endl; };
+    }
     const int rc = transpile(cfg);
     std::cout.rdbuf(oldOut);
     std::cerr.rdbuf(oldErr);
@@ -690,7 +697,11 @@ public:
       std::cout << "Building: " << cfg.inputPath << " -> " << output
                 << ".exe\n";
 
+    // Fortschritt je Phase; der g++-Lauf ist die lange
+    auto step = [&cfg](const char *phase) { if (cfg.progress) cfg.progress(phase); };
+
     // Preprocess
+    step("Parsing...");
     std::vector<std::string> included;
     Preprocessor preproc;
     SourceMap    srcMap;
@@ -713,6 +724,7 @@ public:
     if (parser.hasErrors()) return 1;
 
     // Semantic check: unknown function/command names (WEAK-03 Stufe 1)
+    step("Checking...");
     Analyzer analyzer;
     int semanticErrors = checkCalls(ast.get(), srcMap) +
                          checkGosubScope(ast->nodes, srcMap) +
@@ -720,6 +732,7 @@ public:
     if (semanticErrors > 0) return 1;
 
     // Emit C++17
+    step("Generating C++...");
     Emitter emitter;
     emitter.emit(ast.get(), output);
 
@@ -731,6 +744,7 @@ public:
     }
 
     // Compile with MinGW
+    step("Compiling C++...");
     if (compile(output + ".cpp", output, cfg.debug)) {
       if (!cfg.quiet)
         std::cout << "Success: " << output << ".exe created.\n";

@@ -562,7 +562,10 @@ async function scenarioBuild() {
 	check('F5: Programm beendet, nichts mehr in Arbeit',
 		await waitFor(win, `window.__ide.app.context.get('program.running') === false && window.__ide.app.context.get('build.compiling') === false`, 20000));
 	const lines = await outputLines();
-	check('Ausgabe: erst Compiling, dann Executing', lines[0] === 'Compiling...' && lines.includes('Executing...'), lines.join(' | '));
+	check('Ausgabe: Building, die Phasen des Compilers, Built in ... s, Executing',
+		lines[0] === 'Building hallo.bb' && lines.includes('Compiling C++...') && lines.some((l) => /^Built in \d+\.\d s\.$/.test(l)) && lines.at(-1) === 'Executing...',
+		lines.join(' | '));
+	check('Der Ausgabe-Reiter war beim Bauen vorn', await js(win, `document.querySelector('.panel-tab.active').textContent === 'Output'`));
 	check('Neben der Quelle bleibt nichts liegen', !fs.existsSync(path.join(dir, 'hallo.exe')) && fs.readdirSync(dir).filter((n) => !n.endsWith('.json')).sort().join() === 'hallo.bb,kaputt.bb,lang.bb', fs.readdirSync(dir).sort().join());
 	check('F6 ist jetzt frei (es gibt etwas Gebautes)', await js(win, `window.__ide.app.commands.isEnabled('program.rerun')`));
 

@@ -47,7 +47,12 @@ export default {
 			'program.commandLine.label': 'Program command line:',
 			'program.publish.title': 'Select executable filename',
 			'output.title': 'Output',
+			'build.start.run': 'Building {name}',
+			'build.start.check': 'Checking {name}',
+			'build.start.publish': 'Creating executable from {name}',
 			'build.status.compiling': 'Compiling...',
+			'build.status.elapsed': '{phase} ({seconds} s)',
+			'build.done.built': 'Built in {seconds} s.',
 			'build.status.running': 'Program running',
 			'build.error.title': 'Compilation error',
 			'build.failed.title': 'Cannot build',
@@ -246,7 +251,8 @@ function createController(ctx) {
 		switch (ev.type) {
 			case 'progress':
 				addLine({ kind: 'info', text: ev.text });
-				status(ev.text);
+				session.phase = ev.text;
+				showPhase(session);
 				break;
 
 			case 'error':
@@ -255,6 +261,7 @@ function createController(ctx) {
 				break;
 
 			case 'running':
+				addLine({ kind: 'info', text: t('build.done.built', { seconds: seconds(session) }) });
 				addLine({ kind: 'info', text: 'Executing...' });
 				session.running = true;
 				programs++;
@@ -285,6 +292,7 @@ function createController(ctx) {
 				if (session.running) programs = Math.max(0, programs - 1);
 				const ok = !session.failed && ev.code === 0;
 				if (ok && session.mode === 'check') addLine({ kind: 'info', text: t('build.done.check') });
+				else if (ok && session.mode === 'publish') addLine({ kind: 'info', text: t('build.done.built', { seconds: seconds(session) }) });
 				else if (!ok && !session.failed && !session.stopped) addLine({ kind: 'error', text: t('build.done.exit', { code: ev.code }) });
 				if (session.stopped) addLine({ kind: 'info', text: t('build.done.stopped') });
 				// Der Text der Statuszeile gilt nur für das jüngste, noch laufende Programm
@@ -300,7 +308,22 @@ function createController(ctx) {
 		if (session.compiling) {
 			session.compiling = false;
 			compiling = Math.max(0, compiling - 1);
+			if (session.timer) clearInterval(session.timer);
+			session.timer = null;
 		}
+	}
+
+	/** Sekunden seit dem Start, eine Nachkommastelle. */
+	const seconds = (session) => ((Date.now() - session.startedAt) / 1000).toFixed(1);
+
+	/**
+	 * Statuszeile: die jetzige Phase, dazu die verstrichene Zeit. Der g++-Lauf
+	 * gibt sonst lange kein Lebenszeichen von sich.
+	 */
+	function showPhase(session) {
+		const elapsed = Math.floor((Date.now() - session.startedAt) / 1000);
+		const phase = session.phase || t('build.status.compiling');
+		status(elapsed >= 1 ? t('build.status.elapsed', { phase, seconds: elapsed }) : phase);
 	}
 
 	function finished(session, ok) {
@@ -337,10 +360,19 @@ function createController(ctx) {
 
 		clearOutput();
 		ctx.services.tryGet('editor')?.clearDiagnostics(OWNER);
-		status(t('build.status.compiling'));
 
 		const token = `b${Date.now().toString(36)}${++counter}`;
-		const session = { token, mode, doc, file, scratchFile, compiling: true, running: false, failed: false, stopped: false };
+		const session = {
+			token, mode, doc, file, scratchFile,
+			compiling: true, running: false, failed: false, stopped: false,
+			startedAt: Date.now(), phase: '', timer: null
+		};
+		// Die Ausgabe zeigt vom ersten Augenblick an, was passiert
+		addLine({ kind: 'info', text: t(`build.start.${mode}`, { name: doc.uri ? basename(doc.uri) : doc.title }) });
+		ctx.services.tryGet('panel')?.show('output');
+		showPhase(session);
+		session.timer = setInterval(() => showPhase(session), 1000);
+		if (typeof session.timer.unref === 'function') session.timer.unref(); // hält unter Node (Tests) den Prozess nicht fest
 		sessions.set(token, session);
 		compiling++;
 		syncContext();
@@ -429,7 +461,10 @@ function createController(ctx) {
 
 	return {
 		start,
-		dispose: () => offEvents(),
+		dispose: () => {
+			offEvents();
+			for (const session of sessions.values()) if (session.timer) clearInterval(session.timer);
+		},
 		build,
 		rerun,
 		editCommandLine,

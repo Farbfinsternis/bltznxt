@@ -219,7 +219,12 @@ test('build-run: Fortschritt, Executing, Ende — Kontext und Statuszeile folgen
 	await settle();
 	assert.equal(w.app.context.get('program.running'), false);
 	assert.equal(w.s.status.text['build.status'], undefined);
-	assert.deepEqual(w.build.lines.map((l) => l.text), ['Compiling...', 'Executing...']);
+	const texts = w.build.lines.map((l) => l.text);
+	assert.equal(texts[0], 'Building a.bb'); // vom ersten Augenblick an zu sehen
+	assert.equal(texts[1], 'Compiling...');
+	assert.match(texts[2], /^Built in \d+\.\d s\.$/);
+	assert.equal(texts[3], 'Executing...');
+	assert.ok(w.s.panel.shown.includes('output')); // der Ausgabe-Reiter kommt beim Start nach vorn
 });
 
 test('build-run: F7 ohne Fehler meldet "No errors found."', async () => {
@@ -318,7 +323,7 @@ test('build-run: der nächste Bauvorgang löscht Ausgabe und Marker', async () =
 	await settle();
 	assert.ok(w.build.lines.length > 0);
 	await w.build.run();
-	assert.equal(w.build.lines.length, 0);
+	assert.deepEqual(w.build.lines.map((l) => l.text), ['Building a.bb']); // der alte Fehler ist weg
 	assert.ok(w.s.diagnostics.some((d) => d.cleared === 'blitzcc'));
 });
 
