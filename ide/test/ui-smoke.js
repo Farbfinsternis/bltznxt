@@ -107,7 +107,7 @@ async function scenarioNormal() {
 	// --- Menüleiste --------------------------------------------------------
 	const titles = await js(win, `[...document.querySelectorAll('.menu-title')].map((b) => b.textContent)`);
 	check('Menüleiste: Menüs mit Einträgen sichtbar, leere nicht',
-		JSON.stringify(titles) === JSON.stringify(['File', 'Edit', 'Help']), titles.join(','));
+		JSON.stringify(titles) === JSON.stringify(['File', 'Edit', 'Program', 'Help']), titles.join(','));
 
 	// Datei-Menü: Reihenfolge und Kürzel des Originals
 	await js(win, `document.querySelector('.menu-title[data-menu="file"]').click()`);
@@ -165,9 +165,9 @@ async function scenarioNormal() {
 	// --- Ohne Datei: Willkommensansicht -------------------------------------------------
 	check('Ohne offene Datei: keine Tab-Leiste, Willkommensansicht',
 		await js(win, `document.querySelector('.tabs').hidden && !document.querySelector('.welcome').hidden && /Ctrl\\+N/.test(document.querySelector('.welcome-hint').textContent)`));
-	check('Symbolleiste: Neu, Öffnen, Speichern, Schließen (die zwei letzten gesperrt)',
+	check('Symbolleiste: Neu, Öffnen, Speichern, Schließen | Ausschneiden, Kopieren, Einfügen | Suchen | Starten — ohne Datei gesperrt',
 		await js(win, `[...document.querySelectorAll('.toolbar-button')].map((b) => b.dataset.command + (b.disabled ? ':aus' : '')).join()`)
-			=== 'file.new,file.open,file.save:aus,file.close:aus');
+			=== 'file.new,file.open,file.save:aus,file.close:aus,edit.cut:aus,edit.copy:aus,edit.paste:aus,edit.find:aus,program.run:aus');
 
 	// --- Neu (Ctrl+N), Editor, Tab-Leiste -----------------------------------------------------
 	await key(win, { key: 'n', ctrlKey: true });
@@ -175,8 +175,9 @@ async function scenarioNormal() {
 	check('Ctrl+N: namenloses Dokument, Tab, Editor sichtbar',
 		await js(win, `document.querySelector('.tab-title').textContent === '<untitled>' && document.querySelector('.welcome').hidden`));
 	check('Editor: Monaco gemountet', await waitFor(win, `document.querySelector('.view[data-view="editor"] .monaco-editor') !== null`, 5000));
-	check('Symbolleiste: Speichern und Schließen jetzt frei',
-		await js(win, `[...document.querySelectorAll('.toolbar-button')].every((b) => !b.disabled)`));
+	check('Symbolleiste: mit Datei frei, nur Ausschneiden/Kopieren wollen eine Auswahl',
+		await js(win, `[...document.querySelectorAll('.toolbar-button')].slice(0, 8).map((b) => b.dataset.command + (b.disabled ? ':aus' : '')).join()`)
+			=== 'file.new,file.open,file.save,file.close,edit.cut:aus,edit.copy:aus,edit.paste,edit.find');
 
 	// Eingabe im Editor -> Dokument -> Tab
 	await setEditorText(win, 'Print "Größe → €"\n');
@@ -519,6 +520,147 @@ async function scenarioEditor() {
 	fs.rmSync(dir, { recursive: true, force: true });
 }
 
+async function scenarioBuild() {
+	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bltznxt-ui-'));
+	const good = path.join(dir, 'hallo.bb');
+	const bad = path.join(dir, 'kaputt.bb');
+	const slow = path.join(dir, 'lang.bb');
+	fs.writeFileSync(good, '; beendet sich sofort\r\nEnd\r\n');
+	fs.writeFileSync(bad, 'For i = 1 To 3\r\nPrint i\r\n');
+	fs.writeFileSync(slow, '; wartet, bis man es stoppt\r\nDelay 60000\r\nEnd\r\n');
+	hostService.setLaunchArgs(['electron', 'app', good], false, dir);
+	const { win, errors, started } = await openWindow(dir);
+	check('Bauen: IDE gestartet', started);
+	if (!started) return win.destroy();
+	await waitFor(win, `window.__ide.app.documents.active !== null && window.__ide.app.services.get('toolchain').info?.available === true`, 10000);
+	const info = await js(win, `window.__ide.app.services.get('toolchain').info`);
+	if (!info || !info.available) {
+		console.log('SKIP  Bauen: kein Compiler gefunden');
+		win.destroy();
+		return;
+	}
+	const outputLines = () => js(win, `[...document.querySelectorAll('.output-line')].map((e) => e.textContent)`);
+	const statusText = () => js(win, `document.querySelector('[data-status="build.status"]')?.textContent ?? null`);
+
+	// --- Programm-Menü -----------------------------------------------------------------------
+	await js(win, `document.querySelector('.menu-title[data-menu="program"]').click()`);
+	const menu = await js(win, `[...document.querySelectorAll('.menu-dropdown > .menu-item, .menu-dropdown > .menu-separator')].map((el) =>
+		el.classList.contains('menu-separator') ? '-' : el.querySelector('.menu-label').textContent + (el.querySelector('.menu-key').textContent ? ' [' + el.querySelector('.menu-key').textContent + ']' : '') + (el.classList.contains('disabled') ? ' (aus)' : '') + (el.querySelector('.menu-check').textContent ? ' ✓' : ''))`);
+	check('Programm-Menü wie im Original (dazu Stop), Debug ist an',
+		menu.join('|') === 'Run program [F5]|Run program again [F6] (aus)|Check for errors [F7]|Create Executable...|-|Stop program [Shift+F5] (aus)|-|Program Command Line...|Debug Enabled? ✓',
+		menu.join('|'));
+	await js(win, `document.body.click()`);
+	check('Symbolleiste hat Ausschneiden, Kopieren, Einfügen, Suchen, Starten',
+		await js(win, `[...document.querySelectorAll('.toolbar-button')].map((b) => b.dataset.command).join()`) ===
+		'file.new,file.open,file.save,file.close,edit.cut,edit.copy,edit.paste,edit.find,program.run');
+
+	// --- F5 auf einer benannten Datei ------------------------------------------------------------
+	await js(win, `${edApi}.editor.focus()`);
+	await key(win, { key: 'F5' });
+	check('F5: der Ausgabe-Reiter füllt sich mit "Compiling..." und "Executing..."',
+		await waitFor(win, `[...document.querySelectorAll('.output-line')].some((e) => e.textContent === 'Executing...')`, 60000));
+	check('F5: Programm beendet, nichts mehr in Arbeit',
+		await waitFor(win, `window.__ide.app.context.get('program.running') === false && window.__ide.app.context.get('build.compiling') === false`, 20000));
+	const lines = await outputLines();
+	check('Ausgabe: erst Compiling, dann Executing', lines[0] === 'Compiling...' && lines.includes('Executing...'), lines.join(' | '));
+	check('Neben der Quelle bleibt nichts liegen', !fs.existsSync(path.join(dir, 'hallo.exe')) && fs.readdirSync(dir).filter((n) => !n.endsWith('.json')).sort().join() === 'hallo.bb,kaputt.bb,lang.bb', fs.readdirSync(dir).sort().join());
+	check('F6 ist jetzt frei (es gibt etwas Gebautes)', await js(win, `window.__ide.app.commands.isEnabled('program.rerun')`));
+
+	// --- F7 auf einer Datei mit Fehler: Marker, Cursor, Dialog, Ausgabe ----------------------------------
+	dialogStub.openAnswers.push([bad]);
+	await key(win, { key: 'o', ctrlKey: true });
+	await waitFor(win, `window.__ide.app.documents.active?.title === 'kaputt.bb'`, 5000);
+	await js(win, `void window.__ide.app.run('program.check'); 0`);
+	await waitFor(win, `document.querySelector('.dialog') !== null`, 60000);
+	const errText = await js(win, `document.querySelector('.dialog-text').textContent`);
+	check('Fehler: Meldungsdialog wie im Original', /NEXT/i.test(errText), errText);
+	await clickDialog(win, 'ok');
+	await sleep(200);
+	const markers = await js(win, `${edApi}.api.editor.getModelMarkers({ owner: 'blitzcc' }).map((m) => [m.startLineNumber, m.startColumn, m.severity === 8])`);
+	check('Fehler: roter Marker im Editor an der Stelle des Compilers', markers.length === 1 && markers[0][2] === true, JSON.stringify(markers));
+	check('Fehler: Cursor steht an der Fehlerstelle',
+		await js(win, `${edApi}.editor.getPosition().lineNumber === ${markers[0]?.[0] ?? 0}`));
+	const errLines = await outputLines();
+	check('Fehler: Zeile "datei:z:s: Meldung" im Ausgabe-Reiter, angeklickt springt sie',
+		errLines.some((l) => /^kaputt\.bb:\d+:\d+: /.test(l)) &&
+		await js(win, `document.querySelector('.panel-tab.active').textContent === 'Output' && document.querySelector('.output-line.link') !== null`), errLines.join(' | '));
+	await waitFor(win, `window.__ide.app.context.get('build.compiling') === false`, 20000);
+
+	// --- Fehler-Marker verschwinden beim nächsten Bau --------------------------------------------------------
+	await js(win, `window.__ide.app.documents.activate(window.__ide.app.documents.find(${JSON.stringify(good)}).id)`);
+	await js(win, `void window.__ide.app.run('program.check'); 0`);
+	await waitFor(win, `window.__ide.app.context.get('build.compiling') === false && [...document.querySelectorAll('.output-line')].some((e) => e.textContent === 'No errors found.')`, 60000);
+	check('Prüfen ohne Fehler: "No errors found.", Marker weg',
+		await js(win, `${edApi}.api.editor.getModelMarkers({ owner: 'blitzcc' }).length === 0`));
+
+	// --- Namenloser Tab: läuft aus dem Temp-Ordner, bleibt namenlos ----------------------------------------------------
+	await key(win, { key: 'n', ctrlKey: true });
+	await waitFor(win, `window.__ide.app.documents.active?.kind === 'scratch'`, 3000);
+	await setEditorText(win, '; namenlos\nEnd\n');
+	await key(win, { key: 'F5' });
+	check('Namenloser Tab: F5 baut und startet ihn',
+		await waitFor(win, `[...document.querySelectorAll('.output-line')].some((e) => e.textContent === 'Executing...')`, 60000));
+	await waitFor(win, `window.__ide.app.context.get('program.running') === false`, 20000);
+	check('Namenloser Tab: bleibt namenlos und ungespeichert', await js(win, `window.__ide.app.documents.active.uri === null && window.__ide.app.documents.active.dirty`));
+	// und Fehler im namenlosen Tab landen im Tab
+	await setEditorText(win, 'For i = 1 To 3\n');
+	await js(win, `void window.__ide.app.run('program.check'); 0`);
+	await waitFor(win, `document.querySelector('.dialog') !== null`, 60000);
+	await clickDialog(win, 'ok');
+	await sleep(200);
+	check('Namenloser Tab: der Fehler steht im Tab, es entsteht kein zweiter',
+		await js(win, `${edApi}.api.editor.getModelMarkers({ owner: 'blitzcc' }).length === 1`) &&
+		await js(win, `window.__ide.app.documents.list().every((d) => !/untitled\\.bb$/.test(d.uri || ''))`));
+	await waitFor(win, `window.__ide.app.context.get('build.compiling') === false`, 20000);
+
+	// --- Kommandozeile über den Dialog ---------------------------------------------------------------------------------------
+	await js(win, `void window.__ide.app.run('program.commandLine'); 0`);
+	await waitFor(win, `document.querySelector('.dialog-input') !== null`, 3000);
+	check('Kommandozeile: Dialog mit Eingabefeld und Beschriftung',
+		await js(win, `document.querySelector('.dialog-label').textContent === 'Program command line:' && document.activeElement === document.querySelector('.dialog-input')`));
+	await js(win, `(() => { const i = document.querySelector('.dialog-input'); i.value = '-w level1'; })()`);
+	// der Dialog hört am document, nicht am window
+	await js(win, `document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))`);
+	await sleep(200);
+	check('Kommandozeile: Enter übernimmt den Text', await js(win, `window.__ide.app.settings.get('program.commandLine') === '-w level1'`));
+	await js(win, `window.__ide.app.settings.set('program.commandLine', '')`);
+
+	// --- Stop: ein Programm, das nicht von allein endet ---------------------------------------------------------------------------
+	dialogStub.openAnswers.push([slow]);
+	await key(win, { key: 'o', ctrlKey: true });
+	await waitFor(win, `window.__ide.app.documents.active?.title === 'lang.bb'`, 5000);
+	await key(win, { key: 'F5' });
+	check('Stop: das lange Programm läuft', await waitFor(win, `window.__ide.app.context.get('program.running') === true`, 60000));
+	check('Stop: Statuszeile "Program running", Stop-Befehl frei',
+		await statusText() === 'Program running' && await js(win, `window.__ide.app.commands.isEnabled('program.stop')`));
+	await key(win, { key: 'F5', shiftKey: true });
+	check('Umschalt+F5 beendet es', await waitFor(win, `window.__ide.app.context.get('program.running') === false`, 15000));
+	const afterStop = await outputLines();
+	check('Stop: "Program stopped.", kein Fehler in der Ausgabe',
+		afterStop.at(-1) === 'Program stopped.' && await js(win, `document.querySelectorAll('.output-error').length === 0`), afterStop.join(' | '));
+
+	// --- F6 ----------------------------------------------------------------------------------------------------------------------------
+	await js(win, `window.__ide.app.documents.close(window.__ide.app.documents.find(${JSON.stringify(slow)}).id)`);
+	await key(win, { key: 'F6' });
+	check('F6: baut die zuletzt gebaute Datei noch einmal (öffnet sie wieder)',
+		await waitFor(win, `window.__ide.app.documents.find(${JSON.stringify(slow)}) !== undefined && window.__ide.app.context.get('program.running') === true`, 60000));
+	await js(win, `void window.__ide.app.run('program.stop'); 0`);
+	await waitFor(win, `window.__ide.app.context.get('program.running') === false`, 15000);
+
+	// --- Programm erstellen ----------------------------------------------------------------------------------------------------------------
+	const exe = path.join(dir, 'fertig');
+	await js(win, `window.__ide.app.documents.activate(window.__ide.app.documents.find(${JSON.stringify(good)}).id)`);
+	dialogStub.saveAnswers.push(exe);
+	await js(win, `void window.__ide.app.run('program.publish'); 0`);
+	await waitFor(win, `[...document.querySelectorAll('.output-line')].some((e) => /^Creating executable/.test(e.textContent)) && window.__ide.app.context.get('build.compiling') === false`, 60000);
+	check('Programm erstellen: fertig.exe entsteht (Endung ergänzt)', fs.existsSync(`${exe}.exe`), fs.readdirSync(dir).join());
+
+	check('Keine Fehler auf der Konsole der Seite', errors.length === 0, errors.slice(0, 3).join(' || '));
+	win.destroy();
+	hostService.setLaunchArgs(['electron', 'app'], false, dir);
+	fs.rmSync(dir, { recursive: true, force: true });
+}
+
 async function scenarioCorruptSettings() {
 	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bltznxt-ui-'));
 	fs.writeFileSync(path.join(dir, 'settings.json'), '{ das ist kein json', 'utf8');
@@ -551,6 +693,7 @@ app.whenReady().then(async () => {
 		await scenarioNormal();
 		await scenarioLaunchFilesAndAbschalten();
 		await scenarioEditor();
+		await scenarioBuild();
 		await scenarioCorruptSettings();
 	} catch (err) {
 		console.log('FAIL  Testlauf abgebrochen:', err && err.stack ? err.stack : err);

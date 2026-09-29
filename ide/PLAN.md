@@ -296,12 +296,42 @@ Rechtsklickmenü, Suchfeld, Gliederung mit Klick-Sprung.
 - Eine Schrift wie die Original-Bitmapschrift „blitz“ gibt es nicht; `editor.fontFamily` ist
   einstellbar (Vorgabe Consolas).
 
-### P3 — Bauen und Starten
-F5/F6/F7, Programm erstellen, Kommandozeile, Debug-Schalter (gespeichert, wird als `-d`
-übergeben), Speichern vor dem Bauen, Fortschritt, Fehler → Datei öffnen und Cursor setzen plus
-**Marker im Editor**, Ausgabe-Panel (Fortschritt und Meldungen; die Original-Dialoge als
-Einstellung). Namenlose Tabs bauen. Nach dieser Phase kann man **schreiben, F5, spielen** —
-das wichtigste Kriterium.
+### P3 — Bauen und Starten ✓ (2026-09-30)
+F5 (Run program), F6 (Run program again), F7 (Check for errors), Create Executable…, Program
+Command Line…, Debug Enabled? (gespeichert, geht als `-d` mit), dazu Stop program (Umschalt+F5).
+Vor dem Bauen werden geänderte benannte Dateien gespeichert; ein Fehler öffnet die Datei, setzt
+den Cursor, zeichnet einen **Marker** in den Editor, steht im **Ausgabe-Reiter** (klickbar) und
+erscheint wie im Original in einem Meldungsdialog. Namenlose Tabs bauen aus einer Datei im
+Temp-Ordner. Nach dieser Phase kann man **schreiben, F5, spielen**. Erweiterung `build-run`,
+Dienste `build` (Main-Prozess) und `files.scratchFile`; das Protokoll der Original-IDE steht in
+`electron/build-protocol.js`.
+
+**Geprüft durch:** Protokoll-Parser an festen Zeilen (`build-protocol.test.js`); die Erweiterung
+gegen eine Plattform-Attrappe mit eingespielten Compiler-Ereignissen (`build-run.test.js`, 20
+Fälle); der Runner gegen den **echten blitzcc** (`test/smoke.js`: Prüfen, Fehler mit Ort, Starten,
+Arbeitsordner, Argumente); und in der echten Oberfläche (`ui-smoke.js`): F5 auf Datei und
+namenlosem Tab, F7 mit Fehler → Marker/Cursor/Dialog/Ausgabe, Kommandozeile, Stopp, F6, Erstellen.
+
+**Beim Bauen entschieden:**
+- Die IDE spricht mit blitzcc genau wie die Original-IDE (`blitzide=1`, `-q [-d] [-c | -o x] datei`,
+  Zeilen auf `...`, Fehler `"datei":z:s:z:s:msg`, `Executing...`); dadurch läuft sie auch gegen
+  den originalen blitzcc. Fehler kommen mit Anfang **und** Ende, der Marker deckt die Spanne ab.
+- Ein Programm läuft unabhängig von der IDE weiter; blitzcc wartet auf sein Ende (deshalb bleibt
+  „läuft“ bis dahin sichtbar, Statuszeile „Program running“). Während es läuft, kann man weiter
+  bauen (mehrere Programme gleichzeitig).
+- **Stop** ist neu (Original: nur im Debugger). Beendet wird der Prozessbaum (`taskkill /T`); da
+  blitzcc dann seinen Temp-Ordner nicht mehr löschen kann, räumt die IDE ihn selbst weg, beim
+  Stoppen und beim Start (Ordner beendeter blitzcc-Prozesse).
+- Namenlose Tabs: `%TEMP%\bltznxt-ide\scratch\<Prozess>\doc<Nr>\untitled.bb`; Zeichen, die
+  Windows-1252 nicht kennt, gehen dort als UTF-8 hinein. Ein Fehler in dieser Datei erscheint im
+  Tab, nicht in einer zweiten Datei. Relative Pfade und `Include` finden dort nichts, bis man speichert
+  (Entscheidung 3, Abschnitt 4).
+- F6 merkt sich nur benannte Dateien (`state.json`: `build.lastFile`), wie das Original.
+- Die Warnung des Originals beim Erstellen mit aktivem Debug („langsamere Programme“) entfällt: bei
+  uns hat `-d` keine Wirkung (KNOWN_ISSUES). Der Meldungsdialog bei Fehlern ist Vorgabe wie im
+  Original, `build.errorDialog` schaltet ihn ab.
+- Neu gegenüber P2: Symbolleiste komplett (Ausschneiden, Kopieren, Einfügen, Suchen, Starten), Dialog
+  mit Eingabefeld (`dialogs.prompt`), Dienst `panel.show(id)`.
 
 ### P4 — Hilfe
 HTML-Tab mit Start/Zurück/Vor (Strg+H), F1-Schnellhilfe (Signatur in der Statuszeile), zweites F1

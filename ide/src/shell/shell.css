@@ -369,6 +369,27 @@ button {
 	color: var(--fg);
 }
 
+.dialog-label {
+	display: block;
+	margin-bottom: 4px;
+}
+
+.dialog-input {
+	box-sizing: border-box;
+	width: 100%;
+	margin-bottom: 16px;
+	padding: 4px 6px;
+	background: var(--bg);
+	color: var(--fg);
+	border: 1px solid var(--border);
+	border-radius: 3px;
+	font: inherit;
+}
+
+.dialog-input:focus {
+	outline: 1px solid var(--accent);
+}
+
 .dialog-buttons {
 	display: flex;
 	justify-content: flex-end;
@@ -405,7 +426,35 @@ button {
 	font-size: 18px;
 }
 
-/* ---- Gliederung (Erweiterung "outline") -------------------------------------------- */
+/* ---- Ausgabe (Erweiterung "build-run") --------------------------------------------- */
+
+.output-list {
+	height: 100%;
+	overflow: auto;
+	padding: 4px 0;
+	font-family: Consolas, "Courier New", monospace;
+	font-size: 12px;
+}
+
+.output-line {
+	padding: 1px 12px;
+	white-space: pre-wrap;
+}
+
+.output-error {
+	color: var(--danger);
+}
+
+.output-line.link {
+	cursor: pointer;
+}
+
+.output-line.link:hover {
+	background: var(--bg-hover);
+	text-decoration: underline;
+}
+
+/* ---- Gliederung (Erweiterung "outline")-------------------------------------------- */
 
 .outline {
 	display: flex;

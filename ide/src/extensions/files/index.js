@@ -345,6 +345,33 @@ export function createFileOps(ctx) {
 		return true;
 	}
 
+	/**
+	 * Alle geänderten Dokumente mit Dateinamen speichern, namenlose bleiben (wie
+	 * das Original vor dem Bauen). `false`, wenn eines nicht gespeichert wurde.
+	 */
+	async function saveNamed() {
+		const list = documents.list();
+		for (let i = list.length - 1; i >= 0; i--) {
+			const doc = documents.get(list[i].id);
+			if (doc && doc.uri && doc.dirty && !(await save({ doc }))) return false;
+		}
+		return true;
+	}
+
+	/**
+	 * Ein namenloses Dokument für den Compiler in eine Datei im Temp-Ordner
+	 * schreiben (ein Ordner je Tab). Was Windows-1252 nicht kennt, geht als
+	 * UTF-8 hinein — die Datei ist nur ein Zwischenstand.
+	 * @returns {Promise<string>} der Pfad
+	 */
+	async function writeScratch(doc) {
+		const file = await invoke('files', 'scratchFile', `doc${doc.id}`);
+		let encoded = encodeFile(doc.text, doc.encoding, doc.eol);
+		if (encoded.unmappable) encoded = encodeFile(doc.text, 'utf-8', doc.eol);
+		await invoke('files', 'write', file, encoded.bytes);
+		return file;
+	}
+
 	// ---- schließen ----------------------------------------------------------
 	/** @returns {Promise<boolean>} `false`: der Benutzer hat abgebrochen */
 	async function close(id) {
@@ -392,7 +419,7 @@ export function createFileOps(ctx) {
 		documents.activate(list[(index + step + list.length) % list.length].id);
 	}
 
-	return { newFile, open, openPath, save, saveAll, close, closeAll, exit, cycle, recent };
+	return { newFile, open, openPath, save, saveAll, saveNamed, writeScratch, close, closeAll, exit, cycle, recent };
 }
 
 // ---------------------------------------------------------------------------

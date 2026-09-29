@@ -11,6 +11,7 @@
 
 'use strict';
 
+const fs = require('fs');
 const path = require('path');
 
 const backend = require('../electron/services/toolchain');
@@ -68,6 +69,52 @@ function check(label, ok, detail) {
 	check('compile cpp: Quellmarker nur aus .bb',
 		cpp.diagnostics.every((d) => /\.bb$/i.test(d.file)),
 		cpp.diagnostics.map((d) => `${basename(d.file)}:${d.line}`).join(', ') || 'keine');
+
+	// --- Bauen und Starten im Protokoll der Original-IDE ---------------------
+	//
+	// Der Runner spricht mit dem echten blitzcc wie die Original-IDE (blitzide=1,
+	// Zeilen auf "...", Fehler "datei":z:s:z:s:msg, "Executing..."). Das Programm
+	// ist ein `End` und beendet sich sofort.
+	const { runBuild } = require('../electron/services/build-runner');
+	const build = (file, mode, extra = {}) =>
+		new Promise((resolve) => {
+			const events = [];
+			const handle = runBuild({ file, mode, ...extra }, (e) => {
+				events.push(e);
+				if (e.type === 'exit' || e.type === 'failed') resolve(events);
+			});
+			if (!handle) resolve(events);
+		});
+	const types = (events) => events.map((e) => e.type).join(',');
+
+	const checked = await build(path.join(FIXTURES, 'ok.bb'), 'check');
+	check('build check ok: Fortschritt, dann Ende 0', /^progress(,progress)*,exit$/.test(types(checked)) && checked.at(-1).code === 0, types(checked));
+
+	const broken = await build(path.join(FIXTURES, 'parse-error.bb'), 'check');
+	const err = broken.find((e) => e.type === 'error');
+	check('build check Fehler: Ort und Meldung im IDE-Format',
+		Boolean(err) && /parse-error\.bb$/i.test(err.file) && err.line >= 1 && err.column >= 1 && err.endLine >= err.line && Boolean(err.message),
+		err ? `${basename(err.file)}:${err.line}:${err.column}-${err.endLine}:${err.endColumn} ${err.message}` : types(broken));
+	check('build check Fehler: Ende mit Fehlercode', broken.at(-1).type === 'exit' && broken.at(-1).code !== 0, String(broken.at(-1).code));
+
+	const ran = await build(path.join(FIXTURES, 'run-end.bb'), 'run');
+	check('build run: Fortschritt, "Executing", Ende 0 (blitzcc wartet auf das Programm)',
+		/^progress(,progress)*,running,exit$/.test(types(ran)) && ran.at(-1).code === 0, types(ran));
+
+	const exeBefore = fs.existsSync(path.join(FIXTURES, 'run-end.exe'));
+	check('build run: neben der Quelle bleibt nichts liegen', !exeBefore);
+
+	const argsFile = path.join(FIXTURES, 'run-args.txt');
+	fs.rmSync(argsFile, { force: true });
+	const args = await build(path.join(FIXTURES, 'run-args.bb'), 'run', { args: ['eins', 'zwei drei'] });
+	const written = fs.existsSync(argsFile) ? fs.readFileSync(argsFile, 'latin1') : null;
+	check('build run: Arbeitsordner ist der Ordner der Quelle, Programmargumente kommen an',
+		/^progress(,progress)*,running,exit$/.test(types(args)) && written !== null && /eins/.test(written) && /zwei drei/.test(written),
+		written === null ? types(args) : JSON.stringify(written));
+	fs.rmSync(argsFile, { force: true });
+
+	const missing = await build(path.join(FIXTURES, 'ok.bb'), 'check', { compilerPath: path.join(FIXTURES, 'gibt-es-nicht.exe') });
+	check('build: fehlender Compiler wird gemeldet', missing.some((e) => e.type === 'failed' || e.type === 'exit'), types(missing));
 
 	console.log(`\n${failures === 0 ? 'Alle Prüfungen bestanden.' : failures + ' fehlgeschlagen.'}`);
 	process.exit(failures === 0 ? 0 : 1);

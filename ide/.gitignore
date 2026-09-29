@@ -24,3 +24,4 @@ dist-ssr
 *.sw?
 test/fixtures/*.exe
 test/fixtures/*.cpp
+test/fixtures/*.txt

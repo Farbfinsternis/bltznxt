@@ -12,6 +12,7 @@
 'use strict';
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 
 /** Absoluter, bereinigter Pfad (ohne die Datei anzufassen). */
@@ -68,6 +69,83 @@ async function backup(p, count) {
 	await copyIfExists(full, `${full}_bak1`);
 }
 
+// ---------------------------------------------------------------------------
+// Namenlose Dokumente: eine Datei je Tab im Temp-Ordner
+// ---------------------------------------------------------------------------
+//
+// Ein namenloses Dokument muss zum Bauen in eine Datei. Das Original benutzt
+// dafür eine gemeinsame `<Blitz>\tmp\tmp.bb`; hier bekommt jeder Tab seinen
+// eigenen Ordner, damit mehrere namenlose Programme gleichzeitig gebaut werden
+// können:
+//
+//   %TEMP%\bltznxt-ide\scratch\<Prozess>\<Schlüssel>\untitled.bb
+//
+// Beim Beenden wird der eigene Ordner gelöscht, beim Start dazu die Ordner
+// abgestürzter Sitzungen (deren Prozess es nicht mehr gibt).
+
+const scratchRoot = () => path.join(os.tmpdir(), 'bltznxt-ide', 'scratch');
+const SCRATCH_KEY_RE = /^[A-Za-z0-9_-]+$/;
+
+/** @returns {Promise<string>} Pfad der Datei; der Ordner ist angelegt */
+async function scratchFile(key) {
+	if (typeof key !== 'string' || !SCRATCH_KEY_RE.test(key)) throw new Error(`files: ungültiger Schlüssel "${key}"`);
+	const dir = path.join(scratchRoot(), String(process.pid), key);
+	await fs.promises.mkdir(dir, { recursive: true });
+	return path.join(dir, 'untitled.bb');
+}
+
+function processAlive(pid) {
+	try {
+		process.kill(pid, 0);
+		return true;
+	} catch (err) {
+		return err.code === 'EPERM'; // gibt es, gehört nur jemand anderem
+	}
+}
+
+/**
+ * blitzcc legt ein Programm ohne -o in `%TEMP%\bltznxt-ide\<Name>-<Prozess>` ab und
+ * löscht es danach selbst. Wurde es dabei beendet (Absturz, Stopp von außen),
+ * bleibt der Ordner: hier werden die weggeräumt, deren blitzcc nicht mehr läuft.
+ */
+async function cleanBuildDirs() {
+	const root = path.join(os.tmpdir(), 'bltznxt-ide');
+	let names = [];
+	try {
+		names = await fs.promises.readdir(root);
+	} catch {
+		return;
+	}
+	for (const name of names) {
+		const m = /^.+-(\d+)$/.exec(name);
+		if (!m || name === 'scratch' || processAlive(Number(m[1]))) continue;
+		await fs.promises.rm(path.join(root, name), { recursive: true, force: true }).catch(() => {});
+	}
+}
+
+/**
+ * Löscht den eigenen Scratch-Ordner (`own`) und die Ordner beendeter Sitzungen.
+ * @param {{ own?: boolean }} [opts]
+ */
+async function cleanScratch({ own = false } = {}) {
+	await cleanBuildDirs();
+	let names = [];
+	try {
+		names = await fs.promises.readdir(scratchRoot());
+	} catch {
+		return;
+	}
+	for (const name of names) {
+		const pid = Number(name);
+		const mine = pid === process.pid;
+		if (!Number.isInteger(pid)) continue;
+		if (mine ? !own : processAlive(pid)) continue;
+		await fs.promises.rm(path.join(scratchRoot(), name), { recursive: true, force: true });
+	}
+}
+
 module.exports = {
-	api: { resolve: async (p) => resolve(p), read, write, exists, backup }
+	api: { resolve: async (p) => resolve(p), read, write, exists, backup, scratchFile },
+	cleanScratch,
+	scratchRoot
 };

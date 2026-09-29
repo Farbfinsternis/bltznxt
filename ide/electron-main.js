@@ -5,6 +5,7 @@ const bridge = require('./electron/bridge');
 const store = require('./electron/services/store');
 const host = require('./electron/services/host');
 const windowService = require('./electron/services/window');
+const filesService = require('./electron/services/files');
 
 function createWindow() {
 	const win = new BrowserWindow({
@@ -51,7 +52,18 @@ app.whenReady().then(() => {
 	store.setBaseDir(app.getPath('userData'));
 	host.setLaunchArgs(process.argv, app.isPackaged);
 	bridge.register(ipcMain);
+	// Temporäre Dateien namenloser Tabs abgestürzter Sitzungen wegräumen
+	filesService.cleanScratch().catch(() => {});
 	createWindow();
+});
+
+// Die eigenen temporären Dateien beim Beenden löschen
+let scratchCleaned = false;
+app.on('will-quit', (event) => {
+	if (scratchCleaned) return;
+	event.preventDefault();
+	scratchCleaned = true;
+	filesService.cleanScratch({ own: true }).finally(() => app.quit());
 });
 
 app.on('window-all-closed', () => {

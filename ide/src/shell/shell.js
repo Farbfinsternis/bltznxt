@@ -277,6 +277,14 @@ export function createShell({ root, app }) {
 	}
 	window.addEventListener('keydown', onKeyDown, true);
 
+	// Ein Reiter des unteren Panels nach vorn holen (etwa "Output" bei einem Fehler)
+	app.services.provide('panel', {
+		show(id) {
+			activePanelView = id;
+			renderViews();
+		}
+	});
+
 	renderAll();
 	renderMenubar();
 

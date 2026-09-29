@@ -25,6 +25,7 @@ import * as monaco from 'monaco-editor';
 import './workers.js';
 import { LANGUAGE_ID } from '../language-blitz/blitz3d.js';
 import { resolveTheme, themeToMonaco, validateTheme } from '../../core/themes.js';
+import { icons } from './icons.js';
 
 const LF = () => monaco.editor.EndOfLinePreference.LF;
 const eolOf = (doc) => (doc.eol === '\r\n' ? monaco.editor.EndOfLineSequence.CRLF : monaco.editor.EndOfLineSequence.LF);
@@ -40,10 +41,10 @@ function toMonacoMarkers(diagnostics) {
 		message: d.message,
 		startLineNumber: d.line,
 		startColumn: d.column,
-		endLineNumber: d.line,
-		// blitzcc meldet nur den Startpunkt, keine Spanne — bis zum Zeilenende
-		// markieren ist die brauchbarste Näherung.
-		endColumn: d.column + 1
+		// Der Compiler im IDE-Format meldet Anfang und Ende; im GCC-Format nur den
+		// Anfang — dann wird ein Zeichen markiert, das ist die brauchbarste Näherung.
+		endLineNumber: d.endLine ?? d.line,
+		endColumn: d.endColumn ?? d.column + 1
 	}));
 }
 
@@ -128,6 +129,14 @@ export default {
 				{ command: 'edit.findNext', key: 'F3' },
 				{ command: 'edit.findPrevious', key: 'Shift+F3' },
 				{ command: 'edit.replace', key: 'Ctrl+R' }
+			],
+
+			// Symbolleiste des Originals: Ausschneiden, Kopieren, Einfügen | Suchen
+			toolbar: [
+				{ command: 'edit.cut', icon: icons.cut, group: '2_edit', order: 1 },
+				{ command: 'edit.copy', icon: icons.copy, group: '2_edit', order: 2 },
+				{ command: 'edit.paste', icon: icons.paste, group: '2_edit', order: 3 },
+				{ command: 'edit.find', icon: icons.find, group: '3_find', order: 1 }
 			],
 
 			statusItems: [{ id: 'editor.position', align: 'right', priority: 50 }],

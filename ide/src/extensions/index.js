@@ -15,5 +15,6 @@ import themes from './themes/index.js';
 import editor from './editor/index.js';
 import outline from './outline/index.js';
 import files from './files/index.js';
+import buildRun from './build-run/index.js';
 
-export const builtinExtensions = [workbench, themes, toolchain, languageBlitz, editor, outline, files];
+export const builtinExtensions = [workbench, themes, toolchain, languageBlitz, editor, outline, files, buildRun];

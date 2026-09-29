@@ -1,5 +1,27 @@
 # BlitzNext Developer Log
 
+## 2026-09-30 — The BLTZNXT IDE builds and runs programs (plan P3)
+
+Write, press F5, play: the IDE now has the Program menu of the original Blitz3D IDE — Run program
+(F5), Run program again (F6), Check for errors (F7), Create Executable…, Program Command Line…,
+Debug Enabled? — plus Stop program (Shift+F5), which the original has only in its debugger.
+Modified named files are saved first; an untitled tab is built from a file of its own under
+`%TEMP%\bltznxt-ide\scratch`, so several untitled programs can run at once. A compiler error
+opens the file at the place, draws a marker over the reported span in the editor, adds a clickable
+line to a new Output tab and shows the message box the original shows (a setting turns the box off).
+
+The IDE talks to `blitzcc` exactly as the original IDE does (`blitzide=1`, progress lines ending in
+`...`, errors as `"file":row:col:row:col:message`, `Executing...` when the program starts), so it
+also works against the original `blitzcc`. The protocol lives in `ide/electron/build-protocol.js`
+and is tested on fixed lines; the runner is tested against the real compiler (check, error with
+position, a program that starts and ends, working folder = the source's folder, arguments); the UI
+test presses F5/F7/F6/Shift+F5 in a real window.
+
+A real bug turned up on the way: stopping a running program kills `blitzcc` in the middle, so it
+cannot delete its temp folder (`%TEMP%\bltznxt-ide\<name>-<pid>` with the program and DLLs) and four
+of them piled up during the tests. The IDE now removes the folder itself when it stops a build and
+sweeps the folders of dead `blitzcc` processes at startup.
+
 ## 2026-09-29 — The BLTZNXT IDE edits like the original (plan P2)
 
 The editor now behaves like the one in the Blitz3D IDE (`ide/PLAN.md`, P2). Code is coloured in the

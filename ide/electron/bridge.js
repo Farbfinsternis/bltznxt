@@ -14,8 +14,7 @@
 
 'use strict';
 
-const CHANNEL = 'bltznxt:invoke';
-const EVENT_CHANNEL = 'bltznxt:event';
+const { INVOKE: CHANNEL, EVENT: EVENT_CHANNEL } = require('./channels');
 
 /** @type {Record<string, { api: Record<string, Function> }>} */
 const services = {
@@ -24,7 +23,8 @@ const services = {
 	files: require('./services/files'),
 	dialog: require('./services/dialog'),
 	host: require('./services/host'),
-	window: require('./services/window')
+	window: require('./services/window'),
+	build: require('./services/build')
 };
 
 /** Dienste, die nach dem Start weitere aufnehmen wollen (Erweiterungen im Main-Prozess, später). */

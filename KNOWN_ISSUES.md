@@ -257,6 +257,7 @@ The 3D layer is under active development — see [ROADMAP3D.md](ROADMAP3D.md). B
 - **In the Blitz3D IDE there is no debugger.** BLTZNXT runs from the original IDE (README,
   "Using the Blitz3D IDE"), but the IDE's debug switch is ignored: programs always run with
   BLTZNXT's runtime checks and stop with a message, without stepping or a variable view.
-- **The BLTZNXT IDE (`ide/`) is a work in progress.** It has the core (commands, menus,
-  key bindings, settings, documents, extensions) and shows an editor, but cannot yet open or
-  save files or build programs — use the Blitz3D IDE for that until then (`ide/PLAN.md`).
+- **The BLTZNXT IDE (`ide/`) is a work in progress.** You can write, save, build (F5/F6/F7),
+  create executables and run programs from it; it has no help browser and no settings page yet
+  (`ide/PLAN.md`, P4 and P5). Its "Debug Enabled?" switch is passed on as `-d`, which our
+  compiler ignores (there is no debugger, see above).
