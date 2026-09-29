@@ -566,6 +566,12 @@ async function scenarioBuild() {
 		lines[0] === 'Building hallo.bb' && lines.includes('Compiling C++...') && lines.some((l) => /^Built in \d+\.\d s\.$/.test(l)) && lines.at(-1) === 'Executing...',
 		lines.join(' | '));
 	check('Der Ausgabe-Reiter war beim Bauen vorn', await js(win, `document.querySelector('.panel-tab.active').textContent === 'Output'`));
+	check('Auto-Scroll: die letzte Zeile ist ganz sichtbar (nicht unter dem Panelrand)',
+		await js(win, `(() => {
+			const last = document.querySelector('.output-list').lastElementChild.getBoundingClientRect();
+			const panel = document.querySelector('.panel-body').getBoundingClientRect();
+			return last.bottom <= panel.bottom + 1 && last.top >= panel.top;
+		})()`));
 	check('Neben der Quelle bleibt nichts liegen', !fs.existsSync(path.join(dir, 'hallo.exe')) && fs.readdirSync(dir).filter((n) => !n.endsWith('.json')).sort().join() === 'hallo.bb,kaputt.bb,lang.bb', fs.readdirSync(dir).sort().join());
 	check('F6 ist jetzt frei (es gibt etwas Gebautes)', await js(win, `window.__ide.app.commands.isEnabled('program.rerun')`));
 

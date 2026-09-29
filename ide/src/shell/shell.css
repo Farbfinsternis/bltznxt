@@ -429,6 +429,7 @@ button {
 /* ---- Ausgabe (Erweiterung "build-run") --------------------------------------------- */
 
 .output-list {
+	box-sizing: border-box; /* sonst ragt der Innenabstand über das Panel hinaus und die letzte Zeile ist verdeckt */
 	height: 100%;
 	overflow: auto;
 	padding: 4px 0;

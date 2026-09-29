@@ -497,17 +497,41 @@ function mountOutput(el, controller) {
 		return div;
 	}
 
+	const toBottom = () => {
+		list.scrollTop = list.scrollHeight;
+	};
+	// Steht man (fast) unten, läuft die Ausgabe mit; hat man nach oben gescrollt,
+	// um etwas zu lesen, bleibt sie stehen. Der Zustand wird beim Scrollen
+	// gemerkt, denn in einem verborgenen Reiter gibt es keine Maße.
+	let follow = true;
+	list.addEventListener('scroll', () => {
+		if (list.clientHeight > 0) follow = list.scrollHeight - list.scrollTop - list.clientHeight < 24;
+	});
+	// Wird der Reiter eingeblendet oder das Panel größer, ans Ende gehen (falls man dort war)
+	const observer = new ResizeObserver(() => {
+		if (follow) toBottom();
+	});
+	observer.observe(list);
+
 	function render() {
 		list.replaceChildren(...controller.lines.map(row));
-		list.scrollTop = list.scrollHeight;
+		follow = true;
+		toBottom();
 	}
-
 	render();
-	return controller.onLine((line) => {
-		if (line === null) list.replaceChildren();
-		else {
-			list.append(row(line));
-			list.scrollTop = list.scrollHeight;
+
+	const off = controller.onLine((line) => {
+		if (line === null) {
+			list.replaceChildren();
+			follow = true;
+			return;
 		}
+		list.append(row(line));
+		if (follow) toBottom();
 	});
+
+	return () => {
+		observer.disconnect();
+		off();
+	};
 }
