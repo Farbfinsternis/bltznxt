@@ -51,6 +51,8 @@ export function createMenubar({ bar, layer, app }) {
 			}
 			const el = h('div', {
 				class: 'menu-item' + (item.enabled ? '' : ' disabled'),
+				// Der Fokus bleibt im Editor: Ausschneiden/Einfügen wirken auf seine Auswahl
+				onmousedown: (ev) => ev.preventDefault(),
 				role: item.checked ? 'menuitemcheckbox' : 'menuitem',
 				'aria-checked': item.checked ? 'true' : null,
 				'aria-disabled': item.enabled ? null : 'true',
@@ -85,6 +87,27 @@ export function createMenubar({ bar, layer, app }) {
 		openId = id;
 	}
 
+	/**
+	 * Ein Menü an einer Stelle des Fensters aufklappen (Rechtsklickmenü).
+	 * @param {string} id  Menü aus der Menüleiste, z.B. 'edit'
+	 */
+	function popup(id, x, y) {
+		const menu = model().find((m) => m.id === id);
+		if (!menu) return;
+		layer.replaceChildren();
+		for (const b of bar.querySelectorAll('.menu-title')) b.classList.remove('open');
+		const list = renderItems(menu.items, 0);
+		list.classList.add('menu-dropdown');
+		list.style.left = `${x}px`;
+		list.style.top = `${y}px`;
+		layer.append(list);
+		// Nicht über den Fensterrand hinaus
+		const r = list.getBoundingClientRect();
+		if (r.right > window.innerWidth) list.style.left = `${Math.max(0, window.innerWidth - r.width)}px`;
+		if (r.bottom > window.innerHeight) list.style.top = `${Math.max(0, window.innerHeight - r.height)}px`;
+		openId = `popup:${id}`;
+	}
+
 	function render() {
 		menus = model();
 		bar.replaceChildren(
@@ -92,6 +115,7 @@ export function createMenubar({ bar, layer, app }) {
 				const title = h('button', {
 					class: 'menu-title',
 					type: 'button',
+					onmousedown: (ev) => ev.preventDefault(),
 					'data-menu': menu.id,
 					text: menu.title,
 					onclick: (ev) => {
@@ -122,5 +146,5 @@ export function createMenubar({ bar, layer, app }) {
 	}, true);
 	window.addEventListener('blur', close);
 
-	return { render, close, get isOpen() { return openId !== null; } };
+	return { render, close, popup, get isOpen() { return openId !== null; } };
 }

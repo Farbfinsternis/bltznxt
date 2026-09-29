@@ -278,7 +278,7 @@ button {
 	display: flex;
 	flex-direction: column;
 	flex: none;
-	height: 200px;
+	height: 150px;
 	border-top: 1px solid var(--border);
 	background: var(--bg);
 }
@@ -403,4 +403,50 @@ button {
 
 .welcome-title {
 	font-size: 18px;
+}
+
+/* ---- Gliederung (Erweiterung "outline") -------------------------------------------- */
+
+.outline {
+	display: flex;
+	flex-direction: column;
+}
+
+.outline-tabs {
+	display: flex;
+	flex: none;
+	gap: 2px;
+	padding: 2px 4px;
+	border-bottom: 1px solid var(--border);
+}
+
+.outline-tab {
+	background: none;
+	border: 1px solid transparent;
+	border-radius: 3px;
+	padding: 1px 8px;
+	color: var(--fg-dim);
+}
+
+.outline-tab.active {
+	color: var(--fg);
+	border-color: var(--border);
+	background: var(--bg-raised);
+}
+
+.outline-list {
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
+	padding: 2px 0;
+}
+
+.outline-item {
+	padding: 1px 12px;
+	cursor: default;
+	white-space: nowrap;
+}
+
+.outline-item:hover {
+	background: var(--bg-hover);
 }

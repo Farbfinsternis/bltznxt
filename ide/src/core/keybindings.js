@@ -7,6 +7,10 @@
 // (Ctrl, Alt, Shift, Meta, dann die Taste), damit der Vergleich ein
 // Stringvergleich ist.
 //
+// `passive: true` markiert ein Kürzel, das nur angezeigt wird: die Taste
+// behandelt jemand anderes von sich aus (Strg+C im Texteingabefeld des
+// Editors). `resolve` liefert es nie, `keyFor` zeigt es im Menü.
+//
 // Bei mehreren Kürzeln auf derselben Taste gewinnt das zuletzt beigetragene,
 // dessen `when` erfüllt ist: eine Erweiterung kann ein Kürzel übernehmen, ohne
 // den Beitrag der ersten zu ändern.
@@ -120,8 +124,10 @@ export function createKeybindings({ contributions, context }) {
 				continue;
 			}
 			const entry = { command: item.command, args: item.args || [], when: item.when, key };
-			if (!byKey.has(key)) byKey.set(key, []);
-			byKey.get(key).push(entry);
+			if (!item.passive) {
+				if (!byKey.has(key)) byKey.set(key, []);
+				byKey.get(key).push(entry);
+			}
 			// Anzeige im Menü: das erste Kürzel eines Befehls
 			if (!byCommand.has(item.command)) byCommand.set(item.command, key);
 		}

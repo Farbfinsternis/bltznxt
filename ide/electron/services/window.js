@@ -32,4 +32,19 @@ function close() {
 	win.close();
 }
 
-module.exports = { api: { close }, installCloseGuard };
+/** Die Bearbeitungsbefehle, die das Fenster selbst kann (Zwischenablage). */
+const EDIT_ACTIONS = new Set(['cut', 'copy', 'paste']);
+
+/**
+ * Ausschneiden, Kopieren, Einfügen in das Element mit dem Fokus — so, wie es
+ * das Betriebssystem tut. Der Renderer allein (`document.execCommand`) darf das
+ * nur als Reaktion auf eine echte Benutzergeste; ein Menüpunkt, der einen
+ * Befehl auslöst, ist auf dem Weg dorthin keine mehr.
+ * @param {'cut' | 'copy' | 'paste'} action
+ */
+function edit(action) {
+	if (!EDIT_ACTIONS.has(action)) throw new Error(`window: unbekannte Bearbeitung "${action}"`);
+	if (this && this.sender) this.sender[action]();
+}
+
+module.exports = { api: { close, edit }, installCloseGuard };

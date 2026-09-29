@@ -264,11 +264,37 @@ Windows-1252), werden nicht ersetzt: die IDE fragt, ob als UTF-8 gespeichert wer
 
 **Noch offen aus P1:** Drucken (P5), Dateien per Ziehen ins Fenster öffnen.
 
-### P2 — Editor
-Färbung (Sprachdefinition aus `blitzcc +k` plus feste Schlüsselwörter), Schreibweise der
-Schlüsselwörter, Ein-/Ausrücken markierter Zeilen, Einrückung übernehmen, Suchen/Weitersuchen/
-Ersetzen, Kontextmenü, Statuszeile (`Row/Col/*`), Theme „Blitz3D-Klassik“, Gliederung
-(`funcs`/`types`/`labels`, Klick springt) als Ansicht.
+### P2 — Editor ✓ (2026-09-29)
+Färbung in den sieben Farben der Original-IDE (Theme „Blitz3D Classic“ ist die Vorgabe, dazu Dark
+und Light), Schreibweise der Schlüsselwörter, Ein-/Ausrücken markierter Zeilen (Tab, Umschalt+Tab),
+Enter übernimmt die Einrückung, Suchen/Weitersuchen/Ersetzen, Ausschneiden/Kopieren/Einfügen/Alles
+auswählen, das Rechtsklickmenü ist das Bearbeiten-Menü, Statuszeile `Row:12 Col:4 *`, Gliederung
+funcs/types/labels unter dem Editor. Neue Erweiterungen `themes` und `outline`; `editor` und
+`language-blitz` sind ausgebaut.
+
+**Geprüft durch:** reine Logik in `test/unit/editor-logic.test.js` (Schreibweise, Gliederung,
+Themes, passive Kürzel); in der echten Oberfläche (`ui-smoke.js`): Farben aus dem DOM gelesen,
+Theme-Wechsel, Schreibweise beim Tippen, „Rückgängig“ ohne Endlosschleife, eine geöffnete Datei
+bleibt beim Durchklicken unverändert, Zwischenablage über die echte Windows-Zwischenablage,
+Rechtsklickmenü, Suchfeld, Gliederung mit Klick-Sprung.
+
+**Beim Bauen entschieden:**
+- Themes sind ein Beitragspunkt (`themes`), die Auswahl die Einstellung `workbench.theme`; ein
+  Theme trägt die sieben Editorfarben, optional Monaco-Überschreibungen und CSS-Variablen der
+  Oberfläche. Der Editor definiert daraus Monaco-Themes, der Workbench setzt die Oberflächenfarben.
+- Die Schreibweise fasst nur Zeilen an, die der Benutzer selbst bearbeitet hat: eine geöffnete Datei
+  bleibt auch beim Durchklicken byte-gleich. Kommentare, Zeichenketten und Zahlen bleiben
+  unberührt; das Wort am Cursor erst, wenn der Cursor weiterrückt. Die Schlüsselwörter kommen
+  aus `blitzcc +k` (neuer Dienstaufruf `symbols()`); ohne Compiler gibt es keine Korrektur.
+- Kürzel können `passive` sein (nur Anzeige im Menü): Strg+X/C/V/A/Z/Y behandelt das Textfeld selbst.
+- Zwischenablage über `webContents.copy/cut/paste` (Dienst `window`): Monacos eigene Aktionen
+  klappen ohne echte Benutzergeste nicht, und ein Menüklick ist auf dem Weg dorthin keine mehr.
+- Menüklicks nehmen dem Editor den Fokus nicht (`mousedown` wird nicht weitergegeben).
+- Gliederung: eingerückte Deklarationen zählen mit, nur ganze Wörter (das Original sieht nur
+  Spalte 0 und würde `typeName = 3` für einen Typ halten).
+- Nicht wie das Original: Rückgängig/Wiederholen im Menü, „Find Previous“, Bracket-Färbung aus.
+- Eine Schrift wie die Original-Bitmapschrift „blitz“ gibt es nicht; `editor.fontFamily` ist
+  einstellbar (Vorgabe Consolas).
 
 ### P3 — Bauen und Starten
 F5/F6/F7, Programm erstellen, Kommandozeile, Debug-Schalter (gespeichert, wird als `-d`

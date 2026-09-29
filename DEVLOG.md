@@ -1,5 +1,25 @@
 # BlitzNext Developer Log
 
+## 2026-09-29 — The BLTZNXT IDE edits like the original (plan P2)
+
+The editor now behaves like the one in the Blitz3D IDE (`ide/PLAN.md`, P2). Code is coloured in the
+original's seven colours — the "Blitz3D Classic" theme (`#225588` background, keywords and commands
+`#aaffff`, identifiers white, comments yellow, strings green, numbers turquoise) is the default;
+Dark and Light come with it, and themes are just contributions of data. Typed keywords are
+corrected to the spelling of `blitzcc +k` (`graphics` becomes `Graphics`) once the cursor moves
+on — but only in lines you edited yourself, so opening a file and clicking through it never
+changes it. Tab and Shift+Tab indent selected lines, Enter keeps the indentation, nothing is
+closed or wrapped for you. Edit menu, right-click menu (it is the Edit menu), find/replace,
+status bar `Row:12 Col:4 *`, and the funcs / types / labels lists under the editor with a click
+to jump to the line.
+
+Two things needed a workaround. Monaco's own clipboard actions do nothing without a real user
+gesture — a menu click that runs a command is none — so Cut/Copy/Paste go through Electron's
+`webContents` instead. And a hidden Electron window stops repainting, which fooled the UI test
+into reading a stale page (`backgroundThrottling: false` in the test window).
+99 unit tests; the UI test reads real colours out of the rendered editor and the real
+clipboard.
+
 ## 2026-09-29 — The BLTZNXT IDE handles files (plan P1)
 
 The IDE now has the File menu of the original Blitz3D IDE: New, Open (several files), Close, Close

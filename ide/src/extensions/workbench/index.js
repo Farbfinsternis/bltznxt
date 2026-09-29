@@ -9,6 +9,7 @@
 //   * meldet eine unlesbare Einstellungsdatei
 
 import pkg from '../../../package.json';
+import { resolveTheme } from '../../core/themes.js';
 
 export default {
 	id: 'workbench',
@@ -43,6 +44,11 @@ export default {
 				type: 'boolean',
 				default: true,
 				description: 'Show the toolbar and the status bar.'
+			},
+			'workbench.theme': {
+				type: 'string',
+				default: 'blitz-classic',
+				description: 'Color theme (id of a theme contributed by an extension).'
 			},
 			'workbench.language': {
 				type: 'string',
@@ -96,14 +102,36 @@ export default {
 	activate(ctx) {
 		const { settings, context, i18n } = ctx;
 
+		// Farben der Oberfläche aus dem gewählten Theme (CSS-Variablen; siehe shell.css).
+		// Ein Theme ohne `ui` lässt die Vorgabe stehen.
+		let applied = [];
+		const clearUiTheme = () => {
+			for (const name of applied) document.documentElement.style.removeProperty(name);
+			applied = [];
+		};
+		const applyUiTheme = () => {
+			clearUiTheme();
+			const theme = resolveTheme(ctx.contributions.get('themes'), settings.get('workbench.theme'));
+			if (!theme) return;
+			for (const [name, value] of Object.entries(theme.ui || {})) {
+				document.documentElement.style.setProperty(name, value);
+				applied.push(name);
+			}
+			document.documentElement.style.colorScheme = theme.dark === false ? 'light' : 'dark';
+		};
+
 		const syncToolbars = () => context.set('workbench.toolbarsVisible', settings.get('workbench.showToolbars'));
 		syncToolbars();
 		ctx.subscriptions.add(
 			settings.onDidChange((e) => {
 				if (e.key === 'workbench.showToolbars') syncToolbars();
 				if (e.key === 'workbench.language') i18n.setLanguage(e.value);
+				if (e.key === 'workbench.theme') applyUiTheme();
 			})
 		);
+		ctx.subscriptions.add(ctx.contributions.onDidChange('themes', applyUiTheme));
+		ctx.subscriptions.add(() => clearUiTheme());
+		applyUiTheme();
 		i18n.setLanguage(settings.get('workbench.language'));
 
 		// Fenstertitel: Pfad der aktiven Datei, wie im Original ("Blitz3D - <Datei>")

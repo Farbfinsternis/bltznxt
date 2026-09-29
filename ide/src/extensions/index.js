@@ -11,7 +11,9 @@
 import workbench from './workbench/index.js';
 import toolchain from './toolchain/index.js';
 import languageBlitz from './language-blitz/index.js';
+import themes from './themes/index.js';
 import editor from './editor/index.js';
+import outline from './outline/index.js';
 import files from './files/index.js';
 
-export const builtinExtensions = [workbench, toolchain, languageBlitz, editor, files];
+export const builtinExtensions = [workbench, themes, toolchain, languageBlitz, editor, outline, files];

@@ -7,7 +7,8 @@
 // diese Dateien und nichts vom Kern.
 //
 // Gesetzt wird:
-//   Dienste  'dialogs' (Meldungen), 'statusbar' (Texte der Statuszeile)
+//   Dienste  'dialogs' (Meldungen), 'statusbar' (Texte der Statuszeile),
+//            'menus' (Menü an einer Stelle aufklappen)
 //   Beiträge lesend: menubar, menus, toolbar, views, statusItems, keybindings
 //   Kontext  'dialog.open'
 
@@ -64,6 +65,8 @@ export function createShell({ root, app }) {
 	});
 
 	const menubar = createMenubar({ bar: menubarEl, layer: menuLayer, app });
+	// Für Rechtsklickmenüs: `menus.popup('edit', x, y)`
+	app.services.provide('menus', { popup: (id, x, y) => menubar.popup(id, x, y), close: () => menubar.close() });
 
 	// ---- Sichtbarkeit von Symbol- und Statusleiste ----------------------------
 	// Einstellung gehört der Erweiterung "workbench"; fehlt sie, gilt: sichtbar.

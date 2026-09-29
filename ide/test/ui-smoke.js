@@ -12,7 +12,7 @@
 
 'use strict';
 
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, clipboard } = require('electron');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -66,7 +66,9 @@ async function openWindow(userData) {
 			nodeIntegration: false,
 			contextIsolation: true,
 			preload: path.join(__dirname, '..', 'electron', 'preload.js'),
-			webSecurity: false
+			webSecurity: false,
+			// Ein verstecktes Fenster würde sonst nicht mehr neu zeichnen (requestAnimationFrame ruht)
+			backgroundThrottling: false
 		}
 	});
 	// wie electron-main.js: Schließen nur mit Zustimmung des Renderers
@@ -319,6 +321,204 @@ async function scenarioLaunchFilesAndAbschalten() {
 	fs.rmSync(dir, { recursive: true, force: true });
 }
 
+const edApi = `window.__ide.app.services.get('editor').monaco`;
+// Quelle 'keyboard': nur dann behandelt Monaco das Tippen wie echtes Tippen (Einrückung bei Enter u.a.)
+const typeText = (win, text) => js(win, `${edApi}.editor.trigger('keyboard', 'type', { text: ${JSON.stringify(text)} })`);
+const editorText = (win) => js(win, `${edApi}.editor.getModel().getValue(1)`);
+const setSelection = (win, l1, c1, l2, c2) => js(win, `${edApi}.editor.setSelection({ startLineNumber: ${l1}, startColumn: ${c1}, endLineNumber: ${l2}, endColumn: ${c2} })`);
+const cssColor = (hex) => {
+	const n = parseInt(hex.slice(1), 16);
+	return `rgb(${n >> 16}, ${(n >> 8) & 255}, ${n & 255})`;
+};
+
+async function scenarioEditor() {
+	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bltznxt-ui-'));
+	// Eine Datei mit kleingeschriebenen Schlüsselwörtern: sie darf sich durch bloßes Öffnen und Durchklicken nicht ändern
+	const lower = path.join(dir, 'klein.bb');
+	fs.writeFileSync(lower, 'graphics 800,600\r\nprint "hallo"\r\n');
+	hostService.setLaunchArgs(['electron', 'app', lower], false, dir);
+	const { win, errors, started } = await openWindow(dir);
+	check('Editor: IDE gestartet', started);
+	if (!started) return win.destroy();
+	await waitFor(win, `window.__ide.app.documents.active !== null && ${edApi} !== null && ${edApi}.editor.getModel() !== null`, 8000);
+	// Befehlsliste vom Compiler abwarten (Schlüsselwörter für Färbung und Schreibweise)
+	const info = await js(win, `window.__ide.app.services.get('toolchain').info`);
+	const haveCompiler = Boolean(info && info.available);
+	if (haveCompiler) await waitFor(win, `window.__ide.app.services.get('toolchain').symbols().then((s) => s.keywords.length > 10)`, 10000);
+	await sleep(500);
+
+	// --- Theme "Blitz3D Classic": die sieben Farben der Original-IDE ----------------------
+	const classic = { background: '#225588', keyword: '#aaffff', comment: '#ffee00', string: '#00ff66', number: '#33ffdd', identifier: '#ffffff' };
+	check('Theme: Vorgabe ist Blitz3D Classic, Hintergrund #225588',
+		await js(win, `getComputedStyle(document.querySelector('.monaco-editor-background')).backgroundColor`) === cssColor(classic.background));
+
+	// Färben: Text mit allen Sorten setzen und die Farben aus dem DOM lesen
+	await js(win, `${edApi}.editor.getModel().setValue('Graphics 800\\nMeinWert = 5 ; Kommentar\\nPrint "text"\\n')`);
+	await waitFor(win, `document.querySelectorAll('.view-line span span').length >= 8`, 4000);
+	await sleep(200);
+	const colors = await js(win, `(() => {
+		const out = {};
+		for (const span of document.querySelectorAll('.view-line span span')) {
+			// Monaco setzt geschützte Leerzeichen (U+00A0) in die Spans
+			const t = span.textContent.split(String.fromCharCode(160)).join(' ').trim();
+			if (t) out[t] = getComputedStyle(span).color;
+		}
+		return out;
+	})()`);
+	if (haveCompiler) {
+		check('Färbung: Befehle und Schlüsselwörter in der Schlüsselwortfarbe (aaffff)',
+			colors['Graphics'] === cssColor(classic.keyword) && colors['Print'] === cssColor(classic.keyword), JSON.stringify(colors));
+	}
+	check('Färbung: Bezeichner weiß, Zahl, Zeichenkette und Kommentar in ihren Farben',
+		colors['MeinWert'] === cssColor(classic.identifier) && colors['5'] === cssColor(classic.number) &&
+		colors['"text"'] === cssColor(classic.string) && colors['; Kommentar'] === cssColor(classic.comment), JSON.stringify(colors));
+
+	// --- Theme wechseln ---------------------------------------------------------------------
+	await js(win, `window.__ide.app.settings.set('workbench.theme', 'light')`);
+	await sleep(300);
+	check('Theme "Light": Editor und Oberfläche wechseln',
+		await js(win, `getComputedStyle(document.querySelector('.monaco-editor-background')).backgroundColor`) === 'rgb(255, 255, 255)' &&
+		await js(win, `getComputedStyle(document.documentElement).getPropertyValue('--bg-alt').trim()`) === '#f3f3f3');
+	await js(win, `window.__ide.app.settings.set('workbench.theme', 'blitz-classic')`);
+	await sleep(300);
+	check('Theme zurück: Oberflächenfarben wieder die Vorgabe',
+		await js(win, `getComputedStyle(document.documentElement).getPropertyValue('--bg-alt').trim()`) === '#252526');
+
+	// --- Geöffnete Datei bleibt, wie sie ist ------------------------------------------------------
+	await js(win, `window.__ide.app.documents.close(window.__ide.app.documents.active.id)`);
+	await js(win, `void window.__ide.app.services.get('files').openPath(${JSON.stringify(lower)}); 0`);
+	await waitFor(win, `window.__ide.app.documents.active !== null && ${edApi}.editor.getModel() !== null`, 5000);
+	await js(win, `${edApi}.editor.setPosition({ lineNumber: 2, column: 3 })`);
+	await js(win, `${edApi}.editor.setPosition({ lineNumber: 1, column: 12 })`);
+	await sleep(200);
+	check('Nur durchklicken ändert eine geöffnete Datei nicht (Schreibweise bleibt, Datei nicht "geändert")',
+		await editorText(win) === 'graphics 800,600\nprint "hallo"\n' && await js(win, `window.__ide.app.documents.active.dirty === false`));
+
+	// --- Schreibweise beim Tippen ----------------------------------------------------------------------
+	if (haveCompiler) {
+		await js(win, `${edApi}.editor.getModel().setValue('')`);
+		await js(win, `window.__ide.app.documents.active && 0`);
+		await typeText(win, 'graphics');
+		check('Schreibweise: das Wort am Cursor bleibt, solange man tippt', await editorText(win) === 'graphics');
+		await typeText(win, ' ');
+		check('Schreibweise: sobald der Cursor weiterrückt, wird es "Graphics"', await editorText(win) === 'Graphics ');
+		await typeText(win, '800 ; print');
+		check('Schreibweise: Kommentar bleibt unberührt', await editorText(win) === 'Graphics 800 ; print');
+
+		await js(win, `${edApi}.editor.getModel().setValue('')`);
+		await typeText(win, 'if x then print "if"\nendif ');
+		check('Schreibweise: mehrere Wörter, Zeichenkette bleibt, Zeile davor wird abgeschlossen',
+			await editorText(win) === 'If x Then Print "if"\nEndIf ', await editorText(win));
+
+		// Rückgängig darf die Korrektur nicht endlos neu anwenden
+		await js(win, `${edApi}.editor.getModel().setValue('')`);
+		await typeText(win, 'print ');
+		const afterType = await editorText(win);
+		await js(win, `${edApi}.editor.trigger('test', 'undo', null)`);
+		await sleep(150);
+		const afterUndo = await editorText(win);
+		check('Rückgängig: kein Endlos-Korrigieren (Text ist entweder leer oder klein, nicht wieder "Print ")',
+			afterType === 'Print ' && afterUndo !== 'Print ', JSON.stringify({ afterType, afterUndo }));
+	} else {
+		console.log('SKIP  Schreibweise: kein Compiler gefunden');
+	}
+
+	// --- Einrücken -----------------------------------------------------------------------------------------
+	await js(win, `${edApi}.editor.getModel().setValue('a\\nb\\nc\\n')`);
+	await setSelection(win, 1, 1, 3, 2);
+	await js(win, `${edApi}.editor.trigger('test', 'tab', null)`);
+	check('Tab mit markierten Zeilen rückt ein (mit Tabulator)', await editorText(win) === '\ta\n\tb\n\tc\n');
+	await js(win, `${edApi}.editor.trigger('test', 'outdent', null)`);
+	check('Umschalt+Tab rückt aus', await editorText(win) === 'a\nb\nc\n');
+	await js(win, `${edApi}.editor.getModel().setValue('\\t\\tx')`);
+	await js(win, `${edApi}.editor.setPosition({ lineNumber: 1, column: 4 })`);
+	await typeText(win, '\n');
+	check('Enter übernimmt die Einrückung der Zeile', await editorText(win) === '\t\tx\n\t\t');
+
+	// --- Statuszeile ------------------------------------------------------------------------------------------
+	await js(win, `${edApi}.editor.getModel().setValue('eins\\nzwei drei')`);
+	await js(win, `${edApi}.editor.setPosition({ lineNumber: 2, column: 6 })`);
+	await sleep(150);
+	const pos = await js(win, `document.querySelector('[data-status="editor.position"]')?.textContent ?? null`);
+	check('Statuszeile: "Row:2 Col:6 *" (Stern = geändert)', pos === 'Row:2 Col:6 *', String(pos));
+
+	// --- Bearbeiten-Menü ------------------------------------------------------------------------------------------
+	await js(win, `document.querySelector('.menu-title[data-menu="edit"]').click()`);
+	const editMenu = await js(win, `[...document.querySelectorAll('.menu-dropdown > .menu-item, .menu-dropdown > .menu-separator')].map((el) =>
+		el.classList.contains('menu-separator') ? '-' : el.querySelector('.menu-label').textContent + (el.querySelector('.menu-key').textContent ? ' [' + el.querySelector('.menu-key').textContent + ']' : '') + (el.classList.contains('disabled') ? ' (aus)' : ''))`);
+	check('Bearbeiten-Menü: Anordnung des Originals (Zwischenablage, Auswahl, Suchen, Leisten)',
+		editMenu.join('|') === 'Undo [Ctrl+Z]|Redo [Ctrl+Y]|-|Cut [Ctrl+X] (aus)|Copy [Ctrl+C] (aus)|Paste [Ctrl+V]|-|Select All [Ctrl+A]|-|Find... [Ctrl+F]|Find Next [F3]|Replace... [Ctrl+R]|Find Previous [Shift+F3]|-|Show Toolbars [Shift+Escape]',
+		editMenu.join('|'));
+	await js(win, `document.body.click()`);
+
+	// --- Zwischenablage: Kopieren, Ausschneiden, Einfügen über die Befehle ----------------------------------------------
+	await js(win, `${edApi}.editor.getModel().setValue('abc def')`);
+	await setSelection(win, 1, 1, 1, 4);
+	await sleep(100);
+	check('Kopieren/Ausschneiden sind bei Auswahl frei, ohne gesperrt', await js(win, `window.__ide.app.commands.isEnabled('edit.copy') && window.__ide.app.commands.isEnabled('edit.cut')`));
+	await js(win, `void window.__ide.app.run('edit.copy'); 0`);
+	await sleep(200);
+	check('Kopieren: Auswahl liegt in der Zwischenablage', clipboard.readText() === 'abc', clipboard.readText());
+	await js(win, `void window.__ide.app.run('edit.cut'); 0`);
+	await sleep(200);
+	check('Ausschneiden: Text weg, in der Zwischenablage', await editorText(win) === ' def' && clipboard.readText() === 'abc');
+	clipboard.writeText('XYZ');
+	await js(win, `${edApi}.editor.setPosition({ lineNumber: 1, column: 5 })`);
+	await js(win, `void window.__ide.app.run('edit.paste'); 0`);
+	await sleep(300);
+	check('Einfügen aus der Zwischenablage', await editorText(win) === ' defXYZ', await editorText(win));
+	await js(win, `void window.__ide.app.run('edit.selectAll'); 0`);
+	await sleep(100);
+	check('Alles auswählen', await js(win, `${edApi}.editor.getSelection().equalsRange(${edApi}.editor.getModel().getFullModelRange())`));
+
+	// --- Suchen -----------------------------------------------------------------------------------------------------------
+	await js(win, `void window.__ide.app.run('edit.find'); 0`);
+	await sleep(300);
+	check('Suchen: Suchfeld erscheint', await js(win, `document.querySelector('.monaco-editor .find-widget.visible') !== null`));
+	await key(win, { key: 'Escape' });
+	await js(win, `void window.__ide.app.run('edit.replace'); 0`);
+	await sleep(300);
+	check('Ersetzen: Ersetzen-Feld erscheint', await js(win, `document.querySelector('.monaco-editor .find-widget.visible .replace-part') !== null && !document.querySelector('.monaco-editor .find-widget .replace-part').hidden`));
+	await key(win, { key: 'Escape' });
+	// Kürzel Ctrl+F über das Register der Shell, nicht über Monaco
+	await js(win, `${edApi}.editor.focus()`);
+	await key(win, { key: 'f', ctrlKey: true });
+	await sleep(300);
+	check('Ctrl+F öffnet das Suchfeld', await js(win, `document.querySelector('.monaco-editor .find-widget.visible') !== null`));
+	await key(win, { key: 'Escape' });
+
+	// --- Rechtsklickmenü = Bearbeiten-Menü ------------------------------------------------------------------------------------
+	await js(win, `document.querySelector('.monaco-editor .view-lines').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 300, clientY: 200, button: 2 }))`);
+	await sleep(200);
+	const ctxItems = await js(win, `[...document.querySelectorAll('.menu-dropdown .menu-label')].map((e) => e.textContent).join()`);
+	check('Rechtsklick im Editor zeigt das Bearbeiten-Menü', /Cut,Copy,Paste,Select All,Find/.test(ctxItems), ctxItems);
+	await js(win, `document.body.click()`);
+
+	// --- Gliederung ------------------------------------------------------------------------------------------------------------------
+	const source = ['Type Player', '\tField x', 'End Type', '', '.start', 'Function Main()', 'End Function', 'Function Helper()', 'End Function', ''].join('\n');
+	await js(win, `${edApi}.editor.getModel().setValue(${JSON.stringify(source)})`);
+	await sleep(500);
+	const tabsText = await js(win, `[...document.querySelectorAll('.outline-tab')].map((b) => b.textContent).join()`);
+	check('Gliederung: drei Reiter mit Anzahl (funcs, types, labels)', tabsText === 'funcs (2),types (1),labels (1)', tabsText);
+	check('Gliederung: unten im Panel sichtbar', await js(win, `!document.querySelector('.panel').hidden && document.querySelector('.panel-tab.active').textContent === 'Outline'`));
+	const funcs = await js(win, `[...document.querySelectorAll('.outline-item')].map((e) => e.textContent + ':' + e.dataset.line).join()`);
+	check('Gliederung: Funktionen mit Zeile', funcs === 'Main:6,Helper:8', funcs);
+	await js(win, `document.querySelectorAll('.outline-item')[1].click()`);
+	await sleep(150);
+	check('Klick auf einen Eintrag setzt den Cursor auf die Zeile', await js(win, `${edApi}.editor.getPosition().lineNumber === 8`));
+	await js(win, `document.querySelector('.outline-tab[data-tab="types"]').click()`);
+	check('Reiter "types" zeigt die Typen', await js(win, `document.querySelector('.outline-item').textContent === 'Player'`));
+	// die Gliederung folgt Änderungen
+	await js(win, `${edApi}.editor.getModel().setValue('Function Neu()\\nEnd Function\\n')`);
+	await sleep(500);
+	check('Gliederung folgt dem Text', await js(win, `[...document.querySelectorAll('.outline-tab')].map((b) => b.textContent).join()`) === 'funcs (1),types (0),labels (0)');
+
+	check('Keine Fehler auf der Konsole der Seite', errors.length === 0, errors.slice(0, 3).join(' || '));
+	win.destroy();
+	hostService.setLaunchArgs(['electron', 'app'], false, dir);
+	fs.rmSync(dir, { recursive: true, force: true });
+}
+
 async function scenarioCorruptSettings() {
 	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bltznxt-ui-'));
 	fs.writeFileSync(path.join(dir, 'settings.json'), '{ das ist kein json', 'utf8');
@@ -350,6 +550,7 @@ app.whenReady().then(async () => {
 	try {
 		await scenarioNormal();
 		await scenarioLaunchFilesAndAbschalten();
+		await scenarioEditor();
 		await scenarioCorruptSettings();
 	} catch (err) {
 		console.log('FAIL  Testlauf abgebrochen:', err && err.stack ? err.stack : err);

@@ -136,7 +136,7 @@ async function getInfo({ compilerPath } = {}) {
 // Die Kommandoliste wird bewusst zur Laufzeit beim Compiler erfragt und nicht
 // in der IDE eingefroren — sonst veraltet die Autovervollständigung still,
 // sobald der Compiler neue Befehle bekommt.
-let commandCache = null; // { key, commands }
+let commandCache = null; // { key, symbols }
 
 /**
  * Parameter aus einer Signatur im Blitz3D-Format: "x#,y#[,z#]" oder
@@ -171,9 +171,42 @@ function blitzParams(sig) {
 	return out;
 }
 
-async function listCommands({ compilerPath } = {}) {
+/**
+ * Zerlegt die Ausgabe von `blitzcc +k`.
+ *
+ * +k liefert das Format des Original-blitzcc: Schlüsselwörter der Sprache
+ * nackt ("If"), Funktionen "EntityX# ( h[,glob] )", Befehle
+ * "PositionEntity h,x#,y#,z#[,glob]" oder "Cls " ohne Parameter. Die
+ * Schreibweise der Schlüsselwörter ist die, in die die IDE getippte Wörter
+ * korrigiert (Original: Editor::addKeyword).
+ *
+ * @param {string} stdout
+ * @returns {{ commands: Array<{name: string, signature: string, params: string[]}>, keywords: string[] }}
+ */
+function parseSymbols(stdout) {
+	const commands = [];
+	const keywords = [];
+	for (const raw of String(stdout).split(/\r?\n/)) {
+		const line = raw.replace(/\s+$/, '');
+		const fn = /^([A-Za-z_][A-Za-z0-9_]*)[#$%]?\s*\(\s*(.*?)\s*\)$/.exec(line);
+		const cmd = fn ? null : /^([A-Za-z_][A-Za-z0-9_]*)(?: (.*))?$/.exec(raw);
+		const m = fn || cmd;
+		if (!m) continue;
+		// ohne Leerzeichen dahinter ist es ein Schlüsselwort, kein Befehl
+		if (!fn && !/ /.test(raw)) {
+			keywords.push(m[1]);
+			continue;
+		}
+		const sig = (m[2] || '').trim();
+		commands.push({ name: m[1], signature: sig, params: blitzParams(sig) });
+	}
+	return { commands, keywords };
+}
+
+/** @returns {Promise<{ commands: Array<object>, keywords: string[] }>} */
+async function listSymbols({ compilerPath } = {}) {
 	const found = resolveCompiler(compilerPath);
-	if (!found.available) return [];
+	if (!found.available) return { commands: [], keywords: [] };
 
 	let key = found.path;
 	try {
@@ -181,29 +214,18 @@ async function listCommands({ compilerPath } = {}) {
 	} catch {
 		/* ohne mtime cachen wir nur über den Pfad */
 	}
-	if (commandCache && commandCache.key === key) return commandCache.commands;
+	if (commandCache && commandCache.key === key) return commandCache.symbols;
 
-	// +k liefert das Format des Original-blitzcc: Schlüsselwörter der Sprache
-	// nackt ("If"), Funktionen "EntityX# ( h[,glob] )", Befehle
-	// "PositionEntity h,x#,y#,z#[,glob]" oder "Cls " ohne Parameter.
 	const res = await runCompiler(found.path, ['+k'], path.dirname(found.path));
-	if (res.exitCode !== 0) return [];
+	if (res.exitCode !== 0) return { commands: [], keywords: [] };
 
-	const commands = [];
-	for (const raw of res.stdout.split(/\r?\n/)) {
-		const line = raw.replace(/\s+$/, '');
-		const fn = /^([A-Za-z_][A-Za-z0-9_]*)[#$%]?\s*\(\s*(.*?)\s*\)$/.exec(line);
-		const cmd = fn ? null : /^([A-Za-z_][A-Za-z0-9_]*)(?: (.*))?$/.exec(raw);
-		const m = fn || cmd;
-		if (!m) continue;
-		// ohne Leerzeichen dahinter ist es ein Schlüsselwort, kein Befehl
-		if (!fn && !/ /.test(raw)) continue;
-		const sig = (m[2] || '').trim();
-		commands.push({ name: m[1], signature: sig, params: blitzParams(sig) });
-	}
+	const symbols = parseSymbols(res.stdout);
+	commandCache = { key, symbols };
+	return symbols;
+}
 
-	commandCache = { key, commands };
-	return commands;
+async function listCommands(opts = {}) {
+	return (await listSymbols(opts)).commands;
 }
 
 /**
@@ -266,7 +288,7 @@ async function compile(file, opts = {}) {
 }
 
 // Die Methoden, die der Renderer über die Brücke aufrufen darf.
-const api = { getInfo, listCommands, compile };
+const api = { getInfo, listCommands, listSymbols, compile };
 
 module.exports = {
 	api,
@@ -274,6 +296,8 @@ module.exports = {
 	// einmal ohne Electron laufen soll (z.B. Headless-Prüfung)
 	getInfo,
 	listCommands,
+	listSymbols,
+	parseSymbols,
 	compile,
 	resolveCompiler
 };

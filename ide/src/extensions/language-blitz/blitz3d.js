@@ -146,9 +146,17 @@ export function install() {
 	installed = true;
 	registerTokens();
 	const completions = registerCompletions();
+	// Kommentare mit ";", Klammern; nichts wird von selbst geschlossen (wie im
+	// Original). Ein Wort ist ein Bezeichner mit optionalem Typkennzeichen.
+	const configuration = monaco.languages.setLanguageConfiguration(LANGUAGE_ID, {
+		comments: { lineComment: ';' },
+		brackets: [['(', ')'], ['[', ']']],
+		wordPattern: /[A-Za-z_][A-Za-z0-9_]*[%#$]?/
+	});
 	return () => {
 		installed = false;
 		completions.dispose();
+		configuration.dispose();
 		if (tokensProvider) tokensProvider.dispose();
 		tokensProvider = null;
 	};

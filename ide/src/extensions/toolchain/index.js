@@ -13,6 +13,7 @@
 //   refresh()            Compiler neu suchen; meldet 'toolchain:changed'
 //   getInfo()            { available, path, source, version }
 //   listCommands()       [{ name, signature, params }]
+//   symbols()            { commands: [...], keywords: ['If', 'Then', ...] }
 //   compile(file, opts)  siehe electron/services/toolchain.js
 //
 // Kontext: toolchain.available
@@ -83,6 +84,11 @@ export default {
 			async listCommands() {
 				if (!platform.hasBackend) return [];
 				return platform.invoke('toolchain', 'listCommands', options());
+			},
+			/** Befehle und Schlüsselwörter (mit ihrer Schreibweise) aus `blitzcc +k`. */
+			async symbols() {
+				if (!platform.hasBackend) return { commands: [], keywords: [] };
+				return platform.invoke('toolchain', 'listSymbols', options());
 			},
 			async compile(file, opts = {}) {
 				return platform.invoke('toolchain', 'compile', file, { ...opts, ...options() });
