@@ -6,7 +6,8 @@ mg.glb, rail.glb, ziel.glb, items/*.glb
     Blaster Kit 2.1 (blaster-p, blaster-f, target-large, crate-small),
     Mini Dungeon (shield-round), Platformer Kit (heart).
     Aufbereitet von werkzeug/kenney.py: Groesse, Lage, Muendung, Animationen,
-    Farben, Textur eingebettet.
+    Farben; danach von werkzeug/veredeln.py (Blender) neu abgewickelt, mit
+    Fugenschatten, Kantenlicht und Oberflaechen versehen, Textur als JPEG.
 
 rl.glb
     Modell von GPT-6 Astra (in Blender gebaut), Original werkzeug/astra/weapon.glb.

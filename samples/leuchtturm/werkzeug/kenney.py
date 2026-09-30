@@ -23,6 +23,12 @@ Umfaerben: Kenneys Textur ist eine Farbtafel aus Feldern zu 32 x 128 Pixeln
 (16 Spalten, 4 Zeilen), jede Flaeche liegt in einem Feld. Eine andere Farbe
 heisst: die Texturkoordinaten in ein anderes Feld verschieben.
 
+Die Modelle kommen erst als Rohmodelle nach werkzeug/roh/ (nicht im Repository). Dann
+macht veredeln.py (Blender ohne Oberflaeche, Umgebungsvariable BLENDER oder PATH) daraus die
+Dateien in daten/: neu abwickeln, die Farbtafel aufs neue Layout backen, Fugenschatten,
+Kantenlicht und Oberflaeche dazu, Textur als JPEG. Ohne Blender werden die Rohmodelle
+kopiert. Die Animationen bleiben erhalten (Blender tastet sie mit 60 Bildern je Sekunde ab).
+
 Aufruf aus dem Projektwurzelverzeichnis:
 
     py samples/leuchtturm/werkzeug/kenney.py
@@ -32,14 +38,18 @@ import io
 import json
 import math
 import os
+import shutil
 import struct
+import subprocess
 import urllib.request
 import zipfile
+from concurrent.futures import ThreadPoolExecutor
 
 from glb import pos, quat, write
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DATEN = os.path.join(HERE, "..", "daten")
+ROH = os.path.join(HERE, "roh")             # die Modelle, wie sie aus den Paketen kommen (nicht im Repository)
 CACHE = os.path.join(HERE, "kenney")
 GEN = "BLTZNXT samples/leuchtturm/werkzeug/kenney.py - Modelle von Kenney (www.kenney.nl), CC0"
 
@@ -184,8 +194,51 @@ class Modell:
 
 
 def speichere(out, nodes, modelle, anims=()):
+    """Schreibt nach werkzeug/roh/; veredeln() macht daraus die Datei in daten/."""
+    out = os.path.join(ROH, os.path.relpath(out, DATEN))
     write(out, nodes, [m.netz() for m in modelle], GEN, anims, texture=modelle[0].textur)
     print("%s: %d Dreiecke" % (os.path.normpath(out), sum(len(m.idx) for m in modelle) // 3))
+
+
+# Texturgroesse und Abweichungen je Modell fuer veredeln.py; Rost nur dort, wo er passt
+VEREDELN = {
+    "mg": dict(groesse=1024), "rail": dict(groesse=1024),
+    "ziel": dict(groesse=512, ao=0.55, kontrast=1.06, rost=0.1, facette_s=0.2),
+}
+VEREDELN_ITEMS = dict(groesse=512, ao=0.55, kontrast=1.06, rost=0.1, riss_s=0.2, facette_s=0.2)
+
+
+def blender():
+    """Pfad zu blender.exe: Umgebungsvariable BLENDER, sonst der PATH, sonst nichts."""
+    return os.environ.get("BLENDER") or shutil.which("blender")
+
+
+def veredeln():
+    """Jede Datei aus werkzeug/roh/ nach daten/ bringen: mit Blender (veredeln.py, Modus neu)
+    neu abwickeln und Tiefe in die Textur backen; ohne Blender wird sie nur kopiert."""
+    exe = blender()
+    dateien = []
+    for wurzel, _, namen in os.walk(ROH):
+        for n in namen:
+            if n.endswith(".glb"):
+                dateien.append(os.path.relpath(os.path.join(wurzel, n), ROH))
+
+    def eine(rel):
+        quelle, ziel = os.path.join(ROH, rel), os.path.join(DATEN, rel)
+        os.makedirs(os.path.dirname(ziel), exist_ok=True)
+        if not exe:
+            shutil.copyfile(quelle, ziel)
+            return
+        name = os.path.splitext(os.path.basename(rel))[0]
+        opt = VEREDELN.get(name, VEREDELN_ITEMS)
+        subprocess.run([exe, "-b", "--python", os.path.join(HERE, "veredeln.py"), "--", "neu", quelle, ziel]
+                       + ["%s=%s" % kv for kv in opt.items()], check=True, stdout=subprocess.DEVNULL)
+        print("%s: %d Byte" % (os.path.normpath(ziel), os.path.getsize(ziel)))
+
+    if not exe:
+        print("kenney.py: kein Blender (BLENDER setzen) - die Modelle bleiben unveredelt")
+    with ThreadPoolExecutor(3) as pool:
+        list(pool.map(eine, dateien))
 
 
 # --- Waffen -----------------------------------------------------------------
@@ -297,3 +350,4 @@ if __name__ == "__main__":
     waffen()
     ziel()
     items()
+    veredeln()

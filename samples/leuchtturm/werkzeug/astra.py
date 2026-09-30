@@ -113,8 +113,7 @@ def veredle(bilder, tmp):
     basis, aus = os.path.join(tmp, "basis.png"), os.path.join(tmp, "veredelt.png")
     open(basis, "wb").write(bilder["BaseColor"])
     subprocess.run([exe, "-b", "--python", os.path.join(HERE, "veredeln.py"), "--", "astra",
-                    os.path.join(tmp, "weapon_opt.glb"), aus, "basis=" + basis, "ao=0.7", "kante=0.8",
-                    "radius=0.012"], check=True, stdout=subprocess.DEVNULL)
+                    os.path.join(tmp, "weapon_opt.glb"), aus, "basis=" + basis], check=True, stdout=subprocess.DEVNULL)
     return dict(bilder, BaseColor=open(aus, "rb").read())
 
 

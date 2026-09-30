@@ -101,3 +101,5 @@ samples/leuchtturm/werkzeug/kenney/
 
 # Fertige Pakete zum Verteilen
 dist/
+# Leuchtturm: Rohmodelle vor dem Veredeln (werkzeug/kenney.py)
+samples/leuchtturm/werkzeug/roh/

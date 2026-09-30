@@ -16,7 +16,8 @@ es hineingebacken:
   - Kontrast und Saettigung
 
 Das Material eines Texels folgt aus seiner Farbe (Farbton, Saettigung,
-Helligkeit): blau, orange, braun (Holz) und alles andere als dunkler Stein.
+Helligkeit): blau (Kristall), orange (Rost), braun (Holz), sonstige bunte
+Farben (Lack) und Unbunt als Stein.
 
 Modi:
 
@@ -27,9 +28,9 @@ Modi:
            der alten Textur (Kenneys Farbtafel) werden zuerst aufs neue
            Layout gebacken. Ausgabe ist eine .glb mit Textur als JPEG.
 
-Schluessel: groesse (2048), samples (48), ao (0.55), kante (0.45),
-radius (0.008), kontrast, saett, facette_b/_s, riss_b/_s, rost, sand,
-facetten, risse, fleck (Massstaebe der prozeduralen Lagen), basis.
+Schluessel: groesse (2048), samples (48), ao (0.7), ao_weite (0.3, relativ zur Groesse), kante (0.8),
+radius (0.012, relativ zur Groesse des Modells), kontrast, saett, facette_b/_s, riss_b/_s, rost, sand,
+facetten, risse, fleck (Zellen je Modellgroesse), basis.
 """
 
 import os
@@ -59,6 +60,12 @@ sc.render.engine = "CYCLES"
 sc.cycles.device = "CPU"
 sc.cycles.samples = int(f("samples", 48))
 sc.cycles.use_denoising = False
+
+
+# Masse relativ zur Groesse des Modells (laengste Kante seiner Huelle): ein Bevel von
+# 1,2 % und Zellen, die das Modell ein paarmal durchqueren, gleich ob Waffe oder Kiste
+ecken = [o.matrix_world @ __import__("mathutils").Vector(c) for o in meshes for c in o.bound_box]
+GROESSE = max(max(e[i] for e in ecken) - min(e[i] for e in ecken) for i in range(3))
 
 
 def waehle(objs):
@@ -102,8 +109,7 @@ if modus == "neu":
         nt.nodes.active = ziel
     waehle(meshes)
     bpy.ops.object.bake(type="DIFFUSE", pass_filter={"COLOR"}, margin=8, margin_type="EXTEND", use_clear=True)
-    lin = np.clip(bild_lesen(ziel_bild)[:, :, :3], 0, 1)       # Blender liefert linear
-    albedo = np.where(lin <= 0.0031308, lin * 12.92, 1.055 * np.power(lin, 1 / 2.4) - 0.055)   # zurueck nach sRGB
+    albedo = np.clip(bild_lesen(ziel_bild)[:, :, :3], 0, 1).copy()    # Byte-Bild: die Werte sind schon sRGB
     # das alte Material hat ausgedient
     for o in meshes:
         o.data.materials.clear()
@@ -138,11 +144,14 @@ def lage(name, sock):
     return backe(name, "EMIT")
 
 
+welt = bpy.data.worlds.new("welt")
+sc.world = welt
+welt.light_settings.distance = f("ao_weite", 0.3) * GROESSE      # nur die Nachbarschaft verdunkelt
 ao = backe("ao", "AO")
 
 geo = nt.nodes.new("ShaderNodeNewGeometry")
 bev = nt.nodes.new("ShaderNodeBevel")
-bev.inputs["Radius"].default_value = f("radius", 0.008)
+bev.inputs["Radius"].default_value = f("radius", 0.012) * GROESSE
 bev.samples = 8
 pk = nt.nodes.new("ShaderNodeVectorMath")
 pk.operation = "DOT_PRODUCT"
@@ -170,10 +179,10 @@ def prozedural(typ, skala, eigenschaft=None, **kw):
     return n
 
 
-zelle = lage("zelle", prozedural("ShaderNodeTexVoronoi", f("facetten", 26.0)).outputs["Color"])
-riss = lage("riss", prozedural("ShaderNodeTexVoronoi", f("risse", 34.0), "DISTANCE_TO_EDGE").outputs["Distance"])
-fleck = lage("fleck", prozedural("ShaderNodeTexNoise", f("fleck", 14.0), Detail=8.0).outputs["Fac"])
-sand = lage("sand", prozedural("ShaderNodeTexNoise", 120.0, Detail=4.0).outputs["Fac"])
+zelle = lage("zelle", prozedural("ShaderNodeTexVoronoi", f("facetten", 26.0) / GROESSE).outputs["Color"])
+riss = lage("riss", prozedural("ShaderNodeTexVoronoi", f("risse", 34.0) / GROESSE, "DISTANCE_TO_EDGE").outputs["Distance"])
+fleck = lage("fleck", prozedural("ShaderNodeTexNoise", f("fleck", 14.0) / GROESSE, Detail=8.0).outputs["Fac"])
+sand = lage("sand", prozedural("ShaderNodeTexNoise", 120.0 / GROESSE, Detail=4.0).outputs["Fac"])
 
 # --- 3. Farbe ---------------------------------------------------------------
 if modus == "astra":
@@ -199,24 +208,27 @@ h, s, v = hsv(c)
 blau = ((h > 0.5) & (h < 0.68) & (s > 0.35)).astype(np.float32)
 orange = (((h < 0.13) | (h > 0.97)) & (s > 0.5) & (v > 0.45)).astype(np.float32)
 holz = (((h < 0.13) | (h > 0.97)) & (s > 0.3) & (v <= 0.45)).astype(np.float32)
-stein = np.clip(1 - blau - orange - holz, 0, 1)
+farbig = ((s > 0.3) & (blau + orange + holz == 0)).astype(np.float32)        # Gruen, Lila, Gelb ... (Lack)
+stein = np.clip(1 - blau - orange - holz - farbig, 0, 1)
 
 ao = np.clip(ao, 0, 1)[..., None]
 kante = np.clip(np.clip(kante, 0, 1) * f("kante_staerke", 6.0), 0, 1)[..., None]
 out = c.copy()
-out *= (1 - f("ao", 0.55)) + f("ao", 0.55) * ao                                   # Fugen
+out *= (1 - f("ao", 0.7)) + f("ao", 0.7) * ao                                   # Fugen
 licht = (blau[..., None] * np.array([0.75, 0.92, 1.0]) + orange[..., None] * np.array([1.0, 0.85, 0.45])
-         + holz[..., None] * np.array([0.85, 0.6, 0.35]) + stein[..., None] * np.array([0.6, 0.72, 0.85]))
-out = out + kante * f("kante", 0.45) * (licht - out * 0.3)                        # Kantenlicht
+         + holz[..., None] * np.array([0.85, 0.6, 0.35]) + stein[..., None] * np.array([0.6, 0.72, 0.85])
+         + farbig[..., None] * (0.5 * c + 0.5))
+out = out + kante * f("kante", 0.8) * (licht - out * 0.3)                        # Kantenlicht
 
 zelle, riss, fleck, sand = zelle[..., None], riss[..., None], fleck[..., None], sand[..., None]
 rl = np.clip(1 - riss / f("riss_breite", 0.045), 0, 1) ** 1.5
-rb, ob_, hb, sb = blau[..., None], orange[..., None], holz[..., None], stein[..., None]
-out = out * (1 + (zelle - 0.5) * (f("facette_b", 0.55) * rb + f("facette_s", 0.35) * sb))   # Facetten
-out = out * (1 - rl * (f("riss_b", 0.50) * rb + f("riss_s", 0.35) * sb + 0.15 * ob_))       # Risse
+rb, ob_, hb, sb, fb = blau[..., None], orange[..., None], holz[..., None], stein[..., None], farbig[..., None]
+dunkel = np.clip(1.25 - v[..., None], 0.25, 1.0)        # heller Stein und Metall reissen kaum
+out = out * (1 + (zelle - 0.5) * (f("facette_b", 0.55) * rb + f("facette_s", 0.35) * dunkel * sb + 0.15 * fb))   # Facetten
+out = out * (1 - rl * (f("riss_b", 0.50) * rb + f("riss_s", 0.35) * dunkel * sb + 0.15 * ob_ + 0.12 * fb))         # Risse
 rost = np.clip((fleck - 0.45) * 3.0, 0, 1)
 out = out * (1 - rost * f("rost", 0.35) * ob_) + rost * f("rost", 0.35) * ob_ * np.array([0.55, 0.25, 0.08]) * 0.6
-out = out * (1 + (sand - 0.5) * f("sand", 0.35) * (ob_ + sb + rb))                         # Koernung
+out = out * (1 + (sand - 0.5) * f("sand", 0.35) * (ob_ + sb + rb + fb))                         # Koernung
 out = np.clip((out - 0.5) * f("kontrast", 1.12) + 0.5, 0, 1)
 g = out.mean(-1, keepdims=True)
 out = np.clip(g + (out - g) * f("saett", 1.15), 0, 1)
@@ -235,6 +247,11 @@ if modus == "astra":
     sys.exit(0)
 
 # --- 4. Modus neu: Textur ins Material, als JPEG exportieren -------------------
+tmp = ausgabe + ".tmp.png"                  # ueber eine Datei: ein neu erzeugtes Bild gibt der Export schwarz aus
+o.filepath_raw = tmp
+o.file_format = "PNG"
+o.save()
+o = bpy.data.images.load(tmp)
 o.colorspace_settings.name = "sRGB"         # die Werte sind schon sRGB; nur das Etikett aendert sich
 o.pack()
 neu = bpy.data.materials.new("veredelt")
@@ -252,3 +269,4 @@ bpy.ops.export_scene.gltf(filepath=ausgabe, export_format="GLB", export_animatio
                           export_yup=True, export_image_format="JPEG", export_jpeg_quality=int(f("jpeg", 88)),
                           export_animation_mode="ACTIONS")
 print("FERTIG", ausgabe)
+os.remove(tmp)

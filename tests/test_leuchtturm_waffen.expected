@@ -20,4 +20,4 @@ ziel 0:    0,140,0
 14 feuern: animating 0 lauf z 0
 14 senken: seq 1 mg y -12 pitch 20
 14 heben:  seq 1 rail y 0
-14 rail:   rail z -7 lauf roll 12
+14 rail:   rail z -7 lauf roll 10
