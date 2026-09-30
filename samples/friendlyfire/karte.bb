@@ -1,7 +1,7 @@
-; Leuchtturm - die Karte.
+; Friendly Fire - die Karte.
 ;
 ; Die Karte ist eine .glb aus Blender. Was das Spiel ueber sie wissen muss,
-; steht in den Objektnamen (LEUCHTTURM.md, "Die Karte in Blender"):
+; steht in den Objektnamen (FRIENDLY_FIRE.md, "Die Karte in Blender"):
 ;
 ;   ...-col   unsichtbare Kollisionsgeometrie
 ;   spawn     leeres Objekt: Startpunkt und Blickrichtung

@@ -1,4 +1,4 @@
-; Leuchtturm - der Spieler: Bewegung und Kollision (Schritt 3), Leben und
+; Friendly Fire - der Spieler: Bewegung und Kollision (Schritt 3), Leben und
 ; Ruestung (Schritt 7).
 ;
 ; Das Ziel ist das Gefuehl von Quake III: schnelles Laufen, das sofort

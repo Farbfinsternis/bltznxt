@@ -1,6 +1,6 @@
-; Leuchtturm - die Waffen (Schritt 4, Animationen Schritt 5).
+; Friendly Fire - die Waffen (Schritt 4, Animationen Schritt 5).
 ;
-; Drei Waffen, drei Techniken (LEUCHTTURM.md):
+; Drei Waffen, drei Techniken (FRIENDLY_FIRE.md):
 ;
 ;   1 Maschinengewehr   Sofort-Treffer per LinePick, mit Streuung
 ;   2 Raketenwerfer     Geschoss mit Kollision, Explosion mit Flaechenschaden

@@ -1,17 +1,17 @@
-; Leuchtturm Schritt 4 und 5 - Waffen, Zielscheiben und die Animationen der
+; Friendly Fire Schritt 4 und 5 - Waffen, Zielscheiben und die Animationen der
 ; Waffenmodelle in der Platzhalter-Arena.
 ;
 ; Bindet die Spielmodule ein und feuert mit kuenstlicher Eingabe, 60 Takte
 ; je Sekunde, in derselben Reihenfolge wie das Spiel. Die Arena erzeugt
-; samples/leuchtturm/werkzeug/arena.py, Waffen und Scheiben kenney.py.
+; samples/friendlyfire/werkzeug/arena.py, Waffen und Scheiben kenney.py.
 ; Laengen in Zentimetern, Zeiten in Takten.
 
-Include "../samples/leuchtturm/karte.bb"
-Include "../samples/leuchtturm/spieler.bb"
-Include "../samples/leuchtturm/effekte.bb"
-Include "../samples/leuchtturm/ziele.bb"
-Include "../samples/leuchtturm/waffen.bb"
-Include "../samples/leuchtturm/klang.bb"
+Include "../samples/friendlyfire/karte.bb"
+Include "../samples/friendlyfire/spieler.bb"
+Include "../samples/friendlyfire/effekte.bb"
+Include "../samples/friendlyfire/ziele.bb"
+Include "../samples/friendlyfire/waffen.bb"
+Include "../samples/friendlyfire/klang.bb"
 
 Graphics3D 320,240,0,2
 SetBuffer BackBuffer()
@@ -83,11 +83,11 @@ Function Nimm(p.Spieler, nr)
 	Bereit(p)
 End Function
 
-Karte_Laden("samples/leuchtturm/daten/arena.glb")
+Karte_Laden("samples/friendlyfire/daten/arena.glb")
 Effekte_Laden()
-Ziele_Laden("samples/leuchtturm/daten/ziel.glb")
+Ziele_Laden("samples/friendlyfire/daten/ziel.glb")
 p.Spieler = Spieler_Neu(EntityX(karte_spawn, True), EntityY(karte_spawn, True), EntityZ(karte_spawn, True), EntityYaw(karte_spawn, True))
-Waffen_Laden(p, "samples/leuchtturm/daten")
+Waffen_Laden(p, "samples/friendlyfire/daten")
 ; Dieser Test prueft die Waffen, nicht die Items: alle drei, volle Munition.
 For i = 1 To W_ANZAHL
 	w_besitz(i) = True : w_munition(i) = W_VOLL

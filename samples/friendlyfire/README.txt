@@ -1,4 +1,4 @@
-LEUCHTTURM
+FRIENDLY FIRE
 ==========
 
 Ein kleiner Arena-Shooter im Stil von Quake III - geschrieben als ganz
@@ -12,7 +12,7 @@ Gesundheit, Zielscheiben, 3D-Klang.
 Starten
 -------
 
-leuchtturm.exe starten. Die exe ist nicht signiert; Windows meldet sich
+friendlyfire.exe starten. Die exe ist nicht signiert; Windows meldet sich
 deshalb beim ersten Start ("Der Computer wurde durch Windows geschützt"):
 "Weitere Informationen" -> "Trotzdem ausführen".
 

@@ -1,17 +1,17 @@
-; Leuchtturm Schritt 7 - Items, Leben, Ruestung, Schaden und Tod.
+; Friendly Fire Schritt 7 - Items, Leben, Ruestung, Schaden und Tod.
 ;
 ; Bindet die Spielmodule ein und stellt den Spieler mit kuenstlicher Eingabe
 ; auf die Items der Platzhalter-Arena (werkzeug/arena.py), 60 Takte je
 ; Sekunde. Klang bleibt aus (kein Klang_Laden). Erwartet sind die Regeln
 ; von Quake III (items.bb, spieler.bb, waffen.bb).
 
-Include "../samples/leuchtturm/karte.bb"
-Include "../samples/leuchtturm/spieler.bb"
-Include "../samples/leuchtturm/effekte.bb"
-Include "../samples/leuchtturm/ziele.bb"
-Include "../samples/leuchtturm/waffen.bb"
-Include "../samples/leuchtturm/klang.bb"
-Include "../samples/leuchtturm/items.bb"
+Include "../samples/friendlyfire/karte.bb"
+Include "../samples/friendlyfire/spieler.bb"
+Include "../samples/friendlyfire/effekte.bb"
+Include "../samples/friendlyfire/ziele.bb"
+Include "../samples/friendlyfire/waffen.bb"
+Include "../samples/friendlyfire/klang.bb"
+Include "../samples/friendlyfire/items.bb"
 
 Graphics3D 320,240,0,2
 SetBuffer BackBuffer()
@@ -58,12 +58,12 @@ Function Zustand$(p.Spieler)
 	Return "leben " + p\leben + " ruestung " + p\panzer + " munition " + w_munition(1) + "/" + w_munition(2) + "/" + w_munition(3) + " besitz " + w_besitz(1) + w_besitz(2) + w_besitz(3)
 End Function
 
-Karte_Laden("samples/leuchtturm/daten/arena.glb")
+Karte_Laden("samples/friendlyfire/daten/arena.glb")
 Effekte_Laden()
-Ziele_Laden("samples/leuchtturm/daten/ziel.glb")
+Ziele_Laden("samples/friendlyfire/daten/ziel.glb")
 p.Spieler = Spieler_Neu(EntityX(karte_spawn, True), EntityY(karte_spawn, True), EntityZ(karte_spawn, True), EntityYaw(karte_spawn, True))
-Waffen_Laden(p, "samples/leuchtturm/daten")
-Items_Laden("samples/leuchtturm/daten/items", "samples/leuchtturm/daten")
+Waffen_Laden(p, "samples/friendlyfire/daten")
+Items_Laden("samples/friendlyfire/daten/items", "samples/friendlyfire/daten")
 
 n = 0 : Dim arten(4)
 For it.Item = Each Item

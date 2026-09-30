@@ -96,11 +96,11 @@ src/libs/content.txt
 /OPUS_NOTES.md
 __pycache__/
 
-# Leuchtturm: Kenney-Pakete, von werkzeug/kenney.py heruntergeladen
-samples/leuchtturm/werkzeug/kenney/
+# Friendly Fire: Kenney-Pakete, von werkzeug/kenney.py heruntergeladen
+samples/friendlyfire/werkzeug/kenney/
 
 # Fertige Pakete zum Verteilen
 dist/
-# Leuchtturm: Rohmodelle vor dem Veredeln (werkzeug/kenney.py)
-samples/leuchtturm/werkzeug/roh/
-samples/leuchtturm/werkzeug/astra/
+# Friendly Fire: Rohmodelle vor dem Veredeln (werkzeug/kenney.py)
+samples/friendlyfire/werkzeug/roh/
+samples/friendlyfire/werkzeug/astra/

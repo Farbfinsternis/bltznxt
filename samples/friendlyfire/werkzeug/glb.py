@@ -1,4 +1,4 @@
-"""Gemeinsames fuer die Werkzeuge des Leuchtturm-Spiels: Koerper bauen und als
+"""Gemeinsames fuer die Werkzeuge des Friendly-Fire-Spiels: Koerper bauen und als
 glTF Binary (.glb) schreiben.
 
 Alles hier rechnet in Blitz-Koordinaten (y oben, z nach vorn, linkshaendig);

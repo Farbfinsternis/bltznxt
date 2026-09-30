@@ -2,7 +2,7 @@
 #define BB_LISTENER_H
 
 // ============================================================
-// 3D-Klang: CreateListener, EmitSound (Leuchtturm Schritt 6)
+// 3D-Klang: CreateListener, EmitSound (Friendly Fire Schritt 6)
 // ============================================================
 //
 // Wie Blitz3D (blitz3d/listener.cpp, object.cpp, world.cpp, gxaudio.cpp):

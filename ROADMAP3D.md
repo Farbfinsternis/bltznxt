@@ -1149,7 +1149,7 @@ Schritt am Original gemessen (2026-09-26).
 *Dateien: `bb_loader_gltf.h` (neu), `bb_loader.h`, `bb_shader.h`, `bb_texture.h`, `bb_mesh_core.h`*
 
 Kein Blitz3D-Format: der Weg aus heutigen Werkzeugen (Blender) in den Blitz3D-Renderer, fuer das
-Leuchtturm-Projekt (LEUCHTTURM.md). Gelesen wird, was der alte Renderer darstellen kann.
+Friendly-Fire-Projekt (FRIENDLY_FIRE.md, früher „Leuchtturm“). Gelesen wird, was der alte Renderer darstellen kann.
 
 - [x] `.gltf` (JSON, Puffer/Bilder als Datei oder data:-URI) und `.glb`; eigener JSON-Leser
 - [x] Knoten -> Mesh-Entities mit Namen und Lage (matrix oder TRS); `LoadMesh` schmilzt ein

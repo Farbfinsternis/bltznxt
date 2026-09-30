@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Modelle fuer das Leuchtturm-Spiel aus Paketen von Kenney (www.kenney.nl).
+"""Modelle fuer das Friendly-Fire-Spiel aus Paketen von Kenney (www.kenney.nl).
 
 Kenney stellt seine Pakete unter CC0 (gemeinfrei). Dieses Werkzeug laedt die
 Pakete beim ersten Aufruf nach werkzeug/kenney/ (nicht im Repository), nimmt
@@ -13,7 +13,7 @@ sie erwartet - mit eingebetteter Textur, damit jede .glb fuer sich steht:
     daten/items/armor_*.glb    Mini Dungeon shield-round: gruen, gelb, rot
     daten/items/health_*.glb   Platformer Kit heart: gelb, orange, gross und blau
 
-Die Waffen folgen den Regeln aus LEUCHTTURM.md ("Waffen in Blender"): Ursprung
+Die Waffen folgen den Regeln aus FRIENDLY_FIRE.md ("Waffen in Blender"): Ursprung
 nahe am Griff, Lauf nach Blitz +z, "muendung" ein leeres Objekt an der Spitze
 des Laufs. "lauf" ist der vordere Teil des Modells als eigener Knoten, damit
 er sich beim Schuss bewegen kann. Zwei Animationen: feuern (Sequenz 0) und
@@ -31,7 +31,7 @@ kopiert. Die Animationen bleiben erhalten (Blender tastet sie mit 60 Bildern je 
 
 Aufruf aus dem Projektwurzelverzeichnis:
 
-    py samples/leuchtturm/werkzeug/kenney.py
+    py samples/friendlyfire/werkzeug/kenney.py
 """
 
 import io
@@ -51,7 +51,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 DATEN = os.path.join(HERE, "..", "daten")
 ROH = os.path.join(HERE, "roh")             # die Modelle, wie sie aus den Paketen kommen (nicht im Repository)
 CACHE = os.path.join(HERE, "kenney")
-GEN = "BLTZNXT samples/leuchtturm/werkzeug/kenney.py - Modelle von Kenney (www.kenney.nl), CC0"
+GEN = "BLTZNXT samples/friendlyfire/werkzeug/kenney.py - Modelle von Kenney (www.kenney.nl), CC0"
 
 PAKETE = {
     "blaster-kit": "https://kenney.nl/media/pages/assets/blaster-kit/261d80a716-1753959510/kenney_blaster-kit_2.1.zip",

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Platzhalter-Klaenge fuer das Leuchtturm-Spiel (Schritt 6: 3D-Klang).
+"""Platzhalter-Klaenge fuer das Friendly-Fire-Spiel (Schritt 6: 3D-Klang).
 
 Bis es echte Aufnahmen gibt, rechnet dieses Skript die Klaenge aus Rauschen
 und Sinustoenen zusammen - frei von Rechten und jederzeit neu erzeugbar.
@@ -25,7 +25,7 @@ Mono, 16 Bit, 44.1 kHz, nach daten/klang/:
 
 Aufruf aus dem Projektwurzelverzeichnis:
 
-    python samples/leuchtturm/werkzeug/klaenge.py
+    python samples/friendlyfire/werkzeug/klaenge.py
 """
 
 import math

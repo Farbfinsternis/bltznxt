@@ -23,7 +23,7 @@ Aufbau des Pakets:
       src/thirdparty/         stb, dr_mp3, ...
       libs/                   SDL3, SDL3_ttf
       tools/mingw64/          g++ - auf das Noetige verkleinert
-      samples/leuchtturm/     das Beispielspiel (Quelltexte und Daten)
+      samples/friendlyfire/     das Beispielspiel (Quelltexte und Daten)
       examples/               weitere Beispiele
 
 blitzcc findet Toolchain, Header und Bibliotheken relativ zu seinem eigenen Ort
@@ -175,9 +175,9 @@ def add_ide(out):
 
 
 def add_samples(out):
-    lt = ROOT / "samples" / "leuchtturm"
-    copy_tree(lt, out / "samples" / "leuchtturm",
-              ignore=ignore_patterns("*.exe", "*.dll", "kenney", "__pycache__", "*.pyc"))
+    lt = ROOT / "samples" / "friendlyfire"
+    copy_tree(lt, out / "samples" / "friendlyfire",
+              ignore=ignore_patterns("*.exe", "*.dll", "kenney", "roh", "astra", "__pycache__", "*.pyc"))
     if (ROOT / "examples").exists():
         copy_tree(ROOT / "examples", out / "examples",
                   ignore=ignore_patterns("*.exe", "*.dll", "*.cpp", "__pycache__"))
@@ -243,14 +243,14 @@ def verify(out):
     check("SDL3.dll liegt neben dem Programm", (work / "SDL3.dll").exists())
 
     # Das Beispielspiel: Quelle -> Code (ohne g++), dann mit g++ im IDE-Protokoll
-    lt = out / "samples" / "leuchtturm" / "leuchtturm.bb"
+    lt = out / "samples" / "friendlyfire" / "friendlyfire.bb"
     if lt.exists():
         env_ide = dict(env, blitzide="1")
         r = run([str(blitzcc), "-q", "-c", str(lt)], lt.parent, env_ide)
-        check("Leuchtturm: Pruefung im IDE-Protokoll (Include-Kette)", r.returncode == 0 and "Generating C++..." in r.stdout,
+        check("Friendly Fire: Pruefung im IDE-Protokoll (Include-Kette)", r.returncode == 0 and "Generating C++..." in r.stdout,
               r.stdout.replace("\r\n", " | ").strip()[:300])
-        r = run([str(blitzcc), "-q", "-o", str(work / "leuchtturm.exe"), str(lt)], lt.parent, env_ide, timeout=600)
-        check("Leuchtturm wird zu einem Programm", r.returncode == 0 and (work / "leuchtturm.exe").exists(),
+        r = run([str(blitzcc), "-q", "-o", str(work / "friendlyfire.exe"), str(lt)], lt.parent, env_ide, timeout=600)
+        check("Friendly Fire wird zu einem Programm", r.returncode == 0 and (work / "friendlyfire.exe").exists(),
               r.stdout.replace("\r\n", " | ").strip()[-300:])
 
     shutil.rmtree(work, ignore_errors=True)

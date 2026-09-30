@@ -1,7 +1,7 @@
-; Leuchtturm - Items (Schritt 7).
+; Friendly Fire - Items (Schritt 7).
 ;
 ; An den Marken der Karte liegen Waffen, Munition, Ruestung und Gesundheit.
-; Der Name sagt, was (LEUCHTTURM.md, "Die Karte in Blender"):
+; Der Name sagt, was (FRIENDLY_FIRE.md, "Die Karte in Blender"):
 ;
 ;   weapon_mg, weapon_rl, weapon_rail   die Waffe und Munition (40, 10, 10)
 ;   ammo_mg, ammo_rl, ammo_rail         Munition (50, 5, 10)

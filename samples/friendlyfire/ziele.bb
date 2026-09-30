@@ -1,4 +1,4 @@
-; Leuchtturm - Zielscheiben (Schritt 4).
+; Friendly Fire - Zielscheiben (Schritt 4).
 ;
 ; An jeder Marke "ziel" der Karte schwebt eine Scheibe (daten/ziel.glb),
 ; dreht sich und wippt. Sie haelt ZL_LEBEN Punkte aus, blitzt bei jedem

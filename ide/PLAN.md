@@ -335,7 +335,7 @@ namenlosem Tab, F7 mit Fehler → Marker/Cursor/Dialog/Ausgabe, Kommandozeile, S
 
 ### Seitenleiste mit den Dateien ✓ (2026-09-30, auf Wunsch eingeschoben)
 Die Original-IDE hat keine Dateiübersicht; der Plan führte sie unter „Danach“ als spätere
-Erweiterung. Nach dem Ausprobieren am Leuchtturm (acht Dateien, drei Ordner) vorgezogen.
+Erweiterung. Nach dem Ausprobieren an Friendly Fire (acht Dateien, drei Ordner) vorgezogen.
 Erweiterung `explorer` (`ide/src/extensions/explorer/`), Ansichtsort `sidebar` in der Shell, Trenner
 zum Ziehen (Breite wird gemerkt), Strg+B blendet aus und ein.
 
@@ -363,7 +363,7 @@ Sicherungsanzahl/Blockcursor, Symbolleiste ein/aus (Umschalt+Esc), Fenstergröß
 ### P6 — Paritätsprüfung
 Zeile für Zeile Abschnitt 1 durchgehen, Original und BLTZNXT-IDE nebeneinander (Original-IDE gibt
 es lokal, `F:\dev\Blitz3D`, und die Testinstallation mit BLTZNXT). Beispiele der Original-Samples
-(BirdDemo, blox-n-balls, Leuchtturm) schreiben, bauen, starten. Abweichungen sind entweder Fehler
+(BirdDemo, blox-n-balls, Friendly Fire) schreiben, bauen, starten. Abweichungen sind entweder Fehler
 oder eine dokumentierte Entscheidung.
 
 ### P7 — Debugger (braucht den Compiler)
@@ -392,7 +392,7 @@ mehrere Fenster, Git-Anzeige, Live-Vorschau von Medien.
 3. **Namenlose Dokumente: Temp-Ordner je Tab.** Jeder namenlose Tab bekommt eine eigene Datei in
    `%TEMP%\bltznxt-ide\`. Relative Medienpfade gehen dort erst nach dem Speichern. Spätere
    Einstellung „letzter Arbeitsordner“ bleibt möglich, ist aber keine Vorgabe.
-4. **Paket: ZIP zuerst, Installer später.** Entpacken und starten wie beim Leuchtturm-Release.
+4. **Paket: ZIP zuerst, Installer später.** Entpacken und starten wie beim Friendly-Fire-Release.
    Die Paketform ändert nichts an der IDE selbst.
 5. **Kodierung: Windows-1252, außer die Datei ist gültiges UTF-8.** Beim Öffnen wird erkannt;
    gespeichert wird in derselben Kodierung, Zeilenenden bleiben wie vorgefunden. Eine unveränderte

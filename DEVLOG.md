@@ -1,5 +1,15 @@
 # BlitzNext Developer Log
 
+## 2026-09-30 — Leuchtturm becomes Friendly Fire
+
+The working title is gone: `samples/leuchtturm/` is now `samples/friendlyfire/`, `leuchtturm.bb` and
+`leuchtturm.exe` are `friendlyfire.*`, the tests are `test_friendlyfire_*`, `LEUCHTTURM.md` is
+`FRIENDLY_FIRE.md`. The window title is "Friendly Fire". Renamed with `git mv`, so history follows;
+`scripts/package_release.py` and the package README point to the new folder (the verified package
+builds and compiles the game), the packer now also skips `roh/` and `astra/` of the tools. Older
+entries below keep the old name on purpose. The plan for multiplayer (8 players, UDP, a PHP broker
+for the list) is in `FRIENDLY_FIRE.md`.
+
 ## 2026-09-30 — v0.6.2 "Birth of IDE"
 
 Since v0.6.0 (the individual entries follow below):

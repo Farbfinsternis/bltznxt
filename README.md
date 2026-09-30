@@ -6,7 +6,7 @@
 
 **BlitzNext** is the successor to Blitz3D: a modern compiler that turns Blitz3D (`.bb`) source files into native Windows executables via a C++17 transpilation pipeline, using a bundled MinGW toolchain and SDL3 for audio and graphics. It aims to do everything the original could — and to run the programs written for it, unchanged.
 
-> **Status: active development — v0.6.2, "Birth of IDE".** BlitzNext now has its own IDE, and there is a self-contained Windows package to try it: [download the ZIP from the latest release](https://github.com/Farbfinsternis/bltznxt/releases/latest), unpack it, double-click `BLTZNXT IDE.bat`. BlitzNext compiles and runs the unmodified game **blox-n-balls**, and it can be used to make new games: [Leuchtturm](samples/leuchtturm/), a small Quake III style arena shooter, is an ordinary Blitz3D program that loads its models as glTF from Blender and plays its sounds in 3D. The runtime includes keyframe and skeletal animation, glTF, 3D sound and planes; full gameplay compatibility of old programs is still being verified.
+> **Status: active development — v0.6.2, "Birth of IDE".** BlitzNext now has its own IDE, and there is a self-contained Windows package to try it: [download the ZIP from the latest release](https://github.com/Farbfinsternis/bltznxt/releases/latest), unpack it, double-click `BLTZNXT IDE.bat`. BlitzNext compiles and runs the unmodified game **blox-n-balls**, and it can be used to make new games: [Friendly Fire](samples/friendlyfire/), a small Quake III style arena shooter, is an ordinary Blitz3D program that loads its models as glTF from Blender and plays its sounds in 3D. The runtime includes keyframe and skeletal animation, glTF, 3D sound and planes; full gameplay compatibility of old programs is still being verified.
 > **[KNOWN_ISSUES.md](KNOWN_ISSUES.md) lists everything that does not yet behave like Blitz3D** — please check it before reporting a bug.
 > See [roadmap.md](roadmap.md) and [ROADMAP3D.md](ROADMAP3D.md) for the milestones and [DEVLOG.md](DEVLOG.md) for the changelog.
 
@@ -101,7 +101,7 @@ demos/games must cover those gaps.
 
 ### The easy way: the release package
 
-Download `bltznxt-v0.6.2-win64.zip` from the [releases page](https://github.com/Farbfinsternis/bltznxt/releases), unpack it anywhere and double-click `BLTZNXT IDE.bat`. Compiler, IDE, C++ toolchain and SDL3 are all inside — nothing to install. Then *File > Open Folder…* → `samples\leuchtturm`, open `leuchtturm.bb`, press **F5**. (Windows may warn about an unsigned program the first time: *More info > Run anyway*.) See [The BLTZNXT IDE](#the-bltznxt-ide).
+Download `bltznxt-v0.6.2-win64.zip` from the [releases page](https://github.com/Farbfinsternis/bltznxt/releases), unpack it anywhere and double-click `BLTZNXT IDE.bat`. Compiler, IDE, C++ toolchain and SDL3 are all inside — nothing to install. Then *File > Open Folder…* → `samplesriendlyfire`, open `friendlyfire.bb`, press **F5**. (Windows may warn about an unsigned program the first time: *More info > Run anyway*.) See [The BLTZNXT IDE](#the-bltznxt-ide).
 
 ### From source
 

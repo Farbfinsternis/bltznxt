@@ -1,4 +1,4 @@
-; Leuchtturm - Klang (Schritt 6, Items und Schmerz Schritt 7).
+; Friendly Fire - Klang (Schritt 6, Items und Schmerz Schritt 7).
 ;
 ; Alles klingt dort, wo es passiert: der Listener sitzt an der Kamera, jeder
 ; Klang wird mit EmitSound an eine Entity gehaengt - Schuesse an die

@@ -1,4 +1,4 @@
-; Leuchtturm - Effekte (Schritt 4): Funken, Rauch, Explosionen,
+; Friendly Fire - Effekte (Schritt 4): Funken, Rauch, Explosionen,
 ; Einschlagflecken, die Spur der Railgun und das Licht einer Explosion,
 ; dazu Klaenge an einem festen Ort (Effekt_Klang).
 ;

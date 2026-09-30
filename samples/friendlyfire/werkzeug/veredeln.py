@@ -1,4 +1,4 @@
-"""Blender-Teil: Modelle des Leuchtturm-Spiels veredeln.
+"""Blender-Teil: Modelle des Friendly-Fire-Spiels veredeln.
 
 Laeuft in Blender ohne Oberflaeche:
 

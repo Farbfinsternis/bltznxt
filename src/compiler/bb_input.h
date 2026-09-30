@@ -317,7 +317,7 @@ inline void bb_MoveMouse(int x, int y) {
 // Blendet den Zeiger ueber dem Fenster aus bzw. ein. Das ist mehr als Kosmetik:
 // ein Blitz-Spiel mit Mausblick versteckt den Zeiger und holt ihn je Bild mit
 // MoveMouse zur Mitte. Bei hoher Bildrate verschluckt das Zuruecksetzen fast
-// jede Bewegung - gemessen im Leuchtturm bei ~2000 Bildern/s: rund 2 % kamen
+// jede Bewegung - gemessen in Friendly Fire bei ~2000 Bildern/s: rund 2 % kamen
 // an (2026-09-27). SDL3 erkennt genau dieses Muster (versteckter Zeiger, Warps
 // zur Fenstermitte) und liest die Maus dann relativ und roh, ohne den Zeiger
 // wirklich zu bewegen (SDL_HINT_MOUSE_EMULATE_WARP_WITH_RELATIVE, Vorgabe an).

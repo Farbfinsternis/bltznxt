@@ -1,13 +1,13 @@
-; Leuchtturm Schritt 3 - Bewegung und Kollision in der Platzhalter-Arena.
+; Friendly Fire Schritt 3 - Bewegung und Kollision in der Platzhalter-Arena.
 ;
 ; Bindet die Spielmodule ein und steuert den Spieler mit kuenstlicher
 ; Eingabe, 60 Takte je Sekunde. Die Arena erzeugt
-; samples/leuchtturm/werkzeug/arena.py. Gemeldet werden die Fuesse
+; samples/friendlyfire/werkzeug/arena.py. Gemeldet werden die Fuesse
 ; (Mitte - 0.9) in Zentimetern, das Tempo in cm/s und ob Boden unter den
 ; Fuessen ist.
 
-Include "../samples/leuchtturm/karte.bb"
-Include "../samples/leuchtturm/spieler.bb"
+Include "../samples/friendlyfire/karte.bb"
+Include "../samples/friendlyfire/spieler.bb"
 
 Graphics3D 320,240,0,2
 SetBuffer BackBuffer()
@@ -35,7 +35,7 @@ Function Lauf(p.Spieler, takte, vor#, seit#, springen)
 	Next
 End Function
 
-Karte_Laden("samples/leuchtturm/daten/arena.glb")
+Karte_Laden("samples/friendlyfire/daten/arena.glb")
 Print "karte: spawn " + (karte_spawn <> 0) + " col " + karte_col_zahl + " spawn bei " + C(EntityX(karte_spawn, True)) + "," + C(EntityY(karte_spawn, True)) + "," + C(EntityZ(karte_spawn, True))
 p.Spieler = Spieler_Neu(EntityX(karte_spawn, True), EntityY(karte_spawn, True) + 1, EntityZ(karte_spawn, True), EntityYaw(karte_spawn, True))
 

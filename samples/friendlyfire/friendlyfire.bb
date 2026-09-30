@@ -1,5 +1,5 @@
-; Leuchtturm - ein kleiner Arena-Shooter im Stil von Quake III, geschrieben
-; als gewoehnliches Blitz3D-Programm. Konzept: LEUCHTTURM.md.
+; Friendly Fire - ein kleiner Arena-Shooter im Stil von Quake III, geschrieben
+; als gewoehnliches Blitz3D-Programm. Konzept: FRIENDLY_FIRE.md.
 ;
 ; Stand: Schritt 7 - der Umfang ist erreicht: Bewegung, drei Waffen mit
 ; glTF-Animationen, Zielscheiben, 3D-Klang, Items und Anzeige, in der
@@ -41,6 +41,7 @@ Const TOT_WARTEN# = 2.0     ; so lange liegt man tot, dann erscheint man neu
 
 Const MAUS_EMPF# = 0.15     ; Grad je Pixel
 
+AppTitle "Friendly Fire"
 Graphics3D 1024, 768, 0, 2
 SetBuffer BackBuffer()
 
@@ -168,7 +169,7 @@ While Not ende
 	EndIf
 	If anzeige
 		Color 255, 255, 255
-		Text 10, 10, "Leuchtturm - Schritt 7: Items und Anzeige   (F1 Anzeige, Tab Maus frei)"
+		Text 10, 10, "Friendly Fire - Schritt 7: Items und Anzeige   (F1 Anzeige, Tab Maus frei)"
 		Text 10, 30, "Tempo " + Int(Spieler_Tempo(ich) * 10) / 10.0 + " m/s   " + fps + " fps"
 		If ich\boden Then b$ = "Boden" Else b$ = "Luft"
 		Text 10, 50, "x " + Int(EntityX(ich\koerper)) + "  y " + Int(EntityY(ich\koerper) - SP_HALB) + "  z " + Int(EntityZ(ich\koerper)) + "   " + b

@@ -11,7 +11,7 @@ Getting started
 ---------------
 1. Unpack the ZIP anywhere (a path without special characters is best).
 2. Double-click "BLTZNXT IDE.bat" (or ide\BLTZNXT IDE.exe).
-3. File > Open Folder... and choose samples\leuchtturm, open leuchtturm.bb, press F5.
+3. File > Open Folder... and choose samplesriendlyfire, open friendlyfire.bb, press F5.
    The first build takes some seconds; the Output tab shows what the compiler does.
 
 Windows may show a "SmartScreen" warning the first time: the programs are not
@@ -45,7 +45,7 @@ What is in the package
   ide\              the IDE (an Electron application)
   tools\mingw64\    the C++ compiler blitzcc uses (a reduced MinGW-w64 / GCC build)
   src\, libs\       the runtime headers and the SDL3 libraries the programs are built with
-  samples\          Leuchtturm, a small Quake III style arena shooter written in Blitz3D
+  samples\          Friendly Fire, a small Quake III style arena shooter written in Blitz3D
   examples\         more small programs
   LICENSES\         license texts of the bundled software
 

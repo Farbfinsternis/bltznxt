@@ -1,4 +1,4 @@
-# BLTZNXT — Leuchtturm
+# BLTZNXT — Friendly Fire
 
 Stand: 2026-09-28 · Schritt 7 läuft — der Umfang ist erreicht: Bewegung, drei Waffen, Items, Anzeige, 3D-Klang; Waffen (der Raketenwerfer von GPT-6 Astra), Zielscheiben und Items sind Modelle von Kenney (CC0), Arena und Klänge noch Platzhalter
 
@@ -133,11 +133,11 @@ dürfen bis Schritt 5 statisch sein.
 
 ## Stand im Repository
 
-`samples/leuchtturm/`:
+`samples/friendlyfire/`:
 
 | Datei | Inhalt |
 |---|---|
-| `leuchtturm.bb` | Hauptprogramm: fester Takt zu 1/60 s, Maus und Tastatur, Anzeige (F1); die Maus wird erst nach einem Klick ins Fenster gefangen und bleibt dann im Fenster, Tab gibt sie frei, Esc beendet |
+| `friendlyfire.bb` | Hauptprogramm: fester Takt zu 1/60 s, Maus und Tastatur, Anzeige (F1); die Maus wird erst nach einem Klick ins Fenster gefangen und bleibt dann im Fenster, Tab gibt sie frei, Esc beendet |
 | `spieler.bb` | Bewegung: Reibung, Beschleunigung am Boden und in der Luft, Sprung, Schwerkraft; Kollision als Ellipsoid (0,4 × 0,9) mit `Collisions …,2,3`; Bodenprüfung per `LinePick` |
 | `karte.bb` | Karte laden: `-col` wird unsichtbare Kollisionsgeometrie, `spawn` der Startpunkt, andere leere Objekte werden Marken (`ziel`, später die Items); ohne `-col` kollidiert die sichtbare Geometrie |
 | `waffen.bb` | MG und Railgun per `LinePick`, Raketen als Entity mit Kollision, Explosion mit Flächenschaden und Rückstoß; Wechsel, Munition, Waffe in der Hand |
@@ -158,7 +158,7 @@ dürfen bis Schritt 5 statisch sein.
 
 Werte der Bewegung: die von Quake III, umgerechnet über die Spielergröße (56 Einheiten = 1,8 m,
 eine Einheit ≈ 3,2 cm): Laufen 10,3 m/s, Absprung 8,7 m/s, Schwerkraft 25,7 m/s², Sprunghöhe
-1,4 m; Stufen bis 25 cm geht man hinauf. `tests/test_leuchtturm_bewegung.bb` steuert den Spieler mit künstlicher Eingabe
+1,4 m; Stufen bis 25 cm geht man hinauf. `tests/test_friendlyfire_bewegung.bb` steuert den Spieler mit künstlicher Eingabe
 durch die Arena und prüft Fallen, Laufen, Wand, Sprung, Block, Rampe hinauf und hinab, Treppe und
 Stehen am Hang.
 
@@ -173,7 +173,7 @@ Werte der Waffen, ebenso aus Quake III umgerechnet; Zeiten in ganzen Takten zu 1
 Der Rückstoß einer Explosion ist 0,16 m/s je Schadenspunkt, von der Explosion zur Spielermitte und
 0,77 m nach oben gerichtet — ein Rocket-Jump trägt so gut 9 m hoch, eine Rakete aus dem Stand
 knapp 5 m. Wechsel: 0,2 s senken, 0,25 s heben, erst wenn die Waffe feuerbereit ist.
-`tests/test_leuchtturm_waffen.bb` feuert mit künstlicher Eingabe und prüft Takt, Treffer,
+`tests/test_friendlyfire_waffen.bb` feuert mit künstlicher Eingabe und prüft Takt, Treffer,
 Zerstören und Wiedererscheinen, Wechsel, Railspur, Raketenflug, Direkt- und Flächentreffer,
 Rocket-Jump, die Rakete an der Wand und den Wechsel bei leerer Waffe, dazu die Animationen der
 Modelle: Sequenz, Rückstoß des Laufs beim MG, Drehung des Railgun-Laufs, halb gesenkt beim Wechsel.
@@ -191,8 +191,89 @@ Man erscheint mit 125 Leben, ohne Rüstung und nur mit dem MG (100 Schuss). Lebe
 100 klingen um 1 je Sekunde ab. Die Rüstung fängt zwei Drittel jedes Schadens ab (aufgerundet),
 solange sie reicht. Die eigene Rakete schadet halb, stößt aber voll: ein Rocket-Jump kostet
 ohne Rüstung bis zu 50 Leben. Bei 0 Leben ist man tot und erscheint nach 2 s am Start neu; wer aus
-der Welt fällt, stirbt. `tests/test_leuchtturm_items.bb` stellt den Spieler auf die Items und
+der Welt fällt, stirbt. `tests/test_friendlyfire_items.bb` stellt den Spieler auf die Items und
 prüft Aufnahme, Grenzen, Wiederkehr, Abklingen, Rüstung, Eigenschaden, Tod und Neuerscheinen.
+
+## Mehrspieler (Plan, 2026-09-30)
+
+Bis 8 Spieler, UDP, ein Spieler hostet (Listen-Server), die anderen treten übers Internet bei. Ein
+Vermittler auf dem eigenen Webspace (nur PHP) führt die Liste. Grundlagen und Alternativen:
+[VISION.md](VISION.md), Abschnitt Netzwerk.
+
+### Was in der Engine fehlt
+
+| Was | Warum |
+|---|---|
+| UDP-Befehle (`CreateUDPStream`, `SendUDPMsg`, `RecvUDPMsg` …) | Schnappschüsse brauchen unzuverlässige Pakete; ohnehin Phase 1 aus VISION.md (alte Programme) |
+| HTTP/HTTPS-Abfrage, z. B. `HttpGet$` / `HttpPost$` über WinHTTP | Blitz kennt nur TCP; Webspace leitet meist auf HTTPS um, per Hand gesprochenes HTTP über Port 80 scheitert dann |
+| Portfreigabe (UPnP / NAT-PMP / PCP), im Spiel oder als Befehl | damit der Host erreichbar wird, ohne dass jemand im Router klickt |
+
+STUN (öffentliche Server) ist mit den UDP-Befehlen selbst zu sprechen, der Rest des Netzcodes ist Spiel.
+
+### Der Vermittler (PHP, ohne UDP, ohne Dauerprozess)
+
+PHP beantwortet HTTP-Anfragen; es kann keine UDP-Pakete empfangen und nichts weiterleiten. Es
+reicht für Liste und Verabredung, nicht für ein Relay.
+
+| Aufruf | Wirkung |
+|---|---|
+| `announce` (Host, alle 30 s) | trägt das Spiel ein (Name, Karte, Spieler, Version, Port); die öffentliche IP nimmt PHP aus `REMOTE_ADDR`, nicht vom Host; liefert Token und offene Beitrittswünsche zurück |
+| `list` | offene Spiele, jünger als 90 s, mit IP:Port, Spielerzahl und Version |
+| `join` (Client) | meldet dem Host die öffentliche UDP-Adresse des Clients (per STUN ermittelt), damit beide gleichzeitig Pakete schicken (UDP-Hole-Punching) |
+| `close` | Spiel austragen |
+
+Ablage in SQLite oder Datei mit Ablaufzeit; Token je Host, Begrenzung der Aufrufe, Versionsprüfung.
+
+**Wer muss erreichbar sein?** Nur der Host. Clients verbinden von innen nach außen und kommen
+durch jeden Router. Der Host ist erreichbar über IPv6, eine UPnP-Freigabe oder einen
+Hole-Punch zu einem einfachen NAT. Scheitert er an CGNAT oder symmetrischem NAT (bei DS-Lite häufig),
+hilft ohne Relay nichts — PHP kann keins sein. Das Spiel prüft das beim Hosten (Adresse bei zwei
+STUN-Servern vergleichen) und sagt es: „erreichbar“, „eingeschränkt“, „nicht erreichbar“. Für
+diese Fälle bleibt ein VPN unter Freunden (Tailscale, ZeroTier) oder später ein Relay auf einem
+Server mit Dauerprozess.
+
+### Der Netzcode (8 Spieler)
+
+- Der Host rechnet die Welt in den festen 60-Hz-Takten; `spieler.bb` ist schon deterministisch.
+- Clients schicken ihre Eingabe je Takt (Tasten, Blickwinkel, Nummer), sagen die eigene Bewegung
+  voraus und gleichen sie mit dem Host ab; die anderen werden aus Schnappschüssen interpoliert
+  (20–30 je Sekunde; ein Spieler etwa 20 Byte, also grob 5 KB/s zu jedem Client).
+- Zuverlässig (Nummer, Bestätigung, Wiederholung) gehen nur Ereignisse: Beitritt, Tod, Item
+  genommen, Waffenwechsel, Chat. Schnappschüsse dürfen verloren gehen.
+- Schüsse zählt der Host. Sofort-Treffer später mit Ausgleich der Verzögerung; Raketen sind
+  Objekte des Hosts, die Clients sehen sie.
+- Gegner sind andere Spieler statt Zielscheiben; Punkte je Abschuss, Ergebnistafel, Erscheinen
+  fern voneinander. Eigenschaden der Rakete gilt fort (daher der Name).
+- Endet die Runde, wenn der Host geht, ist das für den Anfang in Ordnung.
+
+### Die Spieler sehen sich nicht: es fehlen Figuren
+
+Ohne Figur bleibt der Mehrspieler ein Geisterspiel — man hört Schüsse und sieht niemanden. Drei Wege:
+
+| Weg | Was | Für | Gegen |
+|---|---|---|---|
+| **A: Figur aus Formen, vom Programm bewegt** | Ein Roboter aus wenigen Teilen (Rumpf, Kopf, zwei Arme, zwei Beine, Hand mit Waffe), in Blender per Skript gebaut wie die Arena; Laufen, Zielen, Sterben rechnet das Programm aus Geschwindigkeit und Blickwinkel | Keine fremden Assets, kein Rig, sofort; läuft im alten Renderer; Teilnamen als feste Schnittstelle | Steif; sieht nach Platzhalter aus |
+| **B: freie Figur** (CC0, z. B. Kenney oder Quaternius) mit Skelett und Animationen | Der glTF-Lader kann Skinning und Animationen | Echte Gelenke | Stil, Lizenz und Animationsumfang sind zu prüfen |
+| **C: Astra baut sie** mit Rig und Animationen in Blender | Passt zum Raketenwerfer | Hängt von Astras Ergebnis ab | Aufwand beim Prüfen |
+
+Empfehlung: **A zuerst**, damit der Netzcode jemanden zum Sehen hat, mit festen Namen für die Teile
+(`torso`, `kopf`, `arm_l`, `arm_r`, `bein_l`, `bein_r`, `hand`, `muendung`), damit B oder C später
+ohne Änderung im Spiel einsetzbar sind. Die Waffenmodelle sind schon da und kommen an die Hand
+(verkleinert). Die acht Spielerfarben kommen über `EntityColor` auf eine helle Grundtextur, nicht
+über acht Texturen. Dazu gehören, weil die Figur allein nicht reicht: ein Name über dem Kopf,
+Mündungsfeuer an der Figur, 3D-Schritte und -Schüsse (gibt es), ein Blobschatten, eine
+Todesanimation (Umfallen) und ein Trefferkörper (Kasten wie der des Spielers) für `LinePick`.
+
+### Reihenfolge
+
+| Schritt | Was | Ergebnis |
+|---|---|---|
+| 1 | UDP-Befehle, dann Test mit zwei Programmen auf einem Rechner | Pakete laufen |
+| 2 | Figur (Weg A) und Namen | Andere sind sichtbar, zunächst als Zielscheiben mit Animation |
+| 3 | Netzcode auf einem Rechner (Host + Clients als getrennte Programme), LAN und direkte IP | 2–8 Spieler im Lokalnetz |
+| 4 | Portfreigabe und Erreichbarkeitsprüfung, Beitrittscode | Freunde treten ohne Liste bei |
+| 5 | HTTP-Befehl, PHP-Vermittler, Liste im Menü | Öffentliche Spiele |
+| 6 | Feinschliff: Ausgleich der Verzögerung, Abbruch und Wiederverbinden, Schummelschutz der Grundsorte | spielbar übers Internet |
 
 ## Offene Entscheidungen
 
@@ -200,5 +281,5 @@ prüft Aufnahme, Grenzen, Wiederkehr, Abklingen, Rüstung, Eigenschaden, Tod und
   Objekte `waypoint` in Blender) oder Mehrspieler (Listen-Server, siehe VISION.md, Abschnitt
   Netzwerk)?
 - [ ] **Assets:** Waffen, Zielscheiben und Items aus CC0-Paketen von Kenney (2026-09-28); offen: Arena und Klänge.
-- [x] **Wo lebt das Spiel:** im Repository unter `samples/leuchtturm/` (entschieden 2026-09-27).
-- [ ] **Name** des Spiels.
+- [x] **Wo lebt das Spiel:** im Repository unter `samples/friendlyfire/` (entschieden 2026-09-27).
+- [x] **Name:** Friendly Fire (entschieden 2026-09-30; Arbeitstitel war „Leuchtturm“ — so heißt das Spiel noch in älteren Commits und im DEVLOG).

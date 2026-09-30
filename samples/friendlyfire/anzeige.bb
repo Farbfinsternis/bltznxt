@@ -1,4 +1,4 @@
-; Leuchtturm - die Anzeige (Schritt 7).
+; Friendly Fire - die Anzeige (Schritt 7).
 ;
 ; Unten links die Munition der Waffe in der Hand, in der Mitte das Leben,
 ; rechts die Ruestung - gross, wie in Quake III; darueber klein die Waffen,

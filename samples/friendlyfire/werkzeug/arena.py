@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Platzhalter-Arena fuer das Leuchtturm-Spiel (Schritt 3: Bewegung und Kollision).
+"""Platzhalter-Arena fuer das Friendly-Fire-Spiel (Schritt 3: Bewegung und Kollision).
 
 Bis es eine Karte aus Blender gibt, steht hier eine kleine Arena, gebaut nach
-denselben Regeln (LEUCHTTURM.md, "Die Karte in Blender"): eine .glb, alles
+denselben Regeln (FRIENDLY_FIRE.md, "Die Karte in Blender"): eine .glb, alles
 Wissen steckt in den Objektnamen.
 
     arena       sichtbare Geometrie, kollidiert nicht
@@ -10,7 +10,7 @@ Wissen steckt in den Objektnamen.
     spawn       leeres Objekt: Startpunkt, Blick nach Blitz +z
     ziel        leere Objekte: dort schweben Zielscheiben (Schritt 4)
     weapon_... ammo_... armor_... health_...
-                leere Objekte: Items (Schritt 7), Name nach LEUCHTTURM.md
+                leere Objekte: Items (Schritt 7), Name nach FRIENDLY_FIRE.md
 
 Masse in Metern, 1 Einheit = 1 m. Angaben unten in Blitz-Koordinaten (y oben,
 z nach vorn); geschrieben wird glTF (z gespiegelt), der Lader spiegelt zurueck.
@@ -34,7 +34,7 @@ z nach vorn); geschrieben wird glTF (z gespiegelt), der Lader spiegelt zurueck.
 
 Aufruf aus dem Projektwurzelverzeichnis:
 
-    python samples/leuchtturm/werkzeug/arena.py
+    python samples/friendlyfire/werkzeug/arena.py
 """
 
 import os
@@ -86,7 +86,7 @@ def main():
     for name, (x, y, z) in ITEMS:
         nodes.append({"name": name, "translation": [x, y, -z]})
     write(OUT, nodes, [mesh(SOLIDS, True), mesh(SOLIDS, False)],
-          "BLTZNXT samples/leuchtturm/werkzeug/arena.py")
+          "BLTZNXT samples/friendlyfire/werkzeug/arena.py")
     print("%s: %d Dreiecke" % (os.path.normpath(OUT), len(mesh(SOLIDS, False)[3]) // 3))
 
 

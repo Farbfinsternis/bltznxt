@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Die Waffe aus Blender (GPT-6 Astra) als Raketenwerfer des Leuchtturm-Spiels.
+"""Die Waffe aus Blender (GPT-6 Astra) als Raketenwerfer des Friendly-Fire-Spiels.
 
 Quelle ist die Datei, wie sie aus Blender kam (17 MB, nicht im Repository: wer das Werkzeug
 neu laufen lassen will, legt einen Export der Astra-Szene dorthin):
@@ -9,7 +9,7 @@ neu laufen lassen will, legt einen Export der Astra-Szene dorthin):
                                 ORM), dazu der Standardwuerfel, der in der Szene
                                 blieb; Lauf nach -x, oben +y, Griff nach unten
 
-Das Werkzeug macht daraus daten/rl.glb nach den Regeln aus LEUCHTTURM.md
+Das Werkzeug macht daraus daten/rl.glb nach den Regeln aus FRIENDLY_FIRE.md
 ("Waffen in Blender"):
 
   - der Wuerfel faellt weg
@@ -30,7 +30,7 @@ Das Werkzeug macht daraus daten/rl.glb nach den Regeln aus LEUCHTTURM.md
 
 Aufruf aus dem Projektwurzelverzeichnis:
 
-    py samples/leuchtturm/werkzeug/astra.py
+    py samples/friendlyfire/werkzeug/astra.py
 """
 
 import json
@@ -47,7 +47,7 @@ from kenney import HEBEN, NULL, RUHE
 HERE = os.path.dirname(os.path.abspath(__file__))
 QUELLE = os.path.join(HERE, "astra", "weapon.glb")
 AUS = os.path.join(HERE, "..", "daten", "rl.glb")
-GEN = "BLTZNXT samples/leuchtturm/werkzeug/astra.py - Modell GPT-6 Astra (Blender)"
+GEN = "BLTZNXT samples/friendlyfire/werkzeug/astra.py - Modell GPT-6 Astra (Blender)"
 
 DREIECKE = 6000         # Ziel der Vereinfachung in Blender
 LAENGE = 0.30           # Meter, Lauf bis Kolben
