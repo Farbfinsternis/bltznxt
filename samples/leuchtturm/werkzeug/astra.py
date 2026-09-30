@@ -15,12 +15,14 @@ Das Werkzeug macht daraus daten/rl.glb nach den Regeln aus LEUCHTTURM.md
   - das Netz wird mit Blender (ohne Oberflaeche, astra_blender.py, auf einer Kopie) von
     15 500 auf 6 000 Dreiecke gebracht; Blender wird ueber die Umgebungsvariable
     BLENDER oder den PATH gefunden, ohne bleibt das Netz unvereinfacht
-  - das Netz wird gedreht (Lauf nach Blitz +z), auf 0,40 m Laenge gebracht und
+  - das Netz wird gedreht (Lauf nach Blitz +z), auf 0,30 m Laenge gebracht und
     so gelegt, dass der Griff unter der Kamera haengt
   - "muendung": ein leerer Knoten an der Spitze des Laufs
   - Animationen "feuern" (Sequenz 0) und "heben" (Sequenz 1); die Datei hatte
     keine, sie sind hier erfunden - Stoss nach hinten, die Spitze steigt
-  - Textur: der Blitz3D-Renderer liest nur die Farbtextur (Normalen und ORM
+  - Textur: die Farbtextur wird mit Blender neu abgemischt (veredeln.py, Modus astra):
+    Fugenschatten, Kantenlicht, Risse, Rost - naeher am Konzeptbild, und der Renderer
+    kann Tiefe nur so zeigen. Der Blitz3D-Renderer liest nur die Farbtextur (Normalen und ORM
     bleiben liegen) und keine Leuchttextur; die Farbe wird deshalb auf 1024 x 1024
     verkleinert, die Leuchttextur gleich daraufgerechnet und als JPEG gespeichert
     (textur.ps1, braucht Windows PowerShell). So schrumpft die Datei von 17 MB auf 0,8 MB.
@@ -102,6 +104,20 @@ def vereinfache(quelle, tmp):
     return aus
 
 
+def veredle(bilder, tmp):
+    """Die Farbtextur mit Blender neu abmischen (veredeln.py, Modus astra):
+    Fugenschatten, Kantenlicht, Risse, Rost. Ohne Blender bleibt sie, wie sie ist."""
+    exe = blender()
+    if not exe:
+        return bilder
+    basis, aus = os.path.join(tmp, "basis.png"), os.path.join(tmp, "veredelt.png")
+    open(basis, "wb").write(bilder["BaseColor"])
+    subprocess.run([exe, "-b", "--python", os.path.join(HERE, "veredeln.py"), "--", "astra",
+                    os.path.join(tmp, "weapon_opt.glb"), aus, "basis=" + basis, "ao=0.7", "kante=0.8",
+                    "radius=0.012"], check=True, stdout=subprocess.DEVNULL)
+    return dict(bilder, BaseColor=open(aus, "rb").read())
+
+
 def textur(bilder):
     """Farbe und Leuchten zu einer PNG verschmelzen (textur.ps1)."""
     if sys.platform != "win32":
@@ -121,6 +137,7 @@ def textur(bilder):
 def main():
     with tempfile.TemporaryDirectory() as tmp:
         p, n, uv, idx, bilder = lade(vereinfache(QUELLE, tmp))
+        bilder = veredle(bilder, tmp)
 
     # glTF-Quelle: Lauf nach -x, oben +y. Gedreht um y so, dass der Lauf nach
     # glTF -z zeigt (Blitz +z): (x, y, z) -> (-z, y, x). Eine Drehung, keine
