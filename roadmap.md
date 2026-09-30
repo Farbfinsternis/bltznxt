@@ -840,7 +840,7 @@ Blitz3D itself does not have (e.g. `FreeSurface`, `VectorDistance`) are not coun
     - [x] WriteByte, WriteShort, WriteInt, WriteFloat, WriteString, WriteLine, WriteBytes(stub) *(M26)*
 - [ ] **Network**
     - [x] OpenTCPStream, CloseTCPStream, CreateTCPServer, CloseTCPServer, AcceptTCPStream, TCPStreamIP, TCPStreamPort, TCPTimeouts, DottedIP, CountHostIPs, HostIP
-    - [ ] CreateUDPStream, CloseUDPStream, SendUDPMsg, RecvUDPMsg, UDPStreamIP, UDPStreamPort, UDPMsgIP, UDPMsgPort, UDPTimeouts, CopyStream
+    - [x] CreateUDPStream, CloseUDPStream, SendUDPMsg, RecvUDPMsg, UDPStreamIP, UDPStreamPort, UDPMsgIP, UDPMsgPort, UDPTimeouts, CopyStream *(2026-09-30)*
     - [ ] StartNetGame, HostNetGame, JoinNetGame, StopNetGame, CreateNetPlayer, DeleteNetPlayer, NetPlayerName, NetPlayerLocal, SendNetMsg, RecvNetMsg, NetMsgType, NetMsgFrom, NetMsgTo, NetMsgData
 - [x] **Time / System** *(M21–M23)*
     - [x] Delay, MilliSecs, CurrentDate, CurrentTime *(M21)*

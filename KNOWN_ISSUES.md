@@ -140,7 +140,7 @@ everything that is available.
 
 | Area | Missing |
 |------|---------|
-| Networking | all UDP and DirectPlay commands (`CreateUDPStream`, `SendUDPMsg`, `HostNetGame`, `SendNetMsg`, …) and `CopyStream`; TCP is available |
+| Networking | the DirectPlay commands (`StartNetGame`, `HostNetGame`, `JoinNetGame`, `SendNetMsg`, …); TCP and UDP streams and `CopyStream` are available |
 | Picking and projection | `CameraPick`, `CameraProject`, `ProjectedX/Y/Z`, `EntityInView` |
 | Terrain, BSP | `CreateTerrain`, `LoadTerrain`, `ModifyTerrain`, `TerrainHeight`, …, `LoadBSP`, `BSPAmbientLight`, `BSPLighting` |
 | Camera fog | `CameraFogMode`, `CameraFogRange`, `CameraFogColor` |
@@ -157,11 +157,6 @@ are the most likely reason for an old program to behave strangely.
 
 - **Numbers with a leading zero are read as octal.** `Print 010` prints `8`; `08` does not
   compile at all. *Workaround:* remove leading zeros. (BUG-98)
-- **`WriteString` and `ReadString` use a different file format.** Blitz3D writes a 4-byte
-  length followed by the characters; BlitzNext writes the characters followed by a zero
-  byte. Files written by Blitz3D programs — save games, level data — are read incorrectly.
-  *Workaround:* write the length with `WriteInt` and the characters with `WriteByte`, and
-  read them back the same way; this format is identical in both. (BUG-117)
 - **A local variable declared inside a block ends with the block.** In Blitz3D a `Local`
   belongs to the whole function. With a global `x`, a function that declares `Local x = 2`
   inside an `If` block and prints `x` after the `EndIf` prints `2` in Blitz3D and the
@@ -213,7 +208,6 @@ are the most likely reason for an old program to behave strangely.
 
 - **`SystemProperty`** always returns an empty string (Blitz3D returns e.g. `"Intel"` for
   `"cpu"`). (BUG-122)
-- `WriteString`/`ReadString`: see [Silently different results](#silently-different-results).
 
 ---
 

@@ -144,22 +144,18 @@ inline float bb_PeekFloat(int handle, int offset) {
 // Richtung, ohne dass irgendetwas gemeldet wurde (BUG-44).
 inline int bb_WriteBytes(int bankHandle, int fileHandle, int offset, int count) {
   if (count <= 0) return 0;
-  FILE* f = bb_file_get_(fileHandle);
   auto* b = bb_bank_get_(bankHandle);
-  if (!f) { std::cerr << "[runtime] WriteBytes: invalid file handle\n"; return 0; }
+  if (!bb_stream_exists_(fileHandle)) { std::cerr << "[runtime] WriteBytes: invalid file handle\n"; return 0; }
   if (!bb_bank_check_(b, offset, count)) return 0;
-  return static_cast<int>(
-      std::fwrite(b->data() + offset, 1, static_cast<size_t>(count), f));
+  return bb_stream_write_(fileHandle, b->data() + offset, count);      // Datei oder Socket
 }
 
 inline int bb_ReadBytes(int bankHandle, int fileHandle, int offset, int count) {
   if (count <= 0) return 0;
-  FILE* f = bb_file_get_(fileHandle);
   auto* b = bb_bank_get_(bankHandle);
-  if (!f) { std::cerr << "[runtime] ReadBytes: invalid file handle\n"; return 0; }
+  if (!bb_stream_exists_(fileHandle)) { std::cerr << "[runtime] ReadBytes: invalid file handle\n"; return 0; }
   if (!bb_bank_check_(b, offset, count)) return 0;
-  return static_cast<int>(
-      std::fread(b->data() + offset, 1, static_cast<size_t>(count), f));
+  return bb_stream_read_(fileHandle, b->data() + offset, count);       // Datei oder Socket
 }
 
 // Cleanup hook — called by bbEnd().  Frees all remaining bank handles.

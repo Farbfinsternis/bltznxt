@@ -1,5 +1,27 @@
 # BlitzNext Developer Log
 
+## 2026-09-30 — UDP, and WriteString at last (BUG-117)
+
+The UDP commands are in: `CreateUDPStream`, `CloseUDPStream`, `SendUDPMsg`, `RecvUDPMsg`,
+`UDPStreamIP/Port`, `UDPMsgIP/Port`, `UDPTimeouts`, plus `CopyStream`. A UDP stream is a stream like
+a file or a TCP socket, so the `Read…`/`Write…` commands, `ReadAvail`, `Eof` and now also
+`ReadBytes`/`WriteBytes` (they only knew files before) work on it: what you write is one message,
+`SendUDPMsg` sends it, `RecvUDPMsg` fetches the next. 26 cases measured against Blitz3D on the
+loopback, all equal (`tests/test_udp_streams.bb`). Things the original does that we copy: without
+a destination port `SendUDPMsg` uses the port the stream was created with — 0 for a free port,
+so the message goes nowhere; the write buffer is empty after sending; an empty message is
+sent and received; a failed `RecvUDPMsg` leaves the last message readable; the initial
+`UDPMsgPort` is the stream's own port; `UDPStreamIP` is always 0. Two differences on purpose:
+sockets may send to broadcast addresses (the original's do not — a game can now call for games
+on the LAN), and on Windows a message to a closed port no longer shows up as a read error
+(`SIO_UDP_CONNRESET` off). `CopyStream` copies into files here; in the original it copies nothing
+into a file (measured with `WriteFile`, `OpenFile` and a UDP stream as the source).
+
+The measurement found an old bug: `WriteString` wrote the characters and a zero byte, Blitz3D
+writes a 4-byte length first (the UDP message of an int, a string, a byte, a float and a line
+was 22 bytes here, 25 there). Fixed (BUG-117): files of old programs — save games, level data —
+read correctly now. Suite: all tests as before.
+
 ## 2026-09-30 — Leuchtturm becomes Friendly Fire
 
 The working title is gone: `samples/leuchtturm/` is now `samples/friendlyfire/`, `leuchtturm.bb` and

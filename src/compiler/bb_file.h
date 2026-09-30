@@ -33,6 +33,13 @@ inline int (*bb_sock_read_hook_)(int, void*, int)        = nullptr;
 inline int (*bb_sock_write_hook_)(int, const void*, int) = nullptr;
 inline int (*bb_sock_avail_hook_)(int)                   = nullptr;
 inline int (*bb_sock_eof_hook_)(int)                     = nullptr;
+inline bool (*bb_sock_exists_hook_)(int)                 = nullptr;   // gehoert das Handle einem Socket?
+
+// Ist das Handle eine offene Datei oder ein offener Socket-Stream?
+inline bool bb_stream_exists_(int handle) {
+  if (bb_file_handles_.count(handle)) return true;
+  return bb_sock_exists_hook_ && bb_sock_exists_hook_(handle);
+}
 
 // Bis zu n Bytes lesen; liefert, wieviele es wurden.
 inline int bb_stream_read_(int handle, void* buf, int n) {
@@ -168,9 +175,12 @@ inline void bb_WriteFloat(int handle, float val) {
   bb_stream_write_(handle, &val, 4);
 }
 
-// Writes a null-terminated string (no trailing newline).
+// Wie bbWriteString: erst die Laenge als 4-Byte-Ganzzahl, dann genau die Zeichen
+// (BUG-117; vorher mit Nullbyte, das die Dateien des Originals nicht las).
 inline void bb_WriteString(int handle, const bbString &s) {
-  bb_stream_write_(handle, s.c_str(), static_cast<int>(s.size()) + 1); // mit Nullbyte
+  const int n = static_cast<int>(s.size());
+  bb_stream_write_(handle, &n, 4);
+  if (n > 0) bb_stream_write_(handle, s.c_str(), n);
 }
 
 // Writes a string followed by a newline character.
@@ -217,12 +227,16 @@ inline float bb_ReadFloat(int handle) {
   return val;
 }
 
-// Reads a null-terminated string.
+// Wie bbReadString: 4-Byte-Laenge, dann so viele Zeichen, wie da sind. Fehlt schon
+// die Laenge (Dateiende, Ende einer Nachricht), ist der String leer.
 inline bbString bb_ReadString(int handle) {
   bbString result;
-  char c = 0;
-  while (bb_stream_read_(handle, &c, 1) == 1 && c != '\0')
-    result += c;
+  int n = 0;
+  if (bb_stream_read_(handle, &n, 4) != 4 || n <= 0) return result;
+  if (n > (1 << 26)) return result;              // kein vernuenftiger String, nicht den Speicher sprengen
+  std::string buf(static_cast<size_t>(n), '\0');
+  const int got = bb_stream_read_(handle, &buf[0], n);
+  if (got > 0) result.assign(buf.data(), static_cast<size_t>(got));
   return result;
 }
 

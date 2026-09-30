@@ -1,0 +1,24 @@
+1 erstellt: 1 port 28701 ip 0
+2 freier port: 1 >0 1 anders 1 ip 0
+3 port belegt: 0
+4 leer: 0 msgip 0 msgport 28701 avail 0 eof 1
+5 warten: 0 dauer 1
+5 nicht warten: 0 dauer 1
+6 empfangen: 127.0.0.1 msgip 127.0.0.1 msgport 1
+6 avail: 25 eof 0
+6 lesen: 123456 Hallo 7 1.5 zeile
+6 danach: avail 0 eof 1
+6 ueber das Ende: 0 0 eof 1
+7 ohne port: 0.0.0.0 0 msgport 0
+7 a leer: 0
+8 reihenfolge: 1 eof 1 | 2 3 eof 1 | 0
+9 erste: avail 4
+9 zweite: ip 1 avail 0 eof 1
+10 vor leer: 4
+10 nach leer: ip 0 avail 4 msgip 1 msgport 1 lesen 77
+11 lesen nach schreiben: 5 eof 1
+11 antwort: 127.0.0.1 6 msgport 28701 a 28701
+12 groessen: 1->1 100->100 1000->1000 1400->1400 2048->2048 4000->4000 4096->4096 4100->4100 8000->8000 60000->60000 
+13 inhalt: 3000 1 eof 1
+14 zurueck: 0 
+15 nach close: 1 28701

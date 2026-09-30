@@ -205,7 +205,7 @@ Vermittler auf dem eigenen Webspace (nur PHP) führt die Liste. Grundlagen und A
 
 | Was | Warum |
 |---|---|
-| UDP-Befehle (`CreateUDPStream`, `SendUDPMsg`, `RecvUDPMsg` …) | Schnappschüsse brauchen unzuverlässige Pakete; ohnehin Phase 1 aus VISION.md (alte Programme) |
+| ~~UDP-Befehle (`CreateUDPStream`, `SendUDPMsg`, `RecvUDPMsg` …)~~ | **da seit 2026-09-30**, am Original gemessen; dazu `CopyStream`, `ReadBytes`/`WriteBytes` auf Sockets (Banks als Nachrichten) und das Längenpräfix von `WriteString` |
 | HTTP/HTTPS-Abfrage, z. B. `HttpGet$` / `HttpPost$` über WinHTTP | Blitz kennt nur TCP; Webspace leitet meist auf HTTPS um, per Hand gesprochenes HTTP über Port 80 scheitert dann |
 | Portfreigabe (UPnP / NAT-PMP / PCP), im Spiel oder als Befehl | damit der Host erreichbar wird, ohne dass jemand im Router klickt |
 
@@ -269,7 +269,7 @@ Todesanimation (Umfallen) und ein Trefferkörper (Kasten wie der des Spielers) f
 
 | Schritt | Was | Ergebnis |
 |---|---|---|
-| 1 | UDP-Befehle, dann Test mit zwei Programmen auf einem Rechner | Pakete laufen |
+| 1 | UDP-Befehle, dann Test mit zwei Programmen auf einem Rechner | Pakete laufen — **läuft**, `tests/test_udp_streams.bb` gleich dem Original |
 | 2 | Figur (Weg A) und Namen | Andere sind sichtbar — **läuft**, `figuren.bb` |
 | 3 | Netzcode auf einem Rechner (Host + Clients als getrennte Programme), LAN und direkte IP | 2–8 Spieler im Lokalnetz |
 | 4 | Portfreigabe und Erreichbarkeitsprüfung, Beitrittscode | Freunde treten ohne Liste bei |

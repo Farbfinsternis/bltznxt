@@ -82,7 +82,7 @@ compatibility fixes. In 3D, entities, cameras, lights, textures, brushes, primit
 (`.gltf`/`.glb`, e.g. from Blender, with skinning, animations and morph targets), the surface API,
 sprites, mirrors, planes, MD2 models, collisions, line/entity picking and 3D sound are available.
 Camera picking/projection, render tweening, terrain and fog remain missing.
-TCP streams and hostname lookup are available; UDP and DirectPlay remain missing.
+TCP and UDP streams and hostname lookup are available; DirectPlay remains missing.
 
 **Blitz2D compatibility** is a practical secondary target. The 2D runtime is available, with
 remaining gaps listed in [KNOWN_ISSUES.md](KNOWN_ISSUES.md); no broad game-compatibility rate
@@ -215,7 +215,7 @@ yet work like Blitz3D are listed in [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 
 **3D Graphics — Collision & Picking** — `Collisions`, `ClearCollisions`, `EntityType`, `GetEntityType`, `EntityRadius`, `EntityBox`, `EntityCollided`, `CountCollisions`, the `Collision…` queries, `LinePick`, `EntityPick`, `EntityPickMode`, the `Picked…` queries, `EntityVisible`
 
-**Networking** — TCP streams, servers, timeouts and hostname lookup; UDP and DirectPlay are not implemented.
+**Networking** — TCP and UDP streams, servers, timeouts, `CopyStream` and hostname lookup; DirectPlay is not implemented.
 
 **3D Graphics — Brushes** — `CreateBrush`, `LoadBrush`, `FreeBrush`, `BrushColor`, `BrushAlpha`, `BrushShininess`, `BrushTexture`, `BrushBlend`, `BrushFX`, `GetBrushTexture`
 

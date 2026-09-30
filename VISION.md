@@ -92,8 +92,8 @@ klein oder wird von anderen betrieben.
 
 ### Ausgangslage
 
-TCP ist vorhanden (`OpenTCPStream`, `CreateTCPServer` …). Es fehlen alle UDP-Befehle und das
-DirectPlay-Set von Blitz3D (`StartNetGame`, `HostNetGame`, `JoinNetGame`, `CreateNetPlayer`,
+TCP und UDP sind vorhanden (`OpenTCPStream`, `CreateTCPServer`, `CreateUDPStream`, `SendUDPMsg`,
+`RecvUDPMsg` …, seit 2026-09-30). Es fehlt das DirectPlay-Set von Blitz3D (`StartNetGame`, `HostNetGame`, `JoinNetGame`, `CreateNetPlayer`,
 `SendNetMsg`, `RecvNetMsg`, `NetMsgType` …, siehe [KNOWN_ISSUES.md](KNOWN_ISSUES.md)). Genau
 dieses Set war in Blitz3D die Mehrspieler-Schicht, und es hatte schon das, was ein Spiel ohne
 Server braucht: ein Spieler hostet, die anderen treten bei, Spieler kommen und gehen als
