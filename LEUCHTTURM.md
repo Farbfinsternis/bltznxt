@@ -1,6 +1,6 @@
 # BLTZNXT — Leuchtturm
 
-Stand: 2026-09-28 · Schritt 7 läuft — der Umfang ist erreicht: Bewegung, drei Waffen, Items, Anzeige, 3D-Klang; Waffen, Zielscheiben und Items sind Modelle von Kenney (CC0), Arena und Klänge noch Platzhalter
+Stand: 2026-09-28 · Schritt 7 läuft — der Umfang ist erreicht: Bewegung, drei Waffen, Items, Anzeige, 3D-Klang; Waffen (der Raketenwerfer von GPT-6 Astra), Zielscheiben und Items sind Modelle von Kenney (CC0), Arena und Klänge noch Platzhalter
 
 Ein kleiner Arena-Shooter im Stil von Quake III, geschrieben als **gewöhnliches Blitz3D-Programm**:
 Blitz-Code, Blitz-Befehle, der Blitz3D-kompatible Renderer. Neu sind nur die Daten — Karte, Waffen
@@ -145,12 +145,14 @@ dürfen bis Schritt 5 statisch sein.
 | `klang.bb` | Listener an der Kamera, Klänge mit `Load3DSound`, jeder an seiner Entity per `EmitSound`: Schüsse an der Mündung, Schub an der Rakete (mit `LoopSound`), Treffer an der Scheibe, Explosionen an einem Pivot an ihrem Ort |
 | `effekte.bb` | Funken, Rauch, Feuerball, Einschlagflecken, Railspur, Explosionslicht; die Texturen erzeugt das Programm |
 | `daten/arena.glb` | Platzhalter-Arena aus `werkzeug/arena.py`: Boden, Wände, Säule, Block, Rampe, Treppe, zwei Plattformen, sechs Zielmarken |
-| `daten/mg.glb`, `rl.glb`, `rail.glb`, `ziel.glb` | Aus Kenneys Blaster Kit (CC0), aufbereitet von `werkzeug/kenney.py` nach den Regeln „Waffen in Blender“: Größe, Mündung, der vordere Teil als eigener Knoten `lauf` (beim MG stößt er zurück, bei der Railgun fährt er zurück und dreht sich beim Nachladen), Animationen `feuern` und `heben`; Textur in der Datei |
+| `daten/mg.glb`, `rail.glb`, `ziel.glb` | Aus Kenneys Blaster Kit (CC0), aufbereitet von `werkzeug/kenney.py` nach den Regeln „Waffen in Blender“: Größe, Mündung, der vordere Teil als eigener Knoten `lauf` (beim MG stößt er zurück, bei der Railgun fährt er zurück und dreht sich beim Nachladen), Animationen `feuern` und `heben`; Textur in der Datei |
+| `daten/rl.glb` | Der Raketenwerfer: ein Modell von GPT-6 Astra, in Blender gebaut (blauer Steinlauf, glühender Kern). `werkzeug/astra.py` macht es aus `werkzeug/astra/weapon.glb` spielfertig: Standardwürfel entfernt, gedreht, auf 0,30 m gebracht, `muendung`, erfundene Animationen `feuern` und `heben` (das Original ist nicht animiert), Netz mit Blender von 15 500 auf 6 000 Dreiecke vereinfacht, Textur von 4096² auf 1024² verkleinert (JPEG) und die Leuchttextur daraufgerechnet, weil der Renderer keine kennt (17 MB → 0,8 MB) |
 | `daten/klang/*.wav` | Platzhalterklänge aus `werkzeug/klaenge.py`, aus Rauschen und Sinustönen gerechnet |
 | `items.bb` | Items an den Marken `weapon_…`, `ammo_…`, `armor_N`, `health_N`: drehen sich, werden bei Berührung genommen, wenn sie etwas bringen, und kommen nach Quake-Zeiten wieder |
 | `anzeige.bb` | Munition, Leben und Rüstung groß am unteren Rand, die eigenen Waffen, Meldungen beim Aufsammeln, rotes Aufblitzen bei Schaden |
 | `daten/items/*.glb` | Aus `werkzeug/kenney.py`: Koffer aus dem Blaster Kit in den Farben der Waffen (Munition), Rundschild aus Mini Dungeon (Rüstung: grün, gelb, rot), Herz aus dem Platformer Kit (Gesundheit: gelb, orange, groß und blau); umgefärbt, indem die Texturkoordinaten in ein anderes Feld der Farbtafel rücken. Waffen-Items sind die Waffenmodelle selbst |
 | `werkzeug/glb.py` | Gemeinsames der Werkzeuge: Körper bauen, `.glb` schreiben, auch mit eingebetteter Textur |
+| `werkzeug/astra.py`, `astra_blender.py`, `textur.ps1` | Bringt das Astra-Modell nach `daten/rl.glb`; das Netz vereinfacht Blender im Hintergrund (`astra_blender.py`, Umgebungsvariable `BLENDER`), die Textur rechnet `textur.ps1` (Windows PowerShell, System.Drawing) |
 | `werkzeug/kenney.py` | Lädt die Kenney-Pakete nach `werkzeug/kenney/` (nicht im Repository) und schreibt daraus Waffen, Zielscheibe und Items |
 
 Werte der Bewegung: die von Quake III, umgerechnet über die Spielergröße (56 Einheiten = 1,8 m,

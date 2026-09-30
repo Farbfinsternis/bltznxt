@@ -38,7 +38,8 @@ Die große Gesundheit liegt oben auf der Säule.
 Herkunft
 --------
 
-Modelle der Waffen, Zielscheiben und Items: Kenney (www.kenney.nl),
+Raketenwerfer: Modell von GPT-6 Astra, in Blender gebaut.
+Modelle von MG, Railgun, Zielscheiben und Items: Kenney (www.kenney.nl),
 Creative Commons Zero (CC0) - Blaster Kit, Mini Dungeon, Platformer Kit.
 Arena und Klänge: Platzhalter, vom Programm bzw. per Skript erzeugt.
 

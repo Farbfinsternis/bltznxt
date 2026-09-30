@@ -7,7 +7,6 @@ die Modelle, bringt sie auf Spielgroesse und schreibt sie so, wie das Spiel
 sie erwartet - mit eingebetteter Textur, damit jede .glb fuer sich steht:
 
     daten/mg.glb       Blaster Kit  blaster-p   "mg"   > "lauf", "muendung"
-    daten/rl.glb       Blaster Kit  blaster-h   "rl"   > "muendung"
     daten/rail.glb     Blaster Kit  blaster-f   "rail" > "lauf", "muendung"
     daten/ziel.glb     Blaster Kit  target-large, zweimal Ruecken an Ruecken
     daten/items/ammo_*.glb     Blaster Kit  crate-small in den Farben der Waffen
@@ -247,11 +246,7 @@ def waffen():
         ("mg", "translation", [(0, NULL), (1, pos(0, 0, -0.012)), (6, NULL)]),
         ("lauf", "translation", [(0, lauf), (2, zurueck(lauf, 0.02)), (6, lauf)]),
     ])
-    # Raketenwerfer: Stoss nach hinten, die Spitze steigt, dann langsam zurueck
-    waffe("rl", "blaster-h", 0.36, None, lambda lauf: [
-        ("rl", "translation", [(0, NULL), (2, pos(0, 0.01, -0.06)), (30, NULL)]),
-        ("rl", "rotation", [(0, RUHE), (2, quat(1, 0, 0, -10)), (30, RUHE)]),
-    ])
+    # Der Raketenwerfer (rl.glb) kommt aus astra.py, nicht mehr von Kenney
     # Railgun: Stoss, der Lauf faehrt zurueck und laedt eine Sekunde lang nach -
     # er schiebt sich langsam wieder vor und dreht sich dabei einmal herum
     waffe("rail", "blaster-f", 0.50, 0.34, lambda lauf: [

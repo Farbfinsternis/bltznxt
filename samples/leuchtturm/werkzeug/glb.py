@@ -110,12 +110,12 @@ def quat(ax, ay, az, deg):
     return (-ax / l * s, -ay / l * s, az / l * s, c)
 
 
-def write(path, nodes, meshes, generator, animations=(), texture=None):
+def write(path, nodes, meshes, generator, animations=(), texture=None, texture_mime="image/png"):
     """nodes: glTF-Knoten (dicts, "mesh" verweist in meshes); in der Szene stehen
     die, die nicht Kind eines anderen sind.
     meshes: Liste von (pos, nrm, col, idx) aus mesh(), oder (pos, nrm, col,
     idx, uv) mit Texturkoordinaten. Ein Material fuer alle; mit `texture`
-    (Inhalt einer PNG-Datei) liegt die als Textur in der Datei.
+    (Inhalt einer PNG- oder JPEG-Datei, texture_mime) liegt die als Textur in der Datei.
     animations: Liste von (name, [(knoten, pfad, [(bild, wert), ...]), ...]) -
     pfad "translation" (Wert aus pos()), "rotation" (aus quat()) oder "scale";
     Bilder zu 60 je Sekunde, wie der Lader sie zaehlt. Linear gemischt."""
@@ -182,7 +182,7 @@ def write(path, nodes, meshes, generator, animations=(), texture=None):
         views.append({"buffer": 0, "byteOffset": len(data), "byteLength": len(texture)})
         data.extend(texture)
         doc["buffers"][0]["byteLength"] = len(data)
-        doc["images"] = [{"bufferView": len(views) - 1, "mimeType": "image/png"}]
+        doc["images"] = [{"bufferView": len(views) - 1, "mimeType": texture_mime}]
         doc["samplers"] = [{"magFilter": 9729, "minFilter": 9987}]
         doc["textures"] = [{"sampler": 0, "source": 0}]
         doc["materials"] = [{"name": "colormap", "pbrMetallicRoughness": {
