@@ -103,3 +103,4 @@ samples/leuchtturm/werkzeug/kenney/
 dist/
 # Leuchtturm: Rohmodelle vor dem Veredeln (werkzeug/kenney.py)
 samples/leuchtturm/werkzeug/roh/
+samples/leuchtturm/werkzeug/astra/

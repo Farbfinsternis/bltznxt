@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Die Waffe aus Blender (GPT-6 Astra) als Raketenwerfer des Leuchtturm-Spiels.
 
-Quelle ist die Datei, wie sie aus Blender kam:
+Quelle ist die Datei, wie sie aus Blender kam (17 MB, nicht im Repository: wer das Werkzeug
+neu laufen lassen will, legt einen Export der Astra-Szene dorthin):
 
     werkzeug/astra/weapon.glb   ein Netz (31 763 Ecken, 15 500 Dreiecke), vier
                                 Texturen (Farbe 4096 x 4096, Leuchten, Normalen,

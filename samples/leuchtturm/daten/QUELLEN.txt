@@ -10,7 +10,9 @@ mg.glb, rail.glb, ziel.glb, items/*.glb
     Fugenschatten, Kantenlicht und Oberflaechen versehen, Textur als JPEG.
 
 rl.glb
-    Modell von GPT-6 Astra (in Blender gebaut), Original werkzeug/astra/weapon.glb.
+    Modell von GPT-6 Astra (in Blender gebaut), Original (17 MB)
+    nicht im Repository, siehe werkzeug/astra.py. Modell und Referenzbild sind KI-Arbeiten
+    (Astra, Krea-2) ohne Urheber und Lizenz.
     Aufbereitet von werkzeug/astra.py: gedreht, Groesse, Muendung, Animationen,
     Netz vereinfacht (Blender), Textur verkleinert, Leuchten eingerechnet.
 
