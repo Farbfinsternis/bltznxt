@@ -1,0 +1,16 @@
+laden:     figuren 2 waffe 0 lebt 1 tod 0
+1 stehen:  bein 0/0 arm 0/0 torso y 85 phase 0
+2 laufen:  phase 618 bein -49/49 arm 32/-46 torso 7
+3 luft:    phase gleich 1 bein -18/12
+4 zielen:  arm -80/-90 waffe 2
+4 nach unten: arm -60/-70 torso 20 kopf 20 anker 20
+5 rueck:   arm -81 -> -90 rueck 0
+6 rumpf:   getroffen 1 figur a 1 kopf 0 abstand 478
+6 kopf:    getroffen 1 figur a 1 kopf 1
+6 figur b: figur b 1 nicht a 1
+6 daneben: getroffen 0
+7 sterben: halb tod 50 pitch -45
+7 tot:     tod 100 pitch -90 kopf y 13 z -137 lebt 0
+7 belebt:  tod 0 pitch 0 lebt 1
+8 gier:    vorn -100,0,0
+weg:       figuren 1

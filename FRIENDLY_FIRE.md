@@ -154,6 +154,7 @@ dürfen bis Schritt 5 statisch sein.
 | `werkzeug/glb.py` | Gemeinsames der Werkzeuge: Körper bauen, `.glb` schreiben, auch mit eingebetteter Textur |
 | `werkzeug/veredeln.py` | Blender-Skript, das Modelle veredelt: backt Ambient Occlusion und Kantenlicht und legt prozedurale Risse, Facetten und Rost nach Materialfarbe darüber, weil der Renderer Tiefe nur über die Farbe zeigen kann; Modus `astra` (vorhandene UVs) und `neu` (neu abwickeln, Kenneys Farbtafel aufs neue Layout backen) |
 | `werkzeug/astra.py`, `astra_blender.py`, `textur.ps1` | Bringt das Astra-Modell nach `daten/rl.glb`; das Netz vereinfacht Blender im Hintergrund (`astra_blender.py`, Umgebungsvariable `BLENDER`), die Textur rechnet `textur.ps1` (Windows PowerShell, System.Drawing) |
+| `figuren.bb`, `daten/figur.glb`, `werkzeug/figur.py` | Die Spielerfiguren für den Mehrspieler (Weg A): ein Roboter aus 15 Teilen an festen Gelenken, 240 Dreiecke, ohne Animation in der Datei. `figuren.bb` dreht die Teile selbst: Schritt aus der Geschwindigkeit (120° je Meter, Beine ±50°, Arme gegenläufig, Rumpf lehnt sich in den Lauf), Sprungpose, Zielen mit der Waffe vor der Brust (Rumpf und Kopf nehmen den halben Blickwinkel), Rückstoß 0,15 s, Umfallen auf den Rücken in 0,6 s. Farbe über `EntityColor` auf die weißen Teile (Stiefel, Visier, Handschuhe, Rucksack bleiben dunkel als Kind `<teil>_dunkel`), Waffenmodell am Knoten `waffe`, Namensschild als Sprite am Knoten `name`, alle Teile `EntityPickMode 2` (`Figur_Von`, `Figur_Kopf`). Die Namen der Teile sind die Schnittstelle: eine andere Figur läuft im Spiel, wenn sie wieder `bein_l`, `bein_r`, `torso`, `kopf`, `arm_l`, `arm_r`, `waffe`, `name` hat. `tests/test_friendlyfire_figur.bb` prüft Teile, Schritt, Luft, Zielen, Rückstoß, Treffer, Tod |
 | `werkzeug/kenney.py` | Lädt die Kenney-Pakete nach `werkzeug/kenney/` (nicht im Repository), schreibt daraus Waffen (ohne Raketenwerfer), Zielscheibe und Items als Rohmodelle nach `werkzeug/roh/` (nicht im Repository) und lässt `veredeln.py` daraus die Dateien in `daten/` machen; ohne Blender (`BLENDER`) werden sie nur kopiert |
 
 Werte der Bewegung: die von Quake III, umgerechnet über die Spielergröße (56 Einheiten = 1,8 m,
@@ -269,7 +270,7 @@ Todesanimation (Umfallen) und ein Trefferkörper (Kasten wie der des Spielers) f
 | Schritt | Was | Ergebnis |
 |---|---|---|
 | 1 | UDP-Befehle, dann Test mit zwei Programmen auf einem Rechner | Pakete laufen |
-| 2 | Figur (Weg A) und Namen | Andere sind sichtbar, zunächst als Zielscheiben mit Animation |
+| 2 | Figur (Weg A) und Namen | Andere sind sichtbar — **läuft**, `figuren.bb` |
 | 3 | Netzcode auf einem Rechner (Host + Clients als getrennte Programme), LAN und direkte IP | 2–8 Spieler im Lokalnetz |
 | 4 | Portfreigabe und Erreichbarkeitsprüfung, Beitrittscode | Freunde treten ohne Liste bei |
 | 5 | HTTP-Befehl, PHP-Vermittler, Liste im Menü | Öffentliche Spiele |
