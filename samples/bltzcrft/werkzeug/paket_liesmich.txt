@@ -1,0 +1,70 @@
+BLTZCRFT {VERSION}
+=============
+
+Eine Welt aus Blöcken im Stil von Minecraft - geschrieben als ganz
+gewöhnliches Blitz3D-Programm und übersetzt mit BLTZNXT, einem modernen
+Nachbau von Blitz3D: https://github.com/Farbfinsternis/bltznxt
+
+Die Welt entsteht beim Spielen aus einer Saat: Hügel, Gebirge mit Schnee,
+ein Ozean mit Stränden, Seen und Tümpel, Höhlengänge und tiefe Hallen, Kohle
+und Eisen im Stein, Wälder. Man läuft in der Ich-Perspektive hindurch, kann
+schwimmen und fliegen, Blöcke abbauen und setzen. Gespeichert wird in dieser
+ersten Fassung noch nichts.
+
+
+Starten
+-------
+
+bltzcrft.exe starten. Die exe ist nicht signiert; Windows meldet sich
+deshalb beim ersten Start ("Der Computer wurde durch Windows geschützt"):
+"Weitere Informationen" -> "Trotzdem ausführen".
+
+Klick ins Bild startet das Spiel und fängt die Maus.
+
+Voraussetzungen: Windows 64 Bit, eine Grafikkarte mit OpenGL 3.3.
+
+
+Steuerung
+---------
+
+Klick ins Fenster     Maus fangen (Tab gibt sie wieder frei)
+Maus                  umsehen
+W A S D / Pfeile      laufen
+Strg                  rennen
+Leertaste             springen, im Wasser schwimmen
+F                     fliegen ein/aus (Leertaste hoch, Umschalt runter)
+linke Maustaste       Block abbauen
+rechte Maustaste      Block setzen
+1 - 9 / Mausrad       Block wählen
+F3                    Anzeige ein/aus
+Esc                   beenden
+
+
+Andere Welten
+-------------
+
+Jede Zahl ergibt eine andere Welt. Eine Verknüpfung auf bltzcrft.exe
+anlegen und hinter den Pfad eine Zahl schreiben, z. B.
+
+  bltzcrft.exe 1234
+
+Ohne Zahl startet die Welt 2026.
+
+  bltzcrft.exe 2026 -rundflug
+
+fliegt 20 Sekunden von selbst über die Welt, misst die Bildzeiten,
+schreibt sie in rundflug.txt und beendet sich - ein kleiner Leistungstest.
+
+
+Herkunft
+--------
+
+Welt und Texturen erzeugt das Programm selbst. Quelltext:
+https://github.com/Farbfinsternis/bltznxt/tree/main/samples/bltzcrft
+
+Verwendete Bibliotheken (Lizenzen in LIZENZEN.txt):
+  SDL3, SDL3_ttf     zlib-Lizenz, www.libsdl.org
+  FreeType           Portions of this software are copyright
+                     (c) The FreeType Project (www.freetype.org).
+                     All rights reserved.
+  HarfBuzz           Old-MIT-Lizenz

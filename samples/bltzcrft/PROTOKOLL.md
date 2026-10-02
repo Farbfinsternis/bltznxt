@@ -7,13 +7,17 @@ Messwerten, dem Umweg im Spiel und einem Vorschlag.
 
 Stand: 2026-10-02, BLTZNXT 0.6.2 (Commit 781f1f0), Windows 11, RTX 5070 Ti.
 
-| # | Art | Thema | Schwere |
-|---|-----|-------|---------|
-| 1 | Leistung | `blitzcc` übersetzt ohne Optimierung (`-O0`), kein Schalter dafür | hoch – **behoben** |
-| 2 | Leistung | Nach jeder Geometrieänderung rechnet `RenderWorld` die Hüllquader **aller** Meshes neu | mittel – **behoben** |
-| 3 | fehlender Befehl | `CameraFogMode` / `CameraFogRange` / `CameraFogColor` fehlen | mittel |
-| 4 | Einschränkung | Texturen immer linear gefiltert, kein Punktfilter für Pixelkunst | niedrig |
-| 5 | Leistung | Mehrdimensionale `Dim`-Felder sind verschachtelte `std::vector` mit `.at()` je Dimension | mittel |
+Jeder Punkt steht auch in der Bugliste von BLTZNXT (`Buglist.md`, Spalte „Bugliste“);
+dort wird er weitergeführt, hier bleibt der Befund aus Sicht des Spiels.
+
+| # | Art | Thema | Schwere | Bugliste |
+|---|-----|-------|---------|----------|
+| 1 | Leistung | `blitzcc` übersetzt ohne Optimierung (`-O0`), kein Schalter dafür | hoch – **behoben** (`54392bc`) | BUG-189 ✅ |
+| 2 | Leistung | Nach jeder Geometrieänderung rechnet `RenderWorld` die Hüllquader **aller** Meshes neu | mittel – **behoben** (`2c4beca`) | BUG-190 ✅ |
+| 3 | fehlender Befehl | `CameraFogMode` / `CameraFogRange` / `CameraFogColor` fehlen | mittel | BUG-191 |
+| 4 | Einschränkung | Texturen immer linear gefiltert, kein Punktfilter für Pixelkunst | niedrig | WEAK-27 |
+| 5 | Leistung | Mehrdimensionale `Dim`-Felder sind verschachtelte `std::vector` mit `.at()` je Dimension | mittel | WEAK-26 (Ursprung WEAK-07) |
+| 6 | Erweiterung | Chunks und Objekte ploppen auf, statt weich zu erscheinen – Prototyp „Einblenden per Raster“ | mittel | WEAK-28 |
 
 ---
 
@@ -150,6 +154,57 @@ Chunks aus der Bank ins Feld sank die Bauzeit von 27,5 auf 8,7 ms je Chunk.
 
 **Vorschlag:** ein `Dim`-Feld als ein `std::vector` mit gespeicherten Maßen und einer
 Indexrechnung; Bereichsprüfung nur im Debug-Build, wie im Original.
+
+---
+
+## 6. Aufploppen – Einblenden per Raster wie in der Unreal Engine
+
+**Was:** Ein neu gebautes Chunk-Mesh ist von einem Bild aufs nächste ganz da; am Rand der
+Sichtweite (hier 128–192 m) ploppen Hügel, Bäume und ganze Chunks auf, beim Fliegen und
+im Werbevideo gut zu sehen. Blitz3D bietet dagegen nur `EntityAutoFade`, und das blendet
+über echte Transparenz: das Mesh wird durchscheinend, muss sortiert werden, und seine
+eigenen Flächen scheinen durcheinander durch – für ein Gelände unbrauchbar.
+
+**Das Verfahren:** Unreal überblendet LOD-Stufen und Sichtgrenzen mit „Dithered Opacity“:
+ein festes Pixelraster (Bayer-Matrix) verwirft im Fragment-Shader so viele Pixel, wie
+unsichtbar sein sollen. Das Objekt bleibt deckend – Tiefenpuffer, keine Sortierung,
+keine Überdeckungsfehler. Unreal glättet das Raster anschließend mit TAA, so dass es
+wie echte Transparenz aussieht.
+
+**Prototyp (2026-10-02, nicht committet, `build/prototyp_raster_einblenden.patch`):**
+ein Baustein im gemeinsamen Fragment-Teil von TEXTURED und LIT (`bb_shader.h`), ein
+8×8-Bayer-Muster, der Abstand planar aus der Bildtiefe (`1/gl_FragCoord.w`, wie
+Blitz3D-Nebel). Je Kamera ein Band: ab `near` nimmt die Sichtbarkeit bis `far` auf null
+ab. Zum Ausprobieren der Befehl `CameraDitherRange kamera, near#, far#`.
+
+**Ergebnis:**
+- Es wirkt: ferne Bäume und Hänge lösen sich gleichmäßig in den Himmel auf, statt hart
+  abzubrechen; neue Chunks entstehen im Band fast unsichtbar und werden beim Näherkommen
+  dichter.
+- Kosten: 0,44 → 0,70 ms je Bild bei 289 Chunks (`discard` schaltet den frühen
+  Tiefentest im Band ab). Vernachlässigbar.
+- Grenze: Ohne TAA bleibt das Raster sichtbar, aus der Nähe als feines Gitter
+  („Screen-Door“); in voller Auflösung wirkt es eher wie Dunst. Da das Muster fest am
+  Bildschirm hängt, wandert die Geometrie beim Bewegen durch das Gitter.
+
+**Bewertung und Vorschlag:**
+1. **Zuerst Nebel (Punkt 3, BUG-191).** Er ist Blitz3D-Pflicht und löst den größten Teil:
+   im Band hat das Gelände dann schon fast die Himmelsfarbe, und ein verworfenes Pixel
+   (Himmel) unterscheidet sich kaum von einem gezeichneten (Nebelfarbe) – das Raster
+   verschwindet im Nebel. Unreal kombiniert genau so.
+2. **Raster als NEXT-Erweiterung dazu**, nur auf ausdrücklichen Aufruf, damit alte
+   Programme unverändert aussehen. Zwei Formen mit demselben Shader-Baustein:
+   - je Kamera ein Band am Sichtrand (wie der Prototyp) – gegen das Aufploppen beim
+     Nachladen;
+   - je Entity ein Einblenden über die Zeit (z. B. 300 ms nach dem Erzeugen oder
+     `ShowEntity`) – gegen das Aufploppen beim Wechsel von Detailstufen und für neu
+     gebaute Meshes in Sichtweite.
+3. Optional: `EntityAutoFade` mit Raster statt Transparenz, als Schalter.
+4. Später, mit dem modernen Pfad aus VISION.md: TAA, dann sieht das Raster aus wie echte
+   Transparenz.
+
+**Offen (Entscheidung):** Namen und Form der neuen Befehle – laut VISION.md ist jeder
+Befehl jenseits von Blitz3D eine bewusste API-Festlegung.
 
 ---
 

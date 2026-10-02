@@ -15,7 +15,8 @@
 ;
 ; Aufruf mit einer Zahl als Saat: bltzcrft.exe 1234 - ohne Zahl 2026.
 ; Mit -rundflug fliegt das Programm 20 s von selbst geradeaus, misst die
-; Bildzeiten, gibt sie aus und beendet sich (bltzcrft.exe 2026 -rundflug).
+; Bildzeiten, gibt sie aus (auch in rundflug.txt) und beendet sich
+; (bltzcrft.exe 2026 -rundflug).
 ;
 ; Protokoll der Stellen, an denen BLTZNXT die Arbeit erschwert hat:
 ; PROTOKOLL.md in diesem Ordner.
@@ -164,7 +165,11 @@ While Not ende
 		EndIf
 		If MilliSecs() - rf_start > 20000
 			weg# = Sqr((sp_x - rf_x) * (sp_x - rf_x) + (sp_z - rf_z) * (sp_z - rf_z))
-			Print "Rundflug: " + rf_bilder + " Bilder in 20 s, Mittel " + Float(rf_summe) / rf_bilder + " ms, laengstes " + rf_max + " ms, ueber 33 ms: " + rf_ueber33 + ", Strecke " + Int(weg) + " m, Chunks " + welt_chunks
+			erg$ = "Rundflug: " + rf_bilder + " Bilder in 20 s, Mittel " + Float(rf_summe) / rf_bilder + " ms, laengstes " + rf_max + " ms, ueber 33 ms: " + rf_ueber33 + ", Strecke " + Int(weg) + " m, Chunks " + welt_chunks
+			Print erg
+			; ohne Konsole (Doppelklick, Verknuepfung) sieht man Print nicht
+			datei = WriteFile("rundflug.txt")
+			If datei Then WriteLine datei, erg : CloseFile datei
 			ende = True
 		EndIf
 	EndIf
@@ -229,7 +234,6 @@ While Not ende
 	ElseIf Not rundflug
 		Text GraphicsWidth() / 2, GraphicsHeight() / 2, "Klick ins Fenster zum Spielen - Tab gibt die Maus frei, Esc beendet", True, True
 	EndIf
-	If ende And rundflug Then SaveBuffer BackBuffer(), "rundflug.bmp"
 	Flip
 Wend
 End
