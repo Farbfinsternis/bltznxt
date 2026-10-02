@@ -1,0 +1,13 @@
+1 fallen:  fuesse 50,1000,50 boden 1 wasser 0
+2 laufen:  fuesse 50,1000,467 boden 1 wasser 0 tempo 430
+2 stehen:  fuesse 50,1000,480 boden 1 wasser 0
+3 wand:    fuesse 1170,1000,50 boden 1 wasser 0
+4 sprung:  hoechstens 128 | fuesse 50,1000,50 boden 1 wasser 0
+5 stufe:   fuesse 350,1000,570 boden 1 wasser 0
+5 hinauf:  fuesse 350,1142,832 boden 0 wasser 0
+6 sinken:  fuesse -800,600,-604 boden 1 wasser 1
+6 auftauchen: 1 | wasser 1
+7 fliegen: steigt 1 schwebt danach 1
+8 blick:   treffer 1 block 0,9,0 davor 0,10,0
+8 platz:   unter mir frei 0, daneben frei 1
+8 wand:    treffer 1 block 12,11,0 davor 11,11,0

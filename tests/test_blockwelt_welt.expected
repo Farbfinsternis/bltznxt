@@ -1,0 +1,21 @@
+summe 0,0: 7733177
+summe 2,-2: 16005690
+wiederholbar: 1
+bloecke:
+  Luft 1389064
+  Stein 842908
+  Erde 32741
+  Gras 13182
+  Sand 17308
+  Wasser 5166
+  Kies 0
+  Stamm 235
+  Laub 2235
+  Grundgestein 35981
+  Schnee 0
+  Ton 55
+  Kohle 3705
+  Eisen 2331
+  Sandstein 14385
+verstoesse: grund 0 schwebt 0 leck 0 bedeckt 0 stamm 0 ueber_meer 0
+ozean vorhanden: 1   tuempel vorhanden: 1
