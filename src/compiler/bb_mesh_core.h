@@ -40,8 +40,11 @@
 // Texturlage aus (3D-24).
 inline constexpr int BB_VF = 14;
 
-// Jede Aenderung an der Geometrie zaehlt hoch. Der Dreiecksbaum fuer
-// Kollisionen (bb_collision.h) haengt daran und wird danach neu gebaut.
+// Jede Aenderung an der Geometrie zaehlt hoch und stempelt die geaenderte
+// Flaeche mit dem neuen Stand (bb_MeshData_::geom). Huellbox und
+// Dreiecksbaum eines Netzes (bb_mesh.h, bb_collision.h) vergleichen mit dem
+// juengsten Stempel *ihrer* Flaechen - aendert sich ein Netz, rechnen nicht
+// mehr alle anderen ihre Box neu (BLTZCRFT-Protokoll, Punkt 2).
 inline unsigned long long bb_mesh_geom_version_ = 1;
 
 struct bb_MeshData_ {
@@ -52,6 +55,7 @@ struct bb_MeshData_ {
   GLuint vbo      = 0;
   GLuint ebo      = 0;
   bool   dirty    = true;  // true = GPU buffers need (re-)uploading
+  unsigned long long geom = 0;  // Stand der letzten Geometrieaenderung (s. o.)
   int    triCount = 0;     // updated by bb_mesh_upload_; = indices.size()/3
   bb_Brush_ brush;         // Aussehen dieser Flaeche (3D-13)
 

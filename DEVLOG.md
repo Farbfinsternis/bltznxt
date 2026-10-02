@@ -1,5 +1,16 @@
 # BlitzNext Developer Log
 
+## 2026-10-02 — Bounding boxes per mesh
+
+The view-frustum test kept a bounding box per mesh, but checked it against one global geometry
+counter: any `AddVertex`, `VertexColor` or `ScaleMesh` anywhere made every mesh recompute its box
+from all its vertices on the next `RenderWorld`. In BLTZCRFT, with 289 chunk meshes, the frame
+after rebuilding one chunk cost 5.08 ms instead of 0.44 ms. Now each surface carries the stamp
+of its last change (`bb_MeshData_::geom`), and box and collision tree of a mesh compare against
+the newest stamp of *its* surfaces; a freshly loaded mesh still gets its box on the first frame.
+After the change the frame after a rebuild costs 0.44 ms, the same as a frame without one. The 62
+tests that use meshes, surfaces, collisions or picking pass.
+
 ## 2026-10-02 — Programs are optimised (-O2), and a second lighthouse: BLTZCRFT
 
 `blitzcc` passed no optimisation level to g++, so every program ran at `-O0`. The runtime lives

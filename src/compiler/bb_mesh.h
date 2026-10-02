@@ -44,10 +44,20 @@ struct bb_MeshRep_ {
   unsigned long long     collider_stamp = 0;
 
   // Huellbox fuer den Sichtkegel-Test (MeshModel::getBox), nach demselben
-  // Stand der Geometrie neu gerechnet wie der Dreiecksbaum.
+  // Stand der Geometrie neu gerechnet wie der Dreiecksbaum. Der Startwert
+  // passt zu keinem Stand: auch ein geladenes Netz, dessen Flaechen noch den
+  // Stempel 0 tragen, bekommt beim ersten Zeichnen seine Box.
   float                  box[6] = { 0, 0, 0, 0, 0, 0 };  // min x,y,z, max x,y,z
   bool                   box_empty = true;
-  unsigned long long     box_stamp = 0;
+  unsigned long long     box_stamp = ~0ULL;
+
+  // Juengster Stempel der Flaechen (bb_mesh_geom_version_): daran sehen Box
+  // und Dreiecksbaum, ob *dieses* Netz sich geaendert hat.
+  unsigned long long geom() const {
+    unsigned long long g = 0;
+    for (const auto& s : surfaces) if (s.geom > g) g = s.geom;
+    return g;
+  }
 
   // Ruhelagen der Knochen (3D-19, MeshModel::Rep::bone_tforms): je Knochen
   // der Kehrwert seiner Weltlage beim Laden. Teilen sich alle Kopien.
@@ -512,8 +522,8 @@ inline float bb_MeshDepth(int h) {
 
 // Jede Aenderung an den Vertices muss neu auf die Grafikkarte.
 static inline void bb_mesh_touch_(bb_MeshEntity_* me) {
-  for (auto& s : me->surfaces()) s.dirty = true;
-  ++bb_mesh_geom_version_;
+  const unsigned long long stand = ++bb_mesh_geom_version_;
+  for (auto& s : me->surfaces()) { s.dirty = true; s.geom = stand; }
 }
 
 // ---- CreateMesh: leeres Netz, Geometrie kommt mit AddMesh oder 3D-15 ----
@@ -751,7 +761,7 @@ inline void bb_AddMesh(int source_mesh, int dest_mesh) {
     for (unsigned idx : s.indices) into.indices.push_back(base + idx);
   }
   into.dirty = true;
-  ++bb_mesh_geom_version_;
+  into.geom  = ++bb_mesh_geom_version_;
 }
 
 // Laut Doku "identical to performing new_mesh=CreateMesh() : AddMesh mesh,new_mesh".
@@ -1228,11 +1238,12 @@ static inline void bb_render_meshes_(bb_Shader_* shader,
       if (!bb_plane_build_(it.pl, view, frustum)) continue;
     } else {
       bb_MeshRep_& rep = *it.me->rep;
-      if (rep.box_stamp != bb_mesh_geom_version_) {
+      const unsigned long long stand = rep.geom();
+      if (rep.box_stamp != stand) {
         float* b = rep.box;
         bb_mesh_aabb_(it.me, b[0], b[3], b[1], b[4], b[2], b[5]);
         rep.box_empty = b[0] > b[3];
-        rep.box_stamp = bb_mesh_geom_version_;
+        rep.box_stamp = stand;
       }
       if (rep.box_empty) continue;
       if (!bb_frustum_box_visible_(frustum, view, model, rep.box, rep.box + 3)) continue;

@@ -68,8 +68,10 @@ inline bb_MeshData_* bb_surface_get_(int h) {
 // Nach jeder Aenderung an der Geometrie muss die Flaeche neu hochgeladen
 // werden; die Ausmasse rechnet MeshWidth ohnehin bei jedem Aufruf neu.
 inline void bb_surface_touch_(int h) {
-  if (auto* s = bb_surface_get_(h)) s->dirty = true;
-  ++bb_mesh_geom_version_;
+  if (auto* s = bb_surface_get_(h)) {
+    s->dirty = true;
+    s->geom  = ++bb_mesh_geom_version_;
+  }
 }
 
 // ============================================================
@@ -140,7 +142,7 @@ inline void bb_ClearSurface(int surface, int clear_vertices = 1,
   if (clear_triangles) s->indices.clear();
   s->triCount = static_cast<int>(s->indices.size()) / 3;
   s->dirty    = true;
-  ++bb_mesh_geom_version_;
+  s->geom     = ++bb_mesh_geom_version_;
 }
 
 // ============================================================
@@ -170,7 +172,7 @@ inline int bb_AddVertex(int surface, float x, float y, float z,
   if (!s) return 0;
   bb_vert_push_(*s, x, y, z, 0.0f, 0.0f, 0.0f, u, v);
   s->dirty = true;
-  ++bb_mesh_geom_version_;
+  s->geom  = ++bb_mesh_geom_version_;
   return static_cast<int>(s->vertices.size()) / BB_VF - 1;
 }
 
@@ -182,7 +184,7 @@ inline int bb_AddTriangle(int surface, int v0, int v1, int v2) {
   s->indices.push_back(static_cast<unsigned>(v2));
   s->triCount = static_cast<int>(s->indices.size()) / 3;
   s->dirty    = true;
-  ++bb_mesh_geom_version_;
+  s->geom     = ++bb_mesh_geom_version_;
   return static_cast<int>(s->indices.size()) / 3 - 1;
 }
 

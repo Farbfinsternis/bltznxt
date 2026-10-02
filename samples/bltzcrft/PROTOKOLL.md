@@ -10,7 +10,7 @@ Stand: 2026-10-02, BLTZNXT 0.6.2 (Commit 781f1f0), Windows 11, RTX 5070 Ti.
 | # | Art | Thema | Schwere |
 |---|-----|-------|---------|
 | 1 | Leistung | `blitzcc` übersetzt ohne Optimierung (`-O0`), kein Schalter dafür | hoch – **behoben** |
-| 2 | Leistung | Nach jeder Geometrieänderung rechnet `RenderWorld` die Hüllquader **aller** Meshes neu | mittel |
+| 2 | Leistung | Nach jeder Geometrieänderung rechnet `RenderWorld` die Hüllquader **aller** Meshes neu | mittel – **behoben** |
 | 3 | fehlender Befehl | `CameraFogMode` / `CameraFogRange` / `CameraFogColor` fehlen | mittel |
 | 4 | Einschränkung | Texturen immer linear gefiltert, kein Punktfilter für Pixelkunst | niedrig |
 | 5 | Leistung | Mehrdimensionale `Dim`-Felder sind verschachtelte `std::vector` mit `.at()` je Dimension | mittel |
@@ -83,7 +83,7 @@ Mesh, rechnen *alle* ihren Quader neu.
 20–27 ms statt 2,7 ms (-O0), mit -O2 6 ms statt 0,4 ms – bei 289 Chunk-Meshes.
 
 **Folge:** Jedes Bild, in dem ein Chunk nachgeladen oder ein Block abgebaut wird, kostet
-diesen Aufschlag zusätzlich. In einer BLTZCRFT ist das fast jedes Bild, solange man sich
+diesen Aufschlag zusätzlich. In BLTZCRFT ist das fast jedes Bild, solange man sich
 bewegt.
 
 **Umweg im Spiel:** keiner möglich (die Meshes müssen sich ändern). Gebaut wird nur, was
@@ -92,6 +92,12 @@ nötig ist.
 **Vorschlag:** Version je Mesh (oder je Surface ein Schmutz-Bit, das zum Mesh hochgereicht
 wird) statt eines globalen Zählers. Der Kollisionsbaum (`bb_collision.h`) hängt am selben
 Zähler und hat dasselbe Problem.
+
+**Behoben (2026-10-02):** Jede Surface trägt den Stempel ihrer letzten Änderung
+(`bb_MeshData_::geom`); Hüllbox und Kollisionsbaum eines Meshes vergleichen mit dem
+jüngsten Stempel *seiner* Surfaces. Gemessen (-O2, 289 Chunk-Meshes, ein Chunk hinter der
+Kamera 50-mal neu gebaut): das Bild danach kostete 5,08 ms, jetzt 0,44 ms – so viel wie
+ein Bild ohne jede Änderung.
 
 ---
 

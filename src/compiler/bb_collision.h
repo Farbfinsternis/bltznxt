@@ -345,7 +345,8 @@ static inline int bb_collider_node_(bb_Collider_& c, const std::vector<int>& tri
 // Den Baum dieses Netzes holen; nach einer Aenderung an der Geometrie neu.
 static inline bb_Collider_* bb_collider_for_(bb_MeshEntity_* me) {
   auto& rep = *me->rep;
-  if (rep.collider && rep.collider_stamp == bb_mesh_geom_version_)
+  const unsigned long long stand = rep.geom();
+  if (rep.collider && rep.collider_stamp == stand)
     return static_cast<bb_Collider_*>(rep.collider.get());
 
   auto c = std::make_shared<bb_Collider_>();
@@ -380,7 +381,7 @@ static inline bb_Collider_* bb_collider_for_(bb_MeshEntity_* me) {
   if (!all.empty()) c->root = bb_collider_node_(*c, all);
 
   rep.collider = c;
-  rep.collider_stamp = bb_mesh_geom_version_;
+  rep.collider_stamp = stand;
   return c.get();
 }
 
