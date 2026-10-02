@@ -1,4 +1,4 @@
-; Blockwelt - Spieler
+; BLTZCRFT - Spieler
 ;
 ; Der Spieler ist ein Quader von 0.6 x 1.8 x 0.6 Bloecken, die Augen sitzen
 ; auf 1.62. Kollidiert wird nicht mit den Meshes, sondern direkt mit den

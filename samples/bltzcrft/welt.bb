@@ -1,4 +1,4 @@
-; Blockwelt - Welt
+; BLTZCRFT - Welt
 ;
 ; Die Welt besteht aus Chunks zu 16 x 128 x 16 Bloecken, jeder Block ein Byte
 ; in einer Bank. Die geladenen Chunks liegen in einem Ring aus 32 x 32

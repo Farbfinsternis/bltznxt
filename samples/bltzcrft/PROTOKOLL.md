@@ -1,6 +1,6 @@
-# Blockwelt – Protokoll: wo BLTZNXT die Arbeit erschwert hat
+# BLTZCRFT – Protokoll: wo BLTZNXT die Arbeit erschwert hat
 
-Blockwelt ist das zweite Leuchtturmprojekt (nach Friendly Fire): ein Minecraft-artiger
+BLTZCRFT ist das zweite Leuchtturmprojekt (nach Friendly Fire, Arbeitstitel „Blockwelt“): ein Minecraft-artiger
 Klon, geschrieben als gewöhnliches Blitz3D-Programm. Dieses Protokoll hält fest, wo
 BLTZNXT beim Bau durch Fehler, fehlende Befehle oder Eigenheiten im Weg stand – mit
 Messwerten, dem Umweg im Spiel und einem Vorschlag.
@@ -9,7 +9,7 @@ Stand: 2026-10-02, BLTZNXT 0.6.2 (Commit 781f1f0), Windows 11, RTX 5070 Ti.
 
 | # | Art | Thema | Schwere |
 |---|-----|-------|---------|
-| 1 | Leistung | `blitzcc` übersetzt ohne Optimierung (`-O0`), kein Schalter dafür | hoch |
+| 1 | Leistung | `blitzcc` übersetzt ohne Optimierung (`-O0`), kein Schalter dafür | hoch – **behoben** |
 | 2 | Leistung | Nach jeder Geometrieänderung rechnet `RenderWorld` die Hüllquader **aller** Meshes neu | mittel |
 | 3 | fehlender Befehl | `CameraFogMode` / `CameraFogRange` / `CameraFogColor` fehlen | mittel |
 | 4 | Einschränkung | Texturen immer linear gefiltert, kein Punktfilter für Pixelkunst | niedrig |
@@ -44,7 +44,7 @@ Engine-Aufruf ist teuer: 1000 Vierecke (je 4 × `AddVertex`, 4 × `VertexColor`,
 der Welt davon.
 
 Nach den Umwegen im Spielcode (unten) sind es 6,9 ms Erzeugen + 8,7 ms Bauen je Chunk
-(-O2: 0,6 + 0,9 ms). Der eingebaute Rundflug (`blockwelt.exe 2026 -rundflug`, 20 s
+(-O2: 0,6 + 0,9 ms). Der eingebaute Rundflug (`bltzcrft.exe 2026 -rundflug`, 20 s
 geradeaus mit 11 m/s, Sichtweite 8, ständiges Nachladen) misst:
 
 | | BLTZNXT (-O0) | -O2 |
@@ -63,6 +63,12 @@ je Bild, Sichtweite 8.
 wenigstens ein Schalter `-O`. Vorher die Testsuite mit `-O2` laufen lassen – Optimierung
 kann undefiniertes Verhalten im erzeugten Code sichtbar machen (z. B. Ganzzahlüberlauf).
 
+**Behoben (2026-10-02):** `blitzcc` übersetzt Programme jetzt mit
+`-O2 -fwrapv -fno-strict-aliasing`; `-fwrapv` lässt Ganzzahlen wie in Blitz3D überlaufen,
+statt dem Optimierer undefiniertes Verhalten zu überlassen. `-d` bleibt `-O0 -g`. Die
+Übersetzungszeit blieb bei ~15 s. Rundflug danach: 13 693 Bilder in 20 s, Mittel 1,46 ms,
+längstes Bild 23 ms, kein Ruckler.
+
 ---
 
 ## 2. Hüllquader aller Meshes nach jeder Geometrieänderung
@@ -77,7 +83,7 @@ Mesh, rechnen *alle* ihren Quader neu.
 20–27 ms statt 2,7 ms (-O0), mit -O2 6 ms statt 0,4 ms – bei 289 Chunk-Meshes.
 
 **Folge:** Jedes Bild, in dem ein Chunk nachgeladen oder ein Block abgebaut wird, kostet
-diesen Aufschlag zusätzlich. In einer Blockwelt ist das fast jedes Bild, solange man sich
+diesen Aufschlag zusätzlich. In einer BLTZCRFT ist das fast jedes Bild, solange man sich
 bewegt.
 
 **Umweg im Spiel:** keiner möglich (die Meshes müssen sich ändern). Gebaut wird nur, was

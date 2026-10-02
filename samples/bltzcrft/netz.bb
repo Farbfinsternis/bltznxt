@@ -1,4 +1,4 @@
-; Blockwelt - Netze
+; BLTZCRFT - Netze
 ;
 ; Aus den Bloecken eines Chunks werden zwei Meshes: eines fuer die festen
 ; Bloecke, eines fuer das Wasser (durchscheinend, beidseitig). Gezeichnet wird

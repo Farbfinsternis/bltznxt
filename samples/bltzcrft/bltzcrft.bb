@@ -1,4 +1,4 @@
-; Blockwelt - eine Welt aus Bloecken im Stil von Minecraft, geschrieben als
+; BLTZCRFT - eine Welt aus Bloecken im Stil von Minecraft, geschrieben als
 ; gewoehnliches Blitz3D-Programm und uebersetzt mit BLTZNXT.
 ;
 ; Stand: erste Fassung - die Welt entsteht in Chunks aus einer Saat
@@ -13,9 +13,9 @@
 ;             linke Maustaste Block abbauen  rechte Maustaste Block setzen
 ;             1 - 9 Block waehlen            F3 Anzeige
 ;
-; Aufruf mit einer Zahl als Saat: blockwelt.exe 1234 - ohne Zahl 2026.
+; Aufruf mit einer Zahl als Saat: bltzcrft.exe 1234 - ohne Zahl 2026.
 ; Mit -rundflug fliegt das Programm 20 s von selbst geradeaus, misst die
-; Bildzeiten, gibt sie aus und beendet sich (blockwelt.exe 2026 -rundflug).
+; Bildzeiten, gibt sie aus und beendet sich (bltzcrft.exe 2026 -rundflug).
 ;
 ; Protokoll der Stellen, an denen BLTZNXT die Arbeit erschwert hat:
 ; PROTOKOLL.md in diesem Ordner.
@@ -31,7 +31,7 @@ Include "netz.bb"
 Include "spieler.bb"
 Include "laden.bb"
 
-AppTitle "Blockwelt"
+AppTitle "BLTZCRFT"
 Graphics3D 1280, 720, 0, 2
 SetBuffer BackBuffer()
 
@@ -76,6 +76,25 @@ gewaehlt = 0
 anzeige = True
 gefangen = False
 sprung_merken = False
+
+; Titelbild stehen lassen, bis man klickt - der Klick faengt die Maus.
+; Esc beendet schon hier.
+ende = False
+If Not rundflug
+	FlushKeys : FlushMouse
+	Repeat
+		Laden_Bild("Klick zum Spielen - Esc beendet", 1)
+		If KeyHit(1) Then ende = True
+		If MouseHit(1)
+			gefangen = True
+			HidePointer
+			MoveMouse GraphicsWidth() / 2, GraphicsHeight() / 2
+			MouseXSpeed() : MouseYSpeed()
+		EndIf
+	Until gefangen Or ende
+EndIf
+If ld_logo > 0 Then FreeImage ld_logo
+
 zeit = MilliSecs()
 rest# = 0
 bilder = 0 : bilder_zeit = MilliSecs() : fps = 0
@@ -89,7 +108,6 @@ EntityAlpha rahmen, 0.25
 EntityFX rahmen, 1
 HideEntity rahmen
 
-ende = False
 While Not ende
 	If KeyHit(61) Then anzeige = Not anzeige
 	If KeyHit(1) Then ende = True
@@ -195,7 +213,7 @@ While Not ende
 	EndIf
 	Color 255, 255, 255
 	If anzeige
-		Text 10, 10, "Blockwelt   Saat " + saat + "   " + fps + " fps   (F3 Anzeige, Tab Maus frei)"
+		Text 10, 10, "BLTZCRFT   Saat " + saat + "   " + fps + " fps   (F3 Anzeige, Tab Maus frei)"
 		Text 10, 28, "x " + Int(Floor(sp_x)) + "  y " + Int(Floor(sp_y)) + "  z " + Int(Floor(sp_z)) + "   Chunk " + (Int(Floor(sp_x)) Sar 4) + ", " + (Int(Floor(sp_z)) Sar 4)
 		m$ = ""
 		If sp_fliegen Then m = m + "fliegen  "

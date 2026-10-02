@@ -1,4 +1,4 @@
-; Blockwelt - Bloecke
+; BLTZCRFT - Bloecke
 ;
 ; Jede Blockart hat eine Nummer (ein Byte in der Welt), drei Texturen (oben,
 ; Seite, unten) und zwei Eigenschaften: deckend (verdeckt die Flaechen der

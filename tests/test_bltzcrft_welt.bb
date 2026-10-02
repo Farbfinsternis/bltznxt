@@ -1,4 +1,4 @@
-; Blockwelt - Weltgenerierung: dieselbe Saat ergibt dieselbe Welt, und die
+; BLTZCRFT - Weltgenerierung: dieselbe Saat ergibt dieselbe Welt, und die
 ; Bloecke liegen logisch. Geprueft werden zwei Gebiete zu 6 x 6 Chunks: Land
 ; um den Ursprung und eine Kueste mit Ozean (Saat 2026).
 ;
@@ -12,9 +12,9 @@
 ;   - eine Wasseroberflaeche liegt auf Meereshoehe (Ozean, Seen) oder
 ;     mindestens drei Bloecke darueber (Tuempel).
 
-Include "../samples/blockwelt/rauschen.bb"
-Include "../samples/blockwelt/bloecke.bb"
-Include "../samples/blockwelt/welt.bb"
+Include "../samples/bltzcrft/rauschen.bb"
+Include "../samples/bltzcrft/bloecke.bb"
+Include "../samples/bltzcrft/welt.bb"
 
 Function Summe(c.Chunk)
 	s = 0

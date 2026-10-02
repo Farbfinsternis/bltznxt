@@ -1,4 +1,4 @@
-; Blockwelt - Karte der Welt von oben, zum Abstimmen des Gelaendes.
+; BLTZCRFT - Karte der Welt von oben, zum Abstimmen des Gelaendes.
 ; Schreibt karte.bmp (2 Bloecke je Bildpunkt) und beendet sich.
 ;
 ;   blitzcc werkzeug/karte.bb -o karte  ;  karte.exe [saat] [massstab]

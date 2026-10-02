@@ -1,4 +1,4 @@
-; Blockwelt - Nachladen
+; BLTZCRFT - Nachladen
 ;
 ; In jedem Bild bekommt die Welt ein paar Millisekunden: darin wird immer der
 ; naechstgelegene Chunk erzeugt (bis SICHT + 1, die Nachbarn fuer den Rand)
@@ -7,6 +7,7 @@
 ; Grenze bei jedem Schritt hin und her geladen wird.
 
 Global ld_offen = 0         ; Chunks in Reichweite, die noch fehlen oder alt sind
+Global ld_logo = 0          ; Logo fuers Ladebild (-1: nicht gefunden)
 
 Function Laden_Umgebung(wx, wz, r)
 	cx = wx Sar 4 : cz = wz Sar 4
@@ -24,14 +25,30 @@ Function Laden_Umgebung(wx, wz, r)
 	Next
 End Function
 
+; Ladebild: das Logo auf Himmelblau, darunter Text und Balken. Fehlt
+; daten/logo.png, bleibt es bei Text und Balken.
 Function Laden_Bild(was$, anteil#)
+	If ld_logo = 0 Then ld_logo = LoadImage("daten/logo.png") : If ld_logo = 0 Then ld_logo = -1
+	ClsColor 150, 196, 255
 	Cls
-	Color 255, 255, 255
-	Text GraphicsWidth() / 2, GraphicsHeight() / 2 - 20, was + " ...", True, True
-	Color 80, 80, 80
-	Rect GraphicsWidth() / 2 - 150, GraphicsHeight() / 2, 300, 12
-	Color 120, 200, 90
-	Rect GraphicsWidth() / 2 - 150, GraphicsHeight() / 2, Int(300 * anteil), 12
+	ClsColor 0, 0, 0
+	mx = GraphicsWidth() / 2
+	y = GraphicsHeight() / 2
+	If ld_logo > 0
+		DrawImage ld_logo, mx - ImageWidth(ld_logo) / 2, 20
+		y = 20 + ImageHeight(ld_logo) + 40
+	EndIf
+	Color 30, 40, 70
+	; anteil 1 und mehr: fertig, nur noch der Text
+	If anteil >= 1
+		Text mx, y, was, True, True
+	Else
+		Text mx, y - 20, was + " ...", True, True
+		Color 60, 80, 120
+		Rect mx - 150, y, 300, 12
+		Color 120, 200, 90
+		Rect mx - 150, y, Int(300 * anteil), 12
+	EndIf
 	Flip
 End Function
 

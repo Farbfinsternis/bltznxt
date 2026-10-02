@@ -1,4 +1,4 @@
-; Blockwelt - Rauschen
+; BLTZCRFT - Rauschen
 ;
 ; Perlin-Rauschen ("improved noise", Ken Perlin 2002) in 2D und 3D, dazu
 ; fraktales Rauschen aus mehreren Oktaven. Die Permutationstabelle haengt an

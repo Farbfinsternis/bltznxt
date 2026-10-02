@@ -1,4 +1,4 @@
-; Blockwelt - Spieler: Bewegung und Kollision gegen das Blockraster.
+; BLTZCRFT - Spieler: Bewegung und Kollision gegen das Blockraster.
 ;
 ; Die Chunks werden erzeugt und dann von Hand ueberschrieben: ein Boden aus
 ; Stein (oberster Block y = 9), eine Wand bei x = 12, eine einen Block hohe
@@ -7,10 +7,10 @@
 ; Sekunde. Gemeldet werden die Fuesse in Zentimetern.
 
 Const SICHT = 2
-Include "../samples/blockwelt/rauschen.bb"
-Include "../samples/blockwelt/bloecke.bb"
-Include "../samples/blockwelt/welt.bb"
-Include "../samples/blockwelt/spieler.bb"
+Include "../samples/bltzcrft/rauschen.bb"
+Include "../samples/bltzcrft/bloecke.bb"
+Include "../samples/bltzcrft/welt.bb"
+Include "../samples/bltzcrft/spieler.bb"
 
 Graphics3D 320, 240, 0, 2
 SetBuffer BackBuffer()

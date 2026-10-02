@@ -1,4 +1,4 @@
-; Blockwelt - ein Bild der Welt von einer festen Stelle, ohne Maus und
+; BLTZCRFT - ein Bild der Welt von einer festen Stelle, ohne Maus und
 ; Fenster-Fokus. Misst nebenbei, wie lange Erzeugen und Bauen dauern.
 ;
 ;   foto.exe saat x z gier neig [hoehe ueber Boden | absolute y wenn > 200-]

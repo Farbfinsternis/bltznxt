@@ -1,5 +1,5 @@
-BLOCKWELT
-=========
+BLTZCRFT
+========
 
 Eine Welt aus Blöcken im Stil von Minecraft - geschrieben als ganz
 gewöhnliches Blitz3D-Programm und übersetzt mit BLTZNXT, einem modernen
@@ -18,10 +18,10 @@ Starten
 
 Im Ordner übersetzen und starten:
 
-  blitzcc blockwelt.bb -o blockwelt
-  blockwelt.exe              (Saat 2026)
-  blockwelt.exe 1234         (eine andere Welt)
-  blockwelt.exe 2026 -rundflug   (20 s Flug von selbst, misst die Bildzeiten)
+  blitzcc bltzcrft.bb -o bltzcrft
+  bltzcrft.exe              (Saat 2026)
+  bltzcrft.exe 1234         (eine andere Welt)
+  bltzcrft.exe 2026 -rundflug   (20 s Flug von selbst, misst die Bildzeiten)
 
 Voraussetzungen: Windows 64 Bit, eine Grafikkarte mit OpenGL 3.3.
 
@@ -45,7 +45,7 @@ Esc                   beenden
 Aufbau
 ------
 
-blockwelt.bb    Hauptprogramm: Fenster, Eingabe, Hauptschleife
+bltzcrft.bb     Hauptprogramm: Fenster, Eingabe, Hauptschleife
 rauschen.bb     Perlin-Rauschen 2D/3D, fraktal
 bloecke.bb      Blockarten und ihre selbst gemalten Texturen
 welt.bb         Chunks, Zugriff, Erzeugung der Welt
@@ -53,11 +53,13 @@ netz.bb         Meshes aus den Blöcken: sichtbare Flächen, Schatten, Wasser
 laden.bb        Nachladen und Vergessen von Chunks um den Spieler
 spieler.bb      Bewegung und Kollision gegen das Blockraster, Blickstrahl
 
+daten/logo.png  das Logo für Titel- und Ladebild
+
 werkzeug/karte.bb   Draufsicht der Welt als Bild (zum Abstimmen des Geländes)
 werkzeug/foto.bb    ein Bild von einer festen Stelle, misst Erzeugen und Bauen
 
-Tests: tests/test_blockwelt_welt.bb (Erzeugung, Regeln für die Lage der
-Blöcke) und tests/test_blockwelt_spieler.bb (Bewegung und Kollision).
+Tests: tests/test_bltzcrft_welt.bb (Erzeugung, Regeln für die Lage der
+Blöcke) und tests/test_bltzcrft_spieler.bb (Bewegung und Kollision).
 
 PROTOKOLL.md hält fest, wo BLTZNXT beim Bau im Weg stand.
 
@@ -65,7 +67,8 @@ PROTOKOLL.md hält fest, wo BLTZNXT beim Bau im Weg stand.
 Herkunft
 --------
 
-Texturen und Welt erzeugt das Programm selbst; es gibt keine Dateien.
+Texturen und Welt erzeugt das Programm selbst. Einzige Datei ist das Logo
+(daten/logo.png), es erscheint im Titel- und Ladebild.
 
 Verwendete Bibliotheken:
   SDL3, SDL3_ttf     zlib-Lizenz, www.libsdl.org
