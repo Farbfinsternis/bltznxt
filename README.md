@@ -255,8 +255,8 @@ blitzcc [options] <file.bb>
   -q          Quiet mode (suppress progress output)
   +q          Very quiet mode
   -c          Transpile only — emit .cpp, skip compile step
-  -d          Debug build (passes -g to g++, keeps .cpp)
-  -release    Release build (default; explicit flag for IDE compatibility)
+  -d          Debug build (passes -g to g++ without optimisation, keeps .cpp)
+  -release    Release build, optimised with -O2 (default; explicit flag for IDE compatibility)
   -o <name>   Output executable name (without .exe)
   -k          List all known built-in command names
   +k          List keywords and commands with signatures, in Blitz3D's format

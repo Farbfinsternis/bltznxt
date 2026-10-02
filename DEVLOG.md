@@ -1,5 +1,25 @@
 # BlitzNext Developer Log
 
+## 2026-10-02 — Programs are optimised (-O2), and a second lighthouse: BLTZCRFT
+
+`blitzcc` passed no optimisation level to g++, so every program ran at `-O0`. The runtime lives
+in headers (banks behind `unordered_map`, arrays with `.at()`), and unoptimised that code is very
+slow: the new block world game generated a chunk in 13.5 ms and built its mesh in 27.5 ms; the
+same C++ with `-O2` took 0.67 and 1.14 ms. Release builds now use `-O2 -fwrapv
+-fno-strict-aliasing` — `-fwrapv` keeps integer overflow wrapping as in Blitz3D instead of
+leaving it undefined for the optimiser. `-d` stays `-O0 -g`. Compile time is unchanged (~15 s).
+Full suite with the new flags: 326 passed, 0 failed.
+
+**BLTZCRFT** (`samples/bltzcrft/`, working title Blockwelt) is the second lighthouse project, a
+Minecraft-style world as an ordinary Blitz3D program: 16×128×16 chunks generated from a seed —
+terrain with ocean, lakes, ponds, caves, ores and trees — streamed around a first-person player
+who walks, swims and flies. `bltzcrft.exe 2026 -rundflug` flies on its own for 20 s and reports
+frame times: 1.46 ms on average and no frame over 33 ms with `-O2`, against 158 stutters before.
+`samples/bltzcrft/PROTOKOLL.md` records what got in the way; still open from it: after any mesh
+change `RenderWorld` recomputes the bounding boxes of all meshes (one global geometry counter),
+no camera fog, no point filtering for textures, and multi-dimensional `Dim` arrays as nested
+vectors.
+
 ## 2026-09-30 — UDP, and WriteString at last (BUG-117)
 
 The UDP commands are in: `CreateUDPStream`, `CloseUDPStream`, `SendUDPMsg`, `RecvUDPMsg`,

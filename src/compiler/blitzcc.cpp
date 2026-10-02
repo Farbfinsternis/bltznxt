@@ -547,7 +547,15 @@ public:
         cmd += " -mwindows";
     }
 
-    if (debug) cmd += " -g";
+    // Release optimiert: ohne -O laeuft die Laufzeit in den Headern (Banks
+    // hinter unordered_map, Felder mit .at()) um ein Vielfaches langsamer -
+    // gemessen an BLTZCRFT Faktor 20 (samples/bltzcrft/PROTOKOLL.md).
+    // -fwrapv: ein Ganzzahlueberlauf laeuft wie in Blitz3D ueber, statt
+    // undefiniert zu sein, auf das der Optimierer bauen duerfte.
+    // -fno-strict-aliasing: die Header lesen Bytes auch ueber andere Typen.
+    // Der Debug-Build bleibt unoptimiert, damit -g brauchbar ist.
+    if (debug) cmd += " -O0 -g";
+    else       cmd += " -O2 -fwrapv -fno-strict-aliasing";
 
     // Launch g++ directly via CreateProcessW — no shell, no injection risk.
     std::wstring wcmd(cmd.begin(), cmd.end());
@@ -769,8 +777,8 @@ static void showHelp() {
       << "  -q          Quiet mode\n"
       << "  +q          Very quiet mode\n"
       << "  -c          Transpile only (no compile step)\n"
-      << "  -d          Compile with debug info (-g)\n"
-      << "  -release    Release build (no debug info, alias for default)\n"
+      << "  -d          Debug build: debug info (-g), no optimisation\n"
+      << "  -release    Release build, optimised (-O2; alias for default)\n"
       << "  -v          Show version\n"
       << "  -o <name>   Output executable name (without .exe)\n"
       << "  -k          List all known built-in command names\n"
