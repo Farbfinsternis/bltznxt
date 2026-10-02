@@ -57,6 +57,9 @@ daten/logo.png  das Logo für Titel- und Ladebild
 
 werkzeug/karte.bb   Draufsicht der Welt als Bild (zum Abstimmen des Geländes)
 werkzeug/foto.bb    ein Bild von einer festen Stelle, misst Erzeugen und Bauen
+werkzeug/video.bb   Kameraflug für das Werbevideo, Bild für Bild als BMP
+werkzeug/video_schnitt.py  setzt die Bilder in Blender zum MP4 zusammen,
+                    mit Logo-Einblendung
 
 Tests: tests/test_bltzcrft_welt.bb (Erzeugung, Regeln für die Lage der
 Blöcke) und tests/test_bltzcrft_spieler.bb (Bewegung und Kollision).
