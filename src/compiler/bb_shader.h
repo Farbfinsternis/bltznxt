@@ -174,11 +174,16 @@ vec4 bb_tex_layer(vec4 c, vec4 t, int blend, int flags) {
 }
 
 // Flag 4 (Masked): "all areas of a texture coloured 0,0,0 will not be drawn".
+// Das Original prueft dafuer den Alphakanal, nicht die Farbe: beim Laden wird
+// Schwarz zu Alpha 0 (bb_tex_fix_alpha_), und eine mit WritePixelFast gemalte
+// Textur ist genau dort durchsichtig, wo ihr Alpha 0 ist - auch bei Rot,
+// waehrend deckendes Schwarz stehen bleibt (gemessen 2026-10-03). Bis dahin
+// stand hier ein Farbtest auf Schwarz; zur Laufzeit gemalte Texturen bekamen
+// so keine Loecher.
 // Bit 0x10000 ist kein Blitz-Flag: der Alphatest einer glTF-Textur mit
 // alphaMode MASK (3D-24). Ihr Alphakanal steht beim Laden schon auf 0 oder 1.
 bool bb_tex_cut(vec4 t, int flags) {
-    if ((flags & 65536) != 0) return t.a < 0.5;
-    return (flags & 4) != 0 && all(lessThan(t.rgb, vec3(0.02)));
+    return (flags & (4 | 65536)) != 0 && t.a < 0.5;
 }
 
 vec4 bb_tex_apply(vec4 c) {
