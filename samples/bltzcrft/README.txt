@@ -9,7 +9,8 @@ Erste Fassung: Die Welt entsteht aus einer Saat in Chunks zu 16 x 128 x 16
 Blöcken und wird um den Spieler herum nachgeladen - Hügel, Gebirge mit
 Schnee, ein Ozean mit Stränden, Seen, kleine Tümpel, Höhlengänge und tiefe
 Höhlenhallen, Kohle und Eisen im Stein, Wälder. Man läuft in der Ego-Sicht
-hindurch, kann schwimmen und fliegen, Blöcke abbauen und setzen.
+hindurch, kann schwimmen und fliegen. Abgebaute Blöcke landen im Inventar
+(36 Plätze, Stapel bis 64) und lassen sich wieder setzen.
 Gespeichert wird noch nichts.
 
 
@@ -36,10 +37,13 @@ Strg                  rennen
 Leertaste             springen, im Wasser schwimmen
 F                     fliegen ein/aus (Leertaste hoch, Umschalt runter)
 linke Maustaste       Block abbauen
-rechte Maustaste      Block setzen
-1 - 9 / Mausrad       Block wählen
+rechte Maustaste      Block aus der Schnellleiste setzen
+1 - 9 / Mausrad       Platz der Schnellleiste wählen
+E                     Inventar öffnen/schließen; darin: Linksklick Stapel
+                      nehmen/ablegen/tauschen, Rechtsklick halber Stapel
+                      bzw. ein Stück, Umschalt+Klick zwischen Leiste und Vorrat
 F3                    Anzeige ein/aus
-Esc                   beenden
+Esc                   beenden (bei offenem Inventar: schließen)
 
 
 Aufbau
@@ -52,6 +56,7 @@ welt.bb         Chunks, Zugriff, Erzeugung der Welt
 netz.bb         Meshes aus den Blöcken: sichtbare Flächen, Schatten, Wasser
 laden.bb        Nachladen und Vergessen von Chunks um den Spieler
 spieler.bb      Bewegung und Kollision gegen das Blockraster, Blickstrahl
+inventar.bb     Inventar: Stapel, Klicks, zur Laufzeit gemalte Blocksymbole
 
 daten/logo.png  das Logo für Titel- und Ladebild
 

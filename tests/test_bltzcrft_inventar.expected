@@ -1,0 +1,19 @@
+ertrag gras Erde, stein Stein, wasser Luft, grund Luft
+stapeln Steinx64 Erdex3 Steinx7 - - 
+gewaehlt Stein
+nach 3x nehmen Steinx64 - Steinx7 - -  gewaehlt Luft
+leer nehmen 0
+voll rest 5 letzter Sandx64 
+start Kiesx10 Sandx64 Sandx20 - 
+links nimmt - Sandx64 Sandx20 - hand Kiesx10
+links legt ab - Sandx64 Sandx20 - Kiesx10 hand leer
+rechts halbiert - Sandx64 Sandx10 - Kiesx10 hand Sandx10
+rechts legt ein stueck - Sandx64 Sandx10 - Kiesx10 Sandx2 hand Sandx8
+links fuellt auf - Sandx64 Sandx10 - Kiesx10 Sandx2 hand Sandx8
+links tauscht - Sandx64 Sandx10 - Sandx8 Sandx2 hand Kiesx10
+schliessen Kiesx10 Sandx64 Sandx10 - Sandx8 Sandx2 hand leer
+schieben in vorrat Kiesx10 - Sandx10 | Sandx64 - 
+schieben zurueck Kiesx10 - Sandx64 | - - 
+symbole 11 fuer 14 blockarten, groesse 40x40
+symbol stamm: deckel 1 links 1 rechts 1 ecken frei 1
+gezeichnet ecke 0000FF mitte nicht blau 1

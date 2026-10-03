@@ -4,14 +4,18 @@
 ; Stand: erste Fassung - die Welt entsteht in Chunks aus einer Saat
 ; (Gelaende, Ozean, Seen, Tuempel, Hoehlen, Erze, Baeume) und wird um den
 ; Spieler herum nachgeladen; man laeuft in der Ego-Sicht hindurch.
-; Bloecke abbauen und setzen geht auch schon, gespeichert wird nichts.
+; Abgebaute Bloecke kommen ins Inventar und lassen sich wieder setzen;
+; gespeichert wird nichts.
 ;
 ; Steuerung:  Klick ins Fenster faengt die Maus, Tab gibt sie frei, Esc beendet
 ;             Maus schauen   W A S D / Pfeile laufen   Leertaste springen,
 ;             schwimmen      Strg rennen     F fliegen (Leertaste hoch,
 ;             Umschalt runter)
 ;             linke Maustaste Block abbauen  rechte Maustaste Block setzen
-;             1 - 9 Block waehlen            F3 Anzeige
+;             1 - 9 / Mausrad Platz der Schnellleiste waehlen
+;             E Inventar (Linksklick nehmen/ablegen, Rechtsklick halber
+;             Stapel/ein Stueck, Umschalt+Klick zwischen Leiste und Vorrat)
+;             F3 Anzeige
 ;
 ; Aufruf mit einer Zahl als Saat: bltzcrft.exe 1234 - ohne Zahl 2026.
 ; Mit -rundflug fliegt das Programm 20 s von selbst geradeaus, misst die
@@ -31,6 +35,7 @@ Include "welt.bb"
 Include "netz.bb"
 Include "spieler.bb"
 Include "laden.bb"
+Include "inventar.bb"
 
 AppTitle "BLTZCRFT"
 Graphics3D 1280, 720, 0, 2
@@ -42,6 +47,8 @@ rundflug = (Instr(args, "-rundflug") > 0)
 If args <> "" And Left(args, 1) <> "-" Then saat = Int(args)
 
 Bloecke_Laden()
+Inventar_Symbole()
+Inventar_Leeren()
 Netz_Laden()
 Welt_Saat(saat)
 
@@ -69,11 +76,7 @@ While sy > 0 And (Not bl_fest(Welt_Block(sx, sy, sz)))
 Wend
 Spieler_Setzen(sx + 0.5, sy + 1, sz + 0.5)
 
-Dim auswahl(8)
-Restore auswahl_daten
-For i = 0 To 8 : Read auswahl(i) : Next
-gewaehlt = 0
-
+meldung$ = "" : meldung_bis = 0
 anzeige = True
 gefangen = False
 sprung_merken = False
@@ -111,19 +114,37 @@ HideEntity rahmen
 
 While Not ende
 	If KeyHit(61) Then anzeige = Not anzeige
-	If KeyHit(1) Then ende = True
-	If gefangen
-		If KeyHit(15)
+	If inv_offen
+		; Esc und E schliessen das Inventar und fangen die Maus wieder
+		If KeyHit(1) Or KeyHit(18)
+			Inventar_Schliessen()
+			gefangen = True
+			Maus_Fangen()
+		Else
+			umschalt = KeyDown(42) Or KeyDown(54)
+			p = Platz_Unter(MouseX(), MouseY())
+			If MouseHit(1) And p >= 0
+				If umschalt Then Inventar_Schieben(p) Else Inventar_Links(p)
+			EndIf
+			If MouseHit(2) And p >= 0 Then Inventar_Rechts(p)
+		EndIf
+	Else
+		If KeyHit(1) Then ende = True
+		If KeyHit(18) And (Not rundflug)
+			inv_offen = True
 			gefangen = False
 			ShowPointer
-		EndIf
-	ElseIf Not rundflug
-		If MouseHit(1)
-			gefangen = True
-			HidePointer
-			MoveMouse GraphicsWidth() / 2, GraphicsHeight() / 2
-			MouseXSpeed() : MouseYSpeed()
 			MouseHit(1) : MouseHit(2)
+		ElseIf gefangen
+			If KeyHit(15)
+				gefangen = False
+				ShowPointer
+			EndIf
+		ElseIf Not rundflug
+			If MouseHit(1)
+				gefangen = True
+				Maus_Fangen()
+			EndIf
 		EndIf
 	EndIf
 
@@ -142,12 +163,12 @@ While Not ende
 			sp_fliegen = Not sp_fliegen
 			sp_vy = 0
 		EndIf
-		For i = 0 To 8
-			If KeyHit(2 + i) Then gewaehlt = i
+		For i = 0 To INV_LEISTE - 1
+			If KeyHit(2 + i) Then inv_gewaehlt = i
 		Next
 		rad = MouseZSpeed()
-		If rad < 0 Then gewaehlt = (gewaehlt + 1) Mod 9
-		If rad > 0 Then gewaehlt = (gewaehlt + 8) Mod 9
+		If rad < 0 Then inv_gewaehlt = (inv_gewaehlt + 1) Mod INV_LEISTE
+		If rad > 0 Then inv_gewaehlt = (inv_gewaehlt + INV_LEISTE - 1) Mod INV_LEISTE
 	EndIf
 	If rundflug
 		; vorgegebener Flug: geradeaus, die Hoehe haelt sich ueber dem Gelaende
@@ -190,13 +211,20 @@ While Not ende
 		PositionEntity rahmen, ziel_x + 0.5, ziel_y + 0.5, ziel_z + 0.5
 		If gefangen
 			If MouseHit(1)
-				If Welt_Block(ziel_x, ziel_y, ziel_z) <> B_GRUND
-					Welt_Setzen(ziel_x, ziel_y, ziel_z, B_LUFT)
+				b = Welt_Block(ziel_x, ziel_y, ziel_z)
+				If b <> B_GRUND
+					If Welt_Setzen(ziel_x, ziel_y, ziel_z, B_LUFT)
+						; ist das Inventar voll, geht der Block verloren
+						If Inventar_Hinzu(Block_Ertrag(b), 1) > 0
+							meldung = "Inventar voll" : meldung_bis = MilliSecs() + 1500
+						EndIf
+					EndIf
 				EndIf
 			EndIf
 			If MouseHit(2)
-				If Platz_Frei(ziel_vx, ziel_vy, ziel_vz)
-					Welt_Setzen(ziel_vx, ziel_vy, ziel_vz, auswahl(gewaehlt))
+				b = Inventar_Gewaehlt()
+				If b <> B_LUFT And Platz_Frei(ziel_vx, ziel_vy, ziel_vz)
+					If Welt_Setzen(ziel_vx, ziel_vy, ziel_vz, b) Then Inventar_Nehmen(inv_gewaehlt)
 				EndIf
 			EndIf
 		EndIf
@@ -227,8 +255,15 @@ While Not ende
 		Text 10, 46, "Chunks " + welt_chunks + "   in Arbeit " + ld_offen + "   Bauzeit " + bau_ms + " ms   " + m
 		If ziel_treffer Then Text 10, 64, "Blick: " + bl_name(Welt_Block(ziel_x, ziel_y, ziel_z)) + " (" + ziel_x + ", " + ziel_y + ", " + ziel_z + ")"
 	EndIf
-	Text 10, GraphicsHeight() - 24, "Block " + (gewaehlt + 1) + ": " + bl_name(auswahl(gewaehlt))
-	If gefangen
+	If Not rundflug Then Leiste_Zeichnen()
+	If MilliSecs() < meldung_bis
+		Color 255, 220, 120
+		Text GraphicsWidth() / 2, GraphicsHeight() - INV_FELD - 44, meldung, True, True
+	EndIf
+	Color 255, 255, 255
+	If inv_offen
+		Inventar_Zeichnen()
+	ElseIf gefangen
 		Rect GraphicsWidth() / 2 - 8, GraphicsHeight() / 2 - 1, 17, 3
 		Rect GraphicsWidth() / 2 - 1, GraphicsHeight() / 2 - 8, 3, 17
 	ElseIf Not rundflug
@@ -238,5 +273,11 @@ While Not ende
 Wend
 End
 
-.auswahl_daten
-Data B_STEIN, B_ERDE, B_GRAS, B_SAND, B_KIES, B_STAMM, B_LAUB, B_SANDSTEIN, B_SCHNEE
+; Maus fangen: Zeiger weg und in die Mitte, aufgelaufene Bewegung und Klicks
+; verwerfen.
+Function Maus_Fangen()
+	HidePointer
+	MoveMouse GraphicsWidth() / 2, GraphicsHeight() / 2
+	MouseXSpeed() : MouseYSpeed() : MouseZSpeed()
+	MouseHit(1) : MouseHit(2)
+End Function

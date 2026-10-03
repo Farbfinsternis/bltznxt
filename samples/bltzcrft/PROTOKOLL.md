@@ -18,6 +18,8 @@ dort wird er weitergeführt, hier bleibt der Befund aus Sicht des Spiels.
 | 4 | Einschränkung | Texturen immer linear gefiltert, kein Punktfilter für Pixelkunst | niedrig | WEAK-27 |
 | 5 | Leistung | Mehrdimensionale `Dim`-Felder sind verschachtelte `std::vector` mit `.at()` je Dimension | mittel | WEAK-26 (Ursprung WEAK-07) |
 | 6 | Erweiterung | Chunks und Objekte ploppen auf, statt weich zu erscheinen – Prototyp „Einblenden per Raster“ | mittel | WEAK-28 |
+| 7 | Fehler | Flag 4 (maskiert) prüft die Farbe statt des Alphakanals – selbst gemalte Texturen bekommen keine Löcher | mittel – **behoben** | BUG-192 ✅ |
+| 8 | Meldung | Konstante und Feld gleichen Namens: C++-Fehler statt `Duplicate identifier` | niedrig | BUG-193 ⊘ |
 
 ---
 
@@ -223,6 +225,37 @@ Befehl jenseits von Blitz3D eine bewusste API-Festlegung.
 
 ---
 
+## 7. Maskierte Texturen: Farbe statt Alphakanal
+
+**Was:** Mit dem Inventar (2026-10-03) kam die Frage, ob BLTZNXT Texturen und Bilder zur
+Laufzeit erzeugen kann. Ein Prüfprogramm mit 14 Fällen lief gegen das Original:
+Schreiben und Zurücklesen (`WritePixelFast`/`ReadPixelFast` auf `TextureBuffer`), eine
+Änderung nach dem ersten Bild (mit und ohne Mipmaps), `Rect`, `Plot` und `Text` in eine
+Textur und in ein Bild, `CreateImage` mit schwarzer Maske, `CopyRect` von Textur zu Bild,
+von Bild zu Textur und vom Bildschirm in eine Textur (Render-to-Texture), Alpha-Texturen
+und `GrabImage`. 13 Fälle waren gleich. Abweichend: Flag 4 (maskiert). Das Original
+nimmt den Alphakanal – eine selbst gemalte Textur ist dort durchsichtig, wo ihr Alpha 0
+ist, deckendes Schwarz bleibt sichtbar. BLTZNXT verwarf stattdessen schwarze Texel.
+
+**Folge:** Laub oder Gras mit Löchern hätte man nicht selbst malen können.
+
+**Behoben (2026-10-03):** Alphatest im Shader; alle Fälle jetzt gleich wie im Original
+(BUG-192).
+
+---
+
+## 8. Konstante und Feld gleichen Namens
+
+**Was:** `Const INV_SYMBOL = 40` und `Dim inv_symbol(…)` – dieselbe Schreibung ohne
+Rücksicht auf Groß- und Kleinschreibung. Das Original meldet `Duplicate identifier`,
+BLTZNXT bricht erst im C++-Compiler ab (`assignment of read-only variable`), ohne Hinweis
+auf die Zeile im Blitz-Quelltext.
+
+**Umweg im Spiel:** Konstante umbenannt (`SYMBOL_GROESSE`). Ungültiges Programm, nur die
+Meldung fehlt – nach dem Kompatibilitätsziel außerhalb (BUG-193 ⊘).
+
+---
+
 ## Geprüft und *kein* BLTZNXT-Problem
 
 Damit sie nicht noch einmal verdächtigt werden:
@@ -238,6 +271,11 @@ Damit sie nicht noch einmal verdächtigt werden:
   auch das ist Blitz3D-Verhalten.
 - Meshes mit 32-Bit-Indizes: ein Chunk darf mehr als 65 535 Vertices haben.
 - `WritePixelFast` in `TextureBuffer` mit Mipmaps (Flag 8) funktioniert.
+- Prozedurale Texturen und Bilder zur Laufzeit (Punkt 7): alles außer der Maske war schon
+  gleich wie im Original. Die Inventarsymbole liest das Spiel aus den Blocktexturen und
+  malt sie in Bilder.
+- `If a And Not b` lehnt BLTZNXT ab (`(Not b)` verlangt) – das ist die Regel des
+  Originals, kein Fehler.
 
 ## Umwege im Spielcode
 
