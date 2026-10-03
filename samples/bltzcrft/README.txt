@@ -36,14 +36,16 @@ W A S D / Pfeile      laufen
 Strg                  rennen
 Leertaste             springen, im Wasser schwimmen
 F                     fliegen ein/aus (Leertaste hoch, Umschalt runter)
-linke Maustaste       Block abbauen
+linke Maustaste       halten: Block abbauen (Risse zeigen den Fortschritt,
+                      Stein dauert länger als Erde, Grundgestein bricht nie)
 rechte Maustaste      Block aus der Schnellleiste setzen
 1 - 9 / Mausrad       Platz der Schnellleiste wählen
 E                     Inventar öffnen/schließen; darin: Linksklick Stapel
                       nehmen/ablegen/tauschen, Rechtsklick halber Stapel
                       bzw. ein Stück, Umschalt+Klick zwischen Leiste und Vorrat
+F1                    Hilfe: alle Tasten im Spiel
 F3                    Anzeige ein/aus
-Esc                   beenden (bei offenem Inventar: schließen)
+Esc                   beenden (bei offenem Inventar oder Hilfe: schließen)
 
 
 Aufbau
@@ -57,6 +59,7 @@ netz.bb         Meshes aus den Blöcken: sichtbare Flächen, Schatten, Wasser
 laden.bb        Nachladen und Vergessen von Chunks um den Spieler
 spieler.bb      Bewegung und Kollision gegen das Blockraster, Blickstrahl
 inventar.bb     Inventar: Stapel, Klicks, zur Laufzeit gemalte Blocksymbole
+abbau.bb        Abbauen über die Zeit, zur Laufzeit gemalte Risse
 
 daten/logo.png  das Logo für Titel- und Ladebild
 

@@ -51,17 +51,19 @@ Dim bl_tex(B_ANZAHL - 1, 2)     ; 0 oben, 1 Seite, 2 unten
 Dim bl_deckend(B_ANZAHL - 1)
 Dim bl_fest(B_ANZAHL - 1)
 Dim bl_name$(B_ANZAHL - 1)
+Dim bl_haerte#(B_ANZAHL - 1)    ; Sekunden zum Abbauen mit blosser Hand, 0 = nie
 
 Dim tx_pinsel(T_ANZAHL - 1)     ; ein Brush je Textur
 Dim tx_bild(T_ANZAHL - 1)
 
 Dim tx_raster(15, 15)
 
-Function Block_Art(nr, name$, oben, seite, unten, deckend, fest)
+Function Block_Art(nr, name$, oben, seite, unten, deckend, fest, haerte#)
 	bl_name(nr) = name
 	bl_tex(nr, 0) = oben : bl_tex(nr, 1) = seite : bl_tex(nr, 2) = unten
 	bl_deckend(nr) = deckend
 	bl_fest(nr) = fest
+	bl_haerte(nr) = haerte
 End Function
 
 Function Bloecke_Laden()
@@ -79,22 +81,24 @@ Function Bloecke_Laden()
 End Function
 
 ; Nur die Eigenschaften, ohne Texturen - braucht keine Grafik.
+; Die Haerte ist die Zeit zum Abbauen mit blosser Hand, kuerzer als in
+; Minecraft, weil es noch keine Werkzeuge gibt.
 Function Bloecke_Arten()
-	Block_Art(B_LUFT, "Luft", 0, 0, 0, False, False)
-	Block_Art(B_STEIN, "Stein", T_STEIN, T_STEIN, T_STEIN, True, True)
-	Block_Art(B_ERDE, "Erde", T_ERDE, T_ERDE, T_ERDE, True, True)
-	Block_Art(B_GRAS, "Gras", T_GRAS_OBEN, T_GRAS_SEITE, T_ERDE, True, True)
-	Block_Art(B_SAND, "Sand", T_SAND, T_SAND, T_SAND, True, True)
-	Block_Art(B_WASSER, "Wasser", T_WASSER, T_WASSER, T_WASSER, False, False)
-	Block_Art(B_KIES, "Kies", T_KIES, T_KIES, T_KIES, True, True)
-	Block_Art(B_STAMM, "Stamm", T_STAMM_OBEN, T_STAMM_SEITE, T_STAMM_OBEN, True, True)
-	Block_Art(B_LAUB, "Laub", T_LAUB, T_LAUB, T_LAUB, True, True)
-	Block_Art(B_GRUND, "Grundgestein", T_GRUND, T_GRUND, T_GRUND, True, True)
-	Block_Art(B_SCHNEE, "Schnee", T_SCHNEE, T_SCHNEE_SEITE, T_ERDE, True, True)
-	Block_Art(B_TON, "Ton", T_TON, T_TON, T_TON, True, True)
-	Block_Art(B_KOHLE, "Kohle", T_KOHLE, T_KOHLE, T_KOHLE, True, True)
-	Block_Art(B_EISEN, "Eisen", T_EISEN, T_EISEN, T_EISEN, True, True)
-	Block_Art(B_SANDSTEIN, "Sandstein", T_SANDSTEIN, T_SANDSTEIN, T_SANDSTEIN, True, True)
+	Block_Art(B_LUFT, "Luft", 0, 0, 0, False, False, 0)
+	Block_Art(B_STEIN, "Stein", T_STEIN, T_STEIN, T_STEIN, True, True, 2.0)
+	Block_Art(B_ERDE, "Erde", T_ERDE, T_ERDE, T_ERDE, True, True, 0.6)
+	Block_Art(B_GRAS, "Gras", T_GRAS_OBEN, T_GRAS_SEITE, T_ERDE, True, True, 0.7)
+	Block_Art(B_SAND, "Sand", T_SAND, T_SAND, T_SAND, True, True, 0.6)
+	Block_Art(B_WASSER, "Wasser", T_WASSER, T_WASSER, T_WASSER, False, False, 0)
+	Block_Art(B_KIES, "Kies", T_KIES, T_KIES, T_KIES, True, True, 0.7)
+	Block_Art(B_STAMM, "Stamm", T_STAMM_OBEN, T_STAMM_SEITE, T_STAMM_OBEN, True, True, 1.6)
+	Block_Art(B_LAUB, "Laub", T_LAUB, T_LAUB, T_LAUB, True, True, 0.3)
+	Block_Art(B_GRUND, "Grundgestein", T_GRUND, T_GRUND, T_GRUND, True, True, 0)
+	Block_Art(B_SCHNEE, "Schnee", T_SCHNEE, T_SCHNEE_SEITE, T_ERDE, True, True, 0.7)
+	Block_Art(B_TON, "Ton", T_TON, T_TON, T_TON, True, True, 0.7)
+	Block_Art(B_KOHLE, "Kohle", T_KOHLE, T_KOHLE, T_KOHLE, True, True, 2.4)
+	Block_Art(B_EISEN, "Eisen", T_EISEN, T_EISEN, T_EISEN, True, True, 3.0)
+	Block_Art(B_SANDSTEIN, "Sandstein", T_SANDSTEIN, T_SANDSTEIN, T_SANDSTEIN, True, True, 1.6)
 End Function
 
 ; ---- Malen -------------------------------------------------------------

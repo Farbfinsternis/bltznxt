@@ -11,11 +11,11 @@
 ;             Maus schauen   W A S D / Pfeile laufen   Leertaste springen,
 ;             schwimmen      Strg rennen     F fliegen (Leertaste hoch,
 ;             Umschalt runter)
-;             linke Maustaste Block abbauen  rechte Maustaste Block setzen
+;             linke Maustaste halten: abbauen  rechte Maustaste Block setzen
 ;             1 - 9 / Mausrad Platz der Schnellleiste waehlen
 ;             E Inventar (Linksklick nehmen/ablegen, Rechtsklick halber
 ;             Stapel/ein Stueck, Umschalt+Klick zwischen Leiste und Vorrat)
-;             F3 Anzeige
+;             F1 Hilfe  F3 Anzeige
 ;
 ; Aufruf mit einer Zahl als Saat: bltzcrft.exe 1234 - ohne Zahl 2026.
 ; Mit -rundflug fliegt das Programm 20 s von selbst geradeaus, misst die
@@ -36,6 +36,7 @@ Include "netz.bb"
 Include "spieler.bb"
 Include "laden.bb"
 Include "inventar.bb"
+Include "abbau.bb"
 
 AppTitle "BLTZCRFT"
 Graphics3D 1280, 720, 0, 2
@@ -49,6 +50,7 @@ If args <> "" And Left(args, 1) <> "-" Then saat = Int(args)
 Bloecke_Laden()
 Inventar_Symbole()
 Inventar_Leeren()
+Abbau_Laden()
 Netz_Laden()
 Welt_Saat(saat)
 
@@ -87,7 +89,7 @@ ende = False
 If Not rundflug
 	FlushKeys : FlushMouse
 	Repeat
-		Laden_Bild("Klick zum Spielen - Esc beendet", 1)
+		Laden_Bild("Klick zum Spielen - im Spiel zeigt F1 die Steuerung - Esc beendet", 1)
 		If KeyHit(1) Then ende = True
 		If MouseHit(1)
 			gefangen = True
@@ -103,6 +105,11 @@ zeit = MilliSecs()
 rest# = 0
 bilder = 0 : bilder_zeit = MilliSecs() : fps = 0
 bau_ms = 0
+bild_dt# = 0
+; Die Hinweiszeile ueber der Schnellleiste steht die ersten drei Minuten, bis
+; man F1 drueckt - danach weiss man, wo die Hilfe ist.
+hinweis_bis = MilliSecs() + 180000
+hilfe = False
 
 ; dunkler Rahmen um den anvisierten Block
 rahmen = CreateCube()
@@ -114,7 +121,12 @@ HideEntity rahmen
 
 While Not ende
 	If KeyHit(61) Then anzeige = Not anzeige
-	If inv_offen
+	If KeyHit(59) Then hilfe = Not hilfe : hinweis_bis = 0
+	If hilfe
+		; Esc schliesst erst die Hilfe (Blitz wertet beide Seiten von And aus -
+		; ein "hilfe And KeyHit(1)" verschluckte Esc auch ohne Hilfe)
+		If KeyHit(1) Then hilfe = False
+	ElseIf inv_offen
 		; Esc und E schliessen das Inventar und fangen die Maus wieder
 		If KeyHit(1) Or KeyHit(18)
 			Inventar_Schliessen()
@@ -196,7 +208,8 @@ While Not ende
 	EndIf
 
 	jetzt = MilliSecs()
-	rest = rest + (jetzt - zeit) / 1000.0
+	bild_dt = (jetzt - zeit) / 1000.0
+	rest = rest + bild_dt
 	zeit = jetzt
 	If rest > 0.25 Then rest = 0.25
 	While rest >= TAKT
@@ -210,9 +223,11 @@ While Not ende
 		ShowEntity rahmen
 		PositionEntity rahmen, ziel_x + 0.5, ziel_y + 0.5, ziel_z + 0.5
 		If gefangen
-			If MouseHit(1)
+			; Abbauen: halten, bis der Block bricht (abbau.bb)
+			MouseHit(1)
+			If MouseDown(1)
 				b = Welt_Block(ziel_x, ziel_y, ziel_z)
-				If b <> B_GRUND
+				If Abbau_Halten(ziel_x, ziel_y, ziel_z, b, bild_dt)
 					If Welt_Setzen(ziel_x, ziel_y, ziel_z, B_LUFT)
 						; ist das Inventar voll, geht der Block verloren
 						If Inventar_Hinzu(Block_Ertrag(b), 1) > 0
@@ -220,18 +235,27 @@ While Not ende
 						EndIf
 					EndIf
 				EndIf
+			Else
+				Abbau_Loslassen()
 			EndIf
 			If MouseHit(2)
 				b = Inventar_Gewaehlt()
-				If b <> B_LUFT And Platz_Frei(ziel_vx, ziel_vy, ziel_vz)
+				If b = B_LUFT
+					meldung = "Dieser Platz ist leer - erst Bloecke abbauen (linke Maustaste halten)"
+					meldung_bis = MilliSecs() + 2500
+				ElseIf Platz_Frei(ziel_vx, ziel_vy, ziel_vz)
 					If Welt_Setzen(ziel_vx, ziel_vy, ziel_vz, b) Then Inventar_Nehmen(inv_gewaehlt)
 				EndIf
 			EndIf
+		Else
+			Abbau_Loslassen()
 		EndIf
 	Else
 		HideEntity rahmen
+		Abbau_Loslassen()
 		MouseHit(1) : MouseHit(2)
 	EndIf
+	Abbau_Zeigen()
 
 	; Chunks erzeugen, bauen und vergessen - so viel, wie in die Zeit passt
 	t0 = MilliSecs()
@@ -256,12 +280,16 @@ While Not ende
 		If ziel_treffer Then Text 10, 64, "Blick: " + bl_name(Welt_Block(ziel_x, ziel_y, ziel_z)) + " (" + ziel_x + ", " + ziel_y + ", " + ziel_z + ")"
 	EndIf
 	If Not rundflug Then Leiste_Zeichnen()
+	If MilliSecs() < hinweis_bis And (Not (inv_offen Or hilfe Or rundflug))
+		Text_Schatten(GraphicsWidth() / 2, GraphicsHeight() - INV_FELD - 40, "Linke Maustaste halten: abbauen    Rechte Maustaste: setzen    E: Inventar    F1: Hilfe", 220, 220, 220)
+	EndIf
 	If MilliSecs() < meldung_bis
-		Color 255, 220, 120
-		Text GraphicsWidth() / 2, GraphicsHeight() - INV_FELD - 44, meldung, True, True
+		Text_Schatten(GraphicsWidth() / 2, GraphicsHeight() - INV_FELD - 64, meldung, 255, 220, 120)
 	EndIf
 	Color 255, 255, 255
-	If inv_offen
+	If hilfe
+		Hilfe_Zeichnen()
+	ElseIf inv_offen
 		Inventar_Zeichnen()
 	ElseIf gefangen
 		Rect GraphicsWidth() / 2 - 8, GraphicsHeight() / 2 - 1, 17, 3
@@ -272,6 +300,49 @@ While Not ende
 	Flip
 Wend
 End
+
+; Mittig ausgerichteter Text mit dunklem Schatten, lesbar auch vor Himmel
+; und Schnee.
+Function Text_Schatten(x, y, s$, r, g, b)
+	Color 0, 0, 0 : Text x + 1, y + 1, s, True, True
+	Color r, g, b : Text x, y, s, True, True
+End Function
+
+; F1: alle Tasten auf einen Blick, ueber dem laufenden Spiel.
+Function Hilfe_Zeichnen()
+	Restore hilfe_daten
+	Read n
+	breite = 560 : tief = n * 20 + 64
+	links = (GraphicsWidth() - breite) / 2 : oben = (GraphicsHeight() - tief) / 2 - 40
+	Color 40, 40, 40 : Rect links, oben, breite, tief, 1
+	Color 160, 160, 160 : Rect links, oben, breite, tief, 0
+	Color 255, 255, 255
+	Text links + 16, oben + 12, "Steuerung"
+	Text_Rechts(links + breite - 16, oben + 12, "F1 / Esc schliesst")
+	For i = 1 To n
+		Read taste$, was$
+		y = oben + 24 + i * 20
+		Color 255, 220, 120 : Text links + 16, y, taste
+		Color 230, 230, 230 : Text links + 200, y, was
+	Next
+End Function
+
+.hilfe_daten
+Data 14
+Data "Maus", "umsehen"
+Data "W A S D / Pfeile", "laufen"
+Data "Leertaste", "springen, im Wasser schwimmen"
+Data "Strg", "rennen"
+Data "F", "fliegen ein/aus (Leertaste hoch, Umschalt runter)"
+Data "Linke Maustaste", "halten: Block abbauen, er kommt ins Inventar"
+Data "Rechte Maustaste", "Block aus der Schnellleiste setzen"
+Data "1 - 9 / Mausrad", "Platz der Schnellleiste waehlen"
+Data "E", "Inventar oeffnen/schliessen"
+Data "  im Inventar", "Links: Stapel nehmen/ablegen, Rechts: halber Stapel"
+Data "", "bzw. ein Stueck, Umschalt+Links: Leiste <-> Vorrat"
+Data "Tab", "Maus freigeben (Klick ins Fenster faengt sie wieder)"
+Data "F3", "Anzeige mit Position und Leistung"
+Data "Esc", "beenden"
 
 ; Maus fangen: Zeiger weg und in die Mitte, aufgelaufene Bewegung und Klicks
 ; verwerfen.
