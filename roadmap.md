@@ -715,7 +715,7 @@ Each milestone is scoped to fit within a single AI-session context window:
 
 ### Milestone 63: Camera Fog & Picking
 *Touch: `bb_camera.h`*
-- [ ] `bb_CameraFogMode(cam, mode)`, `bb_CameraFogRange(cam, near, far)`, `bb_CameraFogColor(cam, r, g, b)`
+- [x] `bb_CameraFogMode(cam, mode)`, `bb_CameraFogRange(cam, near, far)`, `bb_CameraFogColor(cam, r, g, b)` (BUG-191, 2026-10-03)
 - [ ] `bb_CameraPick(cam, x, y)` → entity at screen position
 - [ ] `bb_PickedX/Y/Z()`, `bb_PickedNX/NY/NZ()`, `bb_PickedTime()`
 - [ ] `bb_PickedEntity()`, `bb_PickedSurface()`, `bb_PickedTriangle()`
@@ -863,7 +863,7 @@ Blitz3D itself does not have (e.g. `FreeSurface`, `VectorDistance`) are not coun
     - [ ] CreateTerrain, LoadTerrain, TerrainSize, TerrainDetail, TerrainShading, TerrainHeight, ModifyTerrain, TerrainX, TerrainY, TerrainZ
     - [ ] LoadMD2, AnimateMD2, MD2AnimTime, MD2AnimLength, MD2Animating, LoadBSP, BSPAmbientLight, BSPLighting
 - [ ] **Entities (Camera/Light/Pivot/Sprite/Plane/Mirror)** *(M58–M65)*
-    - [ ] CreateCamera, CameraProjMode, CameraFogMode, CameraFogRange, CameraFogColor, CameraViewport, CameraClsMode, CameraClsColor, CameraRange, CameraZoom, CameraPick, PickedX/Y/Z, PickedNX/NY/NZ, PickedTime, PickedEntity, PickedSurface, PickedTriangle, CameraProject, ProjectedX/Y/Z, EntityInView — *missing: CameraFogMode, CameraFogRange, CameraFogColor, CameraPick, CameraProject, ProjectedX, ProjectedY, ProjectedZ, EntityInView*
+    - [ ] CreateCamera, CameraProjMode, CameraFogMode, CameraFogRange, CameraFogColor, CameraViewport, CameraClsMode, CameraClsColor, CameraRange, CameraZoom, CameraPick, PickedX/Y/Z, PickedNX/NY/NZ, PickedTime, PickedEntity, PickedSurface, PickedTriangle, CameraProject, ProjectedX/Y/Z, EntityInView — *missing: CameraPick, CameraProject, ProjectedX, ProjectedY, ProjectedZ, EntityInView*
     - [x] CreateLight, LightColor, LightRange
     - [x] CreatePivot, CreateSprite, LoadSprite, RotateSprite, ScaleSprite, HandleSprite, SpriteViewMode
     - [x] CreatePlane, CreateMirror

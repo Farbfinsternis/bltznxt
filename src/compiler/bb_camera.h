@@ -6,6 +6,7 @@
 // Included from bb_graphics3d.h.
 // Provides: bb_CameraEntity_, CreateCamera, CameraRange, CameraZoom,
 //           CameraProjMode, CameraViewport, CameraClsMode, CameraClsColor,
+//           CameraFogMode, CameraFogRange, CameraFogColor,
 //           bb_collect_cameras_() used by RenderWorld.
 
 #include "bb_entity_core.h"   // entity base, math helpers, registry
@@ -32,6 +33,11 @@ struct bb_CameraEntity_ : bb_Entity_ {
   bool clsColor = true;
   bool clsZbuf  = true;
   float clsR = 0, clsG = 0, clsB = 0; // 0..255 wie im Aufruf, Float wie im Original (BUG-62)
+
+  // Nebel (BUG-191). Vorgaben laut CameraFogMode.htm: aus, schwarz, 1-1000.
+  int   fogMode = 0;                    // 1 = linear; 0 und alles andere aus
+  float fogNear = 1.0f, fogFar = 1000.0f;
+  float fogR = 0, fogG = 0, fogB = 0;   // 0..255 wie CameraClsColor
 
   // Matrices computed each frame in RenderWorld
   float view[16];
@@ -117,6 +123,23 @@ inline void bb_CameraClsColor(int h, float r, float g, float b) {
   if (auto* c = bb_cam_chk_(h)) {
     c->clsR = r; c->clsG = g; c->clsB = b;
   }
+}
+
+// Nebel (BUG-191), am Original gemessen am 2026-10-03: linear zwischen near
+// und far, der Abstand eben entlang der Blickachse - der Bildrand bekommt bei
+// gleicher Tiefe genau so viel Nebel wie die Mitte. Modus 2 und andere Werte
+// zeichnen ohne Nebel. Gerechnet wird er je Bildpunkt im Shader (bb_fog).
+inline void bb_CameraFogMode(int h, int mode) {
+  if (auto* c = bb_cam_chk_(h)) c->fogMode = mode;
+}
+
+inline void bb_CameraFogRange(int h, float near_, float far_) {
+  if (auto* c = bb_cam_chk_(h)) { c->fogNear = near_; c->fogFar = far_; }
+}
+
+// Float 0..255 wie CameraClsColor (BUG-62).
+inline void bb_CameraFogColor(int h, float r, float g, float b) {
+  if (auto* c = bb_cam_chk_(h)) { c->fogR = r; c->fogG = g; c->fogB = b; }
 }
 
 // ============================================================

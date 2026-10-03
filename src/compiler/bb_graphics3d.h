@@ -285,6 +285,18 @@ inline void bb_RenderWorld(float tween = 1.0f) {
       bb_shader_bind_(sh);
       if (sh == bb_shader_lit_) bb_upload_lights_(sh, n, cam);
 
+      // Nebel je Kamera (BUG-191). Wie gxScene::setFogMode: nur Modus 1 ist
+      // Nebel, jeder andere Wert zeichnet ohne.
+      bb_fog_.on = (cam->fogMode == 1);
+      bb_fog_.rgb[0] = cam->fogR / 255.0f;
+      bb_fog_.rgb[1] = cam->fogG / 255.0f;
+      bb_fog_.rgb[2] = cam->fogB / 255.0f;
+      bb_shader_uniform_i(sh, "u_fog_mode", bb_fog_.on ? 1 : 0);
+      bb_shader_uniform_v3(sh, "u_fog_color", bb_fog_.rgb[0], bb_fog_.rgb[1], bb_fog_.rgb[2]);
+      bb_shader_uniform_v2(sh, "u_fog_range", cam->fogNear, cam->fogFar);
+      bb_shader_uniform_v2(sh, "u_clip", cam->near_, cam->far_);
+      bb_shader_uniform_i(sh, "u_proj_ortho", cam->projMode == 2 ? 1 : 0);
+
       // Erst die Spiegel (3D-16): je sichtbarem Spiegel die ganze Szene mit
       // gespiegelter Kamera und umgekehrter Umlaufrichtung, danach die
       // normale Szene darueber. Geloescht wird nur einmal, oben.

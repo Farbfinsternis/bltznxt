@@ -1206,6 +1206,7 @@ static inline void bb_render_meshes_(bb_Shader_* shader,
 
   bool  blend_on   = false;
   int   blend_mode = 0;
+  int   fog_kind   = 0;   // welche Nebelfarbe gesetzt ist: 0 Kamera, 2 Weiss, 3 Schwarz
   bool  cull_on    = true;
   bool  depth_on   = true;
   bool  zwrite_on  = true;
@@ -1316,6 +1317,21 @@ static inline void bb_render_meshes_(bb_Shader_* shader,
         cull_on = want_cull;
         if (want_cull) glEnable(GL_CULL_FACE); else glDisable(GL_CULL_FACE);
       }
+      // Nebel (BUG-191): eine additiv gemischte Flaeche verblasst nach
+      // Schwarz, eine multiplizierte nach Weiss - beides heisst "traegt
+      // nichts mehr bei". Das Original (gxScene) mischt jede Flaeche zur
+      // Nebelfarbe; ein Feuer-Sprite leuchtet dort im weissen Nebel als
+      // weisser Fleck, statt darin zu verschwinden. Bewusste Abweichung.
+      if (bb_fog_.on) {
+        const int want_fog = (want_blend && (br.blend == 2 || br.blend == 3)) ? br.blend : 0;
+        if (want_fog != fog_kind) {
+          fog_kind = want_fog;
+          if (want_fog == 3)      bb_shader_uniform_v3(shader, "u_fog_color", 0, 0, 0);
+          else if (want_fog == 2) bb_shader_uniform_v3(shader, "u_fog_color", 1, 1, 1);
+          else bb_shader_uniform_v3(shader, "u_fog_color",
+                                    bb_fog_.rgb[0], bb_fog_.rgb[1], bb_fog_.rgb[2]);
+        }
+      }
       bb_shader_uniform_i(shader, "u_fx", br.fx);
       float color[4] = { br.r / 255.0f,
                          br.g / 255.0f,
@@ -1341,6 +1357,8 @@ static inline void bb_render_meshes_(bb_Shader_* shader,
   }
 
   if (blend_on)  glDisable(GL_BLEND);
+  if (fog_kind)  bb_shader_uniform_v3(shader, "u_fog_color",   // naechster Durchgang (Spiegel)
+                                      bb_fog_.rgb[0], bb_fog_.rgb[1], bb_fog_.rgb[2]);
   if (!zwrite_on) glDepthMask(GL_TRUE);  // sonst loescht glClear den Z-Puffer nicht
   if (!cull_on)  glEnable(GL_CULL_FACE);
   if (!depth_on) glEnable(GL_DEPTH_TEST);

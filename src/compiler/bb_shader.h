@@ -206,6 +206,41 @@ vec4 bb_tex_apply(vec4 c) {
 }
 )glsl";
 
+// ---- Gemeinsamer Nebelteil (BUG-191) ----
+//
+// Wie der Texturteil zwischen Kopf und main() von TEXTURED und LIT gesetzt;
+// beide Koepfe deklarieren u_fx vorher.
+//
+// Am Original gemessen (2026-10-03): linear, Anteil (far - d) / (far - near),
+// d ist der Abstand eben entlang der Blickachse, nicht der Abstand zur
+// Kamera. Bei near == far kein Nebel bis near. EntityFX 8 schaltet ihn ab.
+//
+// Bewusst anders als das Original:
+// - je Bildpunkt statt je Vertex (Rendering-Leitlinie);
+// - in der Parallelprojektion die echte Tiefe. Direct3D nimmt dort die
+//   Z-Puffer-Tiefe 0..1, der Nebel faellt praktisch weg;
+// - u_fog_color setzt RenderWorld je Flaeche: additiv gemischte Flaechen
+//   verblassen nach Schwarz, multiplizierte nach Weiss - sie verschwinden im
+//   Nebel, statt in seiner Farbe zu leuchten (bb_mesh.h).
+static constexpr const char* BB_GLSL_FOG_FRAG = R"glsl(
+uniform int  u_fog_mode;    // 1 = linear, sonst aus
+uniform vec2 u_fog_range;   // near, far
+uniform vec3 u_fog_color;
+uniform int  u_proj_ortho;
+uniform vec2 u_clip;        // CameraRange, fuer die Tiefe der Parallelprojektion
+
+vec3 bb_fog(vec3 c) {
+    if (u_fog_mode != 1 || (u_fx & 8) != 0) return c;
+    float d = (u_proj_ortho != 0) ? mix(u_clip.x, u_clip.y, gl_FragCoord.z)
+                                  : 1.0 / gl_FragCoord.w;
+    float n = u_fog_range.x;
+    float f = u_fog_range.y;
+    float k = (f != n) ? clamp((f - d) / (f - n), 0.0, 1.0)
+                       : (d > n ? 0.0 : 1.0);
+    return mix(u_fog_color, c, k);
+}
+)glsl";
+
 // ---- TEXTURED ----
 //
 // Ohne Licht zeichnet RenderWorld mit diesem Shader. Bei u_tex_count == 0
@@ -244,6 +279,7 @@ void main() {
     if ((u_fx & 2)  != 0) base.rgb = v_color.rgb;
     if ((u_fx & 32) != 0) base.a  *= v_color.a;
     frag_color = clamp(bb_tex_apply(base), 0.0, 1.0);
+    frag_color.rgb = bb_fog(frag_color.rgb);
 }
 )glsl";
 
@@ -406,6 +442,7 @@ void main() {
     // AmbientLight.
     if ((u_fx & 1) != 0) {
         frag_color = clamp(bb_tex_apply(base), 0.0, 1.0);
+        frag_color.rgb = bb_fog(frag_color.rgb);
         return;
     }
 
@@ -440,7 +477,7 @@ void main() {
     // multipliziert: Wuerfel 64,64,64 bei Shininess 1 gab 128 statt 75.
     vec4 lit  = bb_tex_apply(vec4(clamp(result * base.rgb, 0.0, 1.0), base.a));
     vec3 spec = ((u_fx & 4) != 0) ? v_spec_flat : v_spec;
-    frag_color = vec4(clamp(lit.rgb + spec, 0.0, 1.0), lit.a);
+    frag_color = vec4(bb_fog(clamp(lit.rgb + spec, 0.0, 1.0)), lit.a);
 }
 )glsl";
 
@@ -453,6 +490,14 @@ inline bb_Shader_* bb_shader_textured_ = nullptr;
 inline bb_Shader_* bb_shader_lit_      = nullptr;
 inline bb_Shader_* bb_shader_active_   = nullptr;
 inline bool        bb_shaders_ready_   = false;
+
+// Nebel der Kamera, die gerade zeichnet (BUG-191). RenderWorld fuellt ihn je
+// Kamera, bb_render_meshes_ setzt daraus u_fog_color je Flaeche.
+struct bb_FogState_ {
+  bool  on = false;
+  float rgb[3] = { 0, 0, 0 };   // 0..1
+};
+inline bb_FogState_ bb_fog_;
 
 // ============================================================
 // Bind
@@ -473,6 +518,9 @@ inline void bb_shader_uniform_i(bb_Shader_* s, const char* n, int v) {
 }
 inline void bb_shader_uniform_f(bb_Shader_* s, const char* n, float v) {
   GLint l = s->loc(n); if (l >= 0) glUniform1f(l, v);
+}
+inline void bb_shader_uniform_v2(bb_Shader_* s, const char* n, float x, float y) {
+  GLint l = s->loc(n); if (l >= 0) glUniform2f(l, x, y);
 }
 inline void bb_shader_uniform_v3(bb_Shader_* s, const char* n,
                                   float x, float y, float z) {
@@ -512,17 +560,20 @@ inline void bb_shader_uniform_m3v(bb_Shader_* s, const char* n,
 // ============================================================
 
 inline void bb_shaders_init_() {
-  // Der gemeinsame Texturteil (3D-11) wird zwischen Kopf und main() gesetzt.
+  // Der gemeinsame Texturteil (3D-11) und im Fragment der Nebelteil
+  // (BUG-191) werden zwischen Kopf und main() gesetzt.
   auto join = [](const char* head, const char* common, const char* body) {
     return std::string(head) + common + body;
   };
   const std::string tex_vert = join(BB_GLSL_TEXTURED_VERT, BB_GLSL_TEX_VERT,
                                     BB_GLSL_TEXTURED_VERT_MAIN);
-  const std::string tex_frag = join(BB_GLSL_TEXTURED_FRAG, BB_GLSL_TEX_FRAG,
+  const std::string tex_frag = join(BB_GLSL_TEXTURED_FRAG,
+                                    (std::string(BB_GLSL_TEX_FRAG) + BB_GLSL_FOG_FRAG).c_str(),
                                     BB_GLSL_TEXTURED_FRAG_MAIN);
   const std::string lit_vert = join(BB_GLSL_LIT_VERT, BB_GLSL_TEX_VERT,
                                     BB_GLSL_LIT_VERT_MAIN);
-  const std::string lit_frag = join(BB_GLSL_LIT_FRAG, BB_GLSL_TEX_FRAG,
+  const std::string lit_frag = join(BB_GLSL_LIT_FRAG,
+                                    (std::string(BB_GLSL_TEX_FRAG) + BB_GLSL_FOG_FRAG).c_str(),
                                     BB_GLSL_LIT_FRAG_MAIN);
 
   bb_shader_unlit_    = bb_shader_compile_(BB_GLSL_UNLIT_VERT, BB_GLSL_UNLIT_FRAG);

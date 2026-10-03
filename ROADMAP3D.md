@@ -1002,9 +1002,9 @@ Am Original gemessen (2026-09-17, `build/sprite20260917/`, 25 Faelle) und nach
 ### 3D-17 · Kamera: Fog & Picking
 *Dateien: `bb_camera.h`, `bb_collision.h`*
 
-- [ ] `bb_CameraFogMode(cam, mode)` — 0=Off, 1=Linear, 2=Exponential
-- [ ] `bb_CameraFogRange(cam, near, far)`, `bb_CameraFogColor(cam, r, g, b)`
-      → als GLSL-Uniform an `lit`-Shader übergeben
+- [x] `bb_CameraFogMode(cam, mode)` — 0=Off, 1=Linear; das Original kennt nur diese beiden (gxScene), 2 zeichnet ohne Nebel (BUG-191)
+- [x] `bb_CameraFogRange(cam, near, far)`, `bb_CameraFogColor(cam, r, g, b)`
+      → als GLSL-Uniform an TEXTURED und LIT (Baustein `BB_GLSL_FOG_FRAG`)
 - [ ] `bb_CameraProject(cam, x, y, z)` → projiziert 3D auf 2D-Screen-Koordinaten
 - [ ] `bb_ProjectedX/Y/Z()` — letzte Projektion
 - [ ] `bb_CameraPick(cam, sx, sy)` → Strahl durch das Frustum, dann traceRay

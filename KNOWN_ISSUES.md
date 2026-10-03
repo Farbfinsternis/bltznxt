@@ -45,6 +45,12 @@ These are not bugs but decisions, and they will stay:
   Where BlitzNext lights a model correctly and Blitz3D did not, BlitzNext stays correct. One
   example: an object scaled unevenly with `ScaleEntity` (say `1.5,0.5,1`) is shaded
   differently, because Direct3D 7 stretched its normals along with the object. (BUG-177)
+- **Camera fog fades blended objects out instead of tinting them.** With `CameraFogMode 1`,
+  an object drawn with `EntityBlend 3` (add) fades towards black and one with `EntityBlend 2`
+  (multiply) towards white, so both vanish in the fog. Blitz3D mixes them towards the fog
+  colour, which makes a distant fire sprite glow in the fog colour. Fog is also computed per
+  pixel, and a camera with `CameraProjMode 2` (orthographic) gets fog by real distance, where
+  Blitz3D showed practically none. (BUG-191)
 - **`MoveMouse` leaves the real pointer alone while the window has no input focus.** In
   windowed mode Blitz3D keeps running in the background and moves the pointer anyway, so a
   game that recentres the mouse every frame traps the pointer of the whole desktop as soon as
@@ -134,7 +140,7 @@ counted as bugs and are not planned to be fixed:
 
 ## Missing commands
 
-91 of Blitz3D's commands (not counting language keywords) are not available yet. A
+88 of Blitz3D's commands (not counting language keywords) are not available yet. A
 program that uses one of them is rejected with `unknown function or command`. `blitzcc -k` lists
 everything that is available.
 
@@ -143,7 +149,6 @@ everything that is available.
 | Networking | the DirectPlay commands (`StartNetGame`, `HostNetGame`, `JoinNetGame`, `SendNetMsg`, …); TCP and UDP streams and `CopyStream` are available |
 | Picking and projection | `CameraPick`, `CameraProject`, `ProjectedX/Y/Z`, `EntityInView` |
 | Terrain, BSP | `CreateTerrain`, `LoadTerrain`, `ModifyTerrain`, `TerrainHeight`, …, `LoadBSP`, `BSPAmbientLight`, `BSPLighting` |
-| Camera fog | `CameraFogMode`, `CameraFogRange`, `CameraFogColor` |
 | 3D maths | `VectorYaw`, `VectorPitch`, `DeltaYaw`, `DeltaPitch`, `GetMatElement`, `TFormFilter` |
 | Movies | `OpenMovie`, `DrawMovie`, `CloseMovie`, `MovieWidth`, `MovieHeight`, `MoviePlaying` |
 | Other | `RectsOverlap`, `ResizeImage`, `TFormImage`, `VWait`, `ScanLine`, `GraphicsBuffer`, `BufferDirty`, `Stop`, `MouseWait`, `JoyWait`, the gamma commands, `MeshCullBox`, `Stats3D`, `RuntimeStats`, a few graphics-driver queries and joystick axis variants |
