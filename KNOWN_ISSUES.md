@@ -12,7 +12,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-09-28 — 17 open bugs.*
+*Last updated: 2026-10-03 — 16 open bugs, 78 missing commands.*
 
 If an old program breaks and the cause is not listed here, please open an issue with a
 minimal `.bb` file and a description of what happens in both.
@@ -24,7 +24,6 @@ minimal `.bb` file and a description of what happens in both.
 - [Missing commands](#missing-commands)
 - [Silently different results](#silently-different-results) — read this first
 - [Language and compiler](#language-and-compiler)
-- [Data, Read and Restore](#data-read-and-restore)
 - [Runtime library](#runtime-library)
 - [2D graphics](#2d-graphics)
 - [3D graphics](#3d-graphics)
@@ -140,18 +139,25 @@ counted as bugs and are not planned to be fixed:
 
 ## Missing commands
 
-88 of Blitz3D's commands (not counting language keywords) are not available yet. A
+78 of Blitz3D's commands (not counting language keywords) are not available yet. A
 program that uses one of them is rejected with `unknown function or command`. `blitzcc -k` lists
-everything that is available.
+everything that is available. The number comes from comparing `blitzcc +k` of Blitz3D 11.8
+with `blitzcc -k`.
 
-| Area | Missing |
-|------|---------|
-| Networking | the DirectPlay commands (`StartNetGame`, `HostNetGame`, `JoinNetGame`, `SendNetMsg`, …); TCP and UDP streams and `CopyStream` are available |
-| Picking and projection | `CameraPick`, `CameraProject`, `ProjectedX/Y/Z`, `EntityInView` |
-| Terrain, BSP | `CreateTerrain`, `LoadTerrain`, `ModifyTerrain`, `TerrainHeight`, …, `LoadBSP`, `BSPAmbientLight`, `BSPLighting` |
-| 3D maths | `VectorYaw`, `VectorPitch`, `DeltaYaw`, `DeltaPitch`, `GetMatElement`, `TFormFilter` |
-| Movies | `OpenMovie`, `DrawMovie`, `CloseMovie`, `MovieWidth`, `MovieHeight`, `MoviePlaying` |
-| Other | `RectsOverlap`, `ResizeImage`, `TFormImage`, `VWait`, `ScanLine`, `GraphicsBuffer`, `BufferDirty`, `Stop`, `MouseWait`, `JoyWait`, the gamma commands, `MeshCullBox`, `Stats3D`, `RuntimeStats`, a few graphics-driver queries and joystick axis variants |
+This is the most common reason for an old program not to run at all: of the 156 source
+files in the samples, games and tutorials that ship with Blitz3D, 36 use at least one missing
+command (measured 2026-10-03). The groups below are ordered by how often they appear there.
+
+| Area | Missing | Example files using it |
+|------|---------|---|
+| Terrain, BSP | `CreateTerrain`, `LoadTerrain`, `ModifyTerrain`, `TerrainHeight`, `TerrainDetail`, `TerrainShading`, …, `LoadBSP`, `BSPAmbientLight`, `BSPLighting` | 10 |
+| 3D graphics modes | `GfxMode3D`, `GfxMode3DExists`, `GfxDriver3D`, `GfxDriverCaps3D` | 10 |
+| Picking and projection | `CameraPick`, `CameraProject`, `ProjectedX/Y/Z`, `EntityInView` | 9 |
+| Joystick | `JoyXDir`, `JoyYDir`, `JoyZDir`, `JoyUDir`, `JoyVDir`, `JoyPitch`, `JoyYaw`, `JoyRoll`, `JoyWait` | 5 |
+| Other | `VWait`, `ResizeImage`, `MouseWait`, `RectsOverlap`, `ScanLine`, `TFormImage`, `GraphicsBuffer`, `GraphicsLost`, `BufferDirty`, `Stop`, `EnableDirectInput`, `DirectInputEnabled`, `MeshCullBox`, `Stats3D`, `RuntimeStats` | 1–4 each |
+| 3D maths | `VectorYaw`, `VectorPitch`, `DeltaYaw`, `DeltaPitch`, `GetMatElement`, `TFormFilter` | none in the samples, but common in games (turning towards a target) |
+| Networking | the DirectPlay commands (`StartNetGame`, `HostNetGame`, `JoinNetGame`, `SendNetMsg`, …); TCP and UDP streams and `CopyStream` are available | none |
+| Movies, gamma | `OpenMovie`, `DrawMovie`, `CloseMovie`, `MovieWidth`, `MovieHeight`, `MoviePlaying`; `SetGamma`, `UpdateGamma`, `GammaRed/Green/Blue` | none |
 
 ---
 
@@ -198,14 +204,9 @@ are the most likely reason for an old program to behave strangely.
   Blitz3D accepts it — and drops the last character. (WEAK-12)
 - **Some errors are reported by the C++ compiler** instead of with a Blitz-style message,
   pointing into generated code. Every such case listed on this page is a bug. (WEAK-14)
-
----
-
-
-## Data, Read and Restore
-
-- **`Restore` inside a function** cannot reach a label in the main program; it is rejected
-  as an undefined label. (BUG-87)
+  One that only invalid programs hit: an array with the same name as a constant
+  (`Const SIZE = 4 : Dim size(3)`) — Blitz3D reports `Duplicate identifier`, here the C++
+  compiler fails. Names in Blitz are not case-sensitive. (BUG-183)
 
 ---
 
@@ -253,6 +254,12 @@ The 3D layer is under active development — see [ROADMAP3D.md](ROADMAP3D.md). B
 
 - **Windows only.** `build_linux.sh` exists, but the compiler currently depends on the
   Windows API and the bundled MinGW toolchain; a Linux build does not work. (WEAK-24)
+- **Compiling takes 10 to 15 seconds per program**, even for a few lines, where Blitz3D took a
+  fraction of a second. Most of the time goes into the runtime, which is compiled again with
+  every program. (WEAK-29)
+- **`-o name.exe` produces `name.exe.exe`.** `blitzcc` always appends `.exe`. Give the name
+  without the extension (`-o name`); otherwise you may keep starting an older executable
+  without noticing. (BUG-194)
 - **In the Blitz3D IDE there is no debugger.** BLTZNXT runs from the original IDE (README,
   "Using the Blitz3D IDE"), but the IDE's debug switch is ignored: programs always run with
   BLTZNXT's runtime checks and stop with a message, without stepping or a variable view.

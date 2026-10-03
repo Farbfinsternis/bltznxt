@@ -52,13 +52,13 @@ an old program is a bug.
 
 ## Compatibility Progress
 
-| Area | State (2026-09-19) |
+| Area | State (2026-10-03) |
 |------|--------------------|
 | **Language** | All constructs |
-| **Built-in commands** | 463 entries in `src/compiler/commands.h`, including extensions; this counts signatures, not verified behaviour |
+| **Built-in commands** | 482 entries in `src/compiler/commands.h`, including extensions; this counts signatures, not verified behaviour. 78 commands of Blitz3D are still missing |
 | **2D milestones** | Milestones 6–46 complete ([roadmap.md](roadmap.md)) |
-| **3D runtime** | Meshes, surfaces, brushes, sprites, mirrors, MD2 models, collisions and line/entity picking available; remaining work in [ROADMAP3D.md](ROADMAP3D.md) |
-| **Known deviations** | 18 open bugs that can break an old program, all reproduced against Blitz3D 11.8; accepted differences listed separately ([KNOWN_ISSUES.md](KNOWN_ISSUES.md)) |
+| **3D runtime** | Meshes, surfaces, brushes, sprites, mirrors, MD2 models, collisions, line/entity picking and camera fog available; remaining work in [ROADMAP3D.md](ROADMAP3D.md) |
+| **Known deviations** | 16 open bugs that can break an old program, all reproduced against Blitz3D 11.8, plus the 78 missing commands; accepted differences listed separately ([KNOWN_ISSUES.md](KNOWN_ISSUES.md)) |
 | **Primary integration test** | blox-n-balls: all 26 source files unchanged; loads, menus work, levels can be played; complete gameplay not yet verified |
 
 Compatibility is measured, not estimated: questions about the language are answered from the
@@ -67,11 +67,13 @@ running Blitz3D 11.8 — to find out what a command does, not to reproduce every
 the 2026-09-15/16 baseline, 67 of 156 example sources were accepted
 and all 67 built; of the 70 accepted only by Blitz3D, 58 failed solely on missing commands.
 That corpus has not been fully remeasured after the latest additions; these are historical
-baseline figures, not current coverage percentages.
+baseline figures, not current coverage percentages. A partial check on 2026-10-03 counted
+how many of the 156 sources still use a missing command: 36, mostly terrain, the 3D
+graphics-mode queries and camera picking.
 
 **Language.** Every construct is implemented, but several still
-differ from Blitz3D in detail — most importantly untagged `Const` values, the scope of `Local`
-inside blocks, and `Include` on a line with other statements. See
+differ from Blitz3D in detail — most importantly the scope of `Local` inside blocks, numbers
+with a leading zero (read as octal), and `Include` on a line with other statements. See
 [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 
 **Runtime.** Math, strings, files, banks, input, audio and 2D graphics are available. A few
@@ -81,7 +83,7 @@ compatibility fixes. In 3D, entities, cameras, lights, textures, brushes, primit
 `.x`/`.3ds`/`.b3d` loading with hierarchies, keyframe and skeletal animation, glTF
 (`.gltf`/`.glb`, e.g. from Blender, with skinning, animations and morph targets), the surface API,
 sprites, mirrors, planes, MD2 models, collisions, line/entity picking and 3D sound are available.
-Camera picking/projection, render tweening, terrain and fog remain missing.
+Camera fog is available; camera picking/projection, render tweening and terrain remain missing.
 TCP and UDP streams and hostname lookup are available; DirectPlay remains missing.
 
 **Blitz2D compatibility** is a practical secondary target. The 2D runtime is available, with
@@ -402,8 +404,8 @@ src/compiler/
   bb_image.h        ← image loading, drawing, manipulation, pixel buffer (M44–M46b)
   bb_gl_ctx.h       ← OpenGL 3.3 Core loader (60 fn pointers via SDL_GL_GetProcAddress)
   bb_entity_core.h  ← entity handle system, scene graph, transforms, hierarchy (3D-03–05)
-  bb_camera.h       ← camera entity, view/projection matrices (3D-06)
-  bb_shader.h       ← three built-in GLSL 3.3 shaders (unlit, textured, lit) (3D-07)
+  bb_camera.h       ← camera entity, view/projection matrices, fog (3D-06)
+  bb_shader.h       ← three built-in GLSL 3.3 shaders (unlit, textured, lit), shared texture and fog blocks (3D-07)
   bb_mesh_core.h    ← VAO/VBO/EBO upload + draw, interleaved vertex format (3D-08)
   bb_mesh.h         ← mesh entity, primitive generators, RenderWorld pass (3D-09)
   bb_graphics3d.h   ← Graphics3D, UpdateWorld, RenderWorld, scene globals (3D-01–09)
@@ -451,7 +453,7 @@ Where the 3D engine is heading — one modern material model, per-pixel lighting
 | 3D-07 – 3D-12 | Shaders, geometry buffers, primitives, appearance, textures, lighting | ✓ Done |
 | 3D-13, 3D-15 | `.x`/`.3ds` mesh loading, brushes and surfaces available; remaining loader work in the roadmap | Partial / implemented subsets |
 | 3D-16 | Sprites, mirrors and planes | Implemented, reference-tested |
-| 3D-17 | Line/entity picking available; camera picking, projection and fog missing | Partial |
+| 3D-17 | Line/entity picking and camera fog available; camera picking and projection missing | Partial |
 | 3D-18 | Collision methods, responses and result queries | Implemented, reference-tested |
 | 3D-19 | Keyframe and skeletal animation, `.x`/`.3ds` hierarchies, `.b3d`; tweening missing | Implemented, reference-tested |
 | 3D-24 | glTF (`.gltf`/`.glb`): nodes, meshes, materials as brushes, lightmaps on UV set 1, skinning, animations, morph targets | Implemented |
