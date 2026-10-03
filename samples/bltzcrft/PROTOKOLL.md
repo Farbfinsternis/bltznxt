@@ -19,7 +19,7 @@ dort wird er weitergeführt, hier bleibt der Befund aus Sicht des Spiels.
 | 5 | Leistung | Mehrdimensionale `Dim`-Felder sind verschachtelte `std::vector` mit `.at()` je Dimension | mittel | WEAK-26 (Ursprung WEAK-07) |
 | 6 | Erweiterung | Chunks und Objekte ploppen auf, statt weich zu erscheinen – Prototyp „Einblenden per Raster“ | mittel | WEAK-28 |
 | 7 | Fehler | Flag 4 (maskiert) prüft die Farbe statt des Alphakanals – selbst gemalte Texturen bekommen keine Löcher | mittel – **behoben** | BUG-192 ✅ |
-| 8 | Meldung | Konstante und Feld gleichen Namens: C++-Fehler statt `Duplicate identifier` | niedrig | BUG-193 ⊘ |
+| 8 | Meldung | Konstante und Feld gleichen Namens: C++-Fehler statt `Duplicate identifier` | niedrig | BUG-183 ⊘ (zweiter Treffer) |
 
 ---
 
@@ -252,7 +252,7 @@ BLTZNXT bricht erst im C++-Compiler ab (`assignment of read-only variable`), ohn
 auf die Zeile im Blitz-Quelltext.
 
 **Umweg im Spiel:** Konstante umbenannt (`SYMBOL_GROESSE`). Ungültiges Programm, nur die
-Meldung fehlt – nach dem Kompatibilitätsziel außerhalb (BUG-193 ⊘).
+Meldung fehlt – nach dem Kompatibilitätsziel außerhalb. Derselbe Fall traf schon Friendly Fire (BUG-183 ⊘).
 
 ---
 
