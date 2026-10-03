@@ -25,25 +25,45 @@ Global sp_ax#, sp_ay#, sp_az#          ; Stand beim vorigen Takt
 Global sp_vx#, sp_vy#, sp_vz#
 Global sp_gier#, sp_neig#
 Global sp_boden, sp_wasser, sp_kopf_nass, sp_fliegen, sp_wand
-Global sp_kamera, sp_nass_schleier
+Global sp_kamera, sp_nass, sp_nebel_fern#
 
 ; Ergebnis des Blickstrahls
 Global ziel_treffer, ziel_x, ziel_y, ziel_z, ziel_vx, ziel_vy, ziel_vz
 
 Function Spieler_Neu(x#, y#, z#)
 	sp_kamera = CreateCamera()
-	CameraRange sp_kamera, 0.05, (SICHT + 1) * CH * 1.25
-	CameraClsColor sp_kamera, 150, 196, 255
-	; blauer Schleier vor der Linse, wenn der Kopf unter Wasser ist
-	sp_nass_schleier = CreateSprite(sp_kamera)
-	PositionEntity sp_nass_schleier, 0, 0, 0.1
-	ScaleSprite sp_nass_schleier, 0.4, 0.4
-	EntityColor sp_nass_schleier, 30, 70, 170
-	EntityAlpha sp_nass_schleier, 0.55
-	EntityFX sp_nass_schleier, 1
-	EntityOrder sp_nass_schleier, -10
-	HideEntity sp_nass_schleier
+	CameraFogMode sp_kamera, 1
+	Spieler_Sicht()
 	Spieler_Setzen(x, y, z)
+End Function
+
+; Nebel und Sichtweite. Gebaut ist ein Quadrat von SICHT Chunks um den
+; Spieler, seine naechste Kante liegt also SICHT * CH entfernt. Der Nebel
+; zaehlt wie in Blitz3D die Tiefe entlang der Blickachse: in der Bildecke
+; (rund 50 Grad neben der Achse) liegt dieselbe Kante nur etwa 0,63-mal so
+; tief. Bis dahin muss der Nebel dicht sein, sonst sieht man sie.
+; Hinter dem Nebel ist alles Himmel - dort darf die Kamera aufhoeren.
+Function Spieler_Sicht()
+	sp_nebel_fern = SICHT * CH * 0.62
+	CameraRange sp_kamera, 0.05, sp_nebel_fern + 1
+	sp_nass = -1
+	Spieler_Nebel(False)
+End Function
+
+; Ueber Wasser: Dunst in Himmelsfarbe ab der halben Sichtweite.
+; Unter Wasser: dunkles Blau, nach wenigen Metern undurchsichtig.
+Function Spieler_Nebel(nass)
+	If nass = sp_nass Then Return
+	sp_nass = nass
+	If nass
+		CameraClsColor sp_kamera, 20, 45, 110
+		CameraFogColor sp_kamera, 20, 45, 110
+		CameraFogRange sp_kamera, 2, 24
+	Else
+		CameraClsColor sp_kamera, 150, 196, 255
+		CameraFogColor sp_kamera, 150, 196, 255
+		CameraFogRange sp_kamera, sp_nebel_fern * 0.6, sp_nebel_fern
+	EndIf
 End Function
 
 Function Spieler_Setzen(x#, y#, z#)
@@ -181,14 +201,7 @@ Function Spieler_Kamera(anteil#)
 	z# = sp_az + (sp_z - sp_az) * anteil
 	PositionEntity sp_kamera, x, y + SP_AUGE, z
 	RotateEntity sp_kamera, sp_neig, sp_gier, 0
-	nass = (Welt_Block(Floor(x), Floor(y + SP_AUGE), Floor(z)) = B_WASSER)
-	If nass
-		ShowEntity sp_nass_schleier
-		CameraClsColor sp_kamera, 30, 60, 140
-	Else
-		HideEntity sp_nass_schleier
-		CameraClsColor sp_kamera, 150, 196, 255
-	EndIf
+	Spieler_Nebel(Welt_Block(Floor(x), Floor(y + SP_AUGE), Floor(z)) = B_WASSER)
 End Function
 
 ; Blickstrahl durch das Blockgitter (Amanatides & Woo). Setzt ziel_* auf den

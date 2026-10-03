@@ -112,7 +112,6 @@ End Function
 ; ---- Flug ----------------------------------------------------------------
 
 Spieler_Neu(rp_x(0), 100, rp_z(0))
-CameraRange sp_kamera, 0.1, (SICHT + 1) * CH * 1.25
 cy# = -1 : cg# = 0 : cn# = 0
 
 For b = 0 To bilder - 1

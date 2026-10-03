@@ -4,7 +4,7 @@
 ;   foto.exe saat x z gier neig [hoehe ueber Boden | absolute y wenn > 200-]
 ;   schreibt foto.bmp und gibt die Zeiten aus.
 
-Const SICHT = 8
+Const SICHT = 12
 Include "../rauschen.bb"
 Include "../bloecke.bb"
 Include "../welt.bb"

@@ -14,7 +14,7 @@ dort wird er weitergeführt, hier bleibt der Befund aus Sicht des Spiels.
 |---|-----|-------|---------|----------|
 | 1 | Leistung | `blitzcc` übersetzt ohne Optimierung (`-O0`), kein Schalter dafür | hoch – **behoben** (`54392bc`) | BUG-189 ✅ |
 | 2 | Leistung | Nach jeder Geometrieänderung rechnet `RenderWorld` die Hüllquader **aller** Meshes neu | mittel – **behoben** (`2c4beca`) | BUG-190 ✅ |
-| 3 | fehlender Befehl | `CameraFogMode` / `CameraFogRange` / `CameraFogColor` fehlen | mittel | BUG-191 |
+| 3 | fehlender Befehl | `CameraFogMode` / `CameraFogRange` / `CameraFogColor` fehlen | mittel – **behoben** | BUG-191 ✅ |
 | 4 | Einschränkung | Texturen immer linear gefiltert, kein Punktfilter für Pixelkunst | niedrig | WEAK-27 |
 | 5 | Leistung | Mehrdimensionale `Dim`-Felder sind verschachtelte `std::vector` mit `.at()` je Dimension | mittel | WEAK-26 (Ursprung WEAK-07) |
 | 6 | Erweiterung | Chunks und Objekte ploppen auf, statt weich zu erscheinen – Prototyp „Einblenden per Raster“ | mittel | WEAK-28 |
@@ -118,6 +118,21 @@ ein blauer, halbdurchsichtiger Sprite vor der Kamera.
 
 **Vorschlag:** Nebel im Shader (linear, wie Blitz3D `CameraFogMode 1`) – für fast jedes
 3D-Spiel mit offener Welt nötig.
+
+**Behoben (2026-10-03):** Die drei Befehle sind da, linear und je Bildpunkt, am Original
+gemessen und mit `gxscene.cpp` abgeglichen (Einzelheiten in BUG-191). Bewusst anders:
+additiv und multiplikativ gemischte Flächen verblassen im Nebel, statt in seiner Farbe zu
+leuchten.
+
+**Im Spiel (2026-10-03):** Dunst in Himmelsfarbe statt harter Kante, unter Wasser dunkles
+Blau (2–24 m) statt des Sprites vor der Kamera (`Spieler_Nebel`). Neue Eigenheit: Der Nebel
+zählt wie in Blitz3D die Tiefe entlang der Blickachse, nicht den Abstand. In der Bildecke
+liegt die Kante der gebauten Chunks dadurch nur etwa 0,62-mal so tief wie geradeaus, und
+der Nebel muss dort schon dicht sein. Bei Sichtweite 8 (Kante bei 128 m) wäre er das bei
+79 m, die halbe Welt läge im Nebel. Deshalb jetzt Sichtweite 12: Nebel von 71 bis 119 m.
+Rundflug: Mittel 1,73 ms statt 1,46 ms, kein Ruckler außer dem ersten Bild. Ein Nebel nach
+dem echten Abstand (kugelförmig, wie im heutigen Minecraft) bräuchte weniger Sichtweite für
+dasselbe Bild – ein Kandidat für eine NEXT-Erweiterung.
 
 ---
 

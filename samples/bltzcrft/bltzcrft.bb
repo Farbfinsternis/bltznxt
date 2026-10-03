@@ -21,7 +21,7 @@
 ; Protokoll der Stellen, an denen BLTZNXT die Arbeit erschwert hat:
 ; PROTOKOLL.md in diesem Ordner.
 
-Const SICHT = 8             ; Sichtweite in Chunks
+Const SICHT = 12            ; Sichtweite in Chunks
 Const MAUS_EMPF# = 0.15     ; Grad je Pixel
 Const BAU_ZEIT = 7          ; Millisekunden je Bild fuer Erzeugen und Bauen
 
