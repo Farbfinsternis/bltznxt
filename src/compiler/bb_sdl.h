@@ -197,27 +197,59 @@ inline int bb_sdl_btn_to_blitz_(Uint8 b) {
 // ---- Joystick state (read by bb_input.h) ----
 //
 // Up to BB_JOY_MAX_PORTS devices, assigned in connection order.
-// Axes 0-4 → X,Y,Z,U,V (Sint16 normalized to -1.0..1.0).
-// Hat 0 converted to Blitz3D direction (0=center, 1=up, 2=up-right, ...).
+// Achsen und Hat werden wie im Original bei jeder Abfrage frisch gelesen
+// (bb_joy_axis_ in bb_input.h); hier stehen nur die Knoepfe, weil Treffer
+// und Warteschlange Ereignisse brauchen.
 // Buttons are 1-based in the Blitz3D API; stored 0-based internally.
 
 inline constexpr int BB_JOY_MAX_PORTS    = 4;
 inline constexpr int BB_JOY_MAX_BUTTONS  = 32;
-inline constexpr int BB_JOY_BTN_QUEUE_CAP = 8;
+inline constexpr int BB_JOY_BTN_QUEUE_CAP = 32;   // QUE_SIZE in gxdevice.h
 
 struct bb_JoyPort_ {
   SDL_Joystick*  handle     = nullptr;
+  SDL_Gamepad*   pad        = nullptr;   // gesetzt, wenn SDL das Geraet als Gamepad kennt
   SDL_JoystickID id         = 0;
-  bool           is_gamepad = false;
-  float          x = 0, y = 0, z = 0, u = 0, v = 0;
-  int            hat        = 0;
   bool           btn_down[BB_JOY_MAX_BUTTONS] = {};
-  bool           btn_hit[BB_JOY_MAX_BUTTONS]  = {};
+  int            btn_hit[BB_JOY_MAX_BUTTONS]  = {};   // Anzahl wie hit_count
   int            btn_queue[BB_JOY_BTN_QUEUE_CAP] = {};
   int            btn_q_head = 0, btn_q_tail = 0;
 };
 
 inline bb_JoyPort_ bb_joy_[BB_JOY_MAX_PORTS] = {};
+
+// Gamepad-Knoepfe in der Reihenfolge, in der DirectInput einen
+// Xbox-Controller meldet (Knopf 1 = A ... 10 = rechter Stick). Das
+// Steuerkreuz ist dort kein Knopf, sondern der Hat; Guide fehlt.
+inline int bb_pad_button_to_blitz_(int b) {
+  switch (b) {
+    case SDL_GAMEPAD_BUTTON_SOUTH:          return 0;
+    case SDL_GAMEPAD_BUTTON_EAST:           return 1;
+    case SDL_GAMEPAD_BUTTON_WEST:           return 2;
+    case SDL_GAMEPAD_BUTTON_NORTH:          return 3;
+    case SDL_GAMEPAD_BUTTON_LEFT_SHOULDER:  return 4;
+    case SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER: return 5;
+    case SDL_GAMEPAD_BUTTON_BACK:           return 6;
+    case SDL_GAMEPAD_BUTTON_START:          return 7;
+    case SDL_GAMEPAD_BUTTON_LEFT_STICK:     return 8;
+    case SDL_GAMEPAD_BUTTON_RIGHT_STICK:    return 9;
+    default:                                return -1;
+  }
+}
+
+// gxDevice::downEvent: Zustand, Trefferzahl, Warteschlange.
+inline void bb_joy_button_(int p, int b, bool down) {
+  if (p < 0 || b < 0 || b >= BB_JOY_MAX_BUTTONS) return;
+  bb_JoyPort_ &jp = bb_joy_[p];
+  jp.btn_down[b] = down;
+  if (!down) return;
+  ++jp.btn_hit[b];
+  int next = (jp.btn_q_tail + 1) % BB_JOY_BTN_QUEUE_CAP;
+  if (next != jp.btn_q_head) {
+    jp.btn_queue[jp.btn_q_tail] = b + 1; // 1-based
+    jp.btn_q_tail = next;
+  }
+}
 
 // Find the port index for a given SDL joystick instance ID (-1 = not found).
 inline int bb_joy_find_port_(SDL_JoystickID id) {
@@ -226,18 +258,19 @@ inline int bb_joy_find_port_(SDL_JoystickID id) {
   return -1;
 }
 
-// Convert SDL hat bitmask → Blitz3D direction (0=center, 1=up … 8=up-left).
+// SDL-Hat-Bitmaske → JoyHat des Originals: der DirectInput-POV in Grad
+// (0 = oben, 45, 90 = rechts ... 315), Mittelstellung -1 (gxinput.cpp).
 inline int bb_sdl_hat_to_blitz_(Uint8 v) {
   switch (v) {
-    case SDL_HAT_UP:        return 1;
-    case SDL_HAT_RIGHTUP:   return 2;
-    case SDL_HAT_RIGHT:     return 3;
-    case SDL_HAT_RIGHTDOWN: return 4;
-    case SDL_HAT_DOWN:      return 5;
-    case SDL_HAT_LEFTDOWN:  return 6;
-    case SDL_HAT_LEFT:      return 7;
-    case SDL_HAT_LEFTUP:    return 8;
-    default:                return 0;
+    case SDL_HAT_UP:        return 0;
+    case SDL_HAT_RIGHTUP:   return 45;
+    case SDL_HAT_RIGHT:     return 90;
+    case SDL_HAT_RIGHTDOWN: return 135;
+    case SDL_HAT_DOWN:      return 180;
+    case SDL_HAT_LEFTDOWN:  return 225;
+    case SDL_HAT_LEFT:      return 270;
+    case SDL_HAT_LEFTUP:    return 315;
+    default:                return -1;
   }
 }
 
@@ -277,10 +310,9 @@ inline void bb_sdl_quit_() {
   if (bb_texture_quit_hook_){ bb_texture_quit_hook_(); bb_texture_quit_hook_= nullptr; }
   if (bb_shader_quit_hook_) { bb_shader_quit_hook_(); bb_shader_quit_hook_ = nullptr; }
   for (int i = 0; i < BB_JOY_MAX_PORTS; ++i) {
-    if (bb_joy_[i].handle) {
-      SDL_CloseJoystick(bb_joy_[i].handle);
-      bb_joy_[i] = bb_JoyPort_();
-    }
+    if (bb_joy_[i].pad) SDL_CloseGamepad(bb_joy_[i].pad);
+    if (bb_joy_[i].handle) SDL_CloseJoystick(bb_joy_[i].handle);
+    bb_joy_[i] = bb_JoyPort_();
   }
   if (bb_renderer_) { SDL_DestroyRenderer(bb_renderer_); bb_renderer_ = nullptr; }
   if (bb_gl_quit_hook_)    { bb_gl_quit_hook_();    bb_gl_quit_hook_    = nullptr; }
@@ -367,6 +399,10 @@ inline void bb_sdl_process_event_(const SDL_Event &ev) {
     bb_mouse_zrel_ += dy;
   }
   // ---- Joystick events ----
+  // Achsen und Hat liest bb_joy_axis_ (bb_input.h) bei jeder Abfrage; hier
+  // nur Anmelden, Abmelden und Knoepfe. Ein Gamepad liefert seine Knoepfe
+  // ueber die Gamepad-Ereignisse in DirectInput-Reihenfolge, seine rohen
+  // Joystick-Knoepfe werden dann uebergangen.
   if (ev.type == SDL_EVENT_JOYSTICK_ADDED) {
     SDL_JoystickID jid = ev.jdevice.which;
     if (bb_joy_find_port_(jid) < 0) {          // not already open
@@ -374,8 +410,8 @@ inline void bb_sdl_process_event_(const SDL_Event &ev) {
         if (!bb_joy_[i].handle) {
           bb_joy_[i].handle = SDL_OpenJoystick(jid);
           if (bb_joy_[i].handle) {
-            bb_joy_[i].id         = jid;
-            bb_joy_[i].is_gamepad = SDL_IsGamepad(jid);
+            bb_joy_[i].id  = jid;
+            bb_joy_[i].pad = SDL_IsGamepad(jid) ? SDL_OpenGamepad(jid) : nullptr;
           }
           break;
         }
@@ -385,47 +421,21 @@ inline void bb_sdl_process_event_(const SDL_Event &ev) {
   if (ev.type == SDL_EVENT_JOYSTICK_REMOVED) {
     int p = bb_joy_find_port_(ev.jdevice.which);
     if (p >= 0) {
+      if (bb_joy_[p].pad) SDL_CloseGamepad(bb_joy_[p].pad);
       SDL_CloseJoystick(bb_joy_[p].handle);
       bb_joy_[p] = bb_JoyPort_();
     }
   }
-  if (ev.type == SDL_EVENT_JOYSTICK_AXIS_MOTION) {
-    int p = bb_joy_find_port_(ev.jaxis.which);
-    if (p >= 0) {
-      float v = ev.jaxis.value / 32767.0f;
-      if (v < -1.0f) v = -1.0f;
-      switch (ev.jaxis.axis) {
-        case 0: bb_joy_[p].x = v; break;
-        case 1: bb_joy_[p].y = v; break;
-        case 2: bb_joy_[p].z = v; break;
-        case 3: bb_joy_[p].u = v; break;
-        case 4: bb_joy_[p].v = v; break;
-        default: break;
-      }
-    }
-  }
-  if (ev.type == SDL_EVENT_JOYSTICK_HAT_MOTION) {
-    int p = bb_joy_find_port_(ev.jhat.which);
-    if (p >= 0 && ev.jhat.hat == 0)
-      bb_joy_[p].hat = bb_sdl_hat_to_blitz_(ev.jhat.value);
-  }
-  if (ev.type == SDL_EVENT_JOYSTICK_BUTTON_DOWN) {
+  if (ev.type == SDL_EVENT_JOYSTICK_BUTTON_DOWN || ev.type == SDL_EVENT_JOYSTICK_BUTTON_UP) {
     int p = bb_joy_find_port_(ev.jbutton.which);
-    if (p >= 0 && ev.jbutton.button < BB_JOY_MAX_BUTTONS) {
-      int b = ev.jbutton.button;
-      bb_joy_[p].btn_down[b] = true;
-      bb_joy_[p].btn_hit[b]  = true;
-      int next = (bb_joy_[p].btn_q_tail + 1) % BB_JOY_BTN_QUEUE_CAP;
-      if (next != bb_joy_[p].btn_q_head) {
-        bb_joy_[p].btn_queue[bb_joy_[p].btn_q_tail] = b + 1; // 1-based
-        bb_joy_[p].btn_q_tail = next;
-      }
-    }
+    if (p >= 0 && !bb_joy_[p].pad)
+      bb_joy_button_(p, ev.jbutton.button, ev.type == SDL_EVENT_JOYSTICK_BUTTON_DOWN);
   }
-  if (ev.type == SDL_EVENT_JOYSTICK_BUTTON_UP) {
-    int p = bb_joy_find_port_(ev.jbutton.which);
-    if (p >= 0 && ev.jbutton.button < BB_JOY_MAX_BUTTONS)
-      bb_joy_[p].btn_down[ev.jbutton.button] = false;
+  if (ev.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN || ev.type == SDL_EVENT_GAMEPAD_BUTTON_UP) {
+    int p = bb_joy_find_port_(ev.gbutton.which);
+    if (p >= 0 && bb_joy_[p].pad)
+      bb_joy_button_(p, bb_pad_button_to_blitz_(ev.gbutton.button),
+                     ev.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN);
   }
 }
 

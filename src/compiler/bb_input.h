@@ -339,107 +339,172 @@ inline void bb_ShowPointer() {
 
 // ---- Joystick API ----
 //
-// port: 0-based port index (0 = first joystick connected).
-// btn:  1-based button number.
+// Nach bbinput.cpp und gxinput.cpp des Originals (BUG-195). Ports 0-basiert,
+// Knoepfe 1-basiert. Ein Port ohne Geraet liefert ueberall 0.
+//
+// Achsen liest das Original bei jeder Abfrage per DirectInput in
+// axis_states[0..8]: X, Y, Z, Schieber 0 (U), Schieber 1 (V), Rx (Pitch),
+// Ry (Yaw), Rz (Roll), POV (Hat in Grad, Mitte -1). Jeder Wert ist
+// (roh - min) / Bereich * 2 - 1; eine Achse, die das Geraet nicht hat,
+// steht auf 0 im Bereich 0..65535 und meldet damit -1 (am Original mit
+// einem Xbox-360-Pad gemessen: U = V = -1, Roll = -180, 2026-10-04).
+//
+// Einen Xbox-Controller meldet DirectInput so: linker Stick X/Y, beide
+// Trigger zusammen auf Z, rechter Stick Rx/Ry. Ein Geraet, das SDL als
+// Gamepad kennt, wird ueber die Gamepad-Schnittstelle in genau diese
+// Belegung uebersetzt; jedes andere liefert seine Achsen in SDL-Reihenfolge,
+// die unter Windows der DirectInput-Reihenfolge X, Y, Z, Rx, Ry, Rz,
+// Schieber folgt.
 
-// Returns 0 = no device, 1 = joystick, 2 = gamepad.
+// DirectInput-Rohwert 0..65535 in -1..1 wie gxinput.cpp.
+static inline float bb_joy_norm_(int raw) {
+  if (raw < 0) raw = 0;
+  if (raw > 65535) raw = 65535;
+  return raw / 65535.0f * 2 - 1;
+}
+
+static inline bb_JoyPort_* bb_joy_dev_(int port) {
+  if (bb_sdl_initialized_) bb_PollEvents();
+  if (port < 0 || port >= BB_JOY_MAX_PORTS || !bb_joy_[port].handle) return nullptr;
+  return &bb_joy_[port];
+}
+
+// axis_states[k] des Originals fuer ein angeschlossenes Geraet.
+static inline float bb_joy_axis_(const bb_JoyPort_& j, int k) {
+  if (j.pad) {
+    SDL_Gamepad* g = j.pad;
+    // Sticks: Ruhe 0 wird zur DirectInput-Mitte 32767 (-1.5e-5 wie gemessen).
+    auto stick = [&](SDL_GamepadAxis a) {
+      return bb_joy_norm_(SDL_GetGamepadAxis(g, a) + 32767);
+    };
+    switch (k) {
+      case 0: return stick(SDL_GAMEPAD_AXIS_LEFTX);
+      case 1: return stick(SDL_GAMEPAD_AXIS_LEFTY);
+      case 2: return bb_joy_norm_(32767 + SDL_GetGamepadAxis(g, SDL_GAMEPAD_AXIS_LEFT_TRIGGER)
+                                        - SDL_GetGamepadAxis(g, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER));
+      case 5: return stick(SDL_GAMEPAD_AXIS_RIGHTX);
+      case 6: return stick(SDL_GAMEPAD_AXIS_RIGHTY);
+      case 8: {
+        const bool u = SDL_GetGamepadButton(g, SDL_GAMEPAD_BUTTON_DPAD_UP);
+        const bool d = SDL_GetGamepadButton(g, SDL_GAMEPAD_BUTTON_DPAD_DOWN);
+        const bool l = SDL_GetGamepadButton(g, SDL_GAMEPAD_BUTTON_DPAD_LEFT);
+        const bool r = SDL_GetGamepadButton(g, SDL_GAMEPAD_BUTTON_DPAD_RIGHT);
+        return static_cast<float>(bb_sdl_hat_to_blitz_(static_cast<Uint8>(
+            (u ? SDL_HAT_UP : 0) | (d ? SDL_HAT_DOWN : 0) |
+            (l ? SDL_HAT_LEFT : 0) | (r ? SDL_HAT_RIGHT : 0))));
+      }
+      default: return -1.0f;   // Schieber und Rz hat ein Xbox-Pad nicht
+    }
+  }
+  if (k == 8)
+    return SDL_GetNumJoystickHats(j.handle) > 0
+        ? static_cast<float>(bb_sdl_hat_to_blitz_(SDL_GetJoystickHat(j.handle, 0)))
+        : -1.0f;
+  // SDL-Achse i -> axis_states-Platz: X, Y, Z, Rx, Ry, Rz, Schieber 0, 1.
+  static const int from_sdl[8] = { 0, 1, 2, 5, 6, 7, 3, 4 };
+  const int n = SDL_GetNumJoystickAxes(j.handle);
+  for (int i = 0; i < n && i < 8; ++i)
+    if (from_sdl[i] == k)
+      return bb_joy_norm_(SDL_GetJoystickAxis(j.handle, i) + 32768);
+  return -1.0f;
+}
+
+static inline float bb_joy_state_(int port, int k) {
+  const bb_JoyPort_* j = bb_joy_dev_(port);
+  return j ? bb_joy_axis_(*j, k) : 0.0f;
+}
+
+// 1 = Gamepad, 2 = anderer Joystick, wie DIDEVTYPEJOYSTICK_GAMEPAD im
+// Original (gemessen: Xbox-360-Pad = 1).
 inline int bb_JoyType(int port = 0) {
-  if (bb_sdl_initialized_) bb_PollEvents();
-  if (port < 0 || port >= BB_JOY_MAX_PORTS) return 0;
-  if (!bb_joy_[port].handle) return 0;
-  return bb_joy_[port].is_gamepad ? 2 : 1;
+  const bb_JoyPort_* j = bb_joy_dev_(port);
+  return j ? (j->pad ? 1 : 2) : 0;
 }
 
-// Axis values: -1.0 to 1.0.
-inline float bb_JoyX(int port = 0) {
-  if (bb_sdl_initialized_) bb_PollEvents();
-  if (port < 0 || port >= BB_JOY_MAX_PORTS) return 0.0f;
-  return bb_joy_[port].x;
-}
-inline float bb_JoyY(int port = 0) {
-  if (bb_sdl_initialized_) bb_PollEvents();
-  if (port < 0 || port >= BB_JOY_MAX_PORTS) return 0.0f;
-  return bb_joy_[port].y;
-}
-inline float bb_JoyZ(int port = 0) {
-  if (bb_sdl_initialized_) bb_PollEvents();
-  if (port < 0 || port >= BB_JOY_MAX_PORTS) return 0.0f;
-  return bb_joy_[port].z;
-}
-inline float bb_JoyU(int port = 0) {
-  if (bb_sdl_initialized_) bb_PollEvents();
-  if (port < 0 || port >= BB_JOY_MAX_PORTS) return 0.0f;
-  return bb_joy_[port].u;
-}
-inline float bb_JoyV(int port = 0) {
-  if (bb_sdl_initialized_) bb_PollEvents();
-  if (port < 0 || port >= BB_JOY_MAX_PORTS) return 0.0f;
-  return bb_joy_[port].v;
-}
+inline float bb_JoyX(int port = 0) { return bb_joy_state_(port, 0); }
+inline float bb_JoyY(int port = 0) { return bb_joy_state_(port, 1); }
+inline float bb_JoyZ(int port = 0) { return bb_joy_state_(port, 2); }
+inline float bb_JoyU(int port = 0) { return bb_joy_state_(port, 3); }
+inline float bb_JoyV(int port = 0) { return bb_joy_state_(port, 4); }
+inline float bb_JoyPitch(int port = 0) { return bb_joy_state_(port, 5) * 180; }
+inline float bb_JoyYaw(int port = 0)   { return bb_joy_state_(port, 6) * 180; }
+inline float bb_JoyRoll(int port = 0)  { return bb_joy_state_(port, 7) * 180; }
+inline int   bb_JoyHat(int port = 0)   { return static_cast<int>(bb_joy_state_(port, 8)); }
 
-// Hat direction: 0=center, 1=up, 2=up-right, 3=right, 4=down-right,
-//                5=down, 6=down-left, 7=left, 8=up-left.
-inline int bb_JoyHat(int port = 0) {
-  if (bb_sdl_initialized_) bb_PollEvents();
-  if (port < 0 || port >= BB_JOY_MAX_PORTS) return 0;
-  return bb_joy_[port].hat;
+// JoyXDir bis JoyVDir: -1, 0 oder 1 mit der Schwelle 1/3 (JLT/JHT).
+static inline int bb_joy_dir_(int port, int k) {
+  const bb_JoyPort_* j = bb_joy_dev_(port);
+  if (!j) return 0;
+  const float t = bb_joy_axis_(*j, k);
+  const float JLT = -1.0f / 3.0f, JHT = 1.0f / 3.0f;
+  return t < JLT ? -1 : (t > JHT ? 1 : 0);
 }
+inline int bb_JoyXDir(int port = 0) { return bb_joy_dir_(port, 0); }
+inline int bb_JoyYDir(int port = 0) { return bb_joy_dir_(port, 1); }
+inline int bb_JoyZDir(int port = 0) { return bb_joy_dir_(port, 2); }
+inline int bb_JoyUDir(int port = 0) { return bb_joy_dir_(port, 3); }
+inline int bb_JoyVDir(int port = 0) { return bb_joy_dir_(port, 4); }
 
-// Returns non-zero while button (1-based) is held.
 // Button zuerst, Port optional - im Original `JoyDown ( button[,port] )`.
 // Bei uns standen beide vertauscht (BUG-44).
 inline int bb_JoyDown(int btn, int port = 0) {
-  if (bb_sdl_initialized_) bb_PollEvents();
-  if (port < 0 || port >= BB_JOY_MAX_PORTS) return 0;
-  if (btn < 1 || btn > BB_JOY_MAX_BUTTONS) return 0;
-  return bb_joy_[port].btn_down[btn - 1] ? 1 : 0;
+  const bb_JoyPort_* j = bb_joy_dev_(port);
+  if (!j || btn < 1 || btn > BB_JOY_MAX_BUTTONS) return 0;
+  return j->btn_down[btn - 1] ? 1 : 0;
 }
 
-// Returns non-zero if button was pressed since the last JoyHit call.
-// Edge-triggered: flag is cleared after reading.
+// Anzahl der Druecke seit dem letzten Aufruf (gxDevice::keyHit).
 inline int bb_JoyHit(int btn, int port = 0) {
-  if (bb_sdl_initialized_) bb_PollEvents();
-  if (port < 0 || port >= BB_JOY_MAX_PORTS) return 0;
-  if (btn < 1 || btn > BB_JOY_MAX_BUTTONS) return 0;
-  bool hit = bb_joy_[port].btn_hit[btn - 1];
-  bb_joy_[port].btn_hit[btn - 1] = false;
-  return hit ? 1 : 0;
+  bb_JoyPort_* j = bb_joy_dev_(port);
+  if (!j || btn < 1 || btn > BB_JOY_MAX_BUTTONS) return 0;
+  const int n = j->btn_hit[btn - 1];
+  j->btn_hit[btn - 1] = 0;
+  return n;
 }
 
-// Blocks until any button on the port is pressed; returns button number (1-based).
-inline int bb_WaitJoy(int port = 0) {
-  if (port < 0 || port >= BB_JOY_MAX_PORTS) port = 0;
-  bb_sdl_ensure_();
-  if (!bb_sdl_initialized_) return 1;
-  bb_PollEvents();
-  bb_JoyPort_ &jp = bb_joy_[port];
-  while (jp.btn_q_head == jp.btn_q_tail) {
-    SDL_Event ev;
-    if (!SDL_WaitEvent(&ev)) break;
-    bb_sdl_process_event_(ev);
-  }
-  if (jp.btn_q_head == jp.btn_q_tail) return 1;
-  int btn = jp.btn_queue[jp.btn_q_head];
-  jp.btn_q_head = (jp.btn_q_head + 1) % BB_JOY_BTN_QUEUE_CAP;
+// Naechster Knopf aus der Warteschlange, sonst 0 - wartet nicht.
+inline int bb_GetJoy(int port = 0) {
+  bb_JoyPort_* j = bb_joy_dev_(port);
+  if (!j || j->btn_q_head == j->btn_q_tail) return 0;
+  const int btn = j->btn_queue[j->btn_q_head];
+  j->btn_q_head = (j->btn_q_head + 1) % BB_JOY_BTN_QUEUE_CAP;
   return btn;
 }
 
-// Alias (Blitz3D compat).
-inline int bb_GetJoy(int port = 0) { return bb_WaitJoy(port); }
+// Wartet auf einen Knopf; ein Port ohne Geraet liefert sofort 0.
+inline int bb_WaitJoy(int port = 0) {
+  bb_sdl_ensure_();
+  if (!bb_sdl_initialized_ || !bb_joy_dev_(port)) return 0;
+  for (;;) {
+    if (int btn = bb_GetJoy(port)) return btn;
+    if (!bb_joy_[port].handle) return 0;   // abgezogen
+    SDL_Delay(20);
+  }
+}
 
-// Clears all joystick state for the port (keeps handle/id/type intact).
+// MouseWait und JoyWait sind im Original dieselben Funktionen wie
+// WaitMouse und WaitJoy.
+inline int bb_MouseWait() { return bb_WaitMouse(); }
+inline int bb_JoyWait(int port = 0) { return bb_WaitJoy(port); }
+
+// DirectInput gibt es hier nicht; SDL liest Tastatur, Maus und Joystick
+// immer. Der Schalter wird nur gemerkt, damit ein Programm, das ihn setzt
+// und wieder abfragt, seinen Wert zurueckbekommt. Vorgabe aus wie
+// use_di(false) in gxruntime.cpp, am Original gemessen (2026-10-04).
+inline bool bb_direct_input_ = false;
+inline void bb_EnableDirectInput(int enable) { bb_direct_input_ = (enable != 0); }
+inline int  bb_DirectInputEnabled() { return bb_direct_input_ ? 1 : 0; }
+
 // Ohne Port: im Original ist `FlushJoy` parameterlos und raeumt damit jeden
-// Port ab (BUG-44).
+// Port ab (BUG-44). Wie gxDevice::flush leert es Treffer und Warteschlange;
+// gehaltene Knoepfe bleiben gehalten.
 inline void bb_FlushJoy() {
+  if (bb_sdl_initialized_) bb_PollEvents();
   for (int p = 0; p < BB_JOY_MAX_PORTS; ++p) {
     bb_JoyPort_ &jp = bb_joy_[p];
-    for (int i = 0; i < BB_JOY_MAX_BUTTONS; ++i) {
-      jp.btn_down[i] = false;
-      jp.btn_hit[i]  = false;
-    }
+    for (int i = 0; i < BB_JOY_MAX_BUTTONS; ++i) jp.btn_hit[i] = 0;
     jp.btn_q_head = jp.btn_q_tail = 0;
   }
-  // Note: x/y/z/u/v/hat are not reset — they reflect physical state.
 }
 
 #endif // BLITZNEXT_BB_INPUT_H
