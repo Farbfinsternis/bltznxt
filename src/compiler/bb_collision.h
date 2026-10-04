@@ -810,9 +810,17 @@ static inline void bb_world_update_collisions_() {
 
 inline bb_ObjColl_ bb_picked_;
 
+// Wie doPick/World::traceRay: nur die Zeit beginnt neu bei 1. Normale,
+// Flaeche und Dreieck schreibt hitTest erst bei einem Treffer, die Lage
+// traceRay ebenso - nach einem Fehltreffer melden PickedX/Y/Z und
+// PickedNX/NY/NZ also weiter den vorigen Treffer (gemessen 2026-10-03 mit
+// CameraPick). Bis dahin setzte jeder Pick alles auf 0.
 static inline int bb_trace_ray_(const bb_Line_& line, float radius) {
   bb_Coll_ coll;
-  coll.time = 1;
+  coll.time    = 1;
+  coll.normal  = { bb_picked_.normal[0], bb_picked_.normal[1], bb_picked_.normal[2] };
+  coll.surface = bb_picked_.surface;
+  coll.index   = bb_picked_.index;
   bb_Entity_* hit = nullptr;
 
   std::vector<bb_Entity_*> all;
@@ -827,14 +835,13 @@ static inline int bb_trace_ray_(const bb_Line_& line, float radius) {
     if (bb_hit_test_(line, radius, e, bb_entity_world_(e), e->pickMode, coll)) hit = e;
   }
 
-  bb_picked_ = bb_ObjColl_{};
-  bb_picked_.index     = 65535;
   bb_picked_.time      = coll.time;
   bb_picked_.normal[0] = coll.normal.x;
   bb_picked_.normal[1] = coll.normal.y;
   bb_picked_.normal[2] = coll.normal.z;
   bb_picked_.surface   = coll.surface;
   bb_picked_.index     = coll.index;
+  bb_picked_.with      = 0;
   if (!hit) return 0;
   bb_picked_.with = hit->handle;
   const bb_V3_ p = bb_line_at_(line, coll.time) - coll.normal * radius;

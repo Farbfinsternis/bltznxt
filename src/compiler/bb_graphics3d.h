@@ -28,6 +28,7 @@ inline int bb_tris_rendered_ = 0;
 #include "bb_mesh.h"
 #include "bb_surface.h"
 #include "bb_collision.h"
+#include "bb_camera_pick.h"  // CameraPick, CameraProject, EntityInView (BUG-195)
 #include "bb_mirror.h"
 #include "bb_animation.h"
 #include "bb_loader.h"

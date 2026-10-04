@@ -1,0 +1,29 @@
+mitte: wuerfel p=0,0,9000 n=0,0,-1000 t=9
+links oben: wand p=-26812,23156,39000 n=0,0,-1000 t=39
+rand: wand p=-39000,29250,39000 n=0,0,-1000 t=39
+ausserhalb: nichts p=-39000,29250,39000 n=0,0,-1000 t=1000
+zoom2: wand p=4875,-3656,39000 n=0,0,-1000 t=39
+gedreht: wand p=20287,-5881,39000 n=0,0,-1000 t=45
+gedreht ecke: nichts p=20287,-5881,39000 n=0,0,-1000 t=1000
+proj gedreht: 81389,192528,1000
+range 0.5-30 wand weg: wuerfel p=0,0,9000 n=0,0,-1000 t=300
+range wuerfel: wuerfel p=281,-281,9000 n=0,0,-1000 t=300
+viewport mitte: wuerfel p=0,0,9000 n=0,0,-1000 t=9
+viewport proj: 160000,120000,1000
+proj mitte: 320000,240000,1000
+proj versetzt: 416000,304000,1000
+proj hinten: 0,0,0
+proj zu fern: 0,0,0
+proj nah: 320000,240000,1000
+ortho: wand p=8750,0,39000 n=0,0,-1000 t=39
+ortho proj: 544000,144000,1000
+ortho near0.5: wand p=4375,0,39000 n=0,0,-1000 t=39
+ortho near0.5 proj: 768000,48000,500
+inview vorn 1 pivot 1 sprite hinten 0
+inview teilweise 1
+inview knapp daneben 0
+inview hinter range 0
+inview versteckt 1
+inview skaliert 1
+ortho bild near 1: 544=FF0000 320=0000FF
+ortho bild near 2: 544=0000FF 320=0000FF

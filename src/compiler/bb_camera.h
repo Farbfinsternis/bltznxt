@@ -173,13 +173,17 @@ static inline void bb_cam_proj_persp_(bb_CameraEntity_* c, float aspect) {
   m[14] = (2.0f * f * n) / (n - f);
 }
 
-// Orthographic: maps ±(1/zoom) world units to NDC ±1, scaled by aspect.
+// Parallelprojektion wie gxScene::setOrthoProj: der Ausschnitt ist so breit
+// wie der Kegel an der nahen Ebene, near*2/zoom (Camera::getFrustum). Die
+// halbe Breite ist also near/zoom Einheiten, nicht 1/zoom - am Original
+// gemessen (2026-10-03): ein Wuerfel bei x=7 ist mit CameraZoom 0.1 und near 1
+// im Bild, mit near 0.5 nicht. Bis dahin fehlte hier die Division durch near.
 static inline void bb_cam_proj_ortho_(bb_CameraEntity_* c, float aspect) {
   float z = c->zoom, n = c->near_, f = c->far_;
   float* m = c->proj;
   memset(m, 0, 64);
-  m[0]  = z;
-  m[5]  = z * aspect;
+  m[0]  = z / n;
+  m[5]  = z * aspect / n;
   m[10] = -2.0f / (f - n);
   m[14] = -(f + n) / (f - n);
   m[15] = 1.0f;
