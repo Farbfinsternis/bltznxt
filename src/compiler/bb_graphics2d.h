@@ -185,6 +185,56 @@ inline int bb_GraphicsRate()   { return bb_gfx_rate_;   }
 inline int bb_TotalVidMem() { return 512 * 1024 * 1024; }
 inline int bb_AvailVidMem() { return 512 * 1024 * 1024; }
 
+// ---- GraphicsLost, ScanLine, VWait, GraphicsBuffer, BufferDirty (BUG-195) ----
+//
+// GraphicsLost meldet im Original eine verlorene DirectDraw-Oberflaeche
+// (Alt+Tab im Vollbild); das kommt mit OpenGL/SDL nicht vor.
+inline int bb_GraphicsLost() { return 0; }
+
+// Bildwiederholrate der Anzeige, auf der das Fenster liegt.
+static inline double bb_display_hz_() {
+  if (bb_gfx_rate_ > 0) return bb_gfx_rate_;
+  if (bb_window_) {
+    const SDL_DisplayMode *dm = SDL_GetCurrentDisplayMode(SDL_GetDisplayForWindow(bb_window_));
+    if (dm && dm->refresh_rate > 0) return dm->refresh_rate;
+  }
+  return 60.0;
+}
+
+// ScanLine meldet im Original die Zeile, die der Bildschirm gerade aufbaut.
+// Die Hardware verraet das heute nicht mehr; die Zeile wird aus der Zeit
+// innerhalb eines Bildes geschaetzt. So enden Warteschleifen wie
+// `While ScanLine() < 200 : Wend`, die mit einer festen 0 haengen blieben.
+// Wie DirectDraw::GetScanLine zaehlt sie die Zeilen des Monitors, nicht des
+// Fensters: am Original 0..1079 auf einem 1080er Bildschirm (2026-10-04).
+inline int bb_ScanLine() {
+  const double period = 1e9 / bb_display_hz_();
+  const double t = std::fmod(static_cast<double>(SDL_GetTicksNS()), period) / period;
+  int h = bb_gfx_height_;
+  if (bb_window_) {
+    const SDL_DisplayMode *dm = SDL_GetCurrentDisplayMode(SDL_GetDisplayForWindow(bb_window_));
+    if (dm && dm->h > 0) h = dm->h;
+  }
+  if (h < 1) h = 1;
+  return static_cast<int>(t * h);
+}
+
+// VWait wartet im Original auf genau eine Austastluecke - das Argument
+// frames liest bbVWait nicht. Hier bis zum naechsten Bildwechsel der Anzeige
+// nach der Uhr; danach werden die Ereignisse abgeholt wie bei Flip.
+inline void bb_VWait(int frames = 1) {
+  (void)frames;
+  const Uint64 period = static_cast<Uint64>(1e9 / bb_display_hz_());
+  const Uint64 now = SDL_GetTicksNS();
+  if (period > 0) SDL_DelayPrecise((now / period + 1) * period - now);
+  bb_PollEvents();
+}
+
+
+// BufferDirty sichert im Original den Inhalt eines Puffers gegen einen
+// Verlust der Oberflaeche; hier geht nichts verloren.
+inline void bb_BufferDirty(int buffer) { (void)buffer; }
+
 // ---- GraphicsMode() ----
 //
 // Re-creates the window at a different resolution.  The refresh-rate parameter
@@ -209,6 +259,10 @@ inline constexpr int BB_BACK_BUFFER_H  = 1;
 inline constexpr int BB_FRONT_BUFFER_H = 2;
 
 inline int bb_active_buffer_ = BB_BACK_BUFFER_H;  // default render target
+
+// GraphicsBuffer ist der aktuelle Zeichenpuffer (gx_canvas im Original,
+// BUG-195).
+inline int bb_GraphicsBuffer() { return bb_active_buffer_; }
 
 // Texturpuffer liegen oberhalb aller Image-Puffer (bb_texture.h).
 inline constexpr int BB_TEX_BUF_BASE_ = 0x40000000;

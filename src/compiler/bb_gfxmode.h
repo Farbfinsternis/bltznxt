@@ -120,6 +120,19 @@ inline int bb_GfxModeExists(int width, int height, int depth) {
 // sonst Vollbild - die Antwort 1 ist also die vertraeglichere.
 inline int bb_Windowed3D() { return 1; }
 
+// 3D-Faehigkeit je Modus und Treiber (BUG-195): wie oben ist heute jeder
+// Modus und jeder Treiber 3D-faehig. GfxMode3DExists ist darum dasselbe wie
+// GfxModeExists, GfxMode3D und GfxDriver3D melden 1 fuer jeden gueltigen
+// Index (das Original bricht bei einem ungueltigen im Debug-Modus ab, hier
+// wie bei GfxModeWidth 0).
+inline int bb_GfxMode3DExists(int width, int height, int depth) {
+  return bb_GfxModeExists(width, height, depth);
+}
+inline int bb_GfxMode3D(int mode) {
+  bb_gfx_modes_ensure_();
+  return (mode >= 1 && mode <= (int)bb_gfx_modes_.size()) ? 1 : 0;
+}
+
 // ---- Treiberabfragen ----
 
 inline int bb_CountGfxDrivers() {
@@ -135,6 +148,15 @@ inline bbString bb_GfxDriverName(int driver) {
   const char *name = SDL_GetVideoDriver(driver - 1);
   return name ? bbString(name) : bbString();
 }
+
+// GfxDriver3D: jeder Treiber kann 3D (siehe oben, BUG-195).
+inline int bb_GfxDriver3D(int driver) {
+  return (driver >= 1 && driver <= bb_CountGfxDrivers()) ? 1 : 0;
+}
+
+// GfxDriverCaps3D ist im Original die Stufe aus gxScene: 100, mit
+// Wuerfeltexturen 110. Wuerfelkarten kennt jeder GL-3.3-Treiber.
+inline int bb_GfxDriverCaps3D() { return 110; }
 
 // SDL3 waehlt den Videotreiber beim Initialisieren; danach laesst er sich
 // nicht mehr wechseln. Der Wert wird deshalb nur gemerkt, damit ein Programm,

@@ -147,6 +147,16 @@ inline void bb_DebugLog(const bbString &text) {
   std::cerr << text << "\n";
 }
 
+// Stop haelt im Original den Debugger an (gx_runtime->debugStop). Ohne
+// Debugger setzt das Original das Programm aus, bis das Fenster neu
+// aktiviert wird (forceSuspend, gemessen 2026-10-04); das nuetzt ohne
+// Debugger niemandem, darum laeuft es hier weiter (Nutzerentscheidung
+// 2026-10-04, spaeter Haltepunkt fuer die IDE). RuntimeStats oeffnet
+// im Debug-Build die Laufzeitstatistik des Debuggers. Einen Debugger gibt es
+// hier nicht, beide sind darum leer (BUG-195).
+inline void bb_Stop() {}
+inline void bb_RuntimeStats() {}
+
 // Prints an error message to stderr and terminates the program.
 inline void bb_RuntimeError(const bbString &msg) {
   std::cerr << "Runtime Error: " << msg << "\n";

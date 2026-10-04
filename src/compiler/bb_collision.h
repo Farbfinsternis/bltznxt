@@ -385,6 +385,10 @@ static inline bb_Collider_* bb_collider_for_(bb_MeshEntity_* me) {
   return c.get();
 }
 
+// stats3d[] des Originals (world.cpp). MeshCollider::collide zaehlt in
+// Eintrag 0 die geprueften Dreiecke jedes Blatts; UpdateWorld setzt ihn auf 0.
+inline float bb_stats3d_[10] = {};
+
 static inline bool bb_collider_walk_(bb_Coll_& coll, const bb_Collider_& c, int node,
                                      const float* lbA, const float* lbB,
                                      const bb_Line_& line, float radius, const float* tf) {
@@ -398,6 +402,7 @@ static inline bool bb_collider_walk_(bb_Coll_& coll, const bb_Collider_& c, int 
     return hit;
   }
 
+  bb_stats3d_[0] += static_cast<float>(n.tris.size());
   for (int ti : n.tris) {
     const bb_CollTri_& tri = c.tris[ti];
     const bb_V3_& v0 = c.verts[tri.v[0]];

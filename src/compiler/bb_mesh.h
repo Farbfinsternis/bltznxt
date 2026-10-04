@@ -51,6 +51,13 @@ struct bb_MeshRep_ {
   bool                   box_empty = true;
   unsigned long long     box_stamp = ~0ULL;
 
+  // MeshCullBox (BUG-195): eine feste Box fuer den Sichtkegeltest statt der
+  // gerechneten, wie MeshModel::Rep::cullBox. Leer heisst "nicht gesetzt" -
+  // Box(a,b) des Originals ordnet nicht, eine negative Breite ergibt also
+  // eine leere Box und damit wieder die gerechnete (getCullBox).
+  float                  cull[6] = { 0, 0, 0, -1, -1, -1 };
+  bool cull_set() const { return !(cull[3] < cull[0] || cull[4] < cull[1] || cull[5] < cull[2]); }
+
   // Juengster Stempel der Flaechen (bb_mesh_geom_version_): daran sehen Box
   // und Dreiecksbaum, ob *dieses* Netz sich geaendert hat.
   unsigned long long geom() const {
@@ -484,6 +491,19 @@ inline float bb_MeshDepth(int h) {
   float x0,x1,y0,y1,z0,z1;
   bb_mesh_aabb_(me, x0,x1,y0,y1,z0,z1);
   return (z1 > z0) ? (z1 - z0) : 0.0f;
+}
+
+// MeshCullBox wie bbMeshCullBox: Box(x,y,z)-(x+width,y+height,z+depth) im
+// Raum des Netzes, nur fuer den Sichtkegeltest beim Zeichnen. Sie gehoert
+// dem gemeinsamen Netz (Kopien aus CopyEntity sehen sie mit). EntityInView
+// rechnet weiter mit der echten Box (getBox), wie im Original.
+inline void bb_MeshCullBox(int mesh, float x, float y, float z,
+                           float width, float height, float depth) {
+  auto* me = bb_mesh_chk_(mesh);
+  if (!me) return;
+  float* c = me->rep->cull;
+  c[0] = x; c[1] = y; c[2] = z;
+  c[3] = x + width; c[4] = y + height; c[5] = z + depth;
 }
 
 // ============================================================
@@ -1239,15 +1259,20 @@ static inline void bb_render_meshes_(bb_Shader_* shader,
       if (!bb_plane_build_(it.pl, view, frustum)) continue;
     } else {
       bb_MeshRep_& rep = *it.me->rep;
-      const unsigned long long stand = rep.geom();
-      if (rep.box_stamp != stand) {
-        float* b = rep.box;
-        bb_mesh_aabb_(it.me, b[0], b[3], b[1], b[4], b[2], b[5]);
-        rep.box_empty = b[0] > b[3];
-        rep.box_stamp = stand;
+      if (rep.cull_set()) {
+        // MeshCullBox: die feste Box ersetzt die gerechnete (getCullBox)
+        if (!bb_frustum_box_visible_(frustum, view, model, rep.cull, rep.cull + 3)) continue;
+      } else {
+        const unsigned long long stand = rep.geom();
+        if (rep.box_stamp != stand) {
+          float* b = rep.box;
+          bb_mesh_aabb_(it.me, b[0], b[3], b[1], b[4], b[2], b[5]);
+          rep.box_empty = b[0] > b[3];
+          rep.box_stamp = stand;
+        }
+        if (rep.box_empty) continue;
+        if (!bb_frustum_box_visible_(frustum, view, model, rep.box, rep.box + 3)) continue;
       }
-      if (rep.box_empty) continue;
-      if (!bb_frustum_box_visible_(frustum, view, model, rep.box, rep.box + 3)) continue;
     }
 
     // Mit Knochen (3D-19): geprueft wird wie im Original die Ruhelage an der

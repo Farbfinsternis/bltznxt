@@ -38,9 +38,17 @@ inline int bb_tris_rendered_ = 0;
 // UpdateWorld — propagate world transforms + future systems
 // ============================================================
 
+// Stats3D (BUG-195): float stats3d[10] des Originals (bb_collision.h).
+// Eintrag 0 = in der letzten UpdateWorld gepruefte Kollisionsdreiecke;
+// das Terrain schreibt im Original 1 und 2 (Vertices, Dreiecke).
+inline float bb_Stats3D(int type) {
+  return (type >= 0 && type < 10) ? bb_stats3d_[type] : 0.0f;
+}
+
 // Der Zeitschritt `UpdateWorld [elapsed_time#]` (BUG-44) gilt fuer die
 // Animationen: MD2 und Animator zaehlen um ihn weiter.
 inline void bb_UpdateWorld(float elapsed_time = 1.0f) {
+  bb_stats3d_[0] = 0;
   bb_entity_update_all_();
   // Object::beginUpdate ruft animate(elapsed) vor der Kollision, fuer jedes
   // nicht versteckte Objekt: MD2 (3D-23) und Animatoren (3D-19). Das
