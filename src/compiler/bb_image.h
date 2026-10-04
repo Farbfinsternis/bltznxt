@@ -1,6 +1,7 @@
 #ifndef BLITZNEXT_BB_IMAGE_H
 #define BLITZNEXT_BB_IMAGE_H
 
+#include <algorithm>
 #include <vector>
 #include <unordered_map>
 #include <cmath>
@@ -219,6 +220,8 @@ inline std::vector<bb_Image_> bb_images_(1);  // slot 0 = null/invalid
 
 // Global AutoMidHandle flag (default off)
 inline bool bb_auto_mid_handle_ = false;
+// TFormFilter: Vorgabe an, wie graphics_create im Original
+inline bool bb_tform_filter_ = true;
 
 // ---- Buffer encoding constants ----
 //
@@ -239,6 +242,7 @@ inline void bb_image_quit_impl_() {
     }
     bb_images_.assign(1, bb_Image_{});
     bb_auto_mid_handle_ = false;
+    bb_tform_filter_ = true;   // graphics_create: filter=true
 }
 
 inline const bool bb_image_hook_reg_ =
@@ -522,21 +526,148 @@ inline int bb_ImageYHandle(int handle) {
     return fd ? fd->handle_y : 0;
 }
 
-// ---- ScaleImage / RotateImage ----
+// ---- TFormImage / ScaleImage / ResizeImage / RotateImage / TFormFilter ----
+//
+// Wie bbTFormImage und tformCanvas in bbgraphics.cpp des Originals: das Bild
+// wird mit der 2x2-Matrix a,b,c,d um seinen Griffpunkt **neu gerechnet**.
+// Jeder Frame bekommt neue Pixel in der Groesse der umschliessenden Box,
+// der Griffpunkt wandert mit. ScaleImage, ResizeImage und RotateImage sind
+// nur andere Matrizen. Folgen, am Original gemessen (2026-10-03):
+// ImageWidth/Height melden danach die neue Groesse, zwei Aufrufe wirken
+// nacheinander, ein 8x4-Bild wird mit RotateImage 90 zu 5x9 (cos 90 ist in
+// float nicht genau 0, floor/ceil runden die Box auf), und mit TFormFilter 1
+// (Vorgabe nach Graphics) wird bilinear gemischt, ausserhalb der Vorlage mit
+// Schwarz.
+//
+// Bis BUG-195 merkte sich ScaleImage nur einen Massstab und RotateImage einen
+// Winkel fuer das Zeichnen: ImageWidth blieb gleich, ein zweiter Aufruf
+// ersetzte den ersten, statt ihn fortzusetzen.
 
-// Ohne frame-Parameter: im Original `ScaleImage image,xscale#,yscale#` und
-// `RotateImage image,angle#` - beide wirken auf das ganze Bild (BUG-44).
-inline void bb_ScaleImage(int handle, float sx, float sy) {
-    if (!bb_img_ok_(handle)) return;
-    for (auto& fd : bb_images_[handle].frames) {
-        fd.scale_x = (sx > 0.0f) ? sx : 0.0f;
-        fd.scale_y = (sy > 0.0f) ? sy : 0.0f;
-    }
+
+inline void bb_TFormFilter(int enable) { bb_tform_filter_ = (enable != 0); }
+
+// gxCanvas::getPixel: ausserhalb der Vorlage Schwarz.
+static inline uint32_t bb_img_rgb_at_(const std::vector<uint8_t>& px, int w, int h,
+                                      int x, int y) {
+    if (x < 0 || y < 0 || x >= w || y >= h) return 0;
+    const uint8_t* p = &px[(static_cast<size_t>(y) * w + x) * 4];
+    return (uint32_t(p[0]) << 16) | (uint32_t(p[1]) << 8) | p[2];
 }
 
-inline void bb_RotateImage(int handle, float deg) {
+// getPixel des Originals: bilinear zwischen den vier Nachbarn.
+static inline uint32_t bb_img_rgb_filtered_(const std::vector<uint8_t>& px, int w, int h,
+                                            float x, float y) {
+    x -= .5f; y -= .5f;
+    float fx = floorf(x), fy = floorf(y);
+    const int ix = static_cast<int>(fx), iy = static_cast<int>(fy);
+    fx = x - fx; fy = y - fy;
+    const uint32_t tl = bb_img_rgb_at_(px, w, h, ix, iy);
+    const uint32_t tr = bb_img_rgb_at_(px, w, h, ix + 1, iy);
+    const uint32_t br = bb_img_rgb_at_(px, w, h, ix + 1, iy + 1);
+    const uint32_t bl = bb_img_rgb_at_(px, w, h, ix, iy + 1);
+    const float w1 = (1 - fx) * (1 - fy), w2 = fx * (1 - fy), w3 = (1 - fx) * fy, w4 = fx * fy;
+    auto ch = [&](int s) {
+        return ((tl >> s) & 0xff) * w1 + ((tr >> s) & 0xff) * w2 +
+               ((bl >> s) & 0xff) * w3 + ((br >> s) & 0xff) * w4;
+    };
+    return (uint32_t(int(ch(16) + .5f)) << 16) | (uint32_t(int(ch(8) + .5f)) << 8) |
+           uint32_t(int(ch(0) + .5f));
+}
+
+inline void bb_TFormImage(int handle, float a, float b, float c, float d) {
     if (!bb_img_ok_(handle)) return;
-    for (auto& fd : bb_images_[handle].frames) fd.rotation = deg;
+    auto& img = bb_images_[handle];
+    // Ist ein Frame der aktuelle Puffer, schaltet das Original auf den
+    // vorderen Puffer um - der alte Puffer verschwindet.
+    for (size_t k = 0; k < img.frames.size(); ++k)
+        if (bb_active_buffer_ == (handle - 1) + static_cast<int>(k) * BB_IMG_BUF_STRIDE_ + BB_IMG_BUF_OFFSET_) {
+            bb_SetBuffer(bb_FrontBuffer());
+            break;
+        }
+
+    float m[2][2], iv[2][2];
+    m[0][0] = a; m[1][0] = b; m[0][1] = c; m[1][1] = d;
+    const float dt = 1.0f / (m[0][0] * m[1][1] - m[1][0] * m[0][1]);
+    iv[0][0] = dt * m[1][1];  iv[1][0] = -dt * m[1][0];
+    iv[0][1] = -dt * m[0][1]; iv[1][1] = dt * m[0][0];
+    auto rot = [](const float mm[2][2], float x, float y, float& ox, float& oy) {
+        ox = mm[0][0] * x + mm[0][1] * y;
+        oy = mm[1][0] * x + mm[1][1] * y;
+    };
+
+    const int sw = img.width, sh = img.height;
+    int nw = 0, nh = 0;
+    const uint8_t mr = (img.mask >> 16) & 0xff, mg = (img.mask >> 8) & 0xff, mb = img.mask & 0xff;
+    for (auto& fd : img.frames) {
+        // Ein frisches CreateImage-Frame, in das nie gezeichnet wurde, hat
+        // keine Pixelkopie: schwarz wie bb_img_ensure_pixels_ (bb_canvas.h).
+        // Ohne das las die Schleife aus einem leeren Vektor - Absturz bei
+        // CreateImage(4,2,3) : ScaleImage.
+        const size_t sn = static_cast<size_t>(sw) * sh * 4;
+        if (fd.pixels.size() != sn) fd.pixels.assign(sn, 0);
+        const float ox = static_cast<float>(fd.handle_x), oy = static_cast<float>(fd.handle_y);
+        float cx[4], cy[4];
+        rot(m, -ox, -oy, cx[0], cy[0]);
+        rot(m, sw - ox, -oy, cx[1], cy[1]);
+        rot(m, sw - ox, sh - oy, cx[2], cy[2]);
+        rot(m, -ox, sh - oy, cx[3], cy[3]);
+        const float minx = floorf(std::min({ cx[0], cx[1], cx[2], cx[3] }));
+        const float miny = floorf(std::min({ cy[0], cy[1], cy[2], cy[3] }));
+        const float maxx = ceilf(std::max({ cx[0], cx[1], cx[2], cx[3] }));
+        const float maxy = ceilf(std::max({ cy[0], cy[1], cy[2], cy[3] }));
+        nw = static_cast<int>(maxx - minx);
+        nh = static_cast<int>(maxy - miny);
+        if (nw < 0) nw = 0;
+        if (nh < 0) nh = 0;
+
+        std::vector<uint8_t> out(static_cast<size_t>(nw) * nh * 4);
+        float vy = miny + .5f;
+        for (int y = 0; y < nh; ++vy, ++y) {
+            float vx = minx + .5f;
+            for (int x = 0; x < nw; ++vx, ++x) {
+                float qx, qy;
+                rot(iv, vx, vy, qx, qy);
+                const uint32_t rgb = bb_tform_filter_
+                    ? bb_img_rgb_filtered_(fd.pixels, sw, sh, qx + ox, qy + oy)
+                    : bb_img_rgb_at_(fd.pixels, sw, sh,
+                                     static_cast<int>(floorf(qx + ox)),
+                                     static_cast<int>(floorf(qy + oy)));
+                uint8_t* p = &out[(static_cast<size_t>(y) * nw + x) * 4];
+                p[0] = (rgb >> 16) & 0xff; p[1] = (rgb >> 8) & 0xff; p[2] = rgb & 0xff;
+                p[3] = (p[0] == mr && p[1] == mg && p[2] == mb) ? 0 : 255;
+            }
+        }
+        fd.pixels = std::move(out);
+        fd.handle_x = static_cast<int>(-minx);
+        fd.handle_y = static_cast<int>(-miny);
+        fd.scale_x = fd.scale_y = 1.0f;
+        fd.rotation = 0.0f;
+    }
+    img.width = nw;
+    img.height = nh;
+    for (auto& fd : img.frames) bb_img_reupload_frame_(handle, &fd);
+}
+
+// Ohne frame-Parameter: im Original `ScaleImage image,xscale#,yscale#`,
+// `ResizeImage image,width#,height#` und `RotateImage image,angle#` - alle
+// wirken auf das ganze Bild (BUG-44).
+inline void bb_ScaleImage(int handle, float sx, float sy) {
+    bb_TFormImage(handle, sx, 0, 0, sy);
+}
+
+inline void bb_ResizeImage(int handle, float width, float height) {
+    if (!bb_img_ok_(handle)) return;
+    const auto& img = bb_images_[handle];
+    bb_TFormImage(handle, width / static_cast<float>(img.width), 0, 0,
+                  height / static_cast<float>(img.height));
+}
+
+// d *= -dtor; cos und sin in float wie im Original (MSVC waehlt fuer ein
+// float-Argument die float-Fassung).
+inline void bb_RotateImage(int handle, float deg) {
+    const float dtor = 3.14159265359f / 180.0f;
+    const float d = deg * -dtor;
+    bb_TFormImage(handle, cosf(d), -sinf(d), sinf(d), cosf(d));
 }
 
 // ---- MaskImage(handle, r, g, b) ----
@@ -662,6 +793,15 @@ inline bb_AABB_ bb_img_aabb_(int handle, int x, int y) {
 inline bool bb_aabb_overlap_(const bb_AABB_& a, const bb_AABB_& b) {
     return a.x1 < b.x2 && a.x2 > b.x1
         && a.y1 < b.y2 && a.y2 > b.y1;
+}
+
+// RectsOverlap wie bbRectsOverlap: Kanten, die sich nur beruehren, zaehlen
+// nicht (BUG-195).
+inline int bb_RectsOverlap(int x1, int y1, int width1, int height1,
+                           int x2, int y2, int width2, int height2) {
+    if (x1 + width1 <= x2 || x1 >= x2 + width2 ||
+        y1 + height1 <= y2 || y1 >= y2 + height2) return 0;
+    return 1;
 }
 
 inline int bb_ImagesOverlap(int h1, int x1, int y1,
