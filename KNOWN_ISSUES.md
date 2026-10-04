@@ -12,7 +12,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-10-03 — 16 open bugs, 78 missing commands.*
+*Last updated: 2026-10-04 — 16 open bugs, 38 missing commands.*
 
 If an old program breaks and the cause is not listed here, please open an issue with a
 minimal `.bb` file and a description of what happens in both.
@@ -139,25 +139,24 @@ counted as bugs and are not planned to be fixed:
 
 ## Missing commands
 
-78 of Blitz3D's commands (not counting language keywords) are not available yet. A
+38 of Blitz3D's commands (not counting language keywords) are not available yet. A
 program that uses one of them is rejected with `unknown function or command`. `blitzcc -k` lists
 everything that is available. The number comes from comparing `blitzcc +k` of Blitz3D 11.8
-with `blitzcc -k`.
+with `blitzcc -k` (2026-10-04).
 
-This is the most common reason for an old program not to run at all: of the 156 source
-files in the samples, games and tutorials that ship with Blitz3D, 36 use at least one missing
-command (measured 2026-10-03). The groups below are ordered by how often they appear there.
+Of the 156 source files in the samples, games and tutorials that ship with Blitz3D, 10 still
+use a missing command, all of them terrain or BSP (measured 2026-10-04; on 2026-10-03 it
+was 36).
 
 | Area | Missing | Example files using it |
 |------|---------|---|
-| Terrain, BSP | `CreateTerrain`, `LoadTerrain`, `ModifyTerrain`, `TerrainHeight`, `TerrainDetail`, `TerrainShading`, …, `LoadBSP`, `BSPAmbientLight`, `BSPLighting` | 10 |
-| 3D graphics modes | `GfxMode3D`, `GfxMode3DExists`, `GfxDriver3D`, `GfxDriverCaps3D` | 10 |
-| Picking and projection | `CameraPick`, `CameraProject`, `ProjectedX/Y/Z`, `EntityInView` | 9 |
-| Joystick | `JoyXDir`, `JoyYDir`, `JoyZDir`, `JoyUDir`, `JoyVDir`, `JoyPitch`, `JoyYaw`, `JoyRoll`, `JoyWait` | 5 |
-| Other | `VWait`, `ResizeImage`, `MouseWait`, `RectsOverlap`, `ScanLine`, `TFormImage`, `GraphicsBuffer`, `GraphicsLost`, `BufferDirty`, `Stop`, `EnableDirectInput`, `DirectInputEnabled`, `MeshCullBox`, `Stats3D`, `RuntimeStats` | 1–4 each |
-| 3D maths | `VectorYaw`, `VectorPitch`, `DeltaYaw`, `DeltaPitch`, `GetMatElement`, `TFormFilter` | none in the samples, but common in games (turning towards a target) |
-| Networking | the DirectPlay commands (`StartNetGame`, `HostNetGame`, `JoinNetGame`, `SendNetMsg`, …); TCP and UDP streams and `CopyStream` are available | none |
+| Terrain, BSP | `CreateTerrain`, `LoadTerrain`, `ModifyTerrain`, `TerrainHeight`, `TerrainDetail`, `TerrainShading`, `TerrainSize`, `TerrainX/Y/Z`, `LoadBSP`, `BSPAmbientLight`, `BSPLighting` | 10 |
+| Networking | the DirectPlay commands (`StartNetGame`, `HostNetGame`, `JoinNetGame`, `SendNetMsg`, …, 14 in all); TCP and UDP streams and `CopyStream` are available | none |
 | Movies, gamma | `OpenMovie`, `DrawMovie`, `CloseMovie`, `MovieWidth`, `MovieHeight`, `MoviePlaying`; `SetGamma`, `UpdateGamma`, `GammaRed/Green/Blue` | none |
+
+`Stop` is available but does not pause the program: in Blitz3D it is a debugger breakpoint,
+and without a debugger Blitz3D suspends the program until its window is activated again.
+`RuntimeStats` likewise does nothing without a debugger.
 
 ---
 

@@ -1,5 +1,29 @@
 # BlitzNext Developer Log
 
+## 2026-10-04 — 40 missing commands added, joystick input rebuilt
+
+Of the 78 Blitz3D commands that were missing, 40 are now available, each translated from the
+original source and measured against Blitz3D 11.8: camera picking and projection (`CameraPick`,
+`CameraProject`, `ProjectedX/Y/Z`, `EntityInView`), the angle helpers (`VectorYaw/Pitch`,
+`DeltaYaw/Pitch`, `GetMatElement`), the image transforms (`TFormImage`, `ResizeImage`,
+`TFormFilter`, `RectsOverlap`), the 3D graphics-mode queries, joystick directions and the small
+ones (`VWait`, `ScanLine`, `GraphicsBuffer`, `MeshCullBox`, `Stats3D`, …). Of the 156 sample
+sources that ship with Blitz3D, 10 still use a missing command instead of 36 — all terrain or
+BSP. The remaining 38 are terrain, BSP, DirectPlay, movies and gamma.
+
+Measuring found older defects too. `ScaleImage` and `RotateImage` only scaled while drawing and
+left `ImageWidth` unchanged; Blitz3D recomputes the pixels, so they now go through `TFormImage`
+as in the original. The orthographic projection ignored the near plane, and every pick cleared
+`PickedX/Y/Z` even when it missed. With a gamepad attached, the joystick commands disagreed in
+seven places: axes only updated on motion, the right stick sat on Z/U instead of
+`JoyPitch`/`JoyYaw`, `JoyHat` returned 1–8 instead of degrees, `JoyType` was swapped, `GetJoy`
+blocked and `WaitJoy` hung without a device. Gamepads are now read through SDL's gamepad API and
+mapped to the layout DirectInput reports for an Xbox controller; checked by hand on an Xbox 360
+pad against the original. `Stop` stays a no-op: without a debugger Blitz3D suspends the program
+until its window is activated again, which helps nobody.
+
+New tests `test_bug195_kamera_pick`, `_winkel`, `_bild` and `_klein`. Full suite: 333 passed, 0 failed.
+
 ## 2026-10-02 — Bounding boxes per mesh
 
 The view-frustum test kept a bounding box per mesh, but checked it against one global geometry
