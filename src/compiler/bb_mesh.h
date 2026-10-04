@@ -1004,6 +1004,8 @@ static inline bool bb_frustum_box_visible_(const bb_CullFrustum_& f,
 
 // Ebenen (CreatePlane) bauen ihr Netz je Kamera aus diesem Kegel.
 #include "bb_plane.h"
+// Terrains (BUG-195) ebenso, als ROAM-Baum.
+#include "bb_terrain.h"
 
 // ---- Knochen (3D-19) ----
 // MeshModel::render mit Knochen und Surface::getMesh(bones): je Knochen
@@ -1110,7 +1112,8 @@ static inline void bb_render_meshes_(bb_Shader_* shader,
   struct Item { bb_Entity_* e; bb_MeshEntity_* me; bb_SpriteEntity_* sp;
                 float fade; float dist; bool translucent;
                 bb_Md2Entity_* md = nullptr;      // MD2 (3D-23): ein Netz, Brush der Entity
-                bb_PlaneEntity_* pl = nullptr; };  // Ebene: ein Netz je Kamera, Brush der Entity
+                bb_PlaneEntity_* pl = nullptr;     // Ebene: ein Netz je Kamera, Brush der Entity
+                bb_TerrainEntity_* tr = nullptr; };  // Terrain: ebenso
   std::vector<Item> items;
   items.reserve(bb_entities_.size());
 
@@ -1119,7 +1122,8 @@ static inline void bb_render_meshes_(bb_Shader_* shader,
     const bool is_sprite = ent->kind() == bb_EntityKind_::Sprite;
     const bool is_md2    = ent->kind() == bb_EntityKind_::Md2;
     const bool is_plane  = ent->kind() == bb_EntityKind_::Plane;
-    if (!is_mesh && !is_sprite && !is_md2 && !is_plane) continue;
+    const bool is_terr   = ent->kind() == bb_EntityKind_::Terrain;
+    if (!is_mesh && !is_sprite && !is_md2 && !is_plane && !is_terr) continue;
     if (!bb_entity_shown_(ent.get())) continue;
     bb_Entity_* me = ent.get();
 
@@ -1152,6 +1156,10 @@ static inline void bb_render_meshes_(bb_Shader_* shader,
       auto* pl = static_cast<bb_PlaneEntity_*>(me);
       items.push_back({ me, nullptr, nullptr, fade, dist,
                         bb_brush_translucent_(pl->brush) || ent_alpha < 1.0f, nullptr, pl });
+    } else if (is_terr) {
+      auto* tr = static_cast<bb_TerrainEntity_*>(me);
+      items.push_back({ me, nullptr, nullptr, fade, dist,
+                        bb_brush_translucent_(tr->brush) || ent_alpha < 1.0f, nullptr, nullptr, tr });
     } else {
       auto* sp = static_cast<bb_SpriteEntity_*>(me);
       items.push_back({ me, nullptr, sp, fade, dist,
@@ -1257,6 +1265,9 @@ static inline void bb_render_meshes_(bb_Shader_* shader,
     } else if (it.pl) {
       // PlaneModel::render prueft keinen Kegel - das Netz liegt schon darin.
       if (!bb_plane_build_(it.pl, view, frustum)) continue;
+    } else if (it.tr) {
+      // TerrainRep::render verwirft selbst, Dreieck fuer Dreieck.
+      if (!bb_terrain_build_(it.tr, view, frustum)) continue;
     } else {
       bb_MeshRep_& rep = *it.me->rep;
       if (rep.cull_set()) {
@@ -1315,14 +1326,15 @@ static inline void bb_render_meshes_(bb_Shader_* shader,
     // Entity verrechnet - Farbe und Deckkraft mal, Glanz plus, FX oder,
     // Texturen von der Entity ueberschrieben. Die Formel steht in
     // bb_brush.h und stammt aus blitz3d/brush.cpp.
-    const size_t nsurf = (it.sp || it.md || it.pl) ? 1 : it.me->surfaces().size();
+    const size_t nsurf = (it.sp || it.md || it.pl || it.tr) ? 1 : it.me->surfaces().size();
     for (size_t si = 0; si < nsurf; ++si) {
       bb_MeshData_& surf = it.sp ? it.sp->quad
                          : it.md ? it.md->mesh
                          : it.pl ? it.pl->mesh
+                         : it.tr ? it.tr->mesh
                          : deform ? it.me->skinned[si]
                                  : it.me->surfaces()[si];
-      const bb_Brush_ br = (it.sp || it.md || it.pl) ? me->brush
+      const bb_Brush_ br = (it.sp || it.md || it.pl || it.tr) ? me->brush
                                             : bb_brush_combine_(surf.brush, me->brush);
 
       if (want_blend && br.blend != blend_mode) {

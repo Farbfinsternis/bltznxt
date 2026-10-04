@@ -385,10 +385,8 @@ static inline bb_Collider_* bb_collider_for_(bb_MeshEntity_* me) {
   return c.get();
 }
 
-// stats3d[] des Originals (world.cpp). MeshCollider::collide zaehlt in
-// Eintrag 0 die geprueften Dreiecke jedes Blatts; UpdateWorld setzt ihn auf 0.
-inline float bb_stats3d_[10] = {};
-
+// MeshCollider::collide zaehlt in stats3d[0] (bb_entity_core.h) die
+// geprueften Dreiecke jedes Blatts; UpdateWorld setzt ihn auf 0.
 static inline bool bb_collider_walk_(bb_Coll_& coll, const bb_Collider_& c, int node,
                                      const float* lbA, const float* lbB,
                                      const bb_Line_& line, float radius, const float* tf) {
@@ -467,6 +465,99 @@ static inline bool bb_coll_plane_(bb_Coll_& c, const bb_Line_& line, float radiu
   return bb_coll_update_(c, line, t, n);
 }
 
+// ---- Terrain (TerrainRep::collide) ----
+//
+// Ueber den Fehlerbaum: ein Dreieck mit Fehler wird geteilt, eines ohne (oder
+// unterhalb der feinsten Stufe) gegen die Linie geprueft. Die Huellbox eines
+// geteilten Dreiecks reicht von y = 0 bis zur hoechsten Hoehe darunter.
+// Ohne Radius (Picking) wird die Linie im Raum des Terrains an der Box
+// abgeschnitten, mit Radius die um ihn aufgeblasene Box der Linie verglichen.
+// Die Dreiecke gehen wie im Original als v0, v2, v1 an triangleCollide.
+
+// clip( Line, Box ) aus terrainrep.cpp: die Linie an den sechs Seiten der Box
+// kuerzen; false, wenn nichts uebrig bleibt.
+static inline bool bb_terr_clip_(const bb_Line_& l, const float* a, const float* b) {
+  static const float normals[6][3] = {
+    { 1, 0, 0 }, { 0, 0, 1 }, { 0, -1, 0 }, { -1, 0, 0 }, { 0, 0, -1 }, { 0, 1, 0 } };
+  bb_V3_ v0 = l.o, v1 = l.o + l.d;
+  for (int k = 0; k < 6; ++k) {
+    const bb_V3_ t{ (k & 1) ? b[0] : a[0], (k & 2) ? b[1] : a[1], (k & 4) ? b[2] : a[2] };
+    const bb_V3_ n{ normals[k][0], normals[k][1], normals[k][2] };
+    const float d0 = bb_dot_(n, v0 - t), d1 = bb_dot_(n, v1 - t);
+    if (d0 < 0) {
+      if (d1 < 0) return false;
+      v0 = v0 + (v1 - v0) * (d0 / (d0 - d1));
+    } else if (d1 < 0) {
+      v1 = v1 + (v0 - v1) * (d1 / (d1 - d0));
+    }
+  }
+  return true;
+}
+
+using bb_TVert_ = bb_TerrainRep_::Vert;
+
+static inline bool bb_coll_terr_rec_(bb_Coll_& c, const bb_TerrainRep_& r, const bb_Line_& line,
+                                     float radius, const float* tf, int id,
+                                     const bb_TVert_& v0, const bb_TVert_& v1, const bb_TVert_& v2,
+                                     const bb_Line_* l, const float* boxA, const float* boxB) {
+  float a[3] = { v0.vx, v0.vy, v0.vz }, b[3] = { v0.vx, v0.vy, v0.vz };
+  for (const bb_TVert_* v : { &v1, &v2 }) {
+    const float p[3] = { v->vx, v->vy, v->vz };
+    for (int k = 0; k < 3; ++k) { if (p[k] < a[k]) a[k] = p[k]; if (p[k] > b[k]) b[k] = p[k]; }
+  }
+  auto near_ = [&]() { return l ? bb_terr_clip_(*l, a, b) : bb_box_overlap_(a, b, boxA, boxB); };
+
+  if (id >= r.end_tri_id || !r.errors[static_cast<size_t>(id)].error) {
+    if (!near_()) return false;
+    return bb_coll_tri_(c, line, radius,
+                        bb_xf_pt_(tf, { v0.vx, v0.vy, v0.vz }),
+                        bb_xf_pt_(tf, { v2.vx, v2.vy, v2.vz }),
+                        bb_xf_pt_(tf, { v1.vx, v1.vy, v1.vz }));
+  }
+  a[1] = 0;
+  b[1] = r.errors[static_cast<size_t>(id)].bound / 255.0f;
+  if (!near_()) return false;
+
+  const bb_TVert_ tv = r.mkVert((v1.x + v2.x) / 2, (v1.z + v2.z) / 2);
+  // | statt ||: beide Haelften werden geprueft, die naehere gewinnt
+  return bb_coll_terr_rec_(c, r, line, radius, tf, id * 2, tv, v2, v0, l, boxA, boxB) |
+         bb_coll_terr_rec_(c, r, line, radius, tf, id * 2 + 1, tv, v0, v1, l, boxA, boxB);
+}
+
+static inline bool bb_coll_terrain_(bb_Coll_& c, const bb_Line_& line, float radius,
+                                    bb_TerrainEntity_* te, const float* tf) {
+  const bb_TerrainRep_& r = *te->rep;
+  r.validateErrs();
+  const bb_TVert_ v0 = r.mkVert(0, 0), v1 = r.mkVert(r.cell_size, 0),
+                  v2 = r.mkVert(r.cell_size, r.cell_size), v3 = r.mkVert(0, r.cell_size);
+  float inv[16];
+  if (!mat4_inverse_(inv, tf)) return false;
+
+  if (!radius) {
+    // Line l = -tform * line
+    const bb_V3_ o = bb_xf_pt_(inv, line.o);
+    const bb_V3_ e = bb_xf_pt_(inv, line.o + line.d);
+    const bb_Line_ l{ o, e - o };
+    return bb_coll_terr_rec_(c, r, line, 0, tf, 2, v1, v2, v0, &l, nullptr, nullptr) |
+           bb_coll_terr_rec_(c, r, line, 0, tf, 3, v3, v0, v2, &l, nullptr, nullptr);
+  }
+
+  // Box( line ).expand( radius ), dann box = -tform * b (acht Ecken)
+  bb_CollNode_ wb;
+  bb_box_update_(wb, line.o);
+  bb_box_update_(wb, line.o + line.d);
+  for (int k = 0; k < 3; ++k) { wb.a[k] -= radius; wb.b[k] += radius; }
+  bb_CollNode_ lb;
+  for (int n = 0; n < 8; ++n) {
+    const bb_V3_ corner{ (n & 1) ? wb.b[0] : wb.a[0],
+                         (n & 2) ? wb.b[1] : wb.a[1],
+                         (n & 4) ? wb.b[2] : wb.a[2] };
+    bb_box_update_(lb, bb_xf_pt_(inv, corner));
+  }
+  return bb_coll_terr_rec_(c, r, line, radius, tf, 2, v1, v2, v0, nullptr, lb.a, lb.b) |
+         bb_coll_terr_rec_(c, r, line, radius, tf, 3, v3, v0, v2, nullptr, lb.a, lb.b);
+}
+
 // Die Weltmatrix ohne Verschiebung umkehren, wie ~Transform (transponierte
 // Drehung); die Skalierung bleibt dabei aussen vor - so auch im Original.
 static inline void bb_tf_invert_(const float* m, float* out) {
@@ -486,6 +577,8 @@ static inline bool bb_hit_test_(const bb_Line_& line, float radius, bb_Entity_* 
       return bb_coll_sphere_(c, line, radius, { tf[12], tf[13], tf[14] }, obj->collRadX);
     case 2: { // Dreiecke
       if (obj->kind() == bb_EntityKind_::Plane) return bb_coll_plane_(c, line, radius, tf);
+      if (obj->kind() == bb_EntityKind_::Terrain)
+        return bb_coll_terrain_(c, line, radius, static_cast<bb_TerrainEntity_*>(obj), tf);
       auto* me = (obj->kind() == bb_EntityKind_::Mesh)
                    ? static_cast<bb_MeshEntity_*>(obj) : nullptr;
       if (!me) return false;   // Object::collide liefert sonst false
