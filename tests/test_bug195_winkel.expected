@@ -1,0 +1,18 @@
+vec 0.0,0.0,1.0: yaw 0 pitch 0
+vec 1.0,0.0,0.0: yaw -900000 pitch 0
+vec -1.0,0.0,0.0: yaw 900000 pitch 0
+vec 0.0,0.0,-1.0: yaw -1800000 pitch 0
+vec 1.0,1.0,1.0: yaw -450000 pitch -352644
+vec 0.0,1.0,0.0: yaw 0 pitch -900000
+vec 0.0,-1.0,0.0: yaw 0 pitch 900000
+vec 0.0,0.0,0.0: yaw 0 pitch 0
+vec -3.0,2.0,-0.5: yaw 994623 pitch -333288
+vorn: dyaw 0 dpitch 0
+rechts: dyaw -900000 dpitch 0
+hinten: dyaw -1800000 dpitch 0
+links oben hinten: dyaw 1350000 dpitch -194712
+gedreht: dyaw -350000 dpitch -394712
+gedreht 2: dyaw 1390362 dpitch 644499
+gleicher ort: dyaw 1700000 dpitch 300000
+matrix 947 15000 13195 -23674 12990 -13068 -24495 -20000 24495 10000 20000 30000 
+kind -24495 -20000 24495 -23674 12990 -13068 -947 -15000 -13195 10947 35000 43195 

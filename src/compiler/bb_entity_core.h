@@ -1144,6 +1144,56 @@ inline float bb_EntityDistance(int h1, int h2) {
 }
 
 // ============================================================
+// Winkel und Matrix (BUG-195, Gruppe 2)
+// ============================================================
+//
+// Wie bbblitz3d.cpp und Vector::yaw/pitch in geom.h des Originals, in float
+// gerechnet: yaw = -atan2(x, z), pitch = -atan2(y, sqrt(x*x + z*z)), mal
+// rtod. DeltaYaw/DeltaPitch vergleichen die z-Achse der Quelle mit der
+// Richtung zum Ziel und legen den Unterschied in [-180, 180).
+
+static constexpr float bb_PI_f_    = 3.14159265359f;
+static constexpr float bb_TWOPI_f_ = bb_PI_f_ * 2.0f;
+static constexpr float bb_rtod_f_  = 180.0f / bb_PI_f_;
+
+static inline float bb_vec_yaw_(float x, float, float z)   { return -atan2f(x, z); }
+static inline float bb_vec_pitch_(float x, float y, float z) {
+  return -atan2f(y, sqrtf(x * x + z * z));
+}
+
+inline float bb_VectorYaw(float x, float y, float z)   { return bb_vec_yaw_(x, y, z) * bb_rtod_f_; }
+inline float bb_VectorPitch(float x, float y, float z) { return bb_vec_pitch_(x, y, z) * bb_rtod_f_; }
+
+static inline float bb_delta_angle_(int src, int dest, bool pitch) {
+  bb_Entity_* a = bb_ent_chk_(src);
+  bb_Entity_* b = bb_ent_chk_(dest);
+  if (!a || !b) return 0;
+  const float* wa = bb_entity_world_(a);
+  const float* wb = bb_entity_world_(b);
+  const float dx = wb[12] - wa[12], dy = wb[13] - wa[13], dz = wb[14] - wa[14];
+  const float x = pitch ? bb_vec_pitch_(wa[8], wa[9], wa[10]) : bb_vec_yaw_(wa[8], wa[9], wa[10]);
+  const float y = pitch ? bb_vec_pitch_(dx, dy, dz) : bb_vec_yaw_(dx, dy, dz);
+  float d = y - x;
+  if (d < -bb_PI_f_) d += bb_TWOPI_f_;
+  else if (d >= bb_PI_f_) d -= bb_TWOPI_f_;
+  return d * bb_rtod_f_;
+}
+
+inline float bb_DeltaYaw(int src_entity, int dest_entity)   { return bb_delta_angle_(src_entity, dest_entity, false); }
+inline float bb_DeltaPitch(int src_entity, int dest_entity) { return bb_delta_angle_(src_entity, dest_entity, true); }
+
+// bbGetMatElement: m[row][col] der Weltmatrix, Zeile 0-2 sind die Achsen der
+// Entity (Matrix::i, j, k), jede weitere Zeile die Lage. In der spaltenweisen
+// Matrix hier steht m[row][col] bei world[row*4 + col]. Eine Spalte ausserhalb
+// 0-2 liest im Original fremden Speicher; hier 0.
+inline float bb_GetMatElement(int entity, int row, int column) {
+  bb_Entity_* e = bb_ent_chk_(entity);
+  if (!e || column < 0 || column > 2) return 0;
+  const float* w = bb_entity_world_(e);
+  return row < 3 && row >= 0 ? w[row * 4 + column] : w[12 + column];
+}
+
+// ============================================================
 // Hierarchy (3D-05)
 // ============================================================
 
