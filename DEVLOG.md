@@ -1,5 +1,31 @@
 # BlitzNext Developer Log
 
+## 2026-10-04 — v0.6.5: terrain
+
+Terrain is in: `CreateTerrain`, `LoadTerrain`, `ModifyTerrain`, `TerrainHeight`,
+`TerrainSize`, `TerrainDetail`, `TerrainShading` and `TerrainX/Y/Z`, translated from
+`terrainrep.cpp`. Like the original, a terrain is redrawn for every camera as a ROAM-style
+triangle tree: split where the precomputed error divided by the distance to the eye is
+largest, until `TerrainDetail` triangles are reached, optionally morphing the newest
+vertices, and culled against the view frustum. Collisions and picks walk the same error tree.
+Against Blitz3D 11.8 the triangle counts match exactly (`TrisRendered` 345, 98, 149 for the
+measured views), as do byte storage with its overflow, the wrap-around at the edge, the
+bilinear `TerrainY` under scale and rotation, a sphere sliding down a slope and picks onto
+the surface. Only picks that land exactly on a grid edge can differ, where the original's
+x87 arithmetic decides the last bit differently.
+
+With terrain, 28 commands of Blitz3D remain missing (BSP, DirectPlay, movies, gamma), and
+none of the 156 sample sources that ship with Blitz3D uses one of them. Nine of the ten
+terrain samples run; side by side with the original, `insaner` and `driver` look the same.
+The tenth, `water.bb`, stops at the type check: it assigns `Input$()` to an untagged
+variable and then subtracts from it (BUG-80).
+
+The mak demos' title screen showed another old defect: on screen, `DrawBlock`,
+`DrawImageRect` and `DrawBlockRect` ignored the image handle, so `MidHandle` had no effect
+(BUG-200). Fixed and measured against the original.
+
+Version 0.6.5 (`blitzcc -v`, IDE). Full suite: 335 passed, 0 failed.
+
 ## 2026-10-04 — 40 missing commands added, joystick input rebuilt
 
 Of the 78 Blitz3D commands that were missing, 40 are now available, each translated from the

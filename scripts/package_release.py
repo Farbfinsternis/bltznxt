@@ -14,7 +14,7 @@ Die Version steht in ide/package.json; blitzcc muss dieselbe melden (-v).
 
 Aufbau des Pakets:
 
-    bltznxt-v0.6.2-win64/
+    bltznxt-v0.6.5-win64/
       BLTZNXT IDE.bat         startet die IDE
       README.txt  LICENSES/
       bin/                    blitzcc.exe und seine DLLs, SDL3

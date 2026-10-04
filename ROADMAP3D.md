@@ -1107,28 +1107,28 @@ Schritt am Original gemessen (2026-09-26).
 ---
 
 ### 3D-22 · Terrain
-*Dateien: `bb_terrain.h` (neu)*
+*Dateien: `bb_terrain.h` (2026-10-04), Kollision in `bb_collision.h`*
 
-- [ ] `bb_TerrainEntity_` erbt von `bb_Entity_`:
-      Heightmap-Daten (float[size×size]), GPU-Mesh (Triangle-Strip oder Indexed)
-- [ ] `bb_CreateTerrain(size, parent=0)` → handle (size = Anzahl Vertices pro Seite, 2^n)
-- [ ] `bb_LoadTerrain(path$, parent=0)` → lädt PNG/BMP als Heightmap via stb_image
-- [ ] `bb_TerrainSize(h)` → int
-- [ ] `bb_TerrainHeight(h, x, z)` → float (interpoliert)
-- [ ] `bb_ModifyTerrain(h, x, z, height, realtime=0)` — Vertex-Height setzen;
-      `realtime=1` → sofortige GPU-Aktualisierung
-- [ ] `bb_TerrainDetail(h, detail, morph=0)` — LOD-Stufe (Stub für Morph)
-- [ ] `bb_TerrainShading(h, on)` — Simple Slope-Shading
-- [ ] `bb_TerrainX/Y/Z(h, x, height, z)` → Weltkoordinaten
-- **Test:** `tests/test_3d22_terrain.bb`
-  ```blitzbasic
-  Graphics3D 800,600,32,1
-  Local cam = CreateCamera()
-  PositionEntity cam, 0, 50, -50
-  RotateEntity cam, 45, 0, 0
-  Local t = LoadTerrain("tests/assets/heightmap.png")
-  UpdateWorld : RenderWorld : Flip : WaitKey
-  ```
+Uebersetzung von `terrain.cpp`, `terrainrep.cpp` und den Terrain-Befehlen in
+`bbblitz3d.cpp`; am Original gemessen (`tests/test_bug195_terrain.bb`, 33 Zeilen).
+
+- [x] `CreateTerrain(grid_size, parent)`, `LoadTerrain(file$, parent)` - Raster aus
+      Bytes (0..255 fuer 0..1), Groesse 2^n; Hoehenkarte: hellster Kanal je Pixel,
+      oberste Bildzeile hinten
+- [x] `ModifyTerrain(t, x, z, h, realtime)` - Byte wie MSVC (`(uchar)(int)(h*255)`,
+      1.5 laeuft ueber), Rand x = size ist Spalte 0; `realtime` rechnet nur den
+      betroffenen Ast des Fehlerbaums neu
+- [x] `TerrainHeight` (Rasterwert, nicht interpoliert), `TerrainSize`,
+      `TerrainX/Y/Z` (bilinear, samt Skalierung und Drehung der Entity)
+- [x] ROAM-Zeichnen je Kamera: Teilen nach Fehler / Abstand bis `TerrainDetail`
+      (Vorgabe 2000), Morph, Sichtkegel-Verwerfen; `TrisRendered` und
+      `Stats3D(1/2)` wie im Original
+- [x] `TerrainShading` (Normalen aus den vier Nachbarn, sonst nach oben)
+- [x] Kollision und Picking ueber den Fehlerbaum (Methode 2)
+- [x] `CopyEntity` liefert wie im Original einen Pivot
+- Die Terrain-Beispiele der Installation laufen: castle, driver, insaner,
+  xfighter, TE, thunder, Death Island, Shooter (dazu die Bibliothek
+  Spherical Landscapes/functions.bb); `water.bb` scheitert an BUG-80.
 
 ---
 

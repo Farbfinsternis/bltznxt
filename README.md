@@ -1,12 +1,12 @@
 <p align="center">
-  <img src="bltznxt-ide-update.jpg" alt="BLTZNXT IDE Update" width="720">
+  <img src="terrain-update.jpg" alt="BLTZNXT Terrain Update" width="720">
 </p>
 
 # BlitzNext
 
 **BlitzNext** is the successor to Blitz3D: a modern compiler that turns Blitz3D (`.bb`) source files into native Windows executables via a C++17 transpilation pipeline, using a bundled MinGW toolchain and SDL3 for audio and graphics. It aims to do everything the original could — and to run the programs written for it, unchanged.
 
-> **Status: active development — v0.6.2, "Birth of IDE".** BlitzNext now has its own IDE, and there is a self-contained Windows package to try it: [download the ZIP from the latest release](https://github.com/Farbfinsternis/bltznxt/releases/latest), unpack it, double-click `BLTZNXT IDE.bat`. BlitzNext compiles and runs the unmodified game **blox-n-balls**, and it can be used to make new games: [Friendly Fire](samples/friendlyfire/), a small Quake III style arena shooter, is an ordinary Blitz3D program that loads its models as glTF from Blender and plays its sounds in 3D. The runtime includes keyframe and skeletal animation, glTF, 3D sound and planes; full gameplay compatibility of old programs is still being verified.
+> **Status: active development — v0.6.5.** BlitzNext now has its own IDE, and there is a self-contained Windows package to try it: [download the ZIP from the latest release](https://github.com/Farbfinsternis/bltznxt/releases/latest), unpack it, double-click `BLTZNXT IDE.bat`. BlitzNext compiles and runs the unmodified game **blox-n-balls**, and it can be used to make new games: [Friendly Fire](samples/friendlyfire/), a small Quake III style arena shooter, is an ordinary Blitz3D program that loads its models as glTF from Blender and plays its sounds in 3D. The runtime includes keyframe and skeletal animation, glTF, 3D sound, planes and terrain; full gameplay compatibility of old programs is still being verified.
 > **[KNOWN_ISSUES.md](KNOWN_ISSUES.md) lists everything that does not yet behave like Blitz3D** — please check it before reporting a bug.
 > See [roadmap.md](roadmap.md) and [ROADMAP3D.md](ROADMAP3D.md) for the milestones and [DEVLOG.md](DEVLOG.md) for the changelog.
 
@@ -52,15 +52,14 @@ an old program is a bug.
 
 ## Compatibility Progress
 
-*State 2026-10-04:* 16 open bugs that can break an old program and 38 missing commands, all
+*State 2026-10-04:* 16 open bugs that can break an old program and 28 missing commands, all
 listed in [KNOWN_ISSUES.md](KNOWN_ISSUES.md). Userlibs are not supported, so `CallDLL` does
 nothing.
 
 Compatibility is measured, not estimated: language questions are answered from the
 [original source](https://github.com/blitz-research/blitz3d), and behaviour is compared with a
-running Blitz3D 11.8 — to find out what a command does, not to reproduce every last pixel. Of
-the 156 example sources that ship with Blitz3D, 10 still use a missing command, all of them
-terrain or BSP.
+running Blitz3D 11.8 — to find out what a command does, not to reproduce every last pixel. None
+of the 156 example sources that ship with Blitz3D uses a missing command any more.
 
 **Test priority.** blox-n-balls is the primary integration test: all 26 source files compile
 unchanged, it loads, the menus work and levels can be played. It uses only part of Blitz3D,
@@ -73,7 +72,7 @@ secondary target.
 
 ### The easy way: the release package
 
-Download `bltznxt-v0.6.2-win64.zip` from the [releases page](https://github.com/Farbfinsternis/bltznxt/releases), unpack it anywhere and double-click `BLTZNXT IDE.bat`. Compiler, IDE, C++ toolchain and SDL3 are all inside — nothing to install. Then *File > Open Folder…* → `samples\friendlyfire`, open `friendlyfire.bb`, press **F5**. (Windows may warn about an unsigned program the first time: *More info > Run anyway*.) See [The BLTZNXT IDE](#the-bltznxt-ide).
+Download the Windows ZIP (`bltznxt-v…-win64.zip`) from the [releases page](https://github.com/Farbfinsternis/bltznxt/releases), unpack it anywhere and double-click `BLTZNXT IDE.bat`. Compiler, IDE, C++ toolchain and SDL3 are all inside — nothing to install. Then *File > Open Folder…* → `samples\friendlyfire`, open `friendlyfire.bb`, press **F5**. (Windows may warn about an unsigned program the first time: *More info > Run anyway*.) See [The BLTZNXT IDE](#the-bltznxt-ide).
 
 ### From source
 
@@ -114,8 +113,8 @@ bin\blitzcc.exe hello.bb
 | **Language** | Every Blitz3D construct: control flow, functions, `Type` objects, arrays, `Const`, `Goto`/`Gosub`, `Data`/`Read`, `Include` |
 | **Runtime** | Maths, strings, files, banks, timers, keyboard, mouse, joystick and gamepad, audio including 3D sound, TCP and UDP |
 | **2D** | Drawing, text and fonts, images with masks, handles and transforms, pixel buffers, image overlap tests |
-| **3D** | Entities, cameras, lights, textures, brushes, meshes and surfaces, `.x`/`.3ds`/`.b3d`/MD2/glTF loading, animation, sprites, mirrors, collisions, picking and projection |
-| **Missing** | 38 commands: terrain, BSP, DirectPlay, movies, gamma |
+| **3D** | Entities, cameras, lights, textures, brushes, meshes and surfaces, `.x`/`.3ds`/`.b3d`/MD2/glTF loading, animation, sprites, mirrors, collisions, picking and projection, terrain |
+| **Missing** | 28 commands: BSP, DirectPlay, movies, gamma |
 
 Where something exists but does not yet behave like Blitz3D, it is listed in
 [KNOWN_ISSUES.md](KNOWN_ISSUES.md). `blitzcc -k` prints every available command, `blitzcc +k`
@@ -337,7 +336,8 @@ Where the 3D engine is heading — one modern material model, per-pixel lighting
 | 3D-18 | Collision methods, responses and result queries | Implemented, reference-tested |
 | 3D-19 | Keyframe and skeletal animation, `.x`/`.3ds` hierarchies, `.b3d`; tweening missing | Implemented, reference-tested |
 | 3D-24 | glTF (`.gltf`/`.glb`): nodes, meshes, materials as brushes, lightmaps on UV set 1, skinning, animations, morph targets | Implemented |
-| 3D-14, 3D-20 – 3D-23 | OBJ loader, remaining 3D maths, terrain, BSP | Remaining roadmap work |
+| 3D-22 | Terrain: ROAM level of detail, heightmaps, collisions and picking | Implemented, reference-tested |
+| 3D-14, 3D-20, 3D-21, 3D-23 | OBJ loader, remaining 3D maths, BSP | Remaining roadmap work |
 
 ---
 
