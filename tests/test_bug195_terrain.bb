@@ -73,6 +73,7 @@ Next : Next
 SetBuffer BackBuffer()
 SaveImage img, "hm.bmp"
 w = LoadTerrain("hm.bmp")
+DeleteFile "hm.bmp"
 For zz = 0 To 15 Step 5
 	s$ = "E" + zz
 	For x = 0 To 15
