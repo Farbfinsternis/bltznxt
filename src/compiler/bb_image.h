@@ -436,14 +436,16 @@ inline void bb_DrawImageRect(int handle, int x, int y,
     if (!fd || !fd->tex) return;
     SDL_FRect src = { static_cast<float>(sx), static_cast<float>(sy),
                       static_cast<float>(sw), static_cast<float>(sh) };
-    SDL_FRect dst = { static_cast<float>(x),  static_cast<float>(y),
+    SDL_FRect dst = { static_cast<float>(x - fd->handle_x), static_cast<float>(y - fd->handle_y),
                       static_cast<float>(sw),  static_cast<float>(sh) };
     SDL_RenderTexture(bb_renderer_, fd->tex, &src, &dst);
 }
 
 // ---- DrawBlock(handle, x, y [,frame=0]) ----
 //
-// Like DrawImage but ignores handle offset.  Scale and rotation still apply.
+// Wie DrawImage, nur ohne Maske. Der Griffpunkt gilt wie bei allen Bildbefehlen
+// (gxCanvas::blit zieht handle_x/y ab); bis 2026-10-04 liess der Weg auf den
+// Bildschirm ihn hier und bei DrawImageRect/DrawBlockRect weg (BUG-200).
 
 inline void bb_DrawBlock(int handle, int x, int y, int frame = 0) {
     if (bb_canvas_draw_image_(handle, x, y, frame, 0, 0, 0, 0, true, true)) return;
@@ -454,13 +456,16 @@ inline void bb_DrawBlock(int handle, int x, int y, int frame = 0) {
 
     float dw = img.width  * fd->scale_x;
     float dh = img.height * fd->scale_y;
-    SDL_FRect dst = { static_cast<float>(x), static_cast<float>(y), dw, dh };
+    float dx = static_cast<float>(x) - fd->handle_x * fd->scale_x;
+    float dy = static_cast<float>(y) - fd->handle_y * fd->scale_y;
+    SDL_FRect dst = { dx, dy, dw, dh };
 
     // DrawBlock zeichnet auch die maskierten Pixel (gemessen 2026-09-17,
     // BUG-141).
     SDL_SetTextureBlendMode(fd->tex, bb_blockblend_());
     if (fd->rotation != 0.0f) {
-        SDL_FPoint center = { dw * 0.5f, dh * 0.5f };
+        SDL_FPoint center = { fd->handle_x * fd->scale_x,
+                              fd->handle_y * fd->scale_y };
         SDL_RenderTextureRotated(bb_renderer_, fd->tex, nullptr, &dst,
                                  static_cast<double>(fd->rotation),
                                  &center, SDL_FLIP_NONE);
