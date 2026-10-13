@@ -12,7 +12,9 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-10-13 — 13 open bugs, 28 missing commands.*
+*Last updated: 2026-10-13 — 24 open bugs, 28 missing commands.* A review against the
+original on 2026-10-13 found eleven more (BUG-201 to BUG-211); they are fixed first, for
+version 0.7.0.
 
 If an old program breaks and the cause is not listed here, please open an issue with a
 minimal `.bb` file and a description of what happens in both.
@@ -22,6 +24,8 @@ minimal `.bb` file and a description of what happens in both.
 - [Intentional differences](#intentional-differences)
 - [Accepted differences](#accepted-differences)
 - [Missing commands](#missing-commands)
+- [Umlauts and other non-ASCII characters](#umlauts-and-other-non-ascii-characters) — read this first
+- [Keyboard and mouse input](#keyboard-and-mouse-input) — read this first
 - [Language and compiler](#language-and-compiler)
 - [Runtime library](#runtime-library)
 - [2D graphics](#2d-graphics)
@@ -159,6 +163,44 @@ and without a debugger Blitz3D suspends the program until its window is activate
 
 ---
 
+## Umlauts and other non-ASCII characters
+
+Blitz3D strings and source files use the Windows code page (Windows-1252 on Western
+systems), so `ä`, `ö`, `ü`, `ß`, `é` and the like work everywhere in Blitz3D. BlitzNext
+does not handle them yet:
+
+- **A source file in a folder with such a character crashes the compiler** (exit code 3,
+  `Illegal byte sequence`) — even a user folder like `C:\Users\Jürgen\Documents` is enough.
+  *Workaround:* keep projects in a path without them. (BUG-201)
+- **File and folder names with such characters crash the program**: `FileType`, `FileSize`,
+  `ReadDir`/`NextFile`, `CurrentDir`, `ChangeDir`, `CreateDir`, `DeleteDir`, `CopyFile`,
+  `DeleteFile` and the model loaders stop with a `filesystem_error`. *Workaround:* rename the
+  files. (BUG-202)
+- **Text with such characters is shown wrong**: with a font from `LoadFont` they appear as a
+  replacement glyph and `StringWidth` measures that glyph; the window title from `AppTitle`,
+  sound file names in `LoadSound`, and `Print`/`Input` in the console are affected as well.
+  The built-in default font is fine. (BUG-203)
+
+---
+
+## Keyboard and mouse input
+
+- **`GetKey()` and `GetMouse()` wait for a key or button.** In Blitz3D they return 0 at once
+  when nothing was pressed, so a main loop can call them every frame. Here such a loop stops
+  until a key comes — several samples that ship with Blitz3D hang this way (`flares.bb`, the
+  title screens of `CraftFlare`, `ModelChildren`, `WateryTerrain`). *Workaround:* use
+  `KeyHit`/`MouseHit` in the loop. (BUG-204)
+- **`GetKey` and `WaitKey` return scan codes, not characters.** Blitz3D returns the
+  character of the key (with Shift), 27 for Escape, 13 for Enter, 28 to 31 for the arrow
+  keys. `If WaitKey() = 27 Then End` never fires here, and `Chr(GetKey())` does not give the
+  typed letter. `WaitKey` also ignores a key that was pressed before it was called. (BUG-205)
+- **`KeyHit` and `MouseHit` return 1 instead of the number of presses** since the last
+  call, and **`FlushKeys`/`FlushMouse` also forget keys that are still held** — after
+  `FlushKeys`, `KeyDown` reports a held arrow key as up until it is pressed again. Blitz3D
+  only clears the hits and the queue. (BUG-206)
+
+---
+
 ## Language and compiler
 
 - **`Include` is handled line by line instead of as a statement.**
@@ -178,6 +220,8 @@ and without a debugger Blitz3D suspends the program until its window is activate
 - **An element of a fixed array as `For` counter** (`For v[0] = 1 To 3`) is rejected, and so
   is a chain of fields (`For a\b\c = …`). *Workaround:* count in a plain variable and assign
   it inside the loop. (BUG-160)
+- **`Shl`, `Shr` and `Sar` by 32 or more, or by a negative count, give 0 or -1.** Blitz3D
+  uses the count modulo 32 (`1 Shl 33` is 2). (BUG-207)
 - **An empty source file** is rejected with "could not read file". (BUG-110)
 - **An unclosed string literal** (`Print "abc` without the closing quote) is rejected.
   Blitz3D accepts it — and drops the last character. (WEAK-12)
@@ -193,17 +237,31 @@ and without a debugger Blitz3D suspends the program until its window is activate
 
 - **`SystemProperty`** always returns an empty string (Blitz3D returns e.g. `"Intel"` for
   `"cpu"`). (BUG-122)
+- **`ExecFile` waits until the started program has ended** and cannot open documents or web
+  addresses (`ExecFile "http://…"`); Blitz3D hands the line to the Windows shell and goes on.
+  The close prompt of `AppTitle title$, prompt$` is not shown; closing the window ends the
+  program at once. (BUG-210)
+- **`ReadAvail` on a file returns the bytes left**; Blitz3D returns 0 for files (for TCP
+  streams both agree). (BUG-211)
 
 ---
 
 ## 2D graphics
 
+- **The `Graphics` modes are not Blitz3D's yet.** Mode 0 (the default) always opens a window;
+  Blitz3D opens a full screen unless the program is compiled with debugging. Mode 6 is full
+  screen here and a window (paused while inactive) in Blitz3D, and modes 3 and 7 do not scale
+  the picture with the window. The same applies to `Graphics3D`. (BUG-208)
+- **`Oval` on the screen is one pixel too wide and too high**, and `Rect` with a negative
+  width draws a rectangle where Blitz3D draws nothing. Drawing into an image buffer is exact.
+  (BUG-209)
 - **`ImagesCollide` and `ImageRectCollide`** compare bounding rectangles instead of visible
   pixels, and ignore the frame argument. Masked or transparent areas count as a hit.
   *Workaround:* none yet for pixel-accurate tests. (BUG-119)
 - **Font heights differ.** The default font is 8 pixels high instead of 13, and a font loaded
   with `LoadFont(name, 40)` reports `FontHeight` 45 instead of 40. Text laid out with
-  `FontHeight` or `StringWidth` ends up spaced differently. (BUG-139)
+  `FontHeight` or `StringWidth` ends up spaced differently. `LoadFont` without a height uses
+  8 instead of 12, and its bold, italic and underline flags are ignored. (BUG-139)
 
 ---
 
