@@ -3,6 +3,7 @@
 
 #include "ast.h"
 #include "commands.h"
+#include "constfold.h" // parseIntLiteral
 #include "lexer.h" // toLower
 #include <algorithm>
 #include <fstream>
@@ -242,8 +243,25 @@ public:
       output << "bbString(\"" << escapeCppString(node->token.value) << "\")";
     else if (node->token.type == TokenType::FLOAT_LIT)
       output << floatLiteral(node->token.value);
+    else if (node->token.type == TokenType::INT_LIT)
+      output << intLiteral(node->token.value);
     else
       output << node->token.value;
+  }
+
+  // Ein Ganzzahl-Literal liest der Parser des Originals mit atoi: immer
+  // dezimal, "010" ist 10 und "08" gueltig, und was nicht in 32 Bit passt,
+  // laeuft um ("4294967297" ist 1, gemessen). Den Ziffern-Text unveraendert
+  // auszugeben machte daraus in C++ eine Oktalzahl (BUG-98). Hex und Binaer
+  // kommen schon als int-Zahl vom Lexer.
+  static std::string intLiteral(const std::string &text) {
+    return intText(ConstFolder::parseIntLiteral(text));
+  }
+
+  static std::string intText(int v) {
+    if (v >= 0) return std::to_string(v);
+    if (v == -2147483647 - 1) return "(-2147483647 - 1)";
+    return "(" + std::to_string(v) + ")";
   }
 
   void visit(BinaryExpr *node) override {
@@ -335,6 +353,18 @@ public:
     inExprCtx  = true;
 
     std::string op = node->op;
+    // "-2147483648": das Literal laeuft schon um, die Negation auch. In C++
+    // waere -INT_MIN ein Ueberlauf (und eine Warnung von g++), also hier
+    // rechnen.
+    if (op == "-")
+      if (auto *le = dynamic_cast<LiteralExpr *>(node->expr.get());
+          le && le->token.type == TokenType::INT_LIT) {
+        uint32_t u = static_cast<uint32_t>(
+            ConstFolder::parseIntLiteral(le->token.value));
+        output << intText(static_cast<int>(0u - u));
+        inExprCtx = prev;
+        return;
+      }
     if (op == "NOT") op = "!";
     // "~" and +/- pass through as-is
     output << op;

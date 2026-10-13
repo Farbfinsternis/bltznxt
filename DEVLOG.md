@@ -1,5 +1,18 @@
 # BlitzNext Developer Log
 
+## 2026-10-13 — integer literals: always decimal, always 32 bits
+
+Blitz3D reads an integer literal with `atoi`: always decimal, so `010` is 10 and `08` is
+valid. BlitzNext passed the digits through to C++, where a leading zero means octal:
+`Print 010` printed 8 and `08` failed in the C++ compiler (BUG-98). Literals are now
+emitted as their value, read the way the original reads them. That also settles the rest of
+BUG-11: what does not fit in 32 bits wraps around without a message, as in the original —
+`4294967297` is 1, `$100000000` is 0, `$123456789` is `$23456789`. Before, a decimal one went
+to C++ unwrapped and a hex or binary one was rejected. Measured against Blitz3D 11.8: 36
+values, all the same.
+
+Full suite: 337 passed, 0 failed.
+
 ## 2026-10-13 — a Local shadows a global for the rest of the function
 
 In Blitz3D a `Local` inside a function belongs to the whole function body from the line it

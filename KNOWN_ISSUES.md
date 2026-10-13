@@ -12,7 +12,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-10-13 — 15 open bugs, 28 missing commands.*
+*Last updated: 2026-10-13 — 13 open bugs, 28 missing commands.*
 
 If an old program breaks and the cause is not listed here, please open an issue with a
 minimal `.bb` file and a description of what happens in both.
@@ -22,7 +22,6 @@ minimal `.bb` file and a description of what happens in both.
 - [Intentional differences](#intentional-differences)
 - [Accepted differences](#accepted-differences)
 - [Missing commands](#missing-commands)
-- [Silently different results](#silently-different-results) — read this first
 - [Language and compiler](#language-and-compiler)
 - [Runtime library](#runtime-library)
 - [2D graphics](#2d-graphics)
@@ -160,16 +159,6 @@ and without a debugger Blitz3D suspends the program until its window is activate
 
 ---
 
-## Silently different results
-
-These compile and run without any message, but compute something else than Blitz3D. They
-are the most likely reason for an old program to behave strangely.
-
-- **Numbers with a leading zero are read as octal.** `Print 010` prints `8`; `08` does not
-  compile at all. *Workaround:* remove leading zeros. (BUG-98)
-
----
-
 ## Language and compiler
 
 - **`Include` is handled line by line instead of as a statement.**
@@ -189,9 +178,6 @@ are the most likely reason for an old program to behave strangely.
 - **An element of a fixed array as `For` counter** (`For v[0] = 1 To 3`) is rejected, and so
   is a chain of fields (`For a\b\c = …`). *Workaround:* count in a plain variable and assign
   it inside the loop. (BUG-160)
-- **Integer literals wider than 32 bits** (`2147483648`, `$100000000`) are rejected, a
-  decimal one only by the C++ compiler; Blitz3D wraps them around (`Print 2147483648`
-  prints `-2147483648`). (BUG-11)
 - **An empty source file** is rejected with "could not read file". (BUG-110)
 - **An unclosed string literal** (`Print "abc` without the closing quote) is rejected.
   Blitz3D accepts it — and drops the last character. (WEAK-12)
