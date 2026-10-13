@@ -7,6 +7,7 @@
 #include <stdexcept>
 #include <algorithm>
 #include <cctype>
+#include <cstdint>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -190,28 +191,18 @@ private:
   }
 
   // Converts the digit part of a hex/bin literal into a Blitz3D integer.
-  // Blitz3D integers are 32 bit and wrap, so $FFFFFFFF is -1. Anything that
-  // does not fit in 32 bits (or overflows the conversion itself) is reported
-  // as an error and yields 0 — std::stol used to throw here and abort the
-  // whole compiler with exit code 3.
-  std::string literalToInt(const std::string &digits, int base,
-                           const char *kind, char sigil, int startCol) {
-    unsigned long long val = 0;
-    bool tooBig = false;
-    try {
-      val = std::stoull(digits, nullptr, base);
-    } catch (const std::exception &) {
-      tooBig = true;
+  // The reference's parser accumulates HEXCONST/BINCONST by 32-bit shifts,
+  // so only the lowest 32 bits survive: $FFFFFFFF is -1, $100000000 is 0 and
+  // $123456789 is $23456789 (measured, BUG-11). std::stol used to throw here
+  // and abort the whole compiler with exit code 3; later the lexer rejected
+  // anything wider than 32 bits, which the original accepts.
+  std::string literalToInt(const std::string &digits, int base) {
+    uint32_t val = 0;
+    for (unsigned char c : digits) {
+      uint32_t d = std::isdigit(c) ? c - '0' : (std::tolower(c) - 'a' + 10);
+      val = base == 16 ? (val << 4) | d : (val << 1) | d;
     }
-    if (tooBig || val > 0xFFFFFFFFull) {
-      std::cerr << map.format(line, startCol)
-                << ": error: " << kind << " literal " << sigil << digits
-                << " does not fit in a 32-bit integer\n";
-      ++lexErrors_;
-      return "0";
-    }
-    return std::to_string(
-        static_cast<int>(static_cast<unsigned int>(val)));
+    return std::to_string(static_cast<int>(val));
   }
 
   // $FF, $1A2B etc. — Blitz3D hex literals.
@@ -227,7 +218,7 @@ private:
     if (digits.empty())
       return {TokenType::OPERATOR, "$", line, startCol};
     return {TokenType::INT_LIT,
-            literalToInt(digits, 16, "hex", '$', startCol), line, startCol};
+            literalToInt(digits, 16), line, startCol};
   }
 
   // %1010 etc. — Blitz3D binary literals.
@@ -243,7 +234,7 @@ private:
     if (digits.empty())
       return {TokenType::OPERATOR, "%", line, startCol};
     return {TokenType::INT_LIT,
-            literalToInt(digits, 2, "binary", '%', startCol), line, startCol};
+            literalToInt(digits, 2), line, startCol};
   }
 
   Token lexString() {
