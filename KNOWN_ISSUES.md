@@ -12,7 +12,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-10-04 — 16 open bugs, 28 missing commands.*
+*Last updated: 2026-10-13 — 15 open bugs, 28 missing commands.*
 
 If an old program breaks and the cause is not listed here, please open an issue with a
 minimal `.bb` file and a description of what happens in both.
@@ -167,12 +167,6 @@ are the most likely reason for an old program to behave strangely.
 
 - **Numbers with a leading zero are read as octal.** `Print 010` prints `8`; `08` does not
   compile at all. *Workaround:* remove leading zeros. (BUG-98)
-- **A local variable declared inside a block ends with the block.** In Blitz3D a `Local`
-  belongs to the whole function. With a global `x`, a function that declares `Local x = 2`
-  inside an `If` block and prints `x` after the `EndIf` prints `2` in Blitz3D and the
-  global's value here. If the local has a different type than the global, the program is
-  rejected.
-  *Workaround:* give locals names that differ from globals. (BUG-100)
 
 ---
 

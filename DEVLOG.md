@@ -1,5 +1,24 @@
 # BlitzNext Developer Log
 
+## 2026-10-13 — a Local shadows a global for the rest of the function
+
+In Blitz3D a `Local` inside a function belongs to the whole function body from the line it
+stands on, even past the end of the `If` or loop that contains it, and it may share its name
+with a global. BlitzNext ended such a local at the end of its block and then silently read and
+wrote the global again; `Local x = x + 5` read the new, uninitialised local instead of the
+global; and a local with another type than the global (`Local x$` over `Global x`) was
+rejected (BUG-100).
+
+The binding now follows the reference's semant order: everything written before the `Local`
+refers to the global, everything after it to the local — also when a loop or a `Goto` comes
+back to an earlier line at run time, which is what the original does. The local gets its own
+C++ name and is declared at the top of the body, so a `Goto` cannot jump over it. Measured
+against Blitz3D 11.8 with loops, `Goto`, `Select`, `Read`, `For Each`, `Delete`, objects and
+changed types: 35 values, all the same. The generated code of Friendly Fire, BLTZCRFT,
+blox-n-balls and of the sample sources that ship with Blitz3D does not change.
+
+Full suite: 336 passed, 0 failed.
+
 ## 2026-10-04 — v0.6.5: terrain
 
 Terrain is in: `CreateTerrain`, `LoadTerrain`, `ModifyTerrain`, `TerrainHeight`,

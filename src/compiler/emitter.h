@@ -346,7 +346,7 @@ public:
   void visit(VarExpr *node) override {
     // No name needs special treatment here: Pi is a reserved word since
     // BUG-35 and reaches the emitter as a float literal, never as a VarExpr.
-    output << "var_" << toLower(node->name);
+    output << varName(toLower(node->name));
   }
 
   void visit(VarDecl *node) override {
@@ -373,6 +373,29 @@ public:
 
     // LOCAL variable declaration
     auto [type, defVal] = declType(node->typeHint, node->vecSize.get());
+
+    // Ein Local, das in einer Funktion ein Global verdeckt (BUG-100): schon
+    // vorab als lvar_<name> angelegt (hoistShadowLocals). Der Initialisierer
+    // liest noch das Global - VarDeclNode::proto wertet ihn vor insertDecl
+    // aus -, erst danach gilt der Name als lokal.
+    if (inFunctionBody && shadowDecls_.count(lo)) {
+      if (node->initValue) {
+        output << ind() << "lvar_" << lo << " = ";
+        bool prev = inExprCtx; inExprCtx = true;
+        emitConverted(node->initValue.get(), node->typeHint);
+        inExprCtx = prev;
+        output << ";\n";
+      }
+      shadowActive_.insert(lo);
+      varHints_[lo] = node->typeHint;
+      if (!node->typeHint.empty() && node->typeHint[0] == '.')
+        varObjectTypes[lo] = toLower(node->typeHint.substr(1));
+      else
+        varObjectTypes.erase(lo);
+      if (node->vecSize) vecVars_.insert(lo);
+      else               vecVars_.erase(lo);
+      return;
+    }
 
     // Already declared at the top of the body by hoistLocals() — the
     // declaration here would be jumped over by a Goto/Gosub.
@@ -433,7 +456,7 @@ public:
         auto ith = varHints_.find(lo);
         if (ith != varHints_.end()) target = ith->second;
       }
-      output << ind() << "var_" << lo << " = ";
+      output << ind() << varName(lo) << " = ";
       bool prev = inExprCtx; inExprCtx = true;
       emitConverted(node->value.get(), target);
       inExprCtx = prev;
@@ -525,7 +548,7 @@ public:
     // FieldAccess already emit exactly the lvalue that is needed here.
     auto counter = [&]() {
       if (node->target) emitExpr(node->target.get());
-      else              output << "var_" << v;
+      else              output << varName(v);
     };
 
     // Declare only what does not exist yet, and in the enclosing scope so it
@@ -824,9 +847,16 @@ public:
     inFunctionBody = true;
     indentLevel = 1;
     hoistLocals(node->body);
+    std::unordered_set<std::string> paramNames;
+    for (auto &p : node->params) paramNames.insert(toLower(p.name));
+    auto savedVecVars = vecVars_;
+    hoistShadowLocals(node->body, paramNames);
     for (auto &n : node->body) emitStmt(n.get());
     inFunctionBody = false;
     hoistedLocals_ = savedHoisted;
+    shadowDecls_.clear();
+    shadowActive_.clear();
+    vecVars_ = savedVecVars;
 
     // Blitz3D functions may just end; C++ may not fall off a non-void
     // function, so close every body with the type's default value.
@@ -955,7 +985,7 @@ public:
              << " = (" << type << ")bb_DataRead();\n";
       declaredVars.insert(lo);
     } else {
-      output << ind() << "var_" << lo
+      output << ind() << varName(lo)
              << " = (" << type << ")bb_DataRead();\n";
     }
   }
@@ -1085,7 +1115,7 @@ public:
     // bei jedem Schritt neu ausgewertet (ForEachNode::translate).
     auto counter = [&]() {
       if (node->target) emitExpr(node->target.get());
-      else              output << "var_" << v;
+      else              output << varName(v);
     };
 
     // Der Zaehler ist schon eine Variable des Rumpfs - vorab deklariert
@@ -1287,6 +1317,8 @@ private:
   std::unordered_set<std::string> declaredVars;       // lowercase declared var names
   std::unordered_set<std::string> hoistedLocals_;     // declared up front (Goto-safe)
   std::unordered_set<std::string> vecVars_;           // feste Arrays des laufenden Rumpfes
+  std::unordered_map<std::string, LocalDecl> shadowDecls_; // Locals, die ein Global verdecken (BUG-100)
+  std::unordered_set<std::string> shadowActive_;      // davon schon deklariert (varName)
   std::string returnDefault_ = "0";                  // default value of the current function
   std::string returnHint_;                           // Blitz-Rueckgabetag der laufenden Funktion
   // Skalartag jeder bekannten Variablen ("%", "#", "$" oder ""). Nur fuer die
@@ -1909,6 +1941,53 @@ private:
       varHints_[lo] = hint;
       if (!hint.empty() && hint[0] == '.')
         varObjectTypes[lo] = toLower(hint.substr(1));
+    }
+  }
+
+  // Der C++-Name einer Variablen an der aktuellen Stelle des Rumpfs.
+  std::string varName(const std::string &lo) const {
+    return (shadowActive_.count(lo) ? "lvar_" : "var_") + lo;
+  }
+
+  // BUG-100: Ein Local in einer Funktion, das ein Global gleichen Namens
+  // verdeckt. Im Original fuegt DeclStmtNode::semant den Namen in die Decls
+  // der Funktion ein, und zwar in der Reihenfolge des Quelltexts: was davor
+  // steht, ist schon an das Global gebunden, alles danach an das Local - auch
+  // hinter dem Block, in dem das Local steht, denn die Bloecke teilen das
+  // Environ der Funktion. Zur Laufzeit zaehlt also nicht, ob das Local schon
+  // ausgefuehrt wurde (gemessen 2026-10-13: eine Schleife, die vor dem Local
+  // liest, liest in jedem Durchlauf das Global; ein Goto zurueck ebenso).
+  // Darum ein eigener C++-Name, vorab am Rumpfanfang angelegt wie bei
+  // hoistLocals(), und varName() schaltet erst am Local um.
+  void hoistShadowLocals(const std::vector<std::unique_ptr<ASTNode>> &nodes,
+                         const std::unordered_set<std::string> &params) {
+    for (auto &n : nodes) {
+      if (auto *vd = dynamic_cast<VarDecl *>(n.get())) {
+        if (vd->scope != VarDecl::LOCAL) continue;
+        std::string lo = toLower(vd->name);
+        if (!globalVarNames.count(lo) || params.count(lo) ||
+            shadowDecls_.count(lo))
+          continue;
+        auto [type, defVal] = declType(vd->typeHint, vd->vecSize.get());
+        output << ind() << type << " lvar_" << lo << " = " << defVal << ";\n";
+        shadowDecls_[lo] = LocalDecl{lo, vd->typeHint, vd->vecSize.get()};
+      } else if (auto *prog = dynamic_cast<Program *>(n.get())) {
+        hoistShadowLocals(prog->nodes, params);
+      } else if (auto *if_ = dynamic_cast<IfStmt *>(n.get())) {
+        hoistShadowLocals(if_->thenBlock, params);
+        hoistShadowLocals(if_->elseBlock, params);
+      } else if (auto *wh = dynamic_cast<WhileStmt *>(n.get())) {
+        hoistShadowLocals(wh->block, params);
+      } else if (auto *rp = dynamic_cast<RepeatStmt *>(n.get())) {
+        hoistShadowLocals(rp->block, params);
+      } else if (auto *fr = dynamic_cast<ForStmt *>(n.get())) {
+        hoistShadowLocals(fr->block, params);
+      } else if (auto *sel = dynamic_cast<SelectStmt *>(n.get())) {
+        for (auto &c : sel->cases) hoistShadowLocals(c.block, params);
+        hoistShadowLocals(sel->defaultBlock, params);
+      } else if (auto *fe = dynamic_cast<ForEachStmt *>(n.get())) {
+        hoistShadowLocals(fe->block, params);
+      }
     }
   }
 

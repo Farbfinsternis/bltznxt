@@ -693,11 +693,19 @@ private:
       // Ein Local verdeckt einen Const gleichen Namens (gemessen); declare()
       // liesse sonst den Const gewinnen, und "c = 5" danach waere eine
       // Zuweisung an ihn.
-      if (vd->scope == VarDecl::LOCAL && constNames_.count(toLower(vd->name)))
+      //
+      // Der Initialisierer zuerst, wie in VarDeclNode::proto: in
+      // "Local x = x + 1" ist das rechte x noch das Global. Und in einer
+      // Funktion verdeckt das Local auch ein Global gleichen Namens, ab hier
+      // bis zum Ende des Rumpfs (BUG-100) - declare() liesse das Global
+      // gewinnen.
+      Ty init;
+      if (vd->initValue) init = expr(vd->initValue.get());
+      if (vd->scope == VarDecl::LOCAL &&
+          (inFunction_ || constNames_.count(toLower(vd->name))))
         (*scope_)[toLower(vd->name)] = t;
       else if (vd->scope == VarDecl::LOCAL) declare(vd->name, t);
-      if (vd->initValue)
-        checkAssign(t, expr(vd->initValue.get()), "Local", vd->line, vd->col);
+      if (vd->initValue) checkAssign(t, init, "Local", vd->line, vd->col);
       // "Local a[3] = 1" gibt es nicht: der Parser laesst Groesse und
       // Initialisierer nicht zusammen zu, und das Original auch nicht.
     } else if (auto *cd = dynamic_cast<ConstDecl *>(n)) {
