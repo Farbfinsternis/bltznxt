@@ -1,5 +1,19 @@
 # BlitzNext Developer Log
 
+## 2026-10-25 — ImagesCollide and ImageRectCollide test visible pixels
+
+Both only compared the bounding rectangles, so two images collided wherever their
+rectangles touched, even in fully masked areas, and the frame arguments were ignored
+(BUG-119). They now work like Blitz3D's `gxCanvas::collide`: inside the overlap a pixel
+must differ from the mask colour in both images, with the handle of the chosen frame. A
+frame that was never drawn into is black, like a new `CreateImage`. Measured against
+Blitz3D 11.8 with single pixels just apart and on top of each other, frames, `MidHandle`,
+a fully masked image and `ImageRectCollide`: the same results. One difference stays on
+purpose: Blitz3D builds its collision mask once and does not rebuild it after
+`MaskImage`; BlitzNext always uses the current mask colour.
+
+Full suite: 349 passed, 0 failed.
+
 ## 2026-10-25 — an unclosed string literal is accepted like in Blitz3D
 
 A string without its closing quote ends at the end of the line in Blitz3D, and since the

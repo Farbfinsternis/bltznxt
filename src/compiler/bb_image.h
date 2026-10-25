@@ -851,16 +851,62 @@ inline int bb_ImageYColl(int h1, int x1, int y1,
     return (oy1 + oy2) / 2;
 }
 
-// ---- ImagesCollide / ImageRectCollide (M46b stubs — bounding-box for now) ----
+// ---- ImagesCollide / ImageRectCollide (BUG-119) ----
+//
+// Pixelgenau wie gxCanvas::collide/rect_collide: erst die Rechtecke mit dem
+// Griffpunkt des jeweiligen Frames, dann im Ueberlappungsbereich ein Pixel,
+// das in beiden Bildern nicht die Maskenfarbe hat. Bis BUG-119 pruefte das nur
+// die Rechtecke - zwei ganz maskierte Bilder "kollidierten".
+// Eine Abweichung bleibt bewusst: das Original baut seine Bitmaske beim
+// ersten Aufruf und erneuert sie nur, wenn ins Bild gezeichnet wird, ein
+// spaeteres MaskImage wirkt dort also nicht auf die Kollision (gemessen).
+// Hier gilt immer die aktuelle Maskenfarbe.
 
-inline int bb_ImagesCollide(int h1, int x1, int y1, int /*f1*/,
-                             int h2, int x2, int y2, int /*f2*/) {
-    return bb_ImagesOverlap(h1, x1, y1, h2, x2, y2);
+// Ist das Pixel (x,y) des Frames sichtbar, also nicht in der Maskenfarbe? Ein
+// Frame ohne Pixelkopie wurde nie bemalt und ist schwarz wie ein frisches
+// CreateImage.
+inline bool bb_img_solid_(const bb_Image_& img, const bb_FrameData_& fd, int x, int y) {
+    if (fd.pixels.size() < static_cast<size_t>(img.width) * img.height * 4)
+        return (img.mask & 0xFFFFFF) != 0;
+    const uint8_t* p = fd.pixels.data() + (static_cast<size_t>(y) * img.width + x) * 4;
+    const int rgb = (p[0] << 16) | (p[1] << 8) | p[2];
+    return rgb != (img.mask & 0xFFFFFF);
 }
 
-inline int bb_ImageRectCollide(int handle, int x, int y, int /*frame*/,
+inline int bb_ImagesCollide(int h1, int x1, int y1, int f1,
+                             int h2, int x2, int y2, int f2) {
+    if (!bb_img_ok_(h1) || !bb_img_ok_(h2)) return 0;
+    const bb_FrameData_* a = bb_img_frame_(h1, f1);
+    const bb_FrameData_* b = bb_img_frame_(h2, f2);
+    if (!a || !b) return 0;
+    const bb_Image_& ia = bb_images_[h1];
+    const bb_Image_& ib = bb_images_[h2];
+    const int ax = x1 - a->handle_x, ay = y1 - a->handle_y;
+    const int bx = x2 - b->handle_x, by = y2 - b->handle_y;
+    const int l = std::max(ax, bx), r = std::min(ax + ia.width, bx + ib.width);
+    const int t = std::max(ay, by), u = std::min(ay + ia.height, by + ib.height);
+    if (l >= r || t >= u) return 0;
+    for (int y = t; y < u; ++y)
+        for (int x = l; x < r; ++x)
+            if (bb_img_solid_(ia, *a, x - ax, y - ay) && bb_img_solid_(ib, *b, x - bx, y - by))
+                return 1;
+    return 0;
+}
+
+inline int bb_ImageRectCollide(int handle, int x, int y, int frame,
                                 int rx, int ry, int rw, int rh) {
-    return bb_ImageRectOverlap(handle, x, y, rx, ry, rw, rh);
+    if (!bb_img_ok_(handle)) return 0;
+    const bb_FrameData_* fd = bb_img_frame_(handle, frame);
+    if (!fd) return 0;
+    const bb_Image_& img = bb_images_[handle];
+    const int ix = x - fd->handle_x, iy = y - fd->handle_y;
+    const int l = std::max(ix, rx), r = std::min(ix + img.width, rx + rw);
+    const int t = std::max(iy, ry), u = std::min(iy + img.height, ry + rh);
+    if (l >= r || t >= u) return 0;
+    for (int yy = t; yy < u; ++yy)
+        for (int xx = l; xx < r; ++xx)
+            if (bb_img_solid_(img, *fd, xx - ix, yy - iy)) return 1;
+    return 0;
 }
 
 // ==========================================================================

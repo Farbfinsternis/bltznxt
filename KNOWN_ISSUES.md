@@ -12,7 +12,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-10-25 — 18 open bugs, 28 missing commands.* A review against the
+*Last updated: 2026-10-25 — 17 open bugs, 28 missing commands.* A review against the
 original on 2026-10-13 found eleven more (BUG-201 to BUG-211); they are fixed first, for
 version 0.7.0.
 
@@ -226,9 +226,6 @@ not handled yet:
 - **`Oval` on the screen is one pixel too wide and too high**, and `Rect` with a negative
   width draws a rectangle where Blitz3D draws nothing. Drawing into an image buffer is exact.
   (BUG-209)
-- **`ImagesCollide` and `ImageRectCollide`** compare bounding rectangles instead of visible
-  pixels, and ignore the frame argument. Masked or transparent areas count as a hit.
-  *Workaround:* none yet for pixel-accurate tests. (BUG-119)
 - **Font heights differ.** The default font is 8 pixels high instead of 13, and a font loaded
   with `LoadFont(name, 40)` reports `FontHeight` 45 instead of 40. Text laid out with
   `FontHeight` or `StringWidth` ends up spaced differently. `LoadFont` without a height uses
