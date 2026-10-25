@@ -192,7 +192,7 @@ Richtlinie, die Formeln werden beim Bau festgelegt):
 | `EntityFX 32` | Alpha-Blending erzwingen |
 | `EntityBlend` 1/2/3 | Alpha / Multiplizieren / Addieren |
 | `TextureBlend` 0–5, mehrere Texturlagen | emuliert: die Lagen werden vor der Beleuchtung zur Grundfarbe verrechnet |
-| Texturflag 64, 128 | Umgebungsabbildung (Kugel, Würfel) als Reflexion; Flag 64 fehlt heute ganz (BUG-130, wird in Schritt 5 behoben) |
+| Texturflag 64, 128 | Umgebungsabbildung (Kugel, Würfel) als Reflexion; Flag 64 fehlt heute ganz (BUG-130, für 0.7.0 vorgezogen und im heutigen Shader behoben; Schritt 5 übernimmt es ins Materialmodell) |
 | Lightmap in zweiter UV-Lage | **?** als vorberechnete Beleuchtung behandeln oder nur multiplizieren |
 
 ### 3.2 Neue Materialbefehle
@@ -517,7 +517,8 @@ das; der Plan wurde danach gelöscht. Was davon weiter gilt:
 4. **Vektoren** in der Sprache (Abschnitt 2) — unabhängig vom Renderer, sofort
    nützlich.
 5. **Materialmodell und Licht pro Pixel** (Abschnitte 3, 4.1), HDR und
-   Tone-Mapping; dabei BUG-130 (Texturflag 64) beheben und WEAK-25
+   Tone-Mapping; dabei BUG-130 (Texturflag 64, für 0.7.0 vorgezogen) ins
+   Materialmodell übernehmen und WEAK-25
    (Beleuchtungstests) umstellen. Die Übergangsstände aus BUG-66/BUG-91 enden
    hier.
 6. **Schatten** (4.2).
