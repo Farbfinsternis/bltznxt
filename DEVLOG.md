@@ -1,5 +1,21 @@
 # BlitzNext Developer Log
 
+## 2026-10-25 — 16-bit graphics modes are listed again
+
+Blitz3D lists every resolution twice: first all of them with 32 bits, then the same ones in
+the same order with 16 bits, the desktop mode first. Programs from that time check for a
+16-bit mode before they start — the BBLauncher include shipped with Blitz3D asks
+`GfxMode3DExists(640,480,16)` and stops with "Please select another..." otherwise. SDL only
+reports 32-bit modes today, so BlitzNext listed nothing with 16 bits, and `BBLauncher` and
+`SkyPlateau` stopped after one second (BUG-213). The list is now built like the original's:
+42 entries on the test machine, the same as Blitz3D 11.8 except for where two unusual
+resolutions sit.
+
+A quirk of the original on Windows 11: it reports the 16-bit modes only the first time an
+executable is started from a given path; from the second start on they are gone, and the two
+samples fail in Blitz3D itself. The measurement tool now starts a fresh copy of the original
+every time. Sample baseline: 102 / 102 / 92 of 103.
+
 ## 2026-10-25 — WritePixelFast outside the buffer no longer corrupts the heap
 
 `ReadPixelFast`, `WritePixelFast` and `CopyPixelFast` do no range check in Blitz3D: they

@@ -3,6 +3,7 @@
 
 #include "bb_sdl.h"     // bb_sdl_ensure_()
 #include "bb_string.h"  // bbString
+#include <algorithm>    // std::sort
 #include <vector>
 
 // ============================================================
@@ -46,9 +47,15 @@ inline bool                     bb_gfx_modes_ready_ = false;
 inline int                      bb_gfx_driver_      = 1; // 1-basiert
 
 // Die Modi einmal einsammeln. SDL3 liefert die Vollbildmodi des primaeren
-// Displays; Duplikate nach (Breite, Hoehe, Tiefe) fallen weg, weil Blitz3D
-// keine Bildwiederholrate in dieser Liste fuehrt und ein Programm sonst
-// dieselbe Aufloesung mehrfach angeboten bekaeme.
+// Displays; Duplikate nach (Breite, Hoehe) fallen weg, weil Blitz3D keine
+// Bildwiederholrate in dieser Liste fuehrt.
+//
+// Aufbau wie im Original (gemessen an Blitz3D 11.8, build/bug213_20261025):
+// jede Aufloesung zweimal, erst die ganze Liste mit 32 Bit, dann dieselbe mit
+// 16 Bit; vorn der Desktopmodus, danach aufsteigend. D3D7 zaehlt 16 Bit auf,
+// auch wenn heutige Treiber es nur noch nachbilden - und Programme von 2001
+// pruefen mit GfxModeExists(640,480,16), bevor sie starten (BUG-213,
+// BBLauncher, SkyPlateau). SDL meldet nur noch 32 Bit.
 inline void bb_gfx_modes_ensure_() {
   if (bb_gfx_modes_ready_) return;
   bb_gfx_modes_ready_ = true;
@@ -60,21 +67,25 @@ inline void bb_gfx_modes_ensure_() {
   SDL_DisplayMode **modes = SDL_GetFullscreenDisplayModes(disp, &count);
   if (!modes) return;
 
+  std::vector<bb_GfxMode_> res;
   for (int i = 0; i < count; ++i) {
     if (!modes[i]) continue;
-    int bpp = 32;
-    if (const SDL_PixelFormatDetails *d =
-            SDL_GetPixelFormatDetails(modes[i]->format))
-      bpp = d->bits_per_pixel;
     bool dup = false;
-    for (const auto &m : bb_gfx_modes_)
-      if (m.w == modes[i]->w && m.h == modes[i]->h && m.depth == bpp) {
-        dup = true;
-        break;
-      }
-    if (!dup) bb_gfx_modes_.push_back({modes[i]->w, modes[i]->h, bpp});
+    for (const auto &m : res)
+      if (m.w == modes[i]->w && m.h == modes[i]->h) { dup = true; break; }
+    if (!dup) res.push_back({modes[i]->w, modes[i]->h, 32});
   }
   SDL_free(modes);
+
+  const SDL_DisplayMode *desk = SDL_GetDesktopDisplayMode(disp);
+  std::sort(res.begin(), res.end(), [desk](const bb_GfxMode_ &a, const bb_GfxMode_ &b) {
+    const bool da = desk && a.w == desk->w && a.h == desk->h;
+    const bool db = desk && b.w == desk->w && b.h == desk->h;
+    if (da != db) return da;
+    return a.w != b.w ? a.w < b.w : a.h < b.h;
+  });
+  for (int depth : {32, 16})
+    for (const auto &m : res) bb_gfx_modes_.push_back({m.w, m.h, depth});
 }
 
 // ---- Modusabfragen ----
