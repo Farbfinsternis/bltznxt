@@ -196,8 +196,6 @@ not handled yet:
 - **`Shl`, `Shr` and `Sar` by 32 or more, or by a negative count, give 0 or -1.** Blitz3D
   uses the count modulo 32 (`1 Shl 33` is 2). (BUG-207)
 - **An empty source file** is rejected with "could not read file". (BUG-110)
-- **An unclosed string literal** (`Print "abc` without the closing quote) is rejected.
-  Blitz3D accepts it — and drops the last character. (WEAK-12)
 - **Some errors are reported by the C++ compiler** instead of with a Blitz-style message,
   pointing into generated code. Every such case listed on this page is a bug. (WEAK-14)
   One that only invalid programs hit: an array with the same name as a constant

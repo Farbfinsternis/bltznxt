@@ -248,9 +248,14 @@ private:
     if (pos < source.length() && source[pos] == '"') {
       pos++; col++; // skip closing "
     } else {
-      std::cerr << map.format(line, startCol)
-                << ": error: unclosed string literal\n";
-      ++lexErrors_;
+      // Ohne Schlusszeichen endet der String im Original am Zeilenende
+      // (toker.cpp), und parser.cpp schneidet wie bei jedem String das erste
+      // und das letzte Zeichen des Tokens ab - hier also das letzte Zeichen
+      // des Inhalts: "Print "abc" ergibt "ab" (gemessen mit LF und CRLF,
+      // WEAK-12). Bis dahin war das ein Fehler, und samples/halo/Lightmap
+      // uebersetzte nicht.
+      if (!value.empty() && value.back() == '\r') value.pop_back();
+      if (!value.empty()) value.pop_back();
     }
     return {TokenType::STRING_LIT, value, line, startCol};
   }

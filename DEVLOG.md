@@ -1,5 +1,16 @@
 # BlitzNext Developer Log
 
+## 2026-10-25 — an unclosed string literal is accepted like in Blitz3D
+
+A string without its closing quote ends at the end of the line in Blitz3D, and since the
+parser always cuts the first and the last character of a string token, the last character
+of the text is lost: `Print "abc` prints `ab`. BlitzNext rejected such a line with
+"unclosed string literal", so the `halo/Lightmap` sample that ships with Blitz3D did not
+compile (WEAK-12). The lexer now does what the original does, measured with LF and CRLF
+line ends.
+
+Full suite: 349 passed, 0 failed.
+
 ## 2026-10-25 — Include is a statement
 
 In Blitz3D `Include` is parsed like any other statement, so it may stand between colons,
