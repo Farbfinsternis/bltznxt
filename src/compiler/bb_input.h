@@ -102,6 +102,75 @@ inline const std::array<int, 512> bb_sdl_to_blitz_ = []() {
   return m;
 }();
 
+// ---- Zeichen einer Taste (BUG-205) ----
+//
+// Nachbau von gxInput::toAscii (gxinput.cpp): GetKey und WaitKey liefern im
+// Original nicht den Tastencode, sondern das Zeichen der Taste - mit dem
+// Zustand von Shift/Strg/Alt im Moment des Aufrufs und nach der eingestellten
+// Tastaturbelegung. Die Navigationstasten haben feste Codes, eine Taste ohne
+// Zeichen (F1, Shift allein, Ziffernblock ohne NumLock) ergibt 0. Gemessen an
+// Blitz3D 11.8 (build/bug205_20261025/zeichen): a 97, A 65, ! 33, ae 228,
+// Escape 27, Enter 13, Backspace 8, Tab 9, Pfeile 28/29/31/30, Pos1..Bild ab
+// 1..6, Strg+A 1. Unter Windows dieselben Aufrufe wie das Original
+// (MapVirtualKey + ToAscii), sonst SDL.
+inline int bb_key_to_ascii_(int code) {
+  switch (code) {
+    case 210: return 3;   // Einfg      ASC_INSERT
+    case 211: return 4;   // Entf       ASC_DELETE
+    case 199: return 1;   // Pos1       ASC_HOME
+    case 207: return 2;   // Ende       ASC_END
+    case 201: return 5;   // Bild auf   ASC_PAGEUP
+    case 209: return 6;   // Bild ab    ASC_PAGEDOWN
+    case 200: return 28;  // hoch       ASC_UP
+    case 208: return 29;  // runter     ASC_DOWN
+    case 203: return 31;  // links      ASC_LEFT
+    case 205: return 30;  // rechts     ASC_RIGHT
+  }
+  if (code < 1 || code > 255) return 0;
+  auto down = [](int dik) {
+    const int sc = (int)bb_blitz_to_sdl_[(size_t)dik];
+    return sc > 0 && bb_sdl_key_down_[sc];
+  };
+#ifdef _WIN32
+  const UINT scan = (UINT)(code & 0x7f);
+  const UINT virt = MapVirtualKeyA(scan, MAPVK_VSC_TO_VK);
+  if (!virt) return 0;
+  BYTE mat[256] = {};
+  mat[VK_LSHIFT]   = down(42)  ? 0x80 : 0;
+  mat[VK_RSHIFT]   = down(54)  ? 0x80 : 0;
+  mat[VK_SHIFT]    = mat[VK_LSHIFT] | mat[VK_RSHIFT];
+  mat[VK_LCONTROL] = down(29)  ? 0x80 : 0;
+  mat[VK_RCONTROL] = down(157) ? 0x80 : 0;
+  mat[VK_CONTROL]  = mat[VK_LCONTROL] | mat[VK_RCONTROL];
+  mat[VK_LMENU]    = down(56)  ? 0x80 : 0;
+  mat[VK_RMENU]    = down(184) ? 0x80 : 0;
+  mat[VK_MENU]     = mat[VK_LMENU] | mat[VK_RMENU];
+  WORD ch = 0;
+  if (ToAscii(virt, scan, mat, &ch, 0) != 1) return 0;
+  return ch & 255;
+#else
+  SDL_Keymod mod = SDL_KMOD_NONE;
+  if (down(42) || down(54))  mod = (SDL_Keymod)(mod | SDL_KMOD_SHIFT);
+  if (down(29) || down(157)) mod = (SDL_Keymod)(mod | SDL_KMOD_CTRL);
+  if (down(56) || down(184)) mod = (SDL_Keymod)(mod | SDL_KMOD_ALT);
+  const SDL_Keycode k = SDL_GetKeyFromScancode(bb_blitz_to_sdl_[(size_t)code], mod, false);
+  if (k == SDLK_ESCAPE || k == SDLK_RETURN || k == SDLK_BACKSPACE || k == SDLK_TAB) return (int)k;
+  if ((mod & SDL_KMOD_CTRL) && k >= 'a' && k <= 'z') return (int)(k - 'a' + 1);
+  return (k >= 32 && k < 256) ? (int)k : 0;
+#endif
+}
+
+// Naechste Taste aus der Warteschlange als Zeichen; 0, wenn die Schlange leer
+// ist oder die Taste kein Zeichen ergibt (die Taste ist dann trotzdem
+// verbraucht, wie im Original). *empty sagt, ob ueberhaupt eine da war.
+inline int bb_key_queue_pop_ascii_(bool *empty) {
+  if (bb_key_queue_head_ == bb_key_queue_tail_) { if (empty) *empty = true; return 0; }
+  if (empty) *empty = false;
+  const int sc = (int)bb_key_queue_buf_[bb_key_queue_head_];
+  bb_key_queue_head_ = (bb_key_queue_head_ + 1) % BB_KEY_QUEUE_CAP;
+  return (sc > 0 && sc < 512) ? bb_key_to_ascii_(bb_sdl_to_blitz_[(size_t)sc]) : 0;
+}
+
 // ---- Keyboard API ----
 
 // Returns non-zero if the key (Blitz3D code) is currently held down.
@@ -134,11 +203,7 @@ inline int bb_GetKey() {
   bb_sdl_ensure_();
   if (!bb_sdl_initialized_) return 0;
   bb_PollEvents();
-  if (bb_key_queue_head_ == bb_key_queue_tail_) return 0;
-  SDL_Scancode sc = bb_key_queue_buf_[bb_key_queue_head_];
-  bb_key_queue_head_ = (bb_key_queue_head_ + 1) % BB_KEY_QUEUE_CAP;
-  int sc_int = (int)sc;
-  return (sc_int > 0 && sc_int < 512) ? bb_sdl_to_blitz_[(size_t)sc_int] : 0;
+  return bb_key_queue_pop_ascii_(nullptr);   // Zeichen, nicht Tastencode (BUG-205)
 }
 
 // Clears all keyboard state: held flags, edge-triggered flags, and the queue.

@@ -480,20 +480,29 @@ inline bool bb_PollEvents() {
 //     so that headless test runners (piped stdin) return immediately.
 //  3. Last resort: if SDL init failed, fall back to a raw std::cin.get().
 
-// Rueckgabewert: der Scancode der gedrueckten Taste, 0 wenn keine kam (Fenster
-// geschlossen, kein Terminal, SDL nicht verfuegbar). Im Original meldet +k
-// `WaitKey ( )` mit int; bei uns war es eine reine Anweisung, `k = WaitKey()`
-// wurde also abgelehnt (BUG-44). Dieselbe Codierung wie bb_GetKey.
+// Rueckgabewert: das Zeichen der Taste wie bei GetKey, 0 wenn keine kam
+// (Fenster geschlossen, kein Terminal, SDL nicht verfuegbar). Im Original
+// meldet +k `WaitKey ( )` mit int (BUG-44).
+//
+// Wie bbWaitKey (bbinput.cpp) nimmt WaitKey aus derselben Warteschlange wie
+// GetKey und kehrt erst bei einer Taste mit Zeichen zurueck - Shift allein
+// zaehlt nicht, eine schon vorher gedrueckte Taste dagegen sofort (gemessen,
+// BUG-205). Bis dahin lieferte es den rohen SDL-Scancode der naechsten neuen
+// Taste: "If WaitKey()=27" griff nie.
+inline int bb_key_queue_pop_ascii_(bool *empty);   // bb_input.h
+
 inline int bb_WaitKey() {
   // Case 1: graphical window is open — use SDL unconditionally.
   if (bb_window_) {
-    SDL_Event ev;
-    while (SDL_WaitEvent(&ev)) {
-      bb_sdl_process_event_(ev);
-      if (ev.type == SDL_EVENT_KEY_DOWN) return (int)ev.key.scancode;
-      if (ev.type == SDL_EVENT_QUIT) return 0;
+    for (;;) {
+      bb_PollEvents();
+      bool empty = false;
+      while (!empty)
+        if (int a = bb_key_queue_pop_ascii_(&empty)) return a;
+      if (!bb_window_) return 0;
+      SDL_Event ev;
+      if (SDL_WaitEventTimeout(&ev, 20)) bb_sdl_process_event_(ev);
     }
-    return 0;
   }
 
   // Case 2: console-only — skip if stdin is not a real terminal (test runner).
@@ -509,8 +518,10 @@ inline int bb_WaitKey() {
   SDL_Event ev;
   while (SDL_WaitEvent(&ev)) {
     bb_sdl_process_event_(ev);
-    if (ev.type == SDL_EVENT_KEY_DOWN) return (int)ev.key.scancode;
     if (ev.type == SDL_EVENT_QUIT) return 0;
+    bool empty = false;
+    while (!empty)
+      if (int a = bb_key_queue_pop_ascii_(&empty)) return a;
   }
   return 0;
 }

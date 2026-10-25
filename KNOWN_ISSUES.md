@@ -12,7 +12,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-10-25 — 22 open bugs, 28 missing commands.* A review against the
+*Last updated: 2026-10-25 — 21 open bugs, 28 missing commands.* A review against the
 original on 2026-10-13 found eleven more (BUG-201 to BUG-211); they are fixed first, for
 version 0.7.0.
 
@@ -184,10 +184,6 @@ does not handle them yet:
 
 ## Keyboard and mouse input
 
-- **`GetKey` and `WaitKey` return scan codes, not characters.** Blitz3D returns the
-  character of the key (with Shift), 27 for Escape, 13 for Enter, 28 to 31 for the arrow
-  keys. `If WaitKey() = 27 Then End` never fires here, and `Chr(GetKey())` does not give the
-  typed letter. `WaitKey` also ignores a key that was pressed before it was called. (BUG-205)
 - **`KeyHit` and `MouseHit` return 1 instead of the number of presses** since the last
   call, and **`FlushKeys`/`FlushMouse` also forget keys that are still held** — after
   `FlushKeys`, `KeyDown` reports a held arrow key as up until it is pressed again. Blitz3D

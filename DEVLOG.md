@@ -1,5 +1,24 @@
 # BlitzNext Developer Log
 
+## 2026-10-25 — GetKey and WaitKey return characters
+
+Blitz3D's `GetKey` and `WaitKey` do not return the key code but the character of the key:
+the key is turned into a character with the state of Shift, Ctrl and Alt at the moment of
+the call and the current keyboard layout, and the navigation keys have fixed codes (Home 1
+to Page Down 6, the arrows 28 to 31). A key without a character — F1, Shift on its own —
+gives 0 from `GetKey`, and `WaitKey` skips it. `WaitKey` reads the same queue as `GetKey`,
+so a key pressed before the call counts at once. BlitzNext returned scan codes, and
+`WaitKey` even returned the raw SDL scan code of the next new key: `If WaitKey() = 27` never
+fired, and text typed through `Chr(GetKey())` — the high score and save game names in
+blox-n-balls — came out wrong (BUG-205).
+
+The conversion is now the same as the original's (on Windows the same `MapVirtualKey` and
+`ToAscii` calls). Measured with keys sent through `SendInput` to Blitz3D 11.8 and to
+BlitzNext: letters with and without Shift, digits, `!`, `ä`, Escape, Enter, Backspace, Tab,
+Space, arrows, Home/End/Insert/Delete/Page Up/Page Down, F1, Ctrl+A, keypad 0 without Num
+Lock, and `WaitKey` with a key pressed beforehand and with Shift alone — 23 values, all the
+same.
+
 ## 2026-10-25 — GetKey and GetMouse no longer wait
 
 In Blitz3D `GetKey()` and `GetMouse()` take the next key or button from the queue and return
