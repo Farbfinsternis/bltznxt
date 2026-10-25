@@ -7,6 +7,7 @@
 #include "bb_sdl.h"     // bb_window_, bb_renderer_, bb_sdl_ensure_(), bb_sdl_initialized_
 #include "bb_system.h"  // bb_app_title_
 #include "bb_string.h"  // bbString
+#include "bb_path.h"    // Dateinamen ANSI <-> Pfad/UTF-8 (BUG-202)
 
 // ---- AppTitle integration ----
 //
@@ -939,11 +940,11 @@ inline bbString bb_find_font_file_(const bbString& name) {
     namespace fs = std::filesystem;
 
     // 1. Name as provided (absolute or relative path with extension)
-    if (fs::exists(name)) return name;
+    if (fs::exists(bb_path_(name))) return name;   // ANSI (BUG-202)
 
     // 2. Append .ttf
     bbString withExt = name + ".ttf";
-    if (fs::exists(withExt)) return withExt;
+    if (fs::exists(bb_path_(withExt))) return withExt;
 
     // 3. Windows Fonts directory
     bbString lower = name;
@@ -954,7 +955,7 @@ inline bbString bb_find_font_file_(const bbString& name) {
     bbString fontsDir  = (windir ? bbString(windir) : bbString("C:\\Windows")) + "\\Fonts\\";
     for (const bbString& n : {lower, name}) {
         bbString p = fontsDir + n + ".ttf";
-        if (fs::exists(p)) return p;
+        if (fs::exists(bb_path_(p))) return p;
     }
 #else
     // Linux / macOS common font directories
@@ -995,7 +996,7 @@ inline int bb_LoadFont(const bbString& name, int height = 8,
     if (bb_ttf_initialized_) {
         bbString path = bb_find_font_file_(name);
         if (!path.empty()) {
-            TTF_Font* ttf = TTF_OpenFont(path.c_str(), static_cast<float>(height));
+            TTF_Font* ttf = TTF_OpenFont(bb_utf8_(path).c_str(), static_cast<float>(height));   // SDL will UTF-8
             if (ttf) {
                 f.ttf    = ttf;
                 f.height = TTF_GetFontHeight(ttf);

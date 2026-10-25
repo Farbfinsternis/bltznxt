@@ -84,6 +84,7 @@
 
 #include "bb_mesh.h"
 #include "bb_texture.h"
+#include "bb_path.h"    // Dateinamen ANSI <-> Pfad/UTF-8 (BUG-202)
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -485,9 +486,10 @@ inline bool bb_gltf_image_(const bb_GltfLoad_& L, int img, std::vector<uint8_t>&
       name = L.file + "#" + std::to_string(img);
       return bb_base64_(uri.data() + comma + 1, uri.size() - comma - 1, bytes);
     }
-    const std::filesystem::path p = L.dir / bb_uri_decode_(uri);
-    name = bb_tex_abs_path_(p.string());
-    return bb_gltf_read_file_(p.string(), bytes);
+    // Ein URI ist in glTF UTF-8, der Dateiname des Programms ANSI (BUG-202).
+    const std::filesystem::path p = L.dir / std::filesystem::u8path(bb_uri_decode_(uri));
+    name = bb_tex_abs_path_(bb_ansi_(p));
+    return bb_gltf_read_file_(bb_ansi_(p), bytes);
   }
   size_t len, stride;
   const uint8_t* d = bb_gltf_view_(L, im["bufferView"].i(), len, stride);
@@ -1091,7 +1093,7 @@ inline int bb_load_gltf_(const bbString& file, const float lm[9], int parent, bo
   bb_GltfLoad_ L;
   L.file = file;
   L.animonly = animonly;
-  L.dir  = std::filesystem::path(file).parent_path();
+  L.dir  = bb_path_(file).parent_path();
   std::memcpy(L.lm, lm, sizeof L.lm);
 
   // .glb: 12 Byte Kopf, dann Chunks aus Laenge, Typ, Daten.

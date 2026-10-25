@@ -1,5 +1,24 @@
 # BlitzNext Developer Log
 
+## 2026-10-25 — file and folder names with umlauts work in programs
+
+A Blitz3D string is a sequence of bytes in the Windows code page, and so is every file name
+a program uses. The runtime handed such names to `std::filesystem`, which under MinGW reads
+a `std::string` as UTF-8 and throws on an umlaut: the first `FileType`, `ReadDir`,
+`CopyFile`, `CreateDir` or model loader with a name like `äpfel.txt` or `Bäume\` ended the
+program with `filesystem_error` (BUG-202). Names passed to SDL (`LoadSound` with WAV,
+`LoadFont` with a font file) arrived garbled for the same reason, because SDL expects UTF-8.
+
+A small header `bb_path.h` now converts at every boundary: code-page bytes to a path for
+`std::filesystem`, back for `NextFile` and `CurrentDir`, and to UTF-8 for SDL. `fopen` and
+`stb_image` already took the code page. `CurrentDir` now also ends with a backslash, like
+the original (`F:\dev\`, the drive root stays `F:\`).
+
+Measured against Blitz3D 11.8: the file commands with umlauts in file and folder names (12
+values), and loading a `.3ds`, `.x` and `.b3d` model, a PNG as texture, image, sprite and
+brush, and a WAV, OGG and MP3 sound from a folder and with names that contain umlauts — all
+the same. A glTF model and a font file with an umlaut in their names load as well.
+
 ## 2026-10-25 — paths with umlauts no longer crash the compiler
 
 The paths the compiler handles are bytes in the Windows code page: that is how they arrive

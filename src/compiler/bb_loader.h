@@ -2,6 +2,7 @@
 #define BLITZNEXT_BB_LOADER_H
 
 #include "bb_mesh.h"
+#include "bb_path.h"    // Dateinamen ANSI <-> Pfad/UTF-8 (BUG-202)
 #include "bb_loader_x.h"
 #include "bb_animation.h"
 #include "bb_loader_b3d.h"
@@ -142,9 +143,9 @@ inline int bb_loader_tex_(std::unordered_map<std::string, int>& cache,
                           const std::string& name) {
   if (name.empty()) return 0;
   std::error_code ec;
-  std::filesystem::path cand = dir / name;
-  if (!std::filesystem::exists(cand, ec)) cand = name;
-  const std::string key = cand.string();
+  std::filesystem::path cand = dir / bb_path_(name);   // ANSI (BUG-202)
+  if (!std::filesystem::exists(cand, ec)) cand = bb_path_(name);
+  const std::string key = bb_ansi_(cand);
   auto it = cache.find(key);
   if (it != cache.end()) return it->second;
   const int h = bb_LoadTexture(key, 1);
@@ -661,7 +662,7 @@ inline void bb_3ds_build_obj_(bb_3ds_build_& B, const bb_3ds_scene_& sc,
 
 // Texturen je Material; sie liegen neben der Modelldatei.
 inline std::vector<int> bb_3ds_textures_(const bbString& file, const bb_3ds_scene_& sc) {
-  std::filesystem::path dir = std::filesystem::path(file).parent_path();
+  std::filesystem::path dir = bb_path_(file).parent_path();
   std::vector<int> mat_tex(sc.mats.size(), 0);
   std::unordered_map<std::string, int> texcache;
   for (size_t i = 0; i < sc.mats.size(); ++i)
@@ -1220,7 +1221,7 @@ inline int bb_load_x_(const bbString& file, int parent) {
   auto ent = std::make_unique<bb_MeshEntity_>();
   bb_XBuild_ B;
   B.ent   = ent.get();
-  B.dir   = std::filesystem::path(file).parent_path();
+  B.dir   = bb_path_(file).parent_path();
   B.named = &named;
   B.lm    = bb_x_loader_mat_(file);
   B.flip  = bb_loader_det_(B.lm) < 0.0f;
@@ -1394,7 +1395,7 @@ inline int bb_load_x_anim_(const bbString& file, int parent, bool animonly) {
 
   bb_XAnimLoad_ L;
   L.named    = &named;
-  L.dir      = std::filesystem::path(file).parent_path();
+  L.dir      = bb_path_(file).parent_path();
   L.lm       = bb_x_loader_mat_(file);
   L.flip     = bb_loader_det_(L.lm) < 0.0f;
   L.animonly = animonly;

@@ -7,6 +7,7 @@
 #include <cctype>
 #include "bb_sdl.h"    // bb_sdl_ensure_(), bb_sdl_initialized_, bb_audio_update_hook_
 #include "bb_string.h" // bbString
+#include "bb_path.h"    // Dateinamen ANSI <-> Pfad/UTF-8 (BUG-202)
 #include <algorithm>
 #include <vector>
 
@@ -315,7 +316,7 @@ inline int bb_LoadSound(const bbString& file) {
       SDL_AudioSpec spec{};
       Uint8*  buf = nullptr;
       Uint32  len = 0;
-      if (!SDL_LoadWAV(file.c_str(), &spec, &buf, &len)) {
+      if (!SDL_LoadWAV(bb_utf8_(file).c_str(), &spec, &buf, &len)) {   // SDL will UTF-8 (BUG-202)
         std::cerr << "[runtime] LoadSound: SDL_LoadWAV failed for '" << file << "': "
                   << SDL_GetError() << "\n";
         return 0;

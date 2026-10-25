@@ -3,6 +3,7 @@
 
 #include "bb_image.h"   // stbi_load - die Implementierung liegt dort
 #include "bb_shader.h"
+#include "bb_path.h"    // Dateinamen ANSI <-> Pfad/UTF-8 (BUG-202)
 #include <filesystem>
 #include <memory>
 #include <unordered_map>
@@ -184,9 +185,9 @@ inline void bb_tex_fix_alpha_(std::vector<uint8_t> &px, int flags, int src_chann
 
 inline bbString bb_tex_abs_path_(const bbString &file) {
   std::error_code ec;
-  auto p = std::filesystem::absolute(std::filesystem::path(file), ec);
+  auto p = std::filesystem::absolute(bb_path_(file), ec);   // ANSI (BUG-202)
   if (ec) return file;
-  return p.string();
+  return bb_ansi_(p);
 }
 
 inline int bb_texture_register_(bb_TexRef_ t) {

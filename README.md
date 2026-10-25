@@ -52,7 +52,7 @@ an old program is a bug.
 
 ## Compatibility Progress
 
-*State 2026-10-25:* 20 open bugs that can break an old program and 28 missing commands, all
+*State 2026-10-25:* 19 open bugs that can break an old program and 28 missing commands, all
 listed in [KNOWN_ISSUES.md](KNOWN_ISSUES.md). Userlibs are not supported, so `CallDLL` does
 nothing.
 

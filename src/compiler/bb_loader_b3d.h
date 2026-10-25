@@ -48,6 +48,7 @@
 // ============================================================
 
 #include "bb_mesh.h"
+#include "bb_path.h"    // Dateinamen ANSI <-> Pfad/UTF-8 (BUG-202)
 #include "bb_animation.h"
 #include <array>
 #include <cstdint>
@@ -138,10 +139,10 @@ inline int bb_b3d_texture_(const bb_B3DLoad_& L, const std::string& name, int fl
   std::string f = name;
   if (f.rfind(".\\", 0) == 0 || f.rfind("./", 0) == 0) f = f.substr(2);
   std::error_code ec;
-  const std::filesystem::path only = std::filesystem::path(f).filename();
+  const std::filesystem::path only = bb_path_(f).filename();   // ANSI (BUG-202)
   std::filesystem::path cand = L.dir / only;
-  if (!std::filesystem::exists(cand, ec)) cand = f;
-  return bb_LoadTexture(cand.string(), flags);
+  if (!std::filesystem::exists(cand, ec)) cand = bb_path_(f);
+  return bb_LoadTexture(bb_ansi_(cand), flags);
 }
 
 inline void bb_b3d_textures_(bb_B3DLoad_& L) {
@@ -482,7 +483,7 @@ inline int bb_load_b3d_(const bbString& file) {
   bb_B3DLoad_ L;
   L.in.d = data.data();
   L.in.n = data.size();
-  L.dir  = std::filesystem::path(file).parent_path();
+  L.dir  = bb_path_(file).parent_path();
 
   if (L.in.chunk() != "BB3D" || L.in.i32() > 1) {
     std::cerr << "[runtime] LoadMesh: '" << file << "' ist keine lesbare .b3d-Datei\n";

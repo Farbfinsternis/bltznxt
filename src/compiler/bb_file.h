@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <iostream>
 #include "bb_string.h"
+#include "bb_path.h"   // Dateinamen sind ANSI-Bytes (BUG-202)
 
 // ---- File Handle Management ----
 //
@@ -259,7 +260,7 @@ inline int                                                           bb_dir_next
 inline int bb_ReadDir(const bbString &path) {
   try {
     int id = bb_dir_next_id_++;
-    bb_dir_handles_[id] = std::filesystem::directory_iterator(path);
+    bb_dir_handles_[id] = std::filesystem::directory_iterator(bb_path_(path));
     return id;
   } catch (...) {
     std::cerr << "[runtime] ReadDir: cannot open directory: " << path << "\n";
@@ -273,7 +274,7 @@ inline bbString bb_NextFile(int handle) {
   if (it == bb_dir_handles_.end()) return "";
   auto &di = it->second;
   if (di == std::filesystem::directory_iterator{}) return "";
-  bbString name = di->path().filename().string();
+  bbString name = bb_ansi_(di->path().filename());
   ++di;
   return name;
 }
@@ -295,32 +296,37 @@ inline void bb_file_quit_() {
 inline bbString bb_CurrentDir() {
   std::error_code ec;
   auto p = std::filesystem::current_path(ec);
-  return ec ? bbString("") : p.string();
+  if (ec) return bbString("");
+  // Das Original haengt immer einen Trenner an ("F:\dev\", der Stamm bleibt
+  // "F:\"), Programme bauen damit CurrentDir()+"datei" (gemessen, BUG-202).
+  bbString d = bb_ansi_(p);
+  if (d.empty() || (d.back() != '\\' && d.back() != '/')) d += '\\';
+  return d;
 }
 
 inline void bb_ChangeDir(const bbString &path) {
   std::error_code ec;
-  std::filesystem::current_path(path, ec);
+  std::filesystem::current_path(bb_path_(path), ec);
   if (ec) std::cerr << "[runtime] ChangeDir failed: " << ec.message() << "\n";
 }
 
 inline void bb_CreateDir(const bbString &path) {
   std::error_code ec;
-  std::filesystem::create_directory(path, ec);
+  std::filesystem::create_directory(bb_path_(path), ec);
   if (ec) std::cerr << "[runtime] CreateDir failed: " << ec.message() << "\n";
 }
 
 // Removes directory and all its contents (like Blitz3D DeleteDir).
 inline void bb_DeleteDir(const bbString &path) {
   std::error_code ec;
-  std::filesystem::remove_all(path, ec);
+  std::filesystem::remove_all(bb_path_(path), ec);
   if (ec) std::cerr << "[runtime] DeleteDir failed: " << ec.message() << "\n";
 }
 
 // Returns 0=none, 1=file, 2=directory.
 inline int bb_FileType(const bbString &path) {
   std::error_code ec;
-  auto st = std::filesystem::status(path, ec);
+  auto st = std::filesystem::status(bb_path_(path), ec);
   if (ec || !std::filesystem::exists(st)) return 0;
   if (std::filesystem::is_directory(st))   return 2;
   if (std::filesystem::is_regular_file(st)) return 1;
@@ -330,21 +336,21 @@ inline int bb_FileType(const bbString &path) {
 // Returns file size in bytes, or 0 on error.
 inline int bb_FileSize(const bbString &path) {
   std::error_code ec;
-  auto sz = std::filesystem::file_size(path, ec);
+  auto sz = std::filesystem::file_size(bb_path_(path), ec);
   return ec ? 0 : static_cast<int>(sz);
 }
 
 // Copies src to dst, overwriting if dst exists.
 inline void bb_CopyFile(const bbString &src, const bbString &dst) {
   std::error_code ec;
-  std::filesystem::copy_file(src, dst,
+  std::filesystem::copy_file(bb_path_(src), bb_path_(dst),
     std::filesystem::copy_options::overwrite_existing, ec);
   if (ec) std::cerr << "[runtime] CopyFile failed: " << ec.message() << "\n";
 }
 
 inline void bb_DeleteFile(const bbString &path) {
   std::error_code ec;
-  std::filesystem::remove(path, ec);
+  std::filesystem::remove(bb_path_(path), ec);
   if (ec) std::cerr << "[runtime] DeleteFile failed: " << ec.message() << "\n";
 }
 
