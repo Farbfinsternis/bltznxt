@@ -742,13 +742,16 @@ private:
           checkAssign(fromHint(as->typeHint), val, "assignment", as->line,
                       as->col);
         }
-        // Eine Variable vom Typ Null gibt es nicht. Ohne Tag entsteht in der
-        // Referenz ein int, und Null wandelt nicht in int (BUG-45).
-        if (as->typeHint.empty() && val.k == Ty::NUL) {
+        // Ohne Tag entsteht in der Referenz immer ein int (varnode.cpp), egal
+        // was rechts steht: "x=1.5" ist 2, "s=\"12\" : s-1" ist 11 (BUG-80).
+        // Zahlen und Strings wandeln in int; ein Objekt und Null nicht - das
+        // meldet checkAssign wie das Original (BUG-45, BUG-80).
+        if (as->typeHint.empty()) {
           checkAssign(mk(Ty::INT), val, "assignment", as->line, as->col);
-          val = mk(Ty::INT);
+          declare(as->name, mk(Ty::INT));
+        } else {
+          declare(as->name, fromHint(as->typeHint));
         }
-        declare(as->name, as->typeHint.empty() ? val : fromHint(as->typeHint));
       }
     } else if (auto *ds = dynamic_cast<DataStmt *>(n)) {
       checkData(ds);

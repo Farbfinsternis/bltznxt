@@ -12,7 +12,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-10-13 — 24 open bugs, 28 missing commands.* A review against the
+*Last updated: 2026-10-25 — 23 open bugs, 28 missing commands.* A review against the
 original on 2026-10-13 found eleven more (BUG-201 to BUG-211); they are fixed first, for
 version 0.7.0.
 
@@ -133,7 +133,7 @@ counted as bugs and are not planned to be fixed:
   (see above). (BUG-123)
 - **Invalid programs that Blitz3D rejects may be accepted.** A program that ran in Blitz3D
   never hits these: division by a constant zero (BUG-75), a constant index outside a fixed
-  array (BUG-78), an object assigned to an untagged variable (part of BUG-80), `Global x`
+  array (BUG-78), `Global x`
   after `x` has been used (BUG-81), two functions with the same name (BUG-138), the same
   `Local` declared twice (BUG-161). String functions with an invalid position or length
   (`Mid(s, 0)`) continue with a guessed value where Blitz3D stops with an error (BUG-125).
@@ -148,8 +148,7 @@ everything that is available. The number comes from comparing `blitzcc +k` of Bl
 with `blitzcc -k` (2026-10-04).
 
 None of the 156 source files in the samples, games and tutorials that ship with Blitz3D uses
-one of them any more (measured 2026-10-04; on 2026-10-03 it was 36). One terrain sample,
-`RobHutchinson/WateryTerrain/water.bb`, still fails, but on the type check (BUG-80).
+one of them any more (measured 2026-10-04; on 2026-10-03 it was 36).
 
 | Area | Missing | Example files using it |
 |------|---------|---|
@@ -209,11 +208,6 @@ does not handle them yet:
   - The same file written in different case (`helper.bb`, `HELPER.BB`) is included twice.
 
   *Workaround:* put each `Include` on its own line and spell file names consistently. (BUG-94)
-- **The type check treats an untagged variable as having the type of its first value.** In
-  Blitz3D a variable created without a tag is always an integer. Valid programs are
-  therefore rejected here: `x = 1.5` followed by a use of `x%` is reported as a type
-  mismatch, and `x = "12" : Print x - 1` (which prints `11` in Blitz3D) as arithmetic on a
-  string. *Workaround:* tag the variable where it first appears (`x% = …`). (BUG-80)
 - **`Dim` inside an `If`, `While`, `For` or `Select` block of the main program** fails in the
   C++ compiler. *Workaround:* move the `Dim` to the top level. (WEAK-05)
 - **`Not` applied to a string** (`Not "0"`) fails in the C++ compiler. (BUG-108)

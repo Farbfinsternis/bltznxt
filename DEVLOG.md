@@ -1,5 +1,25 @@
 # BlitzNext Developer Log
 
+## 2026-10-25 — an untagged variable is always an integer
+
+In Blitz3D a variable that first appears without a tag is an integer, whatever is assigned to
+it: `x = 1.5` stores 2, and `s = "12" : Print s - 1` prints 11. The code generator already
+did this, but the type check took the type of the first value instead, so valid programs were
+rejected — `x = 1.5` followed by `x%` as a type mismatch, `s - 1` as arithmetic on a string
+(BUG-80). The type check now creates such a variable as an integer too. An object or `Null`
+cannot become an integer, so `c = New T` without a tag is now rejected at the same line as in
+Blitz3D, where before it was accepted and failed later.
+
+Measured against Blitz3D 11.8: 13 values and four rejections, all the same. The generated
+code of Friendly Fire, BLTZCRFT, blox-n-balls and of all 97 sample programs that compiled
+before is byte for byte unchanged.
+
+A new baseline over the 156 source files that ship with Blitz3D (105 programs, 103 of which
+Blitz3D itself compiles) counts how many compile, start and run like the original. This fix
+unlocks five of them: before 97 / 94 / 85, now 102 / 99 / 89.
+
+Full suite: 340 passed, 0 failed.
+
 ## 2026-10-13 — integer literals: always decimal, always 32 bits
 
 Blitz3D reads an integer literal with `atoi`: always decimal, so `010` is 10 and `08` is

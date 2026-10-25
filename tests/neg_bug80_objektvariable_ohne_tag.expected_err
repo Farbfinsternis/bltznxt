@@ -1,0 +1,1 @@
+tests/neg_bug80_objektvariable_ohne_tag.bb:8:1: error: assignment: cannot assign .T to int
