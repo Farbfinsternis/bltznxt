@@ -29,6 +29,30 @@
 
 namespace fs = std::filesystem;
 
+// ---- ANSI-Pfade (ansipath.h, BUG-201) ----------------------------------------
+
+std::wstring ansiWide(const std::string &ansi) {
+  if (ansi.empty()) return std::wstring();
+  const int n = MultiByteToWideChar(CP_ACP, 0, ansi.data(), (int)ansi.size(), nullptr, 0);
+  std::wstring w(n > 0 ? n : 0, L'\0');
+  if (n > 0) MultiByteToWideChar(CP_ACP, 0, ansi.data(), (int)ansi.size(), w.data(), n);
+  return w;
+}
+
+static std::string ansiFromWide(const std::wstring &w) {
+  if (w.empty()) return std::string();
+  const int n = WideCharToMultiByte(CP_ACP, 0, w.data(), (int)w.size(), nullptr, 0,
+                                    nullptr, nullptr);
+  std::string s(n > 0 ? n : 0, '\0');
+  if (n > 0)
+    WideCharToMultiByte(CP_ACP, 0, w.data(), (int)w.size(), s.data(), n, nullptr, nullptr);
+  return s;
+}
+
+fs::path ansiPath(const std::string &ansi) { return fs::path(ansiWide(ansi)); }
+std::string ansiString(const fs::path &p) { return ansiFromWide(p.wstring()); }
+std::string ansiGeneric(const fs::path &p) { return ansiFromWide(p.generic_wstring()); }
+
 // ---- Version ---------------------------------------------------------------
 // Single source of truth for -h and -v output (Buglist BUG-02 / REFACTOR R12).
 
@@ -75,7 +99,7 @@ static fs::path resolvePath(const std::string &rel) {
   if (fs::exists(p4)) return p4;
   const char *bp = std::getenv("BLITZPATH");
   if (bp) {
-    fs::path p5 = fs::path(bp) / rel;
+    fs::path p5 = ansiPath(bp) / rel;
     if (fs::exists(p5)) return p5;
   }
   return p; // not found — caller checks existence
@@ -335,7 +359,7 @@ static const std::unordered_map<std::string, std::string> &userlibDeclNames() {
     for (const auto &entry : fs::directory_iterator(dir, ec)) {
       if (ec) break;
       if (!entry.is_regular_file(ec)) continue;
-      std::string ext = entry.path().extension().string();
+      std::string ext = ansiString(entry.path().extension());
       std::transform(ext.begin(), ext.end(), ext.begin(),
                      [](unsigned char c) { return (char)std::tolower(c); });
       if (ext != ".decls") continue;
@@ -355,7 +379,7 @@ static const std::unordered_map<std::string, std::string> &userlibDeclNames() {
                                    line[j] == '$')) ++j;
         while (j < line.size() && (line[j] == ' ' || line[j] == '\t')) ++j;
         if (j >= line.size() || line[j] != '(') continue;
-        m.emplace(toUpper(name), entry.path().filename().string());
+        m.emplace(toUpper(name), ansiString(entry.path().filename()));
       }
     }
     return m;
@@ -481,7 +505,7 @@ public:
                bool debug) const {
     fs::path gppPath = resolvePath("tools/mingw64/bin/g++.exe");
     if (!fs::exists(gppPath)) {
-      std::cerr << "[ERROR] g++ not found at " << gppPath << "\n";
+      std::cerr << "[ERROR] g++ not found at \"" << ansiString(gppPath) << "\"\n";
       return false;
     }
 
@@ -497,40 +521,38 @@ public:
     fs::path ttfImport   = ttfBase / "lib" / "libSDL3_ttf.dll.a";
     const bool haveTtf   = fs::exists(ttfImport);
 
-    std::string gpp      = gppPath.make_preferred().string();
-    std::string finalCpp = fs::absolute(cppPath).make_preferred().string();
-    std::string finalOut =
-        fs::absolute(outputPath + ".exe").make_preferred().string();
-    std::string incDir    = includeDir.make_preferred().string();
-    std::string sdlIncDir = sdlInc.make_preferred().string();
+    // Die Befehlszeile entsteht direkt als UTF-16 aus den Pfaden. Bis BUG-201
+    // wurde sie als std::string gebaut und Byte fuer Byte nach wstring
+    // kopiert - jeder Umlaut in einem Pfad kam bei g++ kaputt an.
+    const fs::path finalCpp = fs::absolute(ansiPath(cppPath)).make_preferred();
+    const fs::path finalOut = fs::absolute(ansiPath(outputPath + ".exe")).make_preferred();
+    auto q = [](fs::path p) { return L"\"" + p.make_preferred().wstring() + L"\""; };
 
-    std::string cmd = "\"" + gpp + "\" -std=c++17 -static"
-                      " -I\"" + incDir + "\""
-                      " -I\"" + sdlIncDir + "\"";
+    std::wstring cmd = q(gppPath) + L" -std=c++17 -static"
+                       L" -I" + q(includeDir) +
+                       L" -I" + q(sdlInc);
 
     if (haveTtf)
-      cmd += " -I\"" + ttfInc.make_preferred().string() + "\""
-             " -DBB_HAS_SDL3_TTF";
+      cmd += L" -I" + q(ttfInc) + L" -DBB_HAS_SDL3_TTF";
 
-    cmd += " \"" + finalCpp + "\""
-           " -o \"" + finalOut + "\"";
+    cmd += L" " + q(finalCpp) + L" -o " + q(finalOut);
 
     // Link SDL3 (required for graphics/audio/input)
     if (fs::exists(sdlImport))
-      cmd += " \"" + sdlImport.make_preferred().string() + "\"";
+      cmd += L" " + q(sdlImport);
 
     // Link SDL3_ttf when available
     if (haveTtf)
-      cmd += " \"" + ttfImport.make_preferred().string() + "\"";
+      cmd += L" " + q(ttfImport);
 
     // Link winmm for timeBeginPeriod/timeEndPeriod (high-res timer on Windows)
-    cmd += " -lwinmm";
+    cmd += L" -lwinmm";
 
     // Winsock fuer die TCP-Befehle (bb_socket.h)
-    cmd += " -lws2_32";
+    cmd += L" -lws2_32";
 
     // Link opengl32 for OpenGL (3D programs via bb_gl_ctx.h)
-    cmd += " -lopengl32";
+    cmd += L" -lopengl32";
 
     // Ein Programm mit Graphics oder Graphics3D wird ein Fensterprogramm wie
     // in Blitz3D: ohne eigenes Konsolenfenster, das sich sonst beim Start
@@ -544,7 +566,7 @@ public:
                             std::istreambuf_iterator<char>());
       if (src.find("bb_Graphics(") != std::string::npos ||
           src.find("bb_Graphics3D(") != std::string::npos)
-        cmd += " -mwindows";
+        cmd += L" -mwindows";
     }
 
     // Release optimiert: ohne -O laeuft die Laufzeit in den Headern (Banks
@@ -554,15 +576,14 @@ public:
     // undefiniert zu sein, auf das der Optimierer bauen duerfte.
     // -fno-strict-aliasing: die Header lesen Bytes auch ueber andere Typen.
     // Der Debug-Build bleibt unoptimiert, damit -g brauchbar ist.
-    if (debug) cmd += " -O0 -g";
-    else       cmd += " -O2 -fwrapv -fno-strict-aliasing";
+    if (debug) cmd += L" -O0 -g";
+    else       cmd += L" -O2 -fwrapv -fno-strict-aliasing";
 
     // Launch g++ directly via CreateProcessW — no shell, no injection risk.
-    std::wstring wcmd(cmd.begin(), cmd.end());
     STARTUPINFOW si = {};
     si.cb = sizeof(si);
     PROCESS_INFORMATION pi = {};
-    if (!CreateProcessW(nullptr, wcmd.data(),
+    if (!CreateProcessW(nullptr, cmd.data(),
                         nullptr, nullptr, FALSE,
                         g_noConsole_ ? CREATE_NO_WINDOW : 0, nullptr, nullptr,
                         &si, &pi)) {
@@ -581,7 +602,7 @@ public:
     if (fs::exists(sdlDll)) {
       try {
         fs::copy_file(sdlDll,
-                      fs::path(outputPath).parent_path() / "SDL3.dll",
+                      ansiPath(outputPath).parent_path() / "SDL3.dll",
                       fs::copy_options::overwrite_existing);
       } catch (...) {}
     }
@@ -591,7 +612,7 @@ public:
     if (fs::exists(ttfDll)) {
       try {
         fs::copy_file(ttfDll,
-                      fs::path(outputPath).parent_path() / "SDL3_ttf.dll",
+                      ansiPath(outputPath).parent_path() / "SDL3_ttf.dll",
                       fs::copy_options::overwrite_existing);
       } catch (...) {}
     }
@@ -614,15 +635,15 @@ public:
     std::streambuf *oldOut = std::cout.rdbuf(log.rdbuf());
     std::streambuf *oldErr = std::cerr.rdbuf(log.rdbuf());
 
-    const fs::path src = fs::absolute(cfg.inputPath);
+    const fs::path src = fs::absolute(ansiPath(cfg.inputPath));
     const bool run = cfg.outputName.empty() && !cfg.compileOnly;
     fs::path tmp;
     if (cfg.outputName.empty()) {
       tmp = fs::temp_directory_path() / "bltznxt-ide" /
-            (src.stem().string() + "-" + std::to_string(GetCurrentProcessId()));
+            (src.stem().wstring() + L"-" + std::to_wstring(GetCurrentProcessId()));
       std::error_code ec;
       fs::create_directories(tmp, ec);
-      cfg.outputName = (tmp / src.stem()).string();
+      cfg.outputName = ansiString(tmp / src.stem());
     } else if (cfg.outputName.size() > 4 &&
                toUpper(cfg.outputName.substr(cfg.outputName.size() - 4)) == ".EXE") {
       cfg.outputName.resize(cfg.outputName.size() - 4);   // die IDE gibt "x.exe"
@@ -665,12 +686,10 @@ public:
     // Das Programm mit eigenem Fenster; ein Textprogramm bekommt seine
     // eigene Konsole, weil blitzcc selbst keine hat. blitzcc wartet, damit
     // der Ordner danach geloescht werden kann.
-    const fs::path exe = fs::path(cfg.outputName + ".exe");
+    const fs::path exe = ansiPath(cfg.outputName + ".exe");
     std::wstring cmd = L"\"" + exe.wstring() + L"\"";
     for (const auto &a : cfg.progArgs) {
-      const int n = MultiByteToWideChar(CP_ACP, 0, a.c_str(), -1, nullptr, 0);
-      std::wstring w(n > 0 ? n - 1 : 0, L'\0');
-      if (n > 1) MultiByteToWideChar(CP_ACP, 0, a.c_str(), -1, w.data(), n);
+      const std::wstring w = ansiWide(a);
       cmd += L" " + (w.find(L' ') != std::wstring::npos ? L"\"" + w + L"\"" : w);
     }
     const std::wstring dir = src.parent_path().wstring();
@@ -697,8 +716,8 @@ public:
     if (cfg.ide) return transpileIde(cfg);
     std::string output = cfg.outputName;
     if (output.empty()) {
-      fs::path p = cfg.inputPath;
-      output = (p.parent_path() / p.stem()).string();
+      const fs::path p = ansiPath(cfg.inputPath);
+      output = ansiString(p.parent_path() / p.stem());
     }
 
     if (!cfg.quiet)
@@ -757,7 +776,7 @@ public:
       if (!cfg.quiet)
         std::cout << "Success: " << output << ".exe created.\n";
       if (!cfg.debug) {
-        try { fs::remove(output + ".cpp"); } catch (...) {}
+        try { fs::remove(ansiPath(output + ".cpp")); } catch (...) {}
       }
       return 0;
     } else {
@@ -790,8 +809,17 @@ static void showHelp() {
 }
 
 int main(int argc, char **argv) {
-  if (argc > 0)
-    g_exeDir_ = fs::absolute(argv[0]).parent_path();
+  // Der Ordner von blitzcc.exe ueber die Wide-API: argv[0] ist ANSI und
+  // waere mit einem Umlaut im Installationspfad schon hier gescheitert
+  // (BUG-201).
+  {
+    wchar_t buf[MAX_PATH * 4];
+    const DWORD n = GetModuleFileNameW(nullptr, buf, (DWORD)(sizeof(buf) / sizeof(buf[0])));
+    if (n > 0 && n < sizeof(buf) / sizeof(buf[0]))
+      g_exeDir_ = fs::path(std::wstring(buf, n)).parent_path();
+    else if (argc > 0)
+      g_exeDir_ = fs::absolute(ansiPath(argv[0])).parent_path();
+  }
 
   Config cfg;
   cfg.ide = std::getenv("blitzide") != nullptr;

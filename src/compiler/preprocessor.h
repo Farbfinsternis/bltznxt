@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "ansipath.h"
 #include "sourcemap.h"
 
 class Preprocessor {
@@ -25,15 +26,17 @@ public:
     // file in a subfolder: blitzcc changes into that directory before it
     // parses, and "sub\a.bb" including "b.bb" next to itself is rejected
     // (BUG-151, measured 2026-09-17). The first call is the main file.
+    // Pfade sind ANSI-Bytes, std::filesystem bekommt sie nur ueber ansiPath
+    // (BUG-201).
     if (!rootSet_) {
-      rootDir_ = fs::path(path).parent_path();
+      rootDir_ = ansiPath(path).parent_path();
       rootSet_ = true;
     }
 
     // Guard against circular includes
     std::string canonical;
     try {
-      canonical = fs::canonical(path).string();
+      canonical = ansiString(fs::canonical(ansiPath(path)));
     } catch (...) {
       canonical = path; // file may not exist yet; use raw path as key
     }
@@ -86,8 +89,8 @@ public:
             // Backslashes are Blitz3D's separator and must work here too.
             std::replace(incFile.begin(), incFile.end(), '\\', '/');
             std::string resolved =
-                (rootDir_ / incFile).lexically_normal().generic_string();
-            if (!fs::is_regular_file(resolved)) {
+                ansiGeneric((rootDir_ / ansiPath(incFile)).lexically_normal());
+            if (!fs::is_regular_file(ansiPath(resolved))) {
               // Blitz3D stops here: "Unable to open include file", placed
               // just past the closing quote.
               std::cerr << path << ":" << lineNo << ":" << (first + q2 + 2)

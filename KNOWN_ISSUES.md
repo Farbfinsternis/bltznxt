@@ -12,7 +12,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-10-25 — 21 open bugs, 28 missing commands.* A review against the
+*Last updated: 2026-10-25 — 20 open bugs, 28 missing commands.* A review against the
 original on 2026-10-13 found eleven more (BUG-201 to BUG-211); they are fixed first, for
 version 0.7.0.
 
@@ -165,12 +165,9 @@ and without a debugger Blitz3D suspends the program until its window is activate
 ## Umlauts and other non-ASCII characters
 
 Blitz3D strings and source files use the Windows code page (Windows-1252 on Western
-systems), so `ä`, `ö`, `ü`, `ß`, `é` and the like work everywhere in Blitz3D. BlitzNext
-does not handle them yet:
+systems), so `ä`, `ö`, `ü`, `ß`, `é` and the like work everywhere in Blitz3D. The compiler
+handles them in paths and `Include` names; the running program does not yet:
 
-- **A source file in a folder with such a character crashes the compiler** (exit code 3,
-  `Illegal byte sequence`) — even a user folder like `C:\Users\Jürgen\Documents` is enough.
-  *Workaround:* keep projects in a path without them. (BUG-201)
 - **File and folder names with such characters crash the program**: `FileType`, `FileSize`,
   `ReadDir`/`NextFile`, `CurrentDir`, `ChangeDir`, `CreateDir`, `DeleteDir`, `CopyFile`,
   `DeleteFile` and the model loaders stop with a `filesystem_error`. *Workaround:* rename the

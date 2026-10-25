@@ -1,5 +1,26 @@
 # BlitzNext Developer Log
 
+## 2026-10-25 — paths with umlauts no longer crash the compiler
+
+The paths the compiler handles are bytes in the Windows code page: that is how they arrive
+in `argv`, how an `Include` line stands in a source file saved by the Blitz3D IDE, and how
+the IDE expects them in error messages. `std::filesystem::path` under MinGW reads such a
+string as UTF-8 and throws on an umlaut, so `blitzcc` stopped with `filesystem_error`,
+exit code 3, for any source in a folder like `C:\Users\Jürgen\Documents` (BUG-201). On top
+of that the g++ command line was copied byte by byte into a wide string, so a non-ASCII path
+would have reached g++ broken even without the crash.
+
+Paths now cross into `std::filesystem` and the Windows API through two small helpers that
+convert with the ANSI code page, the g++ command line is built as UTF-16 from the paths, and
+the compiler finds its own folder through `GetModuleFileNameW` instead of `argv[0]`. Tested:
+a source in `Übung\`, an `Include` from `Unterordner Ä\`, a file named `Größe.bb` with and
+without `-o`, `-c`, the Blitz3D IDE mode, an error message whose file name reaches the IDE in
+the code page, and an installation under a path with an umlaut. The generated code of all
+102 sample programs is unchanged. File names inside a running program (BUG-202) and text
+(BUG-203) are still open.
+
+Full suite: 344 passed, 0 failed.
+
 ## 2026-10-25 — GetKey and WaitKey return characters
 
 Blitz3D's `GetKey` and `WaitKey` do not return the key code but the character of the key:
