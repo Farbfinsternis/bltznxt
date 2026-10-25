@@ -1,5 +1,18 @@
 # BlitzNext Developer Log
 
+## 2026-10-25 — GetKey and GetMouse no longer wait
+
+In Blitz3D `GetKey()` and `GetMouse()` take the next key or button from the queue and return
+0 at once when there is none; only `WaitKey` and `WaitMouse` wait. BlitzNext waited in both,
+so a main loop with `key = GetKey()` stood still every frame until a key came (BUG-204). The
+`flares` sample that ships with Blitz3D showed nothing but its text for that reason. Both now
+read the queue and return 0 when it is empty.
+
+Measured against Blitz3D 11.8: 100 calls without input return 0 at once, the same as the
+original; a typed key and a mouse click each arrive once while the loop keeps running. The key
+values still differ — BlitzNext returns scan codes where Blitz3D returns characters (BUG-205,
+next). Sample baseline: 102 / 102 / 93 of 103.
+
 ## 2026-10-25 — 16-bit graphics modes are listed again
 
 Blitz3D lists every resolution twice: first all of them with 32 bits, then the same ones in

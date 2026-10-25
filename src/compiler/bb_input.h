@@ -126,17 +126,14 @@ inline int bb_KeyHit(int code) {
   return hit ? 1 : 0;
 }
 
-// Blocks until any key is pressed; returns its Blitz3D key code.
-// Returns 0 if SDL cannot be initialized.
+// Naechste Taste aus der Warteschlange, 0 wenn keine ansteht - GetKey wartet
+// nicht (gxDevice::getKey in bbinput.cpp, gemessen: 100 Aufrufe ohne Eingabe
+// kehren sofort mit 0 zurueck). Bis BUG-204 wartete es auf eine Taste, und
+// jede Spielschleife mit "key=GetKey()" stand in jedem Bild still.
 inline int bb_GetKey() {
   bb_sdl_ensure_();
   if (!bb_sdl_initialized_) return 0;
   bb_PollEvents();
-  while (bb_key_queue_head_ == bb_key_queue_tail_) {
-    SDL_Event ev;
-    if (!SDL_WaitEvent(&ev)) break;
-    bb_sdl_process_event_(ev);
-  }
   if (bb_key_queue_head_ == bb_key_queue_tail_) return 0;
   SDL_Scancode sc = bb_key_queue_buf_[bb_key_queue_head_];
   bb_key_queue_head_ = (bb_key_queue_head_ + 1) % BB_KEY_QUEUE_CAP;
@@ -237,8 +234,17 @@ inline int bb_WaitMouse() {
   return btn;
 }
 
-// Alias (Blitz3D compat — GetMouse() = WaitMouse()).
-inline int bb_GetMouse() { return bb_WaitMouse(); }
+// Naechste Maustaste aus der Warteschlange, 0 wenn keine ansteht. Wie GetKey
+// wartet GetMouse nicht (gxDevice::getKey); bis BUG-204 war es WaitMouse.
+inline int bb_GetMouse() {
+  bb_sdl_ensure_();
+  if (!bb_sdl_initialized_) return 0;
+  bb_PollEvents();
+  if (bb_mouse_queue_head_ == bb_mouse_queue_tail_) return 0;
+  int btn = bb_mouse_queue_buf_[bb_mouse_queue_head_];
+  bb_mouse_queue_head_ = (bb_mouse_queue_head_ + 1) % BB_MOUSE_QUEUE_CAP;
+  return btn;
+}
 
 // Clears all mouse state: held/hit flags, speed accumulators, and the queue.
 inline void bb_FlushMouse() {
