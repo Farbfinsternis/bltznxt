@@ -1,5 +1,23 @@
 # BlitzNext Developer Log
 
+## 2026-10-25 — Include is a statement
+
+In Blitz3D `Include` is parsed like any other statement, so it may stand between colons,
+and a file that is included again in another spelling (`helper.bb`, `HELPER.BB`) comes in
+only once. BlitzNext handled `Include` line by line: whatever followed it on the line was
+dropped silently, an `Include` after a colon was rejected, and the second spelling included
+the file a second time (BUG-94). The preprocessor now splits a line at the colons outside
+strings and before the comment; each part that is an `Include` is replaced by the file, the
+other parts stay statements of that source line, padded so their columns in error messages
+are right. Included files are compared without regard to case.
+
+Measured against Blitz3D 11.8: `Print "a" : Include "h1.bb" : Print "b"`, an `Include`
+followed by a statement, the second spelling, a colon inside a string and an `Include` in a
+comment — the same output; a missing include after a colon and a typo after an include are
+reported at the same line and column.
+
+Full suite: 347 passed, 0 failed.
+
 ## 2026-10-25 — file and folder names with umlauts work in programs
 
 A Blitz3D string is a sequence of bytes in the Windows code page, and so is every file name

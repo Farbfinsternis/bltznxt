@@ -1,0 +1,1 @@
+tests/neg_bug94_include_fehlt.bb:4:40: error: Unable to open include file 'bug94\gibtsnicht.bb'

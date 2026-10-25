@@ -12,7 +12,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-10-25 — 19 open bugs, 28 missing commands.* A review against the
+*Last updated: 2026-10-25 — 18 open bugs, 28 missing commands.* A review against the
 original on 2026-10-13 found eleven more (BUG-201 to BUG-211); they are fixed first, for
 version 0.7.0.
 
@@ -187,12 +187,6 @@ not handled yet:
 
 ## Language and compiler
 
-- **`Include` is handled line by line instead of as a statement.**
-  - Code after an `Include` on the same line (`Include "a.bb" : Print "x"`) is dropped.
-  - An `Include` after other statements on the same line is rejected.
-  - The same file written in different case (`helper.bb`, `HELPER.BB`) is included twice.
-
-  *Workaround:* put each `Include` on its own line and spell file names consistently. (BUG-94)
 - **`Dim` inside an `If`, `While`, `For` or `Select` block of the main program** fails in the
   C++ compiler. *Workaround:* move the `Dim` to the top level. (WEAK-05)
 - **`Not` applied to a string** (`Not "0"`) fails in the C++ compiler. (BUG-108)
