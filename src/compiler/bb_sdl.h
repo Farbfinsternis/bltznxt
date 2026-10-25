@@ -20,6 +20,19 @@
 // bb_sdl_initialized_ guards calls to SDL functions.
 
 inline SDL_Window*   bb_window_          = nullptr;
+
+// Das HWND des Programmfensters fuer SystemProperty("apphwnd") (bb_system.h,
+// BUG-122); ohne Fenster nullptr.
+inline void *bb_window_hwnd_() {
+#ifdef _WIN32
+  if (!bb_window_) return nullptr;
+  return SDL_GetPointerProperty(SDL_GetWindowProperties(bb_window_),
+                                SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr);
+#else
+  return nullptr;
+#endif
+}
+
 inline SDL_Renderer* bb_renderer_        = nullptr;
 inline SDL_GLContext bb_gl_ctx_          = nullptr;
 inline bool          bb_gl_active_       = false;

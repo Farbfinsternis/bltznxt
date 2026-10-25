@@ -1,5 +1,17 @@
 # BlitzNext Developer Log
 
+## 2026-10-25 — SystemProperty returns the known properties
+
+`SystemProperty` always returned an empty string, so programs that build paths with
+`"appdir"` or `"tempdir"` did not find their files (BUG-122). It now answers like
+Blitz3D's `gxRuntime::systemProperty`: `"cpu"` is `Intel`, the folders end with a
+backslash, `"apphwnd"` and `"apphinstance"` are the window and module handles, `"os"`
+uses the same version table (empty on Windows 10 and 11, as in Blitz3D there), and the
+Direct3D 7 pointers, which do not exist here, are `0`. Measured against Blitz3D 11.8 on
+Windows 11: 14 values, all the same.
+
+Full suite: 349 passed, 0 failed.
+
 ## 2026-10-25 — ImagesCollide and ImageRectCollide test visible pixels
 
 Both only compared the bounding rectangles, so two images collided wherever their

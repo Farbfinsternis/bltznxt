@@ -12,7 +12,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-10-25 — 17 open bugs, 28 missing commands.* A review against the
+*Last updated: 2026-10-25 — 16 open bugs, 28 missing commands.* A review against the
 original on 2026-10-13 found eleven more (BUG-201 to BUG-211); they are fixed first, for
 version 0.7.0.
 
@@ -206,8 +206,6 @@ not handled yet:
 
 ## Runtime library
 
-- **`SystemProperty`** always returns an empty string (Blitz3D returns e.g. `"Intel"` for
-  `"cpu"`). (BUG-122)
 - **`ExecFile` waits until the started program has ended** and cannot open documents or web
   addresses (`ExecFile "http://…"`); Blitz3D hands the line to the Windows shell and goes on.
   The close prompt of `AppTitle title$, prompt$` is not shown; closing the window ends the

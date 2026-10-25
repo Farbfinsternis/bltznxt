@@ -3,6 +3,7 @@
 
 #include <chrono>
 #include <ctime>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
@@ -177,8 +178,68 @@ inline void bb_SetEnv(const bbString &key, const bbString &val) {
 #endif
 }
 
-// Returns a system property string; stub for unknown properties.
-inline bbString bb_SystemProperty(const bbString &/*prop*/) { return ""; }
+// SystemProperty wie gxRuntime::systemProperty (BUG-122): bis dahin immer
+// leer, und Programme, die mit "appdir" oder "tempdir" Pfade bauen, fanden
+// ihre Dateien nicht. Gemessen an Blitz3D 11.8 unter Windows 11: cpu "Intel",
+// os leer (GetVersionEx meldet 6.2, das kennt die Tabelle nicht), Ordner mit
+// abschliessendem Backslash, apphwnd/apphinstance nie leer, die D3D7-Zeiger
+// ohne Grafik "0". Die gibt es hier nicht, sie bleiben "0".
+inline void *bb_window_hwnd_();   // bb_sdl.h - das HWND des Programmfensters
+
+inline bbString bb_SystemProperty(const bbString &prop) {
+  bbString t = prop;
+  for (auto &c : t) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  auto toDir = [](bbString d) {
+    if (!d.empty() && d.back() != '\\') d += '\\';
+    return d;
+  };
+  if (t == "cpu") return "Intel";
+  if (t == "direct3d7" || t == "direct3ddevice7" || t == "directdraw7" ||
+      t == "directinput7")
+    return "0";
+#ifdef _WIN32
+  char buff[MAX_PATH + 1];
+  if (t == "os") {
+    OSVERSIONINFOA vi = {};
+    vi.dwOSVersionInfoSize = sizeof(vi);
+    if (!GetVersionExA(&vi)) return "";
+    switch (vi.dwMajorVersion) {
+      case 3: if (vi.dwMinorVersion == 51) return "Windows NT 3.1"; break;
+      case 4:
+        if (vi.dwMinorVersion == 0)  return "Windows 95";
+        if (vi.dwMinorVersion == 10) return "Windows 98";
+        if (vi.dwMinorVersion == 90) return "Windows ME";
+        break;
+      case 5:
+        if (vi.dwMinorVersion == 0) return "Windows 2000";
+        if (vi.dwMinorVersion == 1) return "Windows XP";
+        if (vi.dwMinorVersion == 2) return "Windows Server 2003";
+        break;
+      case 6:
+        if (vi.dwMinorVersion == 0) return "Windows Vista";
+        if (vi.dwMinorVersion == 1) return "Windows 7";
+        break;
+    }
+    return "";
+  }
+  if (t == "appdir") {
+    const DWORD n = GetModuleFileNameA(nullptr, buff, MAX_PATH);
+    if (!n) return "";
+    bbString d(buff, n);
+    const size_t k = d.find_last_of('\\');
+    if (k != bbString::npos) d = d.substr(0, k);
+    return toDir(d);
+  }
+  if (t == "apphwnd")
+    return std::to_string(static_cast<long long>(reinterpret_cast<intptr_t>(bb_window_hwnd_())));
+  if (t == "apphinstance")
+    return std::to_string(static_cast<long long>(reinterpret_cast<intptr_t>(GetModuleHandleA(nullptr))));
+  if (t == "windowsdir" && GetWindowsDirectoryA(buff, MAX_PATH)) return toDir(buff);
+  if (t == "systemdir" && GetSystemDirectoryA(buff, MAX_PATH)) return toDir(buff);
+  if (t == "tempdir" && GetTempPathA(MAX_PATH, buff)) return toDir(buff);
+#endif
+  return "";
+}
 
 // ShowPointer / HidePointer stehen in bb_input.h (BUG-124).
 
