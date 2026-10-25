@@ -1,5 +1,21 @@
 # BlitzNext Developer Log
 
+## 2026-10-25 — WritePixelFast outside the buffer no longer corrupts the heap
+
+`ReadPixelFast`, `WritePixelFast` and `CopyPixelFast` do no range check in Blitz3D: they
+address the locked surface linearly, so an `x` one past the end of a row lands in the next
+row. BlitzNext did the same, but nothing stopped an address past the end of the whole
+buffer either. The game `wing_ring` that ships with Blitz3D tints its logo every frame with
+`For x=0 To ImageWidth(logo) : For y=0 To ImageHeight(logo)` — one column and one row too
+far — and crashed with a corrupted heap at the next `LockBuffer` after 1.4 seconds
+(BUG-212).
+
+The linear addressing stays as it is; measured against Blitz3D 11.8 on a 64×64 image and the
+back buffer, the values are the same. An address outside the buffer is now dropped when
+writing and reads as 0. The row padding Direct3D 7 adds to odd widths is not reproduced.
+`wing_ring` now runs; the sample baseline is 102 / 100 / 90 of 103 (compile / start / run
+like the original).
+
 ## 2026-10-25 — an untagged variable is always an integer
 
 In Blitz3D a variable that first appears without a tag is an integer, whatever is assigned to

@@ -1076,8 +1076,17 @@ inline uint8_t* bb_buf_pixel_(bb_BufLock_& lock, int x, int y) {
     return lock.pixels.data() + (y * lock.width + x) * 4;
 }
 
+// Die Fast-Befehle pruefen im Original nichts: sie rechnen y*Zeilenabstand+x
+// in die gesperrte Flaeche, ein x hinter dem Zeilenende landet also in der
+// naechsten Zeile (gemessen an 64er-Bildern und am Backbuffer). Das bleibt so;
+// nur was ganz ausserhalb des Puffers landet, liefert nullptr, statt den Heap
+// zu zerstoeren - "For x=0 To ImageWidth(img)" schreibt ein Pixel hinter das
+// letzte (BUG-212, Games/wing_ring). Die Zeilenreserve, die D3D7 bei krummen
+// Breiten anlegt, wird nicht nachgebaut.
 inline uint8_t* bb_buf_pixel_fast_(bb_BufLock_& lock, int x, int y) {
-    return lock.pixels.data() + (y * lock.width + x) * 4;
+    const long long i = (long long)y * lock.width + x;
+    if (i < 0 || i >= (long long)lock.width * lock.height) return nullptr;
+    return lock.pixels.data() + i * 4;
 }
 
 inline void bb_pixel_write_(uint8_t* p, int color) {
@@ -1154,13 +1163,16 @@ inline void bb_WritePixel(int x, int y, int color, int buf = bb_active_buffer_) 
 inline int bb_ReadPixelFast(int x, int y, int buf = bb_active_buffer_) {
     auto it = bb_buf_locks_.find(buf);
     if (it == bb_buf_locks_.end() || !it->second.locked) return 0;
-    return bb_pixel_read_(bb_buf_pixel_fast_(it->second, x, y));
+    const uint8_t* p = bb_buf_pixel_fast_(it->second, x, y);
+    return p ? bb_pixel_read_(p) : 0;
 }
 
 inline void bb_WritePixelFast(int x, int y, int color, int buf = bb_active_buffer_) {
     auto it = bb_buf_locks_.find(buf);
     if (it == bb_buf_locks_.end() || !it->second.locked) return;
-    bb_pixel_write_buf_(bb_buf_pixel_fast_(it->second, x, y), color, buf);
+    uint8_t* p = bb_buf_pixel_fast_(it->second, x, y);
+    if (!p) return;
+    bb_pixel_write_buf_(p, color, buf);
     it->second.dirty = true;
 }
 
@@ -1187,6 +1199,7 @@ inline void bb_CopyPixelFast(int sx, int sy, int sbuf,
     if (dit == bb_buf_locks_.end() || !dit->second.locked) return;
     const uint8_t* sp = bb_buf_pixel_fast_(sit->second, sx, sy);
     uint8_t*       dp = bb_buf_pixel_fast_(dit->second, dx, dy);
+    if (!sp || !dp) return;
     dp[0] = sp[0]; dp[1] = sp[1]; dp[2] = sp[2]; dp[3] = sp[3];
     dit->second.dirty = true;
 }
