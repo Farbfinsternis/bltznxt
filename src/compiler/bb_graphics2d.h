@@ -938,8 +938,56 @@ inline const bool bb_ttf_hook_reg_ = (bb_ttf_quit_hook_ = bb_ttf_quit_impl_, tru
 
 // Resolve "Arial" → absolute path: try as-is, then C:\Windows\Fonts\, then
 // common Linux font dirs.  Returns "" if not found.
-inline bbString bb_find_font_file_(const bbString& name) {
+#ifdef _WIN32
+// Familiennamen ueber die Schriftliste von Windows aufloesen (BUG-218):
+// "Arial Black" liegt in ariblk.ttf, "Times New Roman" in times.ttf. Das
+// Original fragt GDI nach dem Namen; eine Suche nach "<Name>.ttf" fand nur
+// Schriften, deren Datei zufaellig so heisst, alle anderen fielen still auf
+// die eingebaute 8-Pixel-Schrift zurueck. Eintraege wie
+// "Arial Black (TrueType)" = "ariblk.ttf" (HKLM, relativ zum Fonts-Ordner)
+// oder mit vollem Pfad (HKCU, pro Benutzer); mehrere Familien in einer Datei
+// stehen mit " & " getrennt.
+inline bbString bb_font_registry_(const bbString& want_lower) {
+    const char* key = "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts";
+    const char* windir = std::getenv("WINDIR");
+    const bbString fontsDir = (windir ? bbString(windir) : bbString("C:\\Windows")) + "\\Fonts\\";
+    for (HKEY root : {HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE}) {
+        HKEY k;
+        if (RegOpenKeyExA(root, key, 0, KEY_READ, &k) != ERROR_SUCCESS) continue;
+        bbString found;
+        for (DWORD i = 0; found.empty(); ++i) {
+            char vname[512]; DWORD vlen = sizeof(vname);
+            BYTE data[1024];  DWORD dlen = sizeof(data) - 1, type = 0;
+            if (RegEnumValueA(k, i, vname, &vlen, nullptr, &type, data, &dlen) != ERROR_SUCCESS) break;
+            if (type != REG_SZ) continue;
+            data[dlen] = 0;
+            bbString n(vname, vlen);
+            const size_t paren = n.rfind(" (");
+            if (paren != bbString::npos) n = n.substr(0, paren);
+            for (auto& c : n) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            size_t a = 0;
+            while (a <= n.size()) {
+                size_t b = n.find(" & ", a);
+                if (b == bbString::npos) b = n.size();
+                if (n.substr(a, b - a) == want_lower) {
+                    bbString file(reinterpret_cast<char*>(data));
+                    found = (file.find(':') != bbString::npos) ? file : fontsDir + file;
+                    break;
+                }
+                a = b + 3;
+            }
+        }
+        RegCloseKey(k);
+        if (!found.empty()) return found;
+    }
+    return "";
+}
+#endif
+
+inline bbString bb_find_font_file_(const bbString& name, bool bold = false, bool italic = false,
+                                   bool* styled = nullptr) {
     namespace fs = std::filesystem;
+    if (styled) *styled = false;
 
     // 1. Name as provided (absolute or relative path with extension)
     if (fs::exists(bb_path_(name))) return name;   // ANSI (BUG-202)
@@ -953,6 +1001,24 @@ inline bbString bb_find_font_file_(const bbString& name) {
     for (auto& c : lower) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
 
 #ifdef _WIN32
+    // Erst die Schrift mit dem gewuenschten Stil ("Arial Bold"), dann die
+    // Familie; reine GDI-Bitmapschriften auf die naechste TrueType-Schrift.
+    bbString fam = lower;
+    if (fam == "courier" || fam == "fixedsys" || fam == "terminal" || fam == "system")
+        fam = "courier new";
+    else if (fam == "ms sans serif") fam = "microsoft sans serif";
+    else if (fam == "ms serif")      fam = "times new roman";
+    if (bold || italic) {
+        const bbString suffix = bold && italic ? " bold italic" : bold ? " bold" : " italic";
+        for (const bbString& f : {lower, fam}) {
+            bbString p = bb_font_registry_(f + suffix);
+            if (!p.empty() && fs::exists(bb_path_(p))) { if (styled) *styled = true; return p; }
+        }
+    }
+    for (const bbString& f : {lower, fam}) {
+        bbString p = bb_font_registry_(f);
+        if (!p.empty() && fs::exists(bb_path_(p))) return p;
+    }
     const char* windir = std::getenv("WINDIR");
     bbString fontsDir  = (windir ? bbString(windir) : bbString("C:\\Windows")) + "\\Fonts\\";
     for (const bbString& n : {lower, name}) {
@@ -983,9 +1049,15 @@ inline bbString bb_find_font_file_(const bbString& name) {
 // Falls back gracefully: if SDL3_ttf is not compiled in, or the font file
 // cannot be found, returns a handle with 8×8 bitmap metrics (no crash).
 
-inline int bb_LoadFont(const bbString& name, int height = 8,
-                       int /*bold*/ = 0, int /*italic*/ = 0,
-                       int /*underline*/ = 0) {
+// Vorgabehoehe 12 wie im Original (rtSym "%LoadFont$fontname%height=12...",
+// BUG-139). Die Hoehe ist dort die Zellenhoehe, die GDI einhaelt -
+// LoadFont("Arial",40) misst 40. SDL_ttf liest die Zahl als Punktgroesse und
+// lieferte 45; deshalb wird die Groesse so umgerechnet, dass TTF_GetFontHeight
+// die verlangte Hoehe trifft. Fett, kursiv, unterstrichen: die Datei des
+// Stils, wenn es eine gibt, sonst die Stile von SDL_ttf.
+inline int bb_LoadFont(const bbString& name, int height = 12,
+                       int bold = 0, int italic = 0,
+                       int underline = 0) {
     if (height <= 0) return 0;
 
     bb_Font_ f;
@@ -996,10 +1068,19 @@ inline int bb_LoadFont(const bbString& name, int height = 8,
 #ifdef BB_HAS_SDL3_TTF
     bb_ttf_ensure_();
     if (bb_ttf_initialized_) {
-        bbString path = bb_find_font_file_(name);
+        bool styled = false;
+        bbString path = bb_find_font_file_(name, bold != 0, italic != 0, &styled);
         if (!path.empty()) {
             TTF_Font* ttf = TTF_OpenFont(bb_utf8_(path).c_str(), static_cast<float>(height));   // SDL will UTF-8
             if (ttf) {
+                const int h0 = TTF_GetFontHeight(ttf);
+                if (h0 > 0 && h0 != height)
+                    TTF_SetFontSize(ttf, static_cast<float>(height) * height / h0);
+                int style = TTF_STYLE_NORMAL;
+                if (!styled && bold)   style |= TTF_STYLE_BOLD;
+                if (!styled && italic) style |= TTF_STYLE_ITALIC;
+                if (underline)         style |= TTF_STYLE_UNDERLINE;
+                if (style != TTF_STYLE_NORMAL) TTF_SetFontStyle(ttf, style);
                 f.ttf    = ttf;
                 f.height = TTF_GetFontHeight(ttf);
                 // Measure a representative character for the cell width

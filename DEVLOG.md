@@ -1,5 +1,19 @@
 # BlitzNext Developer Log
 
+## 2026-10-26 — LoadFont finds fonts by name and keeps their height
+
+Blitz3D asks GDI for a font by its family name. BlitzNext only looked for a file named like
+the font, so `arial.ttf` was found but "Arial Black" (`ariblk.ttf`), "Times New Roman"
+(`times.ttf`) or "Courier" fell back to the built-in 8-pixel font without a word (BUG-218) —
+the score display of the `wing_ring` sample was tiny. Family names are now resolved through
+the Windows font list, bold and italic pick the file of that style when there is one, and
+GDI bitmap fonts such as "Courier" map to the nearest TrueType font. The height is the cell
+height, as in Blitz3D: `LoadFont("Arial",40)` measured 45 and now measures 40, and the
+default height is 12 instead of 8 (part of BUG-139). Measured against Blitz3D 11.8: heights
+within one pixel, text widths within a few percent.
+
+Full suite: 357 passed, 1 failed (test_m43_fonts already expected the default font height of BUG-139, committed later).
+
 ## 2026-10-26 — spherical environment mapping (texture flag 64)
 
 Texture flag 64 was ignored, so a sphere map lay on the object like an ordinary texture and

@@ -212,10 +212,9 @@ with a font, the window title and the console.
 - **`Oval` on the screen is one pixel too wide and too high**, and `Rect` with a negative
   width draws a rectangle where Blitz3D draws nothing. Drawing into an image buffer is exact.
   (BUG-209)
-- **Font heights differ.** The default font is 8 pixels high instead of 13, and a font loaded
-  with `LoadFont(name, 40)` reports `FontHeight` 45 instead of 40. Text laid out with
-  `FontHeight` or `StringWidth` ends up spaced differently. `LoadFont` without a height uses
-  8 instead of 12, and its bold, italic and underline flags are ignored. (BUG-139)
+- **The default font is 8 pixels high instead of 13.** Fonts from `LoadFont` keep their
+  height as in Blitz3D, but `FontWidth` reports the width of "M" where Blitz3D reports the
+  widest character. (BUG-139)
 
 ---
 
