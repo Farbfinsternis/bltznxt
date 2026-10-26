@@ -5,6 +5,7 @@
 #include "bb_shader.h"
 #include "bb_path.h"    // Dateinamen ANSI <-> Pfad/UTF-8 (BUG-202)
 #include <filesystem>
+#include <cstring>
 #include <memory>
 #include <unordered_map>
 #include <vector>
@@ -190,6 +191,33 @@ inline bbString bb_tex_abs_path_(const bbString &file) {
   return bb_ansi_(p);
 }
 
+// Texturen haben im Original Seiten aus Zweierpotenzen, je Seite einzeln
+// aufgerundet: CreateTexture(30,20) ist 32x32, (100,60) 128x64, (3,129) 4x256;
+// ein geladenes Bild wird dabei auf diese Groesse gestreckt, mit dem jeweils
+// naechsten Pixel (3 Spalten R,G,B werden R,R,G,B) - gemessen an Blitz3D 11.8
+// (build/bug143_20261025). GL 3.3 braeuchte das nicht, aber wer in eine
+// Textur zeichnet oder ihre Groesse abfragt, sieht sonst einen anderen
+// Ausschnitt (BUG-143).
+inline int bb_tex_pow2_(int n) {
+  int p = 1;
+  while (p < n && p < (1 << 15)) p <<= 1;
+  return p;
+}
+
+inline std::vector<uint8_t> bb_tex_stretch_(const uint8_t *src, int sw, int sh, int sstride,
+                                            int dw, int dh) {
+  std::vector<uint8_t> out(static_cast<size_t>(dw) * dh * 4);
+  for (int y = 0; y < dh; ++y) {
+    const int sy = static_cast<int>(static_cast<long long>(y) * sh / dh);
+    for (int x = 0; x < dw; ++x) {
+      const int sx = static_cast<int>(static_cast<long long>(x) * sw / dw);
+      std::memcpy(&out[(static_cast<size_t>(y) * dw + x) * 4],
+                  src + (static_cast<size_t>(sy) * sstride + sx) * 4, 4);
+    }
+  }
+  return out;
+}
+
 inline int bb_texture_register_(bb_TexRef_ t) {
   int h = bb_texture_next_id_++;
   bb_textures_[h] = std::move(t);
@@ -205,13 +233,13 @@ inline int bb_LoadTexture(const bbString &file, int flags = 1) {
   }
 
   auto t   = std::make_shared<bb_Texture_>();
-  t->w     = w;
-  t->h     = h;
+  t->w     = bb_tex_pow2_(w);
+  t->h     = bb_tex_pow2_(h);
   t->flags = bb_tex_apply_filters_(file, flags);
   t->name  = bb_tex_abs_path_(file);
 
   bb_TexFrame_ f;
-  f.px.assign(data, data + static_cast<size_t>(w) * h * 4);
+  f.px = bb_tex_stretch_(data, w, h, w, t->w, t->h);
   stbi_image_free(data);
   bb_tex_fix_alpha_(f.px, t->flags, ch);
   t->frames.push_back(std::move(f));
@@ -242,22 +270,20 @@ inline int bb_LoadAnimTexture(const bbString &file, int flags, int width,
   }
 
   auto t   = std::make_shared<bb_Texture_>();
-  t->w     = width;
-  t->h     = height;
+  t->w     = bb_tex_pow2_(width);    // Zweierpotenzen, BUG-143
+  t->h     = bb_tex_pow2_(height);
   t->flags = bb_tex_apply_filters_(file, flags);
   t->name  = bb_tex_abs_path_(file);
 
   for (int i = 0; i < count; ++i) {
     int idx = first + i;
     bb_TexFrame_ f;
-    f.px.assign(static_cast<size_t>(width) * height * 4, 0);
+    f.px.assign(static_cast<size_t>(t->w) * t->h * 4, 0);
     if (idx >= 0 && idx < cols * rows) {
       int ox = (idx % cols) * width;
       int oy = (idx / cols) * height;
-      for (int y = 0; y < height; ++y)
-        std::memcpy(&f.px[static_cast<size_t>(y) * width * 4],
-                    data + ((static_cast<size_t>(oy + y) * w + ox) * 4),
-                    static_cast<size_t>(width) * 4);
+      f.px = bb_tex_stretch_(data + (static_cast<size_t>(oy) * w + ox) * 4,
+                             width, height, w, t->w, t->h);
     }
     bb_tex_fix_alpha_(f.px, t->flags, ch);
     t->frames.push_back(std::move(f));
@@ -271,13 +297,13 @@ inline int bb_CreateTexture(int width, int height, int flags = 1, int frames = 1
   if (width <= 0 || height <= 0 || frames < 1) return 0;
 
   auto t   = std::make_shared<bb_Texture_>();
-  t->w     = width;
-  t->h     = height;
+  t->w     = bb_tex_pow2_(width);    // Zweierpotenzen, BUG-143
+  t->h     = bb_tex_pow2_(height);
   t->flags = flags;              // CreateTexture geht nicht durch die Filter
 
   for (int i = 0; i < frames; ++i) {
     bb_TexFrame_ f;
-    f.px.assign(static_cast<size_t>(width) * height * 4, 0);
+    f.px.assign(static_cast<size_t>(t->w) * t->h * 4, 0);
     for (size_t p = 3; p < f.px.size(); p += 4) f.px[p] = 255;  // deckendes Schwarz
     t->frames.push_back(std::move(f));
   }
@@ -292,8 +318,7 @@ inline void bb_FreeTexture(int texture) { bb_textures_.erase(texture); }
 // ============================================================
 
 // Das Original meldet hier die tatsaechliche Groesse, die vom Wunsch
-// abweichen darf (Zweierpotenzen alter Hardware). GL 3.3 nimmt jede Groesse,
-// also ist die tatsaechliche gleich der gewuenschten.
+// abweicht: die naechsten Zweierpotenzen (BUG-143).
 inline int bb_TextureWidth(int texture) {
   auto *t = bb_texture_get_(texture);
   return t ? t->w : 0;

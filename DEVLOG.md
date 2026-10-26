@@ -1,5 +1,16 @@
 # BlitzNext Developer Log
 
+## 2026-10-26 — texture sizes are powers of two
+
+Blitz3D rounds each side of a texture up to the next power of two — `CreateTexture(30,20)`
+is 32×32, `(100,60)` is 128×64 — and stretches a loaded image to that size with the nearest
+pixel. BlitzNext kept the requested size, so `TextureWidth` answered differently and drawing
+into a texture buffer covered a different part of the surface (BUG-143). Textures are now
+created and loaded the same way. Measured against Blitz3D 11.8: sizes and stretched pixels
+are the same.
+
+Full suite: 357 passed, 1 failed (test_m43_fonts already expected the default font height of BUG-139, committed later).
+
 ## 2026-10-26 — ExecFile goes through the shell, AppTitle asks before closing
 
 `ExecFile` ran its line with `std::system`, so the program stood still until the command had

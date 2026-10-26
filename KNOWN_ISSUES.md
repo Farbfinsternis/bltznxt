@@ -12,7 +12,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-10-25 — 11 open bugs, 28 missing commands.* A review against the
+*Last updated: 2026-10-25 — 10 open bugs, 28 missing commands.* A review against the
 original on 2026-10-13 found eleven more (BUG-201 to BUG-211); they are fixed first, for
 version 0.7.0.
 
@@ -219,9 +219,6 @@ with a font, the window title and the console.
 The 3D layer is under active development — see [ROADMAP3D.md](ROADMAP3D.md). Besides the
 [missing commands](#missing-commands):
 
-- **`CreateTexture` does not round sizes up to powers of two.** Blitz3D reports
-  `TextureWidth` 32 for `CreateTexture(30,20)`; BlitzNext reports 30. Drawing into the texture
-  buffer covers a different part of the surface. (BUG-143)
 - **Changing the graphics mode keeps images and custom loader matrices.** Blitz3D frees all
   images and resets `LoaderMatrix` on `Graphics`, `Graphics3D` and `EndGraphics`. Programs
   written for Blitz3D reload their images after a mode change anyway. (BUG-140)
