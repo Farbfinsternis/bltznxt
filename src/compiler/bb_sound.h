@@ -8,8 +8,13 @@
 #include "bb_sdl.h"    // bb_sdl_ensure_(), bb_sdl_initialized_, bb_audio_update_hook_
 #include "bb_string.h" // bbString
 #include "bb_path.h"    // Dateinamen ANSI <-> Pfad/UTF-8 (BUG-202)
+#ifdef _WIN32
+#include <mmsystem.h>   // mciSendStringW - MIDI (BUG-216)
+#endif
 #include <algorithm>
 #include <vector>
+#include <cstring>
+#include <cstdio>
 
 // ---- dr_mp3 (single-header MP3 decoder, public domain, David Reid) ----
 #define DR_MP3_IMPLEMENTATION
@@ -216,7 +221,62 @@ inline void bb_snd_quit_() {
 // one-shot channel that has played out is released. Looping channels are
 // refilled by the mixer itself.
 
+// ---- MIDI (BUG-216) ----
+//
+// FMOD spielt im Original MIDI-Dateien ueber PlayMusic (FMUSIC). SDL kann das
+// nicht; unter Windows uebernimmt der MCI-Sequencer mit dem eingebauten
+// Synthesizer. Es gibt einen MIDI-Kanal mit eigener Nummer ausserhalb der
+// Klangkanaele; PlayMusic wiederholt wie bei anderen Formaten, das erledigt
+// bb_snd_update_. Lautstaerke, Panorama und Tonhoehe wirken darauf nicht.
+inline constexpr int BB_MIDI_CH_ = 0x10000;
+inline bool bb_midi_on_     = false;
+inline bool bb_midi_paused_ = false;
+
+inline bool bb_midi_cmd_(const std::wstring &c, std::wstring *ret = nullptr) {
+#ifdef _WIN32
+  wchar_t buf[128] = {};
+  const MCIERROR e = mciSendStringW(c.c_str(), buf, 127, nullptr);
+  if (ret) *ret = buf;
+  return e == 0;
+#else
+  (void)c; (void)ret;
+  return false;
+#endif
+}
+
+inline bool bb_midi_playing_() {
+  std::wstring mode;
+  return bb_midi_on_ && bb_midi_cmd_(L"status bb_midi mode", &mode) && mode == L"playing";
+}
+
+inline void bb_midi_stop_() {
+  if (!bb_midi_on_) return;
+  bb_midi_cmd_(L"stop bb_midi");
+  bb_midi_cmd_(L"close bb_midi");
+  bb_midi_on_ = bb_midi_paused_ = false;
+}
+
+inline int bb_midi_play_(const bbString &file) {
+  bb_midi_stop_();
+#ifdef _WIN32
+  const std::wstring f = bb_wide_from_(file, CP_ACP);
+  if (!bb_midi_cmd_(L"open \"" + f + L"\" type sequencer alias bb_midi") ||
+      !bb_midi_cmd_(L"play bb_midi from 0")) {
+    bb_midi_cmd_(L"close bb_midi");
+    std::cerr << "[runtime] PlayMusic: cannot play MIDI file '" << file << "'\n";
+    return 0;
+  }
+  bb_midi_on_ = true;
+  return BB_MIDI_CH_;
+#else
+  std::cerr << "[runtime] PlayMusic: MIDI is only supported on Windows\n";
+  return 0;
+#endif
+}
+
 inline void bb_snd_update_() {
+  // MIDI-Musik wiederholen, wenn sie zu Ende ist
+  if (bb_midi_on_ && !bb_midi_paused_ && !bb_midi_playing_()) bb_midi_cmd_(L"play bb_midi from 0");
   if (!bb_snd_dev_) return;
   for (int i = 1; i < BB_MAX_CHANNELS; ++i)
     if (bb_snd_done_(bb_snd_channels_[i]) && !bb_snd_channels_[i].paused)
@@ -269,6 +329,9 @@ inline int bb_load_ogg_(const char* path) {
   return 0;
 }
 
+// Internal: decoded MP3 frames (float32) into a free sound slot.
+inline int bb_store_mp3_pcm_(float* pcm, drmp3_uint64 frameCount, const drmp3_config& cfg);
+
 // Internal: load MP3 via dr_mp3; decodes to float32 PCM.
 // Returns a free sound slot index (1-based), 0 on failure.
 inline int bb_load_mp3_(const char* path) {
@@ -279,6 +342,44 @@ inline int bb_load_mp3_(const char* path) {
     std::cerr << "[runtime] PlayMusic/LoadSound: failed to decode MP3: " << path << "\n";
     return 0;
   }
+  return bb_store_mp3_pcm_(pcm, frameCount, cfg);
+}
+
+// Eine WAV-Datei kann MP3-Daten tragen (Formatkennung 0x55 im fmt-Block) -
+// FMOD spielt das im Original, SDL_LoadWAV nicht (samples/Hi-Toro/Death Island,
+// snd/txstorm.wav; BUG-216). Dann die Daten aus dem data-Block mit dr_mp3
+// entpacken. -1 = keine solche Datei (weiter mit SDL_LoadWAV).
+inline int bb_load_wav_mp3_(const bbString& file) {
+  std::FILE* f = std::fopen(file.c_str(), "rb");
+  if (!f) return -1;
+  std::vector<uint8_t> d;
+  {
+    uint8_t buf[65536];
+    size_t n;
+    while ((n = std::fread(buf, 1, sizeof buf, f)) > 0) d.insert(d.end(), buf, buf + n);
+  }
+  std::fclose(f);
+  if (d.size() < 12 || std::memcmp(d.data(), "RIFF", 4) || std::memcmp(d.data() + 8, "WAVE", 4)) return -1;
+  int tag = -1;
+  size_t data_at = 0, data_len = 0;
+  for (size_t i = 12; i + 8 <= d.size();) {
+    const uint32_t len = d[i + 4] | (d[i + 5] << 8) | (d[i + 6] << 16) | (uint32_t(d[i + 7]) << 24);
+    if (!std::memcmp(&d[i], "fmt ", 4) && i + 10 <= d.size()) tag = d[i + 8] | (d[i + 9] << 8);
+    if (!std::memcmp(&d[i], "data", 4)) { data_at = i + 8; data_len = std::min<size_t>(len, d.size() - data_at); }
+    i += 8 + len + (len & 1);
+  }
+  if (tag != 0x55 || !data_len) return -1;
+  drmp3_config cfg{};
+  drmp3_uint64 frameCount = 0;
+  float* pcm = drmp3_open_memory_and_read_pcm_frames_f32(&d[data_at], data_len, &cfg, &frameCount, nullptr);
+  if (!pcm) {
+    std::cerr << "[runtime] LoadSound: failed to decode MP3 data in '" << file << "'\n";
+    return 0;
+  }
+  return bb_store_mp3_pcm_(pcm, frameCount, cfg);
+}
+
+inline int bb_store_mp3_pcm_(float* pcm, drmp3_uint64 frameCount, const drmp3_config& cfg) {
   Uint32 len = (Uint32)(frameCount * cfg.channels * sizeof(float));
   Uint8* buf = (Uint8*)SDL_malloc(len);
   if (!buf) { drmp3_free(pcm, nullptr); return 0; }
@@ -310,7 +411,9 @@ inline int bb_LoadSound(const bbString& file) {
   if (ext == "mp3")       return bb_load_mp3_(file.c_str());
   if (ext == "ogg")       return bb_load_ogg_(file.c_str());
 
-  // WAV (and any format SDL_LoadWAV supports)
+  // WAV (and any format SDL_LoadWAV supports); MP3 im WAV-Behaelter vorher
+  const int wm = bb_load_wav_mp3_(file);
+  if (wm >= 0) return wm;
   for (int i = 1; i < BB_MAX_SOUNDS; ++i) {
     if (!bb_snd_sounds_[i].data) {
       SDL_AudioSpec spec{};
@@ -403,6 +506,7 @@ inline void bb_LoopSound(int snd) {
 
 // Stop playback and release the channel slot immediately.
 inline void bb_StopChannel(int ch) {
+  if (ch == BB_MIDI_CH_) { bb_midi_stop_(); return; }
   if (ch < 1 || ch >= BB_MAX_CHANNELS || !bb_snd_channels_[ch].stream) return;
   bb_snd_free_channel_(ch);
 }
@@ -411,12 +515,14 @@ inline void bb_StopChannel(int ch) {
 
 // Pause: the mixer skips the channel, its position stays.
 inline void bb_PauseChannel(int ch) {
+  if (ch == BB_MIDI_CH_) { if (bb_midi_on_) { bb_midi_cmd_(L"pause bb_midi"); bb_midi_paused_ = true; } return; }
   if (ch < 1 || ch >= BB_MAX_CHANNELS || !bb_snd_channels_[ch].stream) return;
   bb_SndLock_ lock;
   bb_snd_channels_[ch].paused = true;
 }
 
 inline void bb_ResumeChannel(int ch) {
+  if (ch == BB_MIDI_CH_) { if (bb_midi_on_) { bb_midi_cmd_(L"resume bb_midi"); bb_midi_paused_ = false; } return; }
   if (ch < 1 || ch >= BB_MAX_CHANNELS || !bb_snd_channels_[ch].stream) return;
   bb_SndLock_ lock;
   bb_snd_channels_[ch].paused = false;
@@ -424,6 +530,7 @@ inline void bb_ResumeChannel(int ch) {
 
 // Returns 1 while the channel has an active stream (playing or paused), 0 when done.
 inline int bb_ChannelPlaying(int ch) {
+  if (ch == BB_MIDI_CH_) return bb_midi_on_ ? 1 : 0;   // laeuft oder pausiert, wiederholt
   if (ch < 1 || ch >= BB_MAX_CHANNELS) return 0;
   return bb_snd_channels_[ch].stream && !bb_snd_done_(bb_snd_channels_[ch]) ? 1 : 0;
 }
@@ -466,6 +573,7 @@ inline int bb_snd_music_ch_  = 0;  // channel slot occupied by current music (0 
 
 // Stop and free the currently-playing music track (if any).
 inline void bb_StopMusic() {
+  bb_midi_stop_();
   if (bb_snd_music_ch_) {
     bb_StopChannel(bb_snd_music_ch_);
     bb_snd_music_ch_ = 0;
@@ -481,6 +589,8 @@ inline void bb_StopMusic() {
 // MP3: dr_mp3 (bundled). OGG: stb_vorbis (bundled). WAV: SDL_LoadWAV.
 inline int bb_PlayMusic(const bbString& file) {
   bb_StopMusic();  // stop previous track first
+  const std::string ext = bb_snd_ext_(file);
+  if (ext == "mid" || ext == "midi" || ext == "rmi") return bb_midi_play_(file);   // BUG-216
   int snd = bb_LoadSound(file);
   if (!snd) return 0;
   int ch = bb_play_sound_(snd, true);   // LoopSound liefert seit BUG-44
@@ -493,6 +603,7 @@ inline int bb_PlayMusic(const bbString& file) {
 
 // Returns 1 while music is playing (the channel has an active stream), else 0.
 inline int bb_MusicPlaying() {
+  if (bb_midi_on_) return 1;
   if (!bb_snd_music_ch_) return 0;
   int alive = bb_ChannelPlaying(bb_snd_music_ch_);
   if (!alive) { bb_snd_music_ch_ = 0; bb_snd_music_snd_ = 0; }

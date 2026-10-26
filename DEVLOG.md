@@ -1,5 +1,17 @@
 # BlitzNext Developer Log
 
+## 2026-10-26 — MIDI files and MP3 data in WAV files
+
+Blitz3D plays sound through FMOD, which also knows MIDI files and WAV files whose data is
+MP3. SDL rejected both, so the music of `Games/wing_ring` and the storm in Death Island
+stayed silent (BUG-216). On Windows MIDI now goes through the MCI sequencer on a channel of
+its own: `PlayMusic` repeats it like other music, and `StopChannel`, `PauseChannel`,
+`ResumeChannel` and `ChannelPlaying` work on it; volume, pan and pitch do not. A WAV file
+with MP3 data is decoded when it is loaded. Measured against Blitz3D 11.8 with `tune1.mid`
+and `txstorm.wav` from the samples: the same channel states.
+
+Full suite: 366 passed, 0 failed.
+
 ## 2026-10-26 — a mode change frees images and resets `LoaderMatrix`
 
 Blitz3D frees all images and clears its table of loader matrices on every `Graphics`,
