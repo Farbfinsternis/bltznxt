@@ -922,14 +922,28 @@ static inline bool bb_tri_tri_hit_(const float* a0, const float* a1, const float
 // Braucht dieses Entity Blending? Alles, was nicht deckend Alpha 1 im
 // Vorgabemodus ist: ein Alphawert unter 1, ein anderer Blendmodus,
 // EntityFX 32 oder eine Texturlage mit Alphaflag.
+// Das Alphaflag einer Textur macht die Flaeche nur dann durchscheinend, wenn
+// sie genau eine Texturlage hat. Ab zwei Lagen zeichnet das Original deckend,
+// solange Alpha 1 und der Blendmodus die Vorgabe ist; erst EntityAlpha < 1
+// blendet, dann mit dem vollen Alpha aller Lagen. Gemessen mit
+// build/bug217_20261026/bumpy3: samples/RobCummings/Bumpy legt vier Lagen
+// mit Flag 3 uebereinander und war bei uns fast schwarz (BUG-217).
+static inline bool bb_brush_tex_alpha_(const bb_Brush_& br) {
+  int n = 0;
+  bool alpha = false;
+  for (int i = 0; i < BB_TEX_SLOTS; ++i)
+    if (br.tex.tex[i]) {
+      ++n;
+      if (br.tex.tex[i]->flags & BB_TEX_ALPHA) alpha = true;
+    }
+  return n == 1 && alpha;
+}
+
 static inline bool bb_brush_translucent_(const bb_Brush_& br) {
   if (br.alpha < 1.0f) return true;
   if (br.blend >= 2)   return true;
   if (br.fx & 32)      return true;
-  for (int i = 0; i < BB_TEX_SLOTS; ++i)
-    if (br.tex.tex[i] && (br.tex.tex[i]->flags & BB_TEX_ALPHA))
-      return true;
-  return false;
+  return bb_brush_tex_alpha_(br);
 }
 
 static inline bool bb_ent_translucent_(const bb_MeshEntity_* me) {
@@ -941,9 +955,7 @@ static inline bool bb_ent_translucent_(const bb_MeshEntity_* me) {
     if (br.alpha < 1.0f) return true;
     if (br.blend >= 2)   return true;
     if (br.fx & 32)      return true;
-    for (int i = 0; i < BB_TEX_SLOTS; ++i)
-      if (br.tex.tex[i] && (br.tex.tex[i]->flags & BB_TEX_ALPHA))
-        return true;
+    if (bb_brush_tex_alpha_(br)) return true;
   }
   return false;
 }

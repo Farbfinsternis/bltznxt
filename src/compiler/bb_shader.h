@@ -195,6 +195,11 @@ vec4 bb_tex_layer(vec4 c, vec4 t, int blend, int flags) {
 // so keine Loecher.
 // Bit 0x10000 ist kein Blitz-Flag: der Alphatest einer glTF-Textur mit
 // alphaMode MASK (3D-24). Ihr Alphakanal steht beim Laden schon auf 0 oder 1.
+// Ausgeschnitten wird nur nach der ersten Textur: Brush::getBlend schaltet den
+// Alphatest im Original allein dann ein, wenn texs[0] maskiert ist. Eine
+// maskierte Lightmap auf Ebene 3 (samples/birdie/Brush Tiles) liess bei uns
+// jedes schwarze Texel der Lightmap das ganze Fragment verwerfen - der Boden
+// blieb schwarz (BUG-217).
 bool bb_tex_cut(vec4 t, int flags) {
     return (flags & (4 | 65536)) != 0 && t.a < 0.5;
 }
@@ -207,17 +212,14 @@ vec4 bb_tex_apply(vec4 c) {
     }
     if (u_tex_count > 1) {
         vec4 t = texture(u_tex1, v_uv1);
-        if (bb_tex_cut(t, u_tex_flags[1])) discard;
         c = bb_tex_layer(c, t, u_tex_blend[1], u_tex_flags[1]);
     }
     if (u_tex_count > 2) {
         vec4 t = texture(u_tex2, v_uv2);
-        if (bb_tex_cut(t, u_tex_flags[2])) discard;
         c = bb_tex_layer(c, t, u_tex_blend[2], u_tex_flags[2]);
     }
     if (u_tex_count > 3) {
         vec4 t = texture(u_tex3, v_uv3);
-        if (bb_tex_cut(t, u_tex_flags[3])) discard;
         c = bb_tex_layer(c, t, u_tex_blend[3], u_tex_flags[3]);
     }
     return c;

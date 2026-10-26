@@ -1,5 +1,19 @@
 # BlitzNext Developer Log
 
+## 2026-10-26 — masking and texture alpha with several layers
+
+Two samples looked very different from Blitz3D (BUG-217). In `birdie/Brush Tiles` a masked
+lightmap on layer 3 cut away every fragment where the lightmap was black, and the floor
+showed the background; Blitz3D only turns on the alpha test when the *first* texture is
+masked, and now so does BlitzNext. In `RobCummings/Bumpy` four layers with the alpha flag
+were each blended, and the sprite came out almost black. Blitz3D blends because of a
+texture's alpha flag only when the surface has exactly one texture; with more layers it
+draws opaque unless the entity alpha is below 1, and then uses the alpha of all layers.
+Measured against Blitz3D 11.8 layer by layer: the same colours within rounding. Two other
+samples of the same report, Emerald Gate and BloxAndSpheres, are still open.
+
+Full suite: 366 passed, 0 failed.
+
 ## 2026-10-26 — MIDI files and MP3 data in WAV files
 
 Blitz3D plays sound through FMOD, which also knows MIDI files and WAV files whose data is
