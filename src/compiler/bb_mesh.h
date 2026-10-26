@@ -1240,6 +1240,9 @@ static inline void bb_render_meshes_(bb_Shader_* shader,
   bool  zwrite_on  = true;
   float vm[16];
   mat4_mul_(vm, proj, view);
+  // fuer die Sphere-Map (BUG-130): die Drehung der Kamera
+  for (int c = 0; c < 3; ++c)
+    for (int r = 0; r < 3; ++r) bb_view_rot_[c * 3 + r] = view[c * 4 + r];
 
   static const float identity[16] = { 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1 };
 

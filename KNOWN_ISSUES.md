@@ -122,7 +122,6 @@ counted as bugs and are not planned to be fixed:
   statement. (BUG-180)
 - **Looks that the new renderer will change anyway.** `UpdateNormals` does not merge vertices
   at the same position, so a cube stays faceted where Blitz3D rounds its corners (BUG-134).
-  Spherical environment mapping (texture flag 64) is drawn as a normal texture (BUG-130).
 - **Legacy model formats.** `.3ds` models number their vertices differently and have
   normalised normals (BUG-135); some `.x` models list their surfaces in a different order
   (BUG-146); texture paths with a directory part inside `.x` files are resolved relative to

@@ -134,17 +134,30 @@ void main() {
 static constexpr const char* BB_GLSL_TEX_VERT = R"glsl(
 uniform mat3 u_tex_mat[4];
 uniform int  u_tex_coords[4];
+uniform int  u_tex_flags[4];
+uniform mat3 u_view_rot;
 out vec2 v_uv0;
 out vec2 v_uv1;
 out vec2 v_uv2;
 out vec2 v_uv3;
-void bb_tex_vert(vec2 uv0, vec2 uv1) {
+// Flag 64 (Sphere-Map, BUG-130): wie D3DTSS_TCI_CAMERASPACENORMAL mit der
+// sphere_mat des Originals (gxscene.cpp) - u = n.x/2 + 1/2, v = -n.y/2 + 1/2
+// aus der Normalen im Kameraraum; die UV-Matrix der Textur gilt dann nicht.
+vec2 bb_tex_uv(int i, vec3 h0, vec3 h1, vec2 sph) {
+    if ((u_tex_flags[i] & 64) != 0) return sph;
+    return (u_tex_mat[i] * (u_tex_coords[i] == 1 ? h1 : h0)).xy;
+}
+void bb_tex_vert(vec2 uv0, vec2 uv1, vec3 world_normal) {
     vec3 h0 = vec3(uv0, 1.0);
     vec3 h1 = vec3(uv1, 1.0);
-    v_uv0 = (u_tex_mat[0] * (u_tex_coords[0] == 1 ? h1 : h0)).xy;
-    v_uv1 = (u_tex_mat[1] * (u_tex_coords[1] == 1 ? h1 : h0)).xy;
-    v_uv2 = (u_tex_mat[2] * (u_tex_coords[2] == 1 ? h1 : h0)).xy;
-    v_uv3 = (u_tex_mat[3] * (u_tex_coords[3] == 1 ? h1 : h0)).xy;
+    vec3 n = u_view_rot * world_normal;
+    float l = length(n);
+    n = l > 0.0 ? n / l : vec3(0.0);
+    vec2 sph = vec2(0.5 * n.x + 0.5, -0.5 * n.y + 0.5);
+    v_uv0 = bb_tex_uv(0, h0, h1, sph);
+    v_uv1 = bb_tex_uv(1, h0, h1, sph);
+    v_uv2 = bb_tex_uv(2, h0, h1, sph);
+    v_uv3 = bb_tex_uv(3, h0, h1, sph);
 }
 )glsl";
 
@@ -254,17 +267,19 @@ vec3 bb_fog(vec3 c) {
 static constexpr const char* BB_GLSL_TEXTURED_VERT = R"glsl(
 #version 330 core
 layout(location = 0) in vec3 a_pos;
+layout(location = 1) in vec3 a_normal;   // nur fuer die Sphere-Map (BUG-130)
 layout(location = 2) in vec2 a_uv;
 layout(location = 3) in vec4 a_color;
 layout(location = 4) in vec2 a_uv1;
 uniform mat4 u_mvp;
+uniform mat4 u_model;
 out vec4 v_color;
 )glsl";
 
 static constexpr const char* BB_GLSL_TEXTURED_VERT_MAIN = R"glsl(
 void main() {
     v_color = a_color;
-    bb_tex_vert(a_uv, a_uv1);
+    bb_tex_vert(a_uv, a_uv1, mat3(u_model) * a_normal);
     gl_Position = u_mvp * vec4(a_pos, 1.0);
 }
 )glsl";
@@ -343,7 +358,7 @@ void main() {
     v_normal = mat3(u_model) * a_normal;
     v_normal_flat = v_normal;
     v_color  = a_color;
-    bb_tex_vert(a_uv, a_uv1);
+    bb_tex_vert(a_uv, a_uv1, v_normal);
     gl_Position = u_mvp * vec4(a_pos, 1.0);
 
     // Das Original rechnet das Licht in der festen Direct3D-7-Pipeline je

@@ -152,6 +152,10 @@ inline void bb_mesh_upload_(bb_MeshData_* m) {
 // eines Netzes.
 // ============================================================
 
+// Drehung der Kamera (oberes 3x3 der View-Matrix, spaltenweise) fuer die
+// Sphere-Map im Shader (BUG-130); bb_render_meshes_ setzt sie je Bild.
+inline float bb_view_rot_[9] = { 1,0,0, 0,1,0, 0,0,1 };
+
 inline void bb_mesh_draw_(bb_MeshData_* mesh,
                            bb_Shader_*   s,
                            const float*  mvp,
@@ -169,6 +173,7 @@ inline void bb_mesh_draw_(bb_MeshData_* mesh,
 
   // LIT-shader extras (silently ignored by UNLIT / TEXTURED — location = -1)
   if (model)    bb_shader_uniform_mat4(s, "u_model",    model);
+  bb_shader_uniform_mat3(s, "u_view_rot", bb_view_rot_);
   if (view_pos) bb_shader_uniform_v3  (s, "u_view_pos",
                                        view_pos[0], view_pos[1], view_pos[2]);
 

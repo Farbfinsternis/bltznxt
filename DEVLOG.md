@@ -1,5 +1,16 @@
 # BlitzNext Developer Log
 
+## 2026-10-26 — spherical environment mapping (texture flag 64)
+
+Texture flag 64 was ignored, so a sphere map lay on the object like an ordinary texture and
+the chrome teapot in the `mak/teapot` sample was almost invisible (BUG-130). Blitz3D sets
+Direct3D 7 to take the texture coordinates from the normal in camera space, through a matrix
+that gives u = n.x/2 + 1/2 and v = −n.y/2 + 1/2; the vertex shaders now do the same. Measured
+against Blitz3D 11.8: a sphere-mapped cube in five rotations gives exactly the same pixels, a
+lit sphere differs by at most 2 per channel from the lighting.
+
+Full suite: 357 passed, 1 failed (test_m43_fonts already expected the default font height of BUG-139, committed later).
+
 ## 2026-10-26 — umlauts in text, the window title and the console
 
 A Blitz3D string is a sequence of bytes in the Windows code page. SDL_ttf and the window
