@@ -12,7 +12,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-10-26 — 6 open bugs, 28 missing commands.* A review against the
+*Last updated: 2026-10-26 — 5 open bugs, 28 missing commands.* A review against the
 original on 2026-10-13 found eleven more (BUG-201 to BUG-211); they are fixed first, for
 version 0.7.0.
 
@@ -182,7 +182,6 @@ with a font, the window title and the console.
 
 - **`Dim` inside an `If`, `While`, `For` or `Select` block of the main program** fails in the
   C++ compiler. *Workaround:* move the `Dim` to the top level. (WEAK-05)
-- **An empty source file** is rejected with "could not read file". (BUG-110)
 - **Some errors are reported by the C++ compiler** instead of with a Blitz-style message,
   pointing into generated code. Every such case listed on this page is a bug. (WEAK-14)
   One that only invalid programs hit: an array with the same name as a constant

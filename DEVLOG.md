@@ -1,5 +1,13 @@
 # BlitzNext Developer Log
 
+## 2026-10-26 — an empty source file is an empty program
+
+Blitz3D accepts a source file with 0 bytes as a program that does nothing — the installation
+even ships one, `tutorials/basic_tuts/hello.bb`. `blitzcc` rejected it with "could not read
+file" (BUG-110). That error is now reported only when the file cannot be opened.
+
+Full suite: 366 passed, 0 failed.
+
 ## 2026-10-26 — ReadAvail on a file returns 0
 
 Blitz3D answers `ReadAvail` with the number of bytes its stream buffer holds, and for a file

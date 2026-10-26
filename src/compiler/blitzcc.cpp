@@ -735,7 +735,10 @@ public:
     srcMap.setMainFile(cfg.inputPath);
     std::string src = preproc.process(cfg.inputPath, included, srcMap);
     if (preproc.hasErrors()) return 1;
-    if (src.empty()) {
+    // Leer ist nur dann ein Fehler, wenn die Datei fehlt: eine Datei mit 0
+    // Bytes nimmt das Original als leeres Programm an, so wie
+    // tutorials/basic_tuts/hello.bb der Installation (BUG-110).
+    if (src.empty() && !std::ifstream(cfg.inputPath).is_open()) {
       std::cerr << cfg.inputPath << ":0:0: error: could not read file\n";
       return 1;
     }
