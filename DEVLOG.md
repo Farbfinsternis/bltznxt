@@ -1,5 +1,17 @@
 # BlitzNext Developer Log
 
+## 2026-10-26 — FontWidth and FontHeight like Blitz3D
+
+Blitz3D reports the metrics GDI gives for a font: `FontWidth` is the widest character of the
+whole font after hinting and `FontHeight` the cell height. BlitzNext reported the width of
+"M" — 8 instead of 24 for Arial 12 — and heights that were one pixel off for some fonts
+(BUG-139). The value cannot be derived from the font tables alone, so `LoadFont` now asks
+GDI with the same call as Blitz3D. Measured against Blitz3D 11.8: ten fonts and sizes give
+the same `FontWidth` and `FontHeight`. `StringWidth` can still differ by a pixel or two per
+character, because the text itself is set by SDL_ttf.
+
+Full suite: 6 passed, 0 failed (all tests using LoadFont, SetFont or font metrics).
+
 ## 2026-10-26 — MIDI music no longer slows down the program
 
 Since MIDI music plays through the Windows MCI sequencer (BUG-216), the sound update asked

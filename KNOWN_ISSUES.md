@@ -12,7 +12,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-10-26 — 5 open bugs, 28 missing commands.* A review against the
+*Last updated: 2026-10-26 — 4 open bugs, 28 missing commands.* A review against the
 original on 2026-10-13 found eleven more (BUG-201 to BUG-211); they are fixed first, for
 version 0.7.0.
 
@@ -196,8 +196,6 @@ with a font, the window title and the console.
   Blitz3D opens a full screen unless the program is compiled with debugging. Mode 6 is full
   screen here and a window (paused while inactive) in Blitz3D, and modes 3 and 7 do not scale
   the picture with the window. The same applies to `Graphics3D`. (BUG-208)
-- **`FontWidth` of a font from `LoadFont` is the width of "M"**; Blitz3D reports the widest
-  character, so with a proportional font the value can differ. (BUG-139)
 
 ---
 

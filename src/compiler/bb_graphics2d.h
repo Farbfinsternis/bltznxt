@@ -1099,6 +1099,32 @@ inline bbString bb_find_font_file_(const bbString& name, bool bold = false, bool
 }
 
 #ifdef _WIN32
+// FontWidth und FontHeight sind im Original tmMaxCharWidth und tmHeight von
+// GDI fuer CreateFont(height, ..., FW_BOLD/FW_REGULAR, italic, underline, 0,
+// ANSI_CHARSET, ...) - die groesste Zeichenbreite der Schrift nach dem
+// Hinting, nicht die Breite von "M" (Arial 12: 24 statt 8; gemessen
+// build/bug139_fw_20261026). Aus den TrueType-Tabellen allein ergibt sie
+// sich nicht, deshalb fragen wir GDI wie das Original. Namen mit Punkt
+// (Schriftdatei) bleiben bei den Werten von SDL_ttf (BUG-139).
+inline void bb_gdi_font_metrics_(const bbString& name, int height, bool bold, bool italic,
+                                 bool underline, int& width, int& cell) {
+    if (name.find('.') != bbString::npos) return;
+    HFONT hf = CreateFontA(height, 0, 0, 0, bold ? FW_BOLD : FW_REGULAR, italic, underline, 0,
+                           ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
+                           DEFAULT_PITCH | FF_DONTCARE, name.c_str());
+    if (!hf) return;
+    HDC dc = CreateCompatibleDC(nullptr);
+    HGDIOBJ old = SelectObject(dc, hf);
+    TEXTMETRICA tm = {};
+    if (GetTextMetricsA(dc, &tm) && tm.tmMaxCharWidth > 0) {
+        width = tm.tmMaxCharWidth;
+        cell = tm.tmHeight;
+    }
+    SelectObject(dc, old);
+    DeleteDC(dc);
+    DeleteObject(hf);
+}
+
 // GDI-Bitmapschrift "Courier" (coure.fon, Groessen 13, 16 und 20 Pixel). GDI
 // nimmt die groesste Groesse, die - auch ganzzahlig vergroessert - nicht ueber
 // der verlangten Hoehe liegt, mindestens 13: LoadFont("courier",12) ist 13
@@ -1210,6 +1236,10 @@ inline int bb_LoadFont(const bbString& name, int height = 12,
                     f.width = mw;
                 else
                     f.width = f.height / 2;
+#ifdef _WIN32
+                bb_gdi_font_metrics_(name, height, bold != 0, italic != 0, underline != 0,
+                                     f.width, f.height);
+#endif
             }
         }
     }
