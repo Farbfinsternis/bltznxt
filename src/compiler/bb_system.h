@@ -10,6 +10,7 @@
 #include <thread>
 #include <unordered_map>
 #include "bb_string.h"
+#include "bb_path.h"     // bb_wide_from_
 
 // ---- Command-line storage (filled by bbInit) ----
 
@@ -98,6 +99,7 @@ inline void bb_FreeTimer(int handle) {
 
 #ifdef _WIN32
 #include <windows.h>
+#include <shellapi.h>   // ShellExecuteW (ExecFile)
 inline void bb_Delay(int ms) { Sleep(static_cast<DWORD>(ms)); }
 #else
 #include <unistd.h>
@@ -135,8 +137,32 @@ inline bbString bb_CommandLine() {
 // Runs an external program via the OS shell.
 // Ohne Rueckgabewert: im Original ist `ExecFile command$` eine Anweisung
 // (BUG-44).
-inline void bb_ExecFile(const bbString &path) {
-  std::system(path.c_str());
+// Wie gxRuntime::execute (BUG-210): Befehl und Parameter trennen - ein Befehl in
+// Anfuehrungszeichen oder bis zum ersten Leerzeichen - und ueber ShellExecute
+// starten. Das kehrt sofort zurueck und oeffnet ueber die Dateizuordnung auch
+// Dokumente und Webadressen ("ExecFile \"http://...\""). Bis dahin hielt
+// std::system das Spiel an, bis das Programm endete, und oeffnete ein
+// Konsolenfenster.
+inline void bb_ExecFile(const bbString &command) {
+  bbString cmd = command, params;
+  while (!cmd.empty() && cmd[0] == ' ') cmd.erase(0, 1);
+  if (cmd.empty()) return;
+  if (cmd[0] == '"') {
+    const size_t n = cmd.find('"', 1);
+    if (n != bbString::npos) { params = cmd.substr(n + 1); cmd = cmd.substr(1, n - 1); }
+  } else {
+    const size_t n = cmd.find(' ');
+    if (n != bbString::npos) { params = cmd.substr(n + 1); cmd = cmd.substr(0, n); }
+  }
+  while (!params.empty() && params.front() == ' ') params.erase(0, 1);
+  while (!params.empty() && params.back() == ' ') params.pop_back();
+#ifdef _WIN32
+  const std::wstring wc = bb_wide_from_(cmd, CP_ACP), wp = bb_wide_from_(params, CP_ACP);
+  ShellExecuteW(GetDesktopWindow(), nullptr, wc.c_str(), params.empty() ? nullptr : wp.c_str(),
+                nullptr, SW_SHOW);
+#else
+  std::system((cmd + " " + params + " &").c_str());
+#endif
 }
 
 // DebugLog schreibt im Original ins Protokoll des IDE-Debuggers

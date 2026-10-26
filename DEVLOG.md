@@ -1,5 +1,17 @@
 # BlitzNext Developer Log
 
+## 2026-10-26 — ExecFile goes through the shell, AppTitle asks before closing
+
+`ExecFile` ran its line with `std::system`, so the program stood still until the command had
+ended, a console window opened, and a document or web address (`ExecFile "http://…"`) could
+not be opened (BUG-210). It now splits command and parameters like Blitz3D and hands them to
+`ShellExecute`, which returns at once. The second argument of `AppTitle` — the question
+asked when the window is closed — was stored but never shown; closing the window now asks it
+in a message box, and only OK ends the program. Measured against Blitz3D 11.8; the close
+prompt was tested by sending the window a close message and answering the box from outside.
+
+Full suite: 357 passed, 1 failed (test_m43_fonts already expected the default font height of BUG-139, committed later).
+
 ## 2026-10-26 — LoadFont finds fonts by name and keeps their height
 
 Blitz3D asks GDI for a font by its family name. BlitzNext only looked for a file named like

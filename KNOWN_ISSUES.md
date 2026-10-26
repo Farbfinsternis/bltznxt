@@ -12,7 +12,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-10-25 — 12 open bugs, 28 missing commands.* A review against the
+*Last updated: 2026-10-25 — 11 open bugs, 28 missing commands.* A review against the
 original on 2026-10-13 found eleven more (BUG-201 to BUG-211); they are fixed first, for
 version 0.7.0.
 
@@ -194,10 +194,6 @@ with a font, the window title and the console.
 
 ## Runtime library
 
-- **`ExecFile` waits until the started program has ended** and cannot open documents or web
-  addresses (`ExecFile "http://…"`); Blitz3D hands the line to the Windows shell and goes on.
-  The close prompt of `AppTitle title$, prompt$` is not shown; closing the window ends the
-  program at once. (BUG-210)
 - **`ReadAvail` on a file returns the bytes left**; Blitz3D returns 0 for files (for TCP
   streams both agree). (BUG-211)
 

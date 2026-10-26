@@ -201,7 +201,7 @@ inline constexpr CmdInfo kCommands[] = {
   { "EntityYaw",           "#", "h%,glob%?" },
   { "EntityZ",             "#", "h%,glob%?" },
   { "Eof",                 "%", "handle%" },
-  { "ExecFile",            "",  "path$" },
+  { "ExecFile",            "",  "command$" },
   { "Exp",                 "#", "x#" },
   { "ExtractAnimSeq",      "%", "entity%,first_frame%,last_frame%,anim_seq%?" },
   { "FilePos",             "%", "handle%" },

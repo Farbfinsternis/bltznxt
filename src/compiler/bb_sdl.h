@@ -377,6 +377,18 @@ inline bool bb_stdin_is_console_() {
 
 inline void bb_sdl_process_event_(const SDL_Event &ev) {
   if (ev.type == SDL_EVENT_QUIT) {
+#ifdef _WIN32
+    // Die zweite Angabe von AppTitle ist die Rueckfrage beim Schliessen des
+    // Fensters (gxRuntime, WM_CLOSE): nur bei OK endet das Programm
+    // (BUG-210). Bis dahin wurde sie gespeichert und nie gezeigt.
+    if (!bb_app_close_prompt_.empty() && bb_window_) {
+      const std::wstring msg = bb_wide_from_(bb_app_close_prompt_, CP_ACP);
+      const std::wstring ttl = bb_wide_from_(bb_app_title_, CP_ACP);
+      if (MessageBoxW(static_cast<HWND>(bb_window_hwnd_()), msg.c_str(), ttl.c_str(),
+                      MB_OKCANCEL | MB_ICONWARNING | MB_SETFOREGROUND | MB_TOPMOST) != IDOK)
+        return;
+    }
+#endif
     bb_sdl_quit_();
     std::exit(0);
   }
