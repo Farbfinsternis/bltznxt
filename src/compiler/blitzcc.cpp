@@ -841,6 +841,12 @@ int main(int argc, char **argv) {
     else if (arg == "-o" && i + 1 < argc)  cfg.outputName  = argv[++i];
     else if (arg[0] != '-' && arg[0] != '+') cfg.inputPath = arg;
   }
+  // "-o name.exe" nimmt das Original woertlich; ".exe" haengen wir unten
+  // selbst an, also hier abschneiden - sonst entstand "name.exe.exe", und wer
+  // danach name.exe startete, startete die alte (BUG-194).
+  if (cfg.outputName.size() > 4 &&
+      toUpper(cfg.outputName.substr(cfg.outputName.size() - 4)) == ".EXE")
+    cfg.outputName.resize(cfg.outputName.size() - 4);
 
   // Ohne Quelldatei: mit -q oder aus der IDE nur die Umgebung pruefen und
   // bei Erfolg schweigen, wie das Original. Die IDE ruft beim Start genau

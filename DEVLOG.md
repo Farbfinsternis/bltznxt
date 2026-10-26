@@ -1,5 +1,13 @@
 # BlitzNext Developer Log
 
+## 2026-10-26 — `-o name.exe` writes `name.exe`
+
+`blitzcc` always appended `.exe` to the output name, so `-o game.exe` wrote `game.exe.exe`,
+and an older `game.exe` next to it kept being started without anyone noticing (BUG-194).
+A trailing `.exe`, in any case, is now removed from the `-o` argument first.
+
+Full suite: 366 passed, 0 failed.
+
 ## 2026-10-26 — texture sizes are powers of two
 
 Blitz3D rounds each side of a texture up to the next power of two — `CreateTexture(30,20)`

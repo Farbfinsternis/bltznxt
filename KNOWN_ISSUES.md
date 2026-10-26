@@ -12,7 +12,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-10-25 — 10 open bugs, 28 missing commands.* A review against the
+*Last updated: 2026-10-25 — 9 open bugs, 28 missing commands.* A review against the
 original on 2026-10-13 found eleven more (BUG-201 to BUG-211); they are fixed first, for
 version 0.7.0.
 
@@ -240,9 +240,6 @@ The 3D layer is under active development — see [ROADMAP3D.md](ROADMAP3D.md). B
 - **Compiling takes 10 to 15 seconds per program**, even for a few lines, where Blitz3D took a
   fraction of a second. Most of the time goes into the runtime, which is compiled again with
   every program. (WEAK-29)
-- **`-o name.exe` produces `name.exe.exe`.** `blitzcc` always appends `.exe`. Give the name
-  without the extension (`-o name`); otherwise you may keep starting an older executable
-  without noticing. (BUG-194)
 - **In the Blitz3D IDE there is no debugger.** BLTZNXT runs from the original IDE (README,
   "Using the Blitz3D IDE"), but the IDE's debug switch is ignored: programs always run with
   BLTZNXT's runtime checks and stop with a message, without stepping or a variable view.
