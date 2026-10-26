@@ -27,7 +27,7 @@ Print "Text OK"
 SetFont LoadFont("__blitznxt_no_such_font_2__", 12, 0, 0, 0)
 Print "SetFont OK"
 
-; FreeFont and restore default
+; FreeFont and restore the default font (GDI Courier 12, 13 pixels high - BUG-139)
 FreeFont fnt
 SetFont 0
 Print FontHeight()

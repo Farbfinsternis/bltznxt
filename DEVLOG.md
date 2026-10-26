@@ -1,5 +1,18 @@
 # BlitzNext Developer Log
 
+## 2026-10-26 — the default font is Courier 12
+
+The default font of Blitz3D is the GDI bitmap font Courier at size 12: 13 pixels high and 8
+wide. BlitzNext drew with a built-in 8×8 font, so `FontHeight()` was 8 and lines of text
+stood closer together than in Blitz3D (BUG-139). The default font, and `LoadFont("courier",…)`,
+now open Windows' `coure.fon` the way GDI does: Courier exists in 13, 16 and 20 pixels, and
+GDI takes the largest of these, also scaled by a whole number, that is not higher than the
+requested height — 24 gives 20, 26 gives 2 × 13. Measured against Blitz3D 11.8 for sizes 1 to
+48: heights and widths are the same, bold from 20 pixels up is one or two pixels wider per
+character. `FontWidth` of other fonts is still the width of "M".
+
+Full suite: 366 passed, 0 failed.
+
 ## 2026-10-26 — masking and texture alpha with several layers
 
 Two samples looked very different from Blitz3D (BUG-217). In `birdie/Brush Tiles` a masked

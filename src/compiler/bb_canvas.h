@@ -413,15 +413,20 @@ inline void bb_canvas_text_(int x, int y, const bbString& s, int centerX, int ce
   int gw = 0, gh = 0;
   std::vector<uint8_t> cov;   // 1 = Zeichenpixel
 #ifdef BB_HAS_SDL3_TTF
-  if (bb_active_font_ > 0 && bb_active_font_ < static_cast<int>(bb_fonts_.size()) &&
-      bb_fonts_[bb_active_font_].ttf) {
+  const bb_Font_& f = bb_font_active_();
+  if (f.ttf) {
     SDL_Color fg = { 255, 255, 255, 255 };
-    SDL_Surface* surf = TTF_RenderText_Solid(bb_fonts_[bb_active_font_].ttf,
-                                             bb_utf8_(s).c_str(), 0, fg);   // ANSI -> UTF-8 (BUG-203)
+    SDL_Surface* surf = TTF_RenderText_Solid(f.ttf, bb_utf8_(s).c_str(), 0, fg);   // ANSI -> UTF-8 (BUG-203)
     if (!surf) return;
     SDL_Surface* rgba = SDL_ConvertSurface(surf, SDL_PIXELFORMAT_RGBA32);
     SDL_DestroySurface(surf);
     if (!rgba) return;
+    if (f.scale > 1) {   // vergroesserte Bitmapschrift (BUG-139)
+      SDL_Surface* big = SDL_ScaleSurface(rgba, rgba->w * f.scale, rgba->h * f.scale, SDL_SCALEMODE_NEAREST);
+      SDL_DestroySurface(rgba);
+      if (!big) return;
+      rgba = big;
+    }
     gw = rgba->w; gh = rgba->h;
     cov.assign(static_cast<size_t>(gw) * gh, 0);
     const uint8_t* p = static_cast<const uint8_t*>(rgba->pixels);

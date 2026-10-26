@@ -893,6 +893,7 @@ inline void bb_Locate(int x, int y) {
 struct bb_Font_ {
     int  height = 8;
     int  width  = 8;
+    int  scale  = 1;     // ganzzahlige Vergroesserung einer GDI-Bitmapschrift
     bool valid  = false;
 #ifdef BB_HAS_SDL3_TTF
     TTF_Font* ttf = nullptr;
@@ -901,6 +902,7 @@ struct bb_Font_ {
 
 inline std::vector<bb_Font_> bb_fonts_(1); // slot 0 = built-in bitmap
 inline int bb_active_font_ = 0;
+inline bool bb_font_default_tried_ = false;   // Slot 0 wird beim ersten Gebrauch geladen
 
 // ---- SDL3_ttf lifecycle ----
 
@@ -918,6 +920,7 @@ inline void bb_ttf_quit_impl_() {
         if (f.valid && f.ttf) { TTF_CloseFont(f.ttf); f.ttf = nullptr; }
     }
     if (bb_ttf_initialized_) { TTF_Quit(); bb_ttf_initialized_ = false; }
+    bb_font_default_tried_ = false;
 }
 
 // Register the quit hook at startup using the inline-bool trick.
@@ -1028,7 +1031,63 @@ inline bbString bb_find_font_file_(const bbString& name, bool bold = false, bool
 #endif
     return "";
 }
+
+#ifdef _WIN32
+// GDI-Bitmapschrift "Courier" (coure.fon, Groessen 13, 16 und 20 Pixel). GDI
+// nimmt die groesste Groesse, die - auch ganzzahlig vergroessert - nicht ueber
+// der verlangten Hoehe liegt, mindestens 13: LoadFont("courier",12) ist 13
+// hoch, 24 ergibt 20, 26 ergibt 2 x 13, 36 ergibt 2 x 16. Sie ist auch die
+// Standardschrift des Originals (gxGraphics: loadFont("courier",12)): 13
+// Pixel hoch, 8 breit. Wir hatten eine eingebaute 8x8-Schrift, Textzeilen
+// standen enger als im Original (BUG-139). SDL_ttf oeffnet die .fon-Datei
+// ueber FreeType mit denselben Massen. Gemessen build/bug139_20261026/sizes.
+inline bool bb_open_courier_(int height, bool bold, bool italic, bool underline, bb_Font_& f) {
+    const char* windir = std::getenv("WINDIR");
+    const bbString path = (windir ? bbString(windir) : bbString("C:\\Windows")) + "\\Fonts\\coure.fon";
+    static const int faces[3] = { 13, 16, 20 };
+    int face = 0, scale = 1, best = 0;
+    for (int i = 0; i < 3; ++i)
+        for (int k = 1; faces[i] * k <= height; ++k)
+            if (faces[i] * k > best) { best = faces[i] * k; face = i; scale = k; }
+    SDL_PropertiesID p = SDL_CreateProperties();
+    SDL_SetStringProperty(p, TTF_PROP_FONT_CREATE_FILENAME_STRING, bb_utf8_(path).c_str());
+    SDL_SetNumberProperty(p, TTF_PROP_FONT_CREATE_FACE_NUMBER, face);
+    SDL_SetFloatProperty(p, TTF_PROP_FONT_CREATE_SIZE_FLOAT, 12.0f);
+    TTF_Font* ttf = TTF_OpenFontWithProperties(p);
+    SDL_DestroyProperties(p);
+    if (!ttf) return false;
+    int style = TTF_STYLE_NORMAL;
+    if (bold)      style |= TTF_STYLE_BOLD;
+    if (italic)    style |= TTF_STYLE_ITALIC;
+    if (underline) style |= TTF_STYLE_UNDERLINE;
+    if (style != TTF_STYLE_NORMAL) TTF_SetFontStyle(ttf, style);
+    int mw = 0, mh = 0;
+    f.ttf    = ttf;
+    f.scale  = scale;
+    f.valid  = true;
+    f.height = TTF_GetFontHeight(ttf) * scale;
+    f.width  = (TTF_GetStringSize(ttf, "M", 1, &mw, &mh) && mw > 0 ? mw : 8) * scale;
+    return true;
+}
+#endif
 #endif // BB_HAS_SDL3_TTF
+
+// Die aktive Schrift; Slot 0, die Standardschrift, wird beim ersten Gebrauch
+// als Courier 12 geladen. Ohne SDL_ttf oder Windows bleibt es die eingebaute
+// 8x8-Schrift.
+inline bb_Font_& bb_font_active_() {
+    if (bb_active_font_ > 0 && bb_active_font_ < static_cast<int>(bb_fonts_.size()))
+        return bb_fonts_[bb_active_font_];
+    if (!bb_font_default_tried_) {
+        bb_font_default_tried_ = true;
+#if defined(BB_HAS_SDL3_TTF) && defined(_WIN32)
+        bb_ttf_ensure_();
+        bb_Font_ f;
+        if (bb_ttf_initialized_ && bb_open_courier_(12, false, false, false, f)) bb_fonts_[0] = f;
+#endif
+    }
+    return bb_fonts_[0];
+}
 
 // ---- LoadFont(name, height [, bold [, italic [, underline]]]) → handle ----
 //
@@ -1054,6 +1113,15 @@ inline int bb_LoadFont(const bbString& name, int height = 12,
 
 #ifdef BB_HAS_SDL3_TTF
     bb_ttf_ensure_();
+#ifdef _WIN32
+    bbString fam = name;
+    for (auto& c : fam) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    if (bb_ttf_initialized_ && fam == "courier" &&
+        bb_open_courier_(height, bold != 0, italic != 0, underline != 0, f)) {
+        bb_fonts_.push_back(f);
+        return static_cast<int>(bb_fonts_.size()) - 1;
+    }
+#endif
     if (bb_ttf_initialized_) {
         bool styled = false;
         bbString path = bb_find_font_file_(name, bold != 0, italic != 0, &styled);
@@ -1121,17 +1189,11 @@ inline void bb_FreeFont(int handle) {
 // ---- FontWidth() / FontHeight() ----
 
 inline int bb_FontWidth() {
-    if (bb_active_font_ <= 0
-        || bb_active_font_ >= static_cast<int>(bb_fonts_.size()))
-        return 8;
-    return bb_fonts_[bb_active_font_].width;
+    return bb_font_active_().width;
 }
 
 inline int bb_FontHeight() {
-    if (bb_active_font_ <= 0
-        || bb_active_font_ >= static_cast<int>(bb_fonts_.size()))
-        return 8;
-    return bb_fonts_[bb_active_font_].height;
+    return bb_font_active_().height;
 }
 
 // ---- StringWidth(s) / StringHeight(s) ----
@@ -1142,14 +1204,13 @@ inline int bb_FontHeight() {
 
 inline int bb_StringWidth(const bbString& s) {
 #ifdef BB_HAS_SDL3_TTF
-    if (bb_active_font_ > 0
-        && bb_active_font_ < static_cast<int>(bb_fonts_.size())
-        && bb_fonts_[bb_active_font_].ttf) {
+    const bb_Font_& f = bb_font_active_();
+    if (f.ttf) {
         int w = 0, h = 0;
         // Blitz-Strings sind ANSI, SDL_ttf will UTF-8 - sonst misst "\xe4" das
         // Ersatzzeichen (BUG-203).
-        TTF_GetStringSize(bb_fonts_[bb_active_font_].ttf, bb_utf8_(s).c_str(), 0, &w, &h);
-        return w;
+        TTF_GetStringSize(f.ttf, bb_utf8_(s).c_str(), 0, &w, &h);
+        return w * f.scale;
     }
 #endif
     return static_cast<int>(s.size()) * bb_FontWidth();
@@ -1157,12 +1218,11 @@ inline int bb_StringWidth(const bbString& s) {
 
 inline int bb_StringHeight(const bbString& s) {
 #ifdef BB_HAS_SDL3_TTF
-    if (bb_active_font_ > 0
-        && bb_active_font_ < static_cast<int>(bb_fonts_.size())
-        && bb_fonts_[bb_active_font_].ttf) {
+    const bb_Font_& f = bb_font_active_();
+    if (f.ttf) {
         int w = 0, h = 0;
-        TTF_GetStringSize(bb_fonts_[bb_active_font_].ttf, bb_utf8_(s).c_str(), 0, &w, &h);
-        return h;
+        TTF_GetStringSize(f.ttf, bb_utf8_(s).c_str(), 0, &w, &h);
+        return h * f.scale;
     }
 #endif
     (void)s;
@@ -1174,10 +1234,16 @@ inline int bb_StringHeight(const bbString& s) {
 inline void bb_Text_ttf_(int x, int y, const bbString& s,
                           int centerX, int centerY) {
 #ifdef BB_HAS_SDL3_TTF
-    TTF_Font* font = bb_fonts_[bb_active_font_].ttf;
+    const bb_Font_& f = bb_font_active_();
     SDL_Color fg   = { bb_draw_r_, bb_draw_g_, bb_draw_b_, 255 };
-    SDL_Surface* surf = TTF_RenderText_Blended(font, bb_utf8_(s).c_str(), 0, fg);   // BUG-203
+    SDL_Surface* surf = TTF_RenderText_Blended(f.ttf, bb_utf8_(s).c_str(), 0, fg);   // BUG-203
     if (!surf) return;
+    if (f.scale > 1) {
+        SDL_Surface* big = SDL_ScaleSurface(surf, surf->w * f.scale, surf->h * f.scale, SDL_SCALEMODE_NEAREST);
+        SDL_DestroySurface(surf);
+        if (!big) return;
+        surf = big;
+    }
     SDL_Texture* tex = SDL_CreateTextureFromSurface(bb_renderer_, surf);
     SDL_DestroySurface(surf);
     if (!tex) return;
@@ -1208,9 +1274,7 @@ inline void bb_Text(int x, int y, const bbString& s,
     }
     if (!bb_renderer_ || s.empty()) return;
 #ifdef BB_HAS_SDL3_TTF
-    if (bb_active_font_ > 0
-        && bb_active_font_ < static_cast<int>(bb_fonts_.size())
-        && bb_fonts_[bb_active_font_].ttf) {
+    if (bb_font_active_().ttf) {
         bb_Text_ttf_(x, y, s, centerX, centerY);
         return;
     }
