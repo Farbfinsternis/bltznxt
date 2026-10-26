@@ -705,49 +705,52 @@ inline void bb_MaskImage(int handle, int r, int g, int b) {
 
 // ---- TileImage / TileBlock ----
 
-// x und y sind optional: im Original `TileImage image[,x][,y][,frame]` (BUG-44).
-inline void bb_TileImage(int handle, int x = 0, int y = 0, int frame = 0) {
-    if (bb_canvas_tile_(handle, x, y, frame, false)) return;
+// Kacheln auf dem Bildschirm wie tile() in bbruntime/bbgraphics.cpp, mit
+// Origin, Viewport und Handle wie im Bildpuffer (bb_canvas_tile_). Vorher
+// waren x- und y-Versatz vertauscht: TileBlock logo,0,tile_y rollte in
+// Games/wing_ring waagerecht statt senkrecht (BUG-222). Der Renderer rechnet
+// ab Origin plus Viewport-Ecke (bb_apply_viewport_), daher - vp_x/vp_y.
+inline void bb_screen_tile_(int handle, int x, int y, int frame, bool solid) {
     if (!bb_renderer_ || !bb_img_ok_(handle)) return;
     const bb_FrameData_* fd = bb_img_frame_(handle, frame);
     const auto& img = bb_images_[handle];
-    if (!fd || !fd->tex || img.width <= 0 || img.height <= 0) return;
+    const int w = img.width, h = img.height;
+    if (!fd || !fd->tex || w <= 0 || h <= 0) return;
 
-    int gw = bb_gfx_width_, gh = bb_gfx_height_;
-    int ox = ((x - fd->handle_x) % img.width  + img.width)  % img.width;
-    int oy = ((y - fd->handle_y) % img.height + img.height) % img.height;
+    const int vp_x = bb_viewport_active_ ? bb_viewport_rect_.x : 0;
+    const int vp_y = bb_viewport_active_ ? bb_viewport_rect_.y : 0;
+    const int vp_w = bb_viewport_active_ ? bb_viewport_rect_.w : bb_gfx_width_;
+    const int vp_h = bb_viewport_active_ ? bb_viewport_rect_.h : bb_gfx_height_;
+    int dx = vp_x - bb_origin_x_ + fd->handle_x;
+    int dy = vp_y - bb_origin_y_ + fd->handle_y;
+    x -= dx; y -= dy;
+    dx += (x >= 0 ? x % w : w - (-x % w));
+    dy += (y >= 0 ? y % h : h - (-y % h));
 
-    for (int ty = ox - img.height; ty < gh; ty += img.height) {
-        for (int tx = oy - img.width; tx < gw; tx += img.width) {
-            SDL_FRect dst = { static_cast<float>(tx), static_cast<float>(ty),
-                              static_cast<float>(img.width),
-                              static_cast<float>(img.height) };
+    // gxCanvas::blit zieht den Handle der Quelle noch einmal ab
+    dx -= vp_x + fd->handle_x;
+    dy -= vp_y + fd->handle_y;
+
+    if (solid) SDL_SetTextureBlendMode(fd->tex, bb_blockblend_());   // wie DrawBlock
+    for (int ty = -h; ty < vp_h; ty += h) {
+        for (int tx = -w; tx < vp_w; tx += w) {
+            SDL_FRect dst = { static_cast<float>(tx + dx), static_cast<float>(ty + dy),
+                              static_cast<float>(w), static_cast<float>(h) };
             SDL_RenderTexture(bb_renderer_, fd->tex, nullptr, &dst);
         }
     }
+    if (solid) SDL_SetTextureBlendMode(fd->tex, SDL_BLENDMODE_BLEND);
+}
+
+// x und y sind optional: im Original `TileImage image[,x][,y][,frame]` (BUG-44).
+inline void bb_TileImage(int handle, int x = 0, int y = 0, int frame = 0) {
+    if (bb_canvas_tile_(handle, x, y, frame, false)) return;
+    bb_screen_tile_(handle, x, y, frame, false);
 }
 
 inline void bb_TileBlock(int handle, int x = 0, int y = 0, int frame = 0) {
     if (bb_canvas_tile_(handle, x, y, frame, true)) return;
-    if (!bb_renderer_ || !bb_img_ok_(handle)) return;
-    const bb_FrameData_* fd = bb_img_frame_(handle, frame);
-    const auto& img = bb_images_[handle];
-    if (!fd || !fd->tex || img.width <= 0 || img.height <= 0) return;
-
-    int gw = bb_gfx_width_, gh = bb_gfx_height_;
-    int ox = (x % img.width  + img.width)  % img.width;
-    int oy = (y % img.height + img.height) % img.height;
-
-    SDL_SetTextureBlendMode(fd->tex, bb_blockblend_());   // wie DrawBlock
-    for (int ty = ox - img.height; ty < gh; ty += img.height) {
-        for (int tx = oy - img.width; tx < gw; tx += img.width) {
-            SDL_FRect dst = { static_cast<float>(tx), static_cast<float>(ty),
-                              static_cast<float>(img.width),
-                              static_cast<float>(img.height) };
-            SDL_RenderTexture(bb_renderer_, fd->tex, nullptr, &dst);
-        }
-    }
-    SDL_SetTextureBlendMode(fd->tex, SDL_BLENDMODE_BLEND);
+    bb_screen_tile_(handle, x, y, frame, true);
 }
 
 // ---- DrawImageEllipse(handle, x, y, rx, ry [,frame=0]) ----

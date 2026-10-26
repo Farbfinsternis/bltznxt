@@ -1,5 +1,16 @@
 # BlitzNext Developer Log
 
+## 2026-10-26 — TileBlock and TileImage on the screen
+
+Drawn on the screen, `TileBlock` and `TileImage` swapped the x and y offsets: the menu
+background of `Games/wing_ring`, tiled with `TileBlock logo,0,tile_y`, scrolled sideways
+instead of down (BUG-222). Origin, viewport and image handle were ignored there as well.
+The screen now uses the same arithmetic as Blitz3D's `tile()`, as image buffers already did.
+Measured against Blitz3D 11.8: positive and negative offsets, `TileImage`, `MidHandle`,
+`Origin` and `Viewport` give the same pixels.
+
+Full suite: 7 passed, 0 failed (tests using TileBlock, TileImage, PlayMusic or channel control).
+
 ## 2026-10-26 — drawing to the front buffer shows without Flip
 
 In a window, Blitz3D's front and back buffer are one and the same surface; a timer redraws the
