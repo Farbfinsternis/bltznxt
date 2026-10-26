@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <unordered_map>
+#include <vector>
 #include <iostream>
 #include "bb_string.h"
 #include "bb_path.h"   // Dateinamen sind ANSI-Bytes (BUG-202)
@@ -252,31 +253,62 @@ inline bbString bb_ReadLine(int handle) {
 
 
 // ---- Directory Iteration (M27) ----
+//
+// Wie im Original ueber FindFirstFile/FindNextFile (BUG-215): damit kommen
+// "." und ".." in jedem gewoehnlichen Ordner zuerst, auch in einem leeren,
+// im Stamm eines Laufwerks dagegen nicht - so liefert es Blitz3D (gemessen).
+// std::filesystem::directory_iterator laesst beide immer aus, und Code, der
+// die ersten zwei Eintraege ueberspringt, verlor zwei echte Dateien. Die
+// Namen werden beim Oeffnen eingesammelt.
 
-inline std::unordered_map<int, std::filesystem::directory_iterator> bb_dir_handles_;
-inline int                                                           bb_dir_next_id_ = 1;
+struct bb_DirList_ {
+  std::vector<bbString> names;
+  size_t                next = 0;
+};
+
+inline std::unordered_map<int, bb_DirList_> bb_dir_handles_;
+inline int                                  bb_dir_next_id_ = 1;
 
 // Opens a directory for iteration; returns handle (0 on failure).
 inline int bb_ReadDir(const bbString &path) {
-  try {
-    int id = bb_dir_next_id_++;
-    bb_dir_handles_[id] = std::filesystem::directory_iterator(bb_path_(path));
-    return id;
-  } catch (...) {
+  bb_DirList_ list;
+#ifdef _WIN32
+  std::wstring pat = bb_path_(path).wstring();
+  if (!pat.empty() && pat.back() != L'\\' && pat.back() != L'/') pat += L'\\';
+  pat += L'*';
+  WIN32_FIND_DATAW fd;
+  HANDLE h = FindFirstFileW(pat.c_str(), &fd);
+  if (h == INVALID_HANDLE_VALUE) {
     std::cerr << "[runtime] ReadDir: cannot open directory: " << path << "\n";
     return 0;
   }
+  do {
+    list.names.push_back(bb_narrow_from_(fd.cFileName, CP_ACP));
+  } while (FindNextFileW(h, &fd));
+  FindClose(h);
+#else
+  std::error_code ec;
+  std::filesystem::directory_iterator di(bb_path_(path), ec);
+  if (ec) {
+    std::cerr << "[runtime] ReadDir: cannot open directory: " << path << "\n";
+    return 0;
+  }
+  list.names = {".", ".."};
+  for (; di != std::filesystem::directory_iterator{}; di.increment(ec))
+    list.names.push_back(bb_ansi_(di->path().filename()));
+#endif
+  const int id = bb_dir_next_id_++;
+  bb_dir_handles_[id] = std::move(list);
+  return id;
 }
 
 // Returns the next filename in the directory, or "" when exhausted.
 inline bbString bb_NextFile(int handle) {
   auto it = bb_dir_handles_.find(handle);
   if (it == bb_dir_handles_.end()) return "";
-  auto &di = it->second;
-  if (di == std::filesystem::directory_iterator{}) return "";
-  bbString name = bb_ansi_(di->path().filename());
-  ++di;
-  return name;
+  auto &l = it->second;
+  if (l.next >= l.names.size()) return "";
+  return l.names[l.next++];
 }
 
 inline void bb_CloseDir(int handle) {

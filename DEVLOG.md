@@ -1,5 +1,16 @@
 # BlitzNext Developer Log
 
+## 2026-10-26 — ReadDir returns "." and ".."
+
+Blitz3D reads a folder with `FindFirstFile`/`FindNextFile`, so `.` and `..` come first in
+every ordinary folder, even an empty one, but not in the root of a drive. BlitzNext used
+`std::filesystem`, which leaves both out; code that skips the first two entries lost two real
+files (BUG-215). `ReadDir` now reads the folder through the same Windows API. Measured
+against Blitz3D 11.8: an empty folder, a drive root and a folder with a trailing backslash
+give the same entries.
+
+Full suite: 357 passed, 1 failed (test_m43_fonts already expected the default font height of BUG-139, committed later).
+
 ## 2026-10-26 — a For counter may be an array element or a chain of fields
 
 Blitz3D reads the counter of a `For` loop like the target of an assignment, so
