@@ -111,6 +111,12 @@ inline std::string bb_loader_key_(const bbString& ext) {
   return e;
 }
 
+// Ein Moduswechsel stellt die Vorgaben wieder her (blitz3d_close leert die
+// Tabelle, BUG-140).
+inline const std::unordered_map<std::string, bb_LoaderMat_> bb_loader_mats_default_ = bb_loader_mats_;
+inline const bool bb_loader_reset_reg_ =
+    (bb_loader_reset_hook_ = [] { bb_loader_mats_ = bb_loader_mats_default_; }, true);
+
 inline void bb_LoaderMatrix(const bbString& file_ext,
                             float xx, float xy, float xz,
                             float yx, float yy, float yz,

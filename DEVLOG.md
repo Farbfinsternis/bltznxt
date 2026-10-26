@@ -1,5 +1,15 @@
 # BlitzNext Developer Log
 
+## 2026-10-26 — a mode change frees images and resets `LoaderMatrix`
+
+Blitz3D frees all images and clears its table of loader matrices on every `Graphics`,
+`Graphics3D` and `EndGraphics`. BlitzNext kept both, so a `LoaderMatrix` set before a mode
+change still scaled the meshes loaded after it (BUG-140). The mode change now frees the
+images and restores the default loader matrices. Measured against Blitz3D 11.8: mesh sizes
+before and after the mode changes are the same.
+
+Full suite: 366 passed, 0 failed.
+
 ## 2026-10-26 — `Oval` and `Rect` on the screen
 
 The screen had its own way of drawing the basic shapes, and it differed from the one used

@@ -247,6 +247,10 @@ inline void bb_image_quit_impl_() {
 
 inline const bool bb_image_hook_reg_ =
     (bb_image_quit_hook_ = bb_image_quit_impl_, true);
+// Derselbe Abbau bei jedem Moduswechsel (BUG-140): ein Image von vorher ist
+// danach ungueltig wie im Original.
+inline const bool bb_image_free_reg_ =
+    (bb_images_free_hook_ = bb_image_quit_impl_, true);
 
 // ---- Internal helpers ----
 

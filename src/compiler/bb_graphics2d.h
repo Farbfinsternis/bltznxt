@@ -70,10 +70,17 @@ inline void bb_gfx_reset_draw_state_(int buffer);
 // und Texturen sind danach frei (BUG-120). Die 3D-Schicht haengt ihre
 // Freigabe hier ein; Graphics3D oeffnet die Szene.
 inline void (*bb_world_close_hook_)() = nullptr;
+// Ausserdem gibt freeGraphics im Original alle Images frei, und blitz3d_close
+// leert die LoaderMatrix-Tabelle - beides bei jedem Graphics, Graphics3D und
+// EndGraphics, auch ohne 3D-Szene (gemessen fuer LoaderMatrix, BUG-140).
+inline void (*bb_images_free_hook_)() = nullptr;    // bb_image.h
+inline void (*bb_loader_reset_hook_)() = nullptr;   // bb_loader.h
 inline bool bb_scene_open_ = false;
 inline void bb_close_scene_() {
   if (bb_scene_open_ && bb_world_close_hook_) bb_world_close_hook_();
   bb_scene_open_ = false;
+  if (bb_images_free_hook_) bb_images_free_hook_();
+  if (bb_loader_reset_hook_) bb_loader_reset_hook_();
 }
 
 inline void bb_Graphics(int width, int height, int depth = 32, int mode = 0) {
