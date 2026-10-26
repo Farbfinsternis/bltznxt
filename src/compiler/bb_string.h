@@ -21,6 +21,11 @@
 
 typedef std::string bbString;
 
+// Not auf einem String: Vergleich mit "0" (BUG-108, die Zahlenfassungen
+// stehen in bb_math.h).
+inline int bb_not_(const bbString &s) { return s == "0"; }
+inline int bb_not_(const char *s) { return bbString(s) == "0"; }
+
 // ---- String conversion ----
 
 inline bbString bb_Str(int n)    { return std::to_string(n); }

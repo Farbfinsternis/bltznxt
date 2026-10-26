@@ -1,5 +1,15 @@
 # BlitzNext Developer Log
 
+## 2026-10-26 — Not on a string
+
+Blitz3D builds `Not x` as the comparison `x = 0`; for a string that is a string comparison,
+so `Not "0"` is 1 and `Not ""` and `Not "abc"` are 0. BlitzNext emitted the C++ `!`, which
+does not exist for strings, and the program failed in the C++ compiler (BUG-108). `Not` is
+now emitted as a small runtime function with one version for numbers and one for strings.
+Measured against Blitz3D 11.8: 13 values, all the same.
+
+Full suite: 357 passed, 1 failed (test_m43_fonts already expected the default font height of BUG-139, committed later).
+
 ## 2026-10-26 — shifts take their count modulo 32
 
 Blitz3D shifts with the x86 instructions, which only use the lowest five bits of the

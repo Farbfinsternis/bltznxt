@@ -65,6 +65,15 @@ BB_EXT_CMP_(<=) BB_EXT_CMP_(>=)
 #undef BB_EXT_ARITH_
 #undef BB_EXT_CMP_
 inline bb_Ext operator-(const bb_Ext &a) { return {-a.v}; }
+
+// Not baut das Original als Vergleich mit 0 (RelExprNode "=" in parser.cpp):
+// fuer Zahlen x = 0, fuer einen String der Stringvergleich mit "0" -
+// Not "0" ist 1, Not "" und Not "abc" 0 (gemessen). Das C++-"!" gab es fuer
+// bbString nicht (BUG-108); die String-Fassung steht in bb_string.h.
+inline int bb_not_(int v) { return v == 0; }
+inline int bb_not_(float v) { return v == 0.0f; }
+inline int bb_not_(double v) { return v == 0.0; }
+inline int bb_not_(const bb_Ext &v) { return v.v == 0.0L; }
 inline bb_Ext operator+(const bb_Ext &a) { return a; }
 
 // Zur Ganzzahl rundet fistp den Registerwert selbst, nicht erst einen float:

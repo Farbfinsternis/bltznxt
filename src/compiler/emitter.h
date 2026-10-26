@@ -370,7 +370,15 @@ public:
         inExprCtx = prev;
         return;
       }
-    if (op == "NOT") op = "!";
+    // Not ist im Original ein Vergleich mit 0, bei einem String der mit "0"
+    // (BUG-108) - bb_not_ waehlt die Fassung am C++-Typ.
+    if (op == "NOT") {
+      output << "bb_not_(";
+      node->expr->accept(this);
+      output << ")";
+      inExprCtx = prev;
+      return;
+    }
     // "~" and +/- pass through as-is
     output << op;
     node->expr->accept(this);
