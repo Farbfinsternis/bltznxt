@@ -12,7 +12,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-10-26 — 7 open bugs, 28 missing commands.* A review against the
+*Last updated: 2026-10-26 — 6 open bugs, 28 missing commands.* A review against the
 original on 2026-10-13 found eleven more (BUG-201 to BUG-211); they are fixed first, for
 version 0.7.0.
 
@@ -27,7 +27,6 @@ minimal `.bb` file and a description of what happens in both.
 - [Umlauts and other non-ASCII characters](#umlauts-and-other-non-ascii-characters) — read this first
 - [Keyboard and mouse input](#keyboard-and-mouse-input) — read this first
 - [Language and compiler](#language-and-compiler)
-- [Runtime library](#runtime-library)
 - [2D graphics](#2d-graphics)
 - [3D graphics](#3d-graphics)
 - [Platform and tooling](#platform-and-tooling)
@@ -189,13 +188,6 @@ with a font, the window title and the console.
   One that only invalid programs hit: an array with the same name as a constant
   (`Const SIZE = 4 : Dim size(3)`) — Blitz3D reports `Duplicate identifier`, here the C++
   compiler fails. Names in Blitz are not case-sensitive. (BUG-183)
-
----
-
-## Runtime library
-
-- **`ReadAvail` on a file returns the bytes left**; Blitz3D returns 0 for files (for TCP
-  streams both agree). (BUG-211)
 
 ---
 

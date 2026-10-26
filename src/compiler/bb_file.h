@@ -121,15 +121,6 @@ inline int bb_SeekFile(int handle, int pos) {
 
 // ---- Status ----
 
-// Internal helper: bytes remaining from current position to end of file.
-inline long bb_file_remaining_(FILE *f) {
-  long cur = std::ftell(f);
-  std::fseek(f, 0, SEEK_END);
-  long end = std::ftell(f);
-  std::fseek(f, cur, SEEK_SET);
-  return end - cur;
-}
-
 // Returns true if the current position is at or past end-of-file.
 // Uses fgetc+ungetc (peek) — correct for both binary and text mode,
 // and avoids the two-fseek overhead on every call.
@@ -146,15 +137,17 @@ inline bool bb_Eof(int handle) {
   return false;
 }
 
-// Returns the number of bytes remaining from current position to end.
+// ReadAvail meldet bei Sockets die wartenden Bytes. Bei einer Datei ist es im
+// Original immer 0 - bbReadAvail fragt filebuf::in_avail, und das ist bei
+// Dateien vor, waehrend und nach dem Lesen 0. Wir meldeten die restlichen
+// Bytes (BUG-211).
 inline int bb_ReadAvail(int handle) {
   if (bb_sock_avail_hook_) {
     const int a = bb_sock_avail_hook_(handle);
     if (a >= 0) return a;
   }
-  FILE *f = bb_file_get_(handle);
-  if (!f) return 0;
-  return static_cast<int>(bb_file_remaining_(f));
+  bb_file_get_(handle);   // ungueltiges Handle wie im Original melden
+  return 0;
 }
 
 // ---- Write Primitives (M26) ----

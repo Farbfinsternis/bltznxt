@@ -1,5 +1,15 @@
 # BlitzNext Developer Log
 
+## 2026-10-26 — ReadAvail on a file returns 0
+
+Blitz3D answers `ReadAvail` with the number of bytes its stream buffer holds, and for a file
+that is 0 before, during and after reading. BlitzNext returned the bytes left to the end of
+the file (BUG-211). It now returns 0 for files; TCP streams still report their waiting bytes.
+Measured against Blitz3D 11.8: the same values for files opened with `ReadFile`, `WriteFile`
+and `OpenFile`.
+
+Full suite: 366 passed, 0 failed.
+
 ## 2026-10-26 — the default font is Courier 12
 
 The default font of Blitz3D is the GDI bitmap font Courier at size 12: 13 pixels high and 8
