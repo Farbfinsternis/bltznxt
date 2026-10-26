@@ -803,7 +803,7 @@ inline void bb_gltf_mesh_(bb_GltfLoad_& L, int h, int mi, int skin) {
     }
     s->dirty = true;
   }
-  if (need_normals) bb_UpdateNormals(h);
+  if (need_normals) bb_update_normals_flat_(h);   // flach wie die glTF-Spezifikation
 }
 
 // ---- Knoten ----

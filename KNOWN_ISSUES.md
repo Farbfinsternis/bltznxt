@@ -119,8 +119,6 @@ counted as bugs and are not planned to be fixed:
   the expression: in `F(w) + (w = Null)`, where `F` deletes `w`, the comparison can see `w`
   before the call. Blitz3D does not fix the order either. Put such a call into its own
   statement. (BUG-180)
-- **Looks that the new renderer will change anyway.** `UpdateNormals` does not merge vertices
-  at the same position, so a cube stays faceted where Blitz3D rounds its corners (BUG-134).
 - **Legacy model formats.** `.3ds` models number their vertices differently and have
   normalised normals (BUG-135); some `.x` models list their surfaces in a different order
   (BUG-146); texture paths with a directory part inside `.x` files are resolved relative to

@@ -21,6 +21,7 @@
 #include <array>
 #include <cmath>
 #include <cfloat>
+#include <map>
 
 // ============================================================
 // bb_MeshEntity_ — entity with surfaces (one MeshData per surface)
@@ -661,11 +662,76 @@ inline void bb_FlipMesh(int h) {
 
 // ---- UpdateNormals ----
 
-// Mittelt die Flaechennormalen ueber die Dreiecke, die sich einen Vertex
-// **teilen**. Unsere Primitiven legen fuer jede Flaeche eigene Vertices an,
-// ein Wuerfel bleibt dadurch kantig - gemessen aendert UpdateNormals auch im
-// Original am Wuerfelbild nichts.
+// Wie Surface::updateNormals im Original (blitz3d/surface.cpp): je Surface
+// werden die **normierten** Dreiecksnormalen nach der Position der Ecken
+// gesammelt - eine map<Vector,Vector>, deren Vergleich Koordinaten bis
+// EPSILON 1e-6 gleich nennt -, entartete Dreiecke zaehlen nicht. Jeder
+// Vertex bekommt die normierte Summe an seiner Position, auch wenn er zu
+// einer anderen Flaeche gehoert: ein Wuerfel bekommt so gerundete Ecken
+// (Vertex 0: -0.408/0.408/-0.816, BUG-134). Wir mittelten je Vertex-Index;
+// Sphere-Maps auf einem Wuerfel (samples/mak/multi_tex) und die Schattierung
+// sahen dadurch anders aus (BUG-220).
+struct bb_NormKey_ {
+  float x, y, z;
+  bool operator<(const bb_NormKey_& q) const {
+    const float e = 0.000001f;
+    if (std::fabs(x - q.x) > e) return x < q.x;
+    if (std::fabs(y - q.y) > e) return y < q.y;
+    return std::fabs(z - q.z) > e && z < q.z;
+  }
+};
+
 inline void bb_UpdateNormals(int h) {
+  auto* me = bb_mesh_chk_(h);
+  if (!me) return;
+  for (auto& s : me->surfaces()) {
+    const size_t n = s.vertices.size() / BB_VF;
+    if (!n) continue;
+    std::map<bb_NormKey_, std::array<float, 3>> acc;
+    auto key = [&](unsigned i) {
+      const float* p = &s.vertices[i * BB_VF];
+      return bb_NormKey_{ p[0], p[1], p[2] };
+    };
+    for (size_t t = 0; t + 2 < s.indices.size(); t += 3) {
+      unsigned a = s.indices[t], b = s.indices[t + 1], c = s.indices[t + 2];
+      if (a >= n || b >= n || c >= n) continue;
+      const float* pa = &s.vertices[a * BB_VF];
+      const float* pb = &s.vertices[b * BB_VF];
+      const float* pc = &s.vertices[c * BB_VF];
+      float ux = pb[0] - pa[0], uy = pb[1] - pa[1], uz = pb[2] - pa[2];
+      float vx = pc[0] - pa[0], vy = pc[1] - pa[1], vz = pc[2] - pa[2];
+      // (b-a)x(c-a): zeigt zur Vorderseite (BUG-126)
+      float nx = uy * vz - uz * vy;
+      float ny = uz * vx - ux * vz;
+      float nz = ux * vy - uy * vx;
+      const float len = std::sqrt(nx * nx + ny * ny + nz * nz);
+      if (len <= 0.000001f) continue;
+      nx /= len; ny /= len; nz /= len;
+      for (unsigned idx : { a, b, c }) {
+        auto& v = acc[key(idx)];
+        v[0] += nx; v[1] += ny; v[2] += nz;
+      }
+    }
+    for (size_t v = 0; v < n; ++v) {
+      auto it = acc.find(key(static_cast<unsigned>(v)));
+      if (it == acc.end()) continue;
+      float nx = it->second[0], ny = it->second[1], nz = it->second[2];
+      float len = std::sqrt(nx * nx + ny * ny + nz * nz);
+      if (len > 1e-9f) { nx /= len; ny /= len; nz /= len; }
+      s.vertices[v * BB_VF + 3] = nx;
+      s.vertices[v * BB_VF + 4] = ny;
+      s.vertices[v * BB_VF + 5] = nz;
+    }
+  }
+  bb_mesh_touch_(me);
+}
+
+// Normalen je Vertex-Index (nach Flaeche gewichtete Summe der Dreiecke an
+// genau diesem Vertex), die Rechnung vor BUG-134. Nur fuer glTF: das Original
+// kennt das Format nicht, und die Spezifikation verlangt ohne Normalen eine
+// flache Schattierung - Ecken an derselben Position duerfen dort nicht
+// verschmelzen.
+inline void bb_update_normals_flat_(int h) {
   auto* me = bb_mesh_chk_(h);
   if (!me) return;
   for (auto& s : me->surfaces()) {

@@ -1,0 +1,16 @@
+wuerfel 0: -4082 4082 -8165
+wuerfel 1: 6667 6667 -3333
+wuerfel 2: 4082 -4082 -8165
+wuerfel 3: -6667 -6667 -3333
+wuerfel 4: 6667 6667 -3333
+wuerfel 5: 4082 4082 8165
+wuerfel 6: 6667 -6667 3333
+wuerfel 7: 4082 -4082 -8165
+netz a 0: 0 7071 7071
+netz a 1: 0 0 10000
+netz a 2: 0 0 10000
+netz a 3: 0 7071 7071
+netz a 4: 0 10000 0
+netz a 5: 0 10000 0
+netz b 0: 10000 0 0
+DONE

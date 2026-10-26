@@ -1,5 +1,19 @@
 # BlitzNext Developer Log
 
+## 2026-10-26 — UpdateNormals rounds shared corners like Blitz3D
+
+Blitz3D's `UpdateNormals` adds up the normalised triangle normals of every corner at the same
+position within a surface, so even a cube, whose faces have separate vertices, gets rounded
+corner normals. BlitzNext summed them per vertex, and the cube stayed faceted (BUG-134). That
+looked like a shading detail until `samples/mak/multi_tex`: its sphere map takes the
+texture coordinates from the normal, so each face showed one flat colour and the reflection
+almost vanished (BUG-220). `UpdateNormals` now works like Blitz3D; models loaded from glTF
+keep the old normals, as that format asks for flat shading. Measured against Blitz3D 11.8:
+the normals of a cube and of a mesh with shared positions, degenerate triangles and two
+surfaces are the same, and the multi_tex cube looks alike.
+
+Full suite: 17 passed, 0 failed (all tests using UpdateNormals, LoadMesh, LoadAnimMesh, vertex normals or glTF).
+
 ## 2026-10-26 — FontWidth and FontHeight like Blitz3D
 
 Blitz3D reports the metrics GDI gives for a font: `FontWidth` is the widest character of the
