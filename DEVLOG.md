@@ -1,5 +1,15 @@
 # BlitzNext Developer Log
 
+## 2026-10-26 — shifts take their count modulo 32
+
+Blitz3D shifts with the x86 instructions, which only use the lowest five bits of the
+count: `1 Shl 33` is 2, `-16 Sar 33` is -8, `1 Shl -1` is -2147483648. In C++ a count of 32
+or more is undefined, and g++ folded such shifts to 0 or -1 (BUG-207). The count is now
+masked with 31, as the constant folder already did. Measured against Blitz3D 11.8: 14
+values, all the same.
+
+Full suite: 357 passed, 1 failed (test_m43_fonts already expected the default font height of BUG-139, committed later).
+
 ## 2026-10-25 — SystemProperty returns the known properties
 
 `SystemProperty` always returned an empty string, so programs that build paths with

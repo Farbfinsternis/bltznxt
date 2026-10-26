@@ -286,15 +286,20 @@ public:
       output << ", ";
       emitOperand(node->right.get());
       output << ")";
-    } else if (node->op == "SHR") {
-      // SHR is a logical (unsigned) right shift — cast left operand to unsigned
-      output << "((int)((unsigned int)(";
+    } else if (node->op == "SHR" || node->op == "SHL" || node->op == "SAR") {
+      // Das Original schiebt mit x86-shl/shr/sar, die die Weite auf 5 Bit
+      // maskieren: "1 Shl 33" ist 2, "-16 Sar 33" -8 (gemessen). In C++ ist
+      // eine Weite ab 32 undefiniert, und g++ faltete sie zu 0/-1 (BUG-207) -
+      // wie in constfold.h deshalb "& 31". Shl und Shr rechnen unsigned (ein
+      // negativer Wert nach links ist in C++17 ebenfalls undefiniert), Sar
+      // arithmetisch.
+      const bool sar = node->op == "SAR";
+      output << (sar ? "((int)((int)(" : "((int)((unsigned int)(");
       emitIntegerContext(node->left.get());
-      output << ") >> (";
+      output << ") " << (node->op == "SHL" ? "<<" : ">>") << " ((";
       emitIntegerContext(node->right.get());
-      output << ")))";
-    } else if (node->op == "AND" || node->op == "OR" || node->op == "XOR" ||
-               node->op == "SHL" || node->op == "SAR") {
+      output << ") & 31)))";
+    } else if (node->op == "AND" || node->op == "OR" || node->op == "XOR") {
       // BinExprNode::semant wandelt beide Seiten nach int, mit derselben
       // CastNode wie eine Bedingung: ein String per atoi, ein Float gerundet
       // (BUG-54). Ohne die Wandlung lehnte g++ "x# And 3" ab

@@ -12,7 +12,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-10-25 — 16 open bugs, 28 missing commands.* A review against the
+*Last updated: 2026-10-25 — 15 open bugs, 28 missing commands.* A review against the
 original on 2026-10-13 found eleven more (BUG-201 to BUG-211); they are fixed first, for
 version 0.7.0.
 
@@ -193,8 +193,6 @@ not handled yet:
 - **An element of a fixed array as `For` counter** (`For v[0] = 1 To 3`) is rejected, and so
   is a chain of fields (`For a\b\c = …`). *Workaround:* count in a plain variable and assign
   it inside the loop. (BUG-160)
-- **`Shl`, `Shr` and `Sar` by 32 or more, or by a negative count, give 0 or -1.** Blitz3D
-  uses the count modulo 32 (`1 Shl 33` is 2). (BUG-207)
 - **An empty source file** is rejected with "could not read file". (BUG-110)
 - **Some errors are reported by the C++ compiler** instead of with a Blitz-style message,
   pointing into generated code. Every such case listed on this page is a bug. (WEAK-14)
