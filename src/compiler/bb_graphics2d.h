@@ -258,6 +258,80 @@ inline void bb_VWait(int frames = 1) {
 }
 
 
+// ---- Gamma (BUG-195) ----
+//
+// Wie gxGraphics: je Kanal eine Tabelle mit 256 Eintraegen zu 16 Bit.
+// SetGamma speichert Ziel*257 (abgeschnitten, auf 0..65535 begrenzt, Index
+// & 255), GammaRed/Green/Blue liefern Eintrag/257. Nur im Vollbild hat das
+// Original eine Gamma-Steuerung: dort beginnt die Tabelle mit der des Systems,
+// UpdateGamma setzt sie auf dem Bildschirm. Im Fenster beginnt sie mit 0..255
+// (nicht *257 - GammaRed(100) ist 0.389105) und UpdateGamma tut nichts.
+// Gemessen build/bug195_gamma_20261026. Jedes Graphics setzt die Tabelle
+// zurueck; eine gesetzte Bildschirm-Tabelle wird dabei und am Programmende
+// wiederhergestellt.
+struct bb_GammaRamp_ { Uint16 c[3][256]; };
+inline bb_GammaRamp_ bb_gamma_{};
+inline bb_GammaRamp_ bb_gamma_sys_{};
+inline bool bb_gamma_applied_ = false;
+
+inline void bb_gamma_restore_() {
+#ifdef _WIN32
+  if (!bb_gamma_applied_) return;
+  HDC dc = GetDC(nullptr);
+  if (dc) { SetDeviceGammaRamp(dc, &bb_gamma_sys_); ReleaseDC(nullptr, dc); }
+  bb_gamma_applied_ = false;
+#endif
+}
+
+inline void bb_gamma_reset_() {
+  bb_gamma_restore_();
+  for (int k = 0; k < 256; ++k)
+    bb_gamma_.c[0][k] = bb_gamma_.c[1][k] = bb_gamma_.c[2][k] = static_cast<Uint16>(k);
+#ifdef _WIN32
+  if (bb_gfx_fullscreen_) {
+    HDC dc = GetDC(nullptr);
+    if (dc) {
+      bb_GammaRamp_ sys;
+      if (GetDeviceGammaRamp(dc, &sys)) bb_gamma_ = sys;
+      ReleaseDC(nullptr, dc);
+    }
+  }
+#endif
+}
+
+inline Uint16 bb_gamma_word_(float d) {
+  const float v = d * 257.0f;
+  if (!(v > 0.0f)) return 0;
+  if (v >= 65535.0f) return 65535;
+  return static_cast<Uint16>(v);
+}
+
+inline void bb_SetGamma(int r, int g, int b, float dr, float dg, float db) {
+  bb_gamma_.c[0][r & 255] = bb_gamma_word_(dr);
+  bb_gamma_.c[1][g & 255] = bb_gamma_word_(dg);
+  bb_gamma_.c[2][b & 255] = bb_gamma_word_(db);
+}
+
+inline void bb_UpdateGamma(int calibrate = 0) {
+  (void)calibrate;   // DDSGR_CALIBRATE: Kalibrierung des Treibers, gibt es nicht mehr
+#ifdef _WIN32
+  if (!bb_gfx_fullscreen_ || !bb_window_) return;
+  HDC dc = GetDC(nullptr);
+  if (!dc) return;
+  if (!bb_gamma_applied_ && GetDeviceGammaRamp(dc, &bb_gamma_sys_)) {
+    static const bool reg = (std::atexit(bb_gamma_restore_), true);
+    (void)reg;
+    bb_gamma_applied_ = true;
+  }
+  if (bb_gamma_applied_) SetDeviceGammaRamp(dc, &bb_gamma_);
+  ReleaseDC(nullptr, dc);
+#endif
+}
+
+inline float bb_GammaRed(int n)   { return bb_gamma_.c[0][n & 255] / 257.0f; }
+inline float bb_GammaGreen(int n) { return bb_gamma_.c[1][n & 255] / 257.0f; }
+inline float bb_GammaBlue(int n)  { return bb_gamma_.c[2][n & 255] / 257.0f; }
+
 // BufferDirty sichert im Original den Inhalt eines Puffers gegen einen
 // Verlust der Oberflaeche; hier geht nichts verloren.
 inline void bb_BufferDirty(int buffer) { (void)buffer; }
@@ -1298,6 +1372,7 @@ inline void bb_SetFont(int handle) {
 }
 
 inline void bb_gfx_reset_draw_state_(int buffer) {
+    bb_gamma_reset_();   // neue Gamma-Tabelle wie gxGraphics (BUG-195)
     bb_draw_r_ = bb_draw_g_ = bb_draw_b_ = 255;
     bb_cls_r_  = bb_cls_g_  = bb_cls_b_  = 0;
     bb_active_font_ = 0;

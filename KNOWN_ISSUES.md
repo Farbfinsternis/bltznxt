@@ -12,7 +12,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-10-26 — 4 open bugs, 28 missing commands.* A review against the
+*Last updated: 2026-10-26 — 4 open bugs, 23 missing commands.* A review against the
 original on 2026-10-13 found eleven more (BUG-201 to BUG-211); they are fixed first, for
 version 0.7.0.
 
@@ -138,7 +138,7 @@ counted as bugs and are not planned to be fixed:
 
 ## Missing commands
 
-28 of Blitz3D's commands (not counting language keywords) are not available yet. A
+23 of Blitz3D's commands (not counting language keywords) are not available yet. A
 program that uses one of them is rejected with `unknown function or command`. `blitzcc -k` lists
 everything that is available. The number comes from comparing `blitzcc +k` of Blitz3D 11.8
 with `blitzcc -k` (2026-10-04).
@@ -150,7 +150,7 @@ one of them any more (measured 2026-10-04; on 2026-10-03 it was 36).
 |------|---------|---|
 | BSP levels | `LoadBSP`, `BSPAmbientLight`, `BSPLighting` | none |
 | Networking | the DirectPlay commands (`StartNetGame`, `HostNetGame`, `JoinNetGame`, `SendNetMsg`, …, 14 in all); TCP and UDP streams and `CopyStream` are available | none |
-| Movies, gamma | `OpenMovie`, `DrawMovie`, `CloseMovie`, `MovieWidth`, `MovieHeight`, `MoviePlaying`; `SetGamma`, `UpdateGamma`, `GammaRed/Green/Blue` | none |
+| Movies | `OpenMovie`, `DrawMovie`, `CloseMovie`, `MovieWidth`, `MovieHeight`, `MoviePlaying` | none |
 
 `Stop` is available but does not pause the program: in Blitz3D it is a debugger breakpoint,
 and without a debugger Blitz3D suspends the program until its window is activated again.

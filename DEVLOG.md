@@ -1,5 +1,17 @@
 # BlitzNext Developer Log
 
+## 2026-10-26 — SetGamma, UpdateGamma, GammaRed/Green/Blue
+
+The five gamma commands were missing (BUG-195). Blitz3D keeps a table of 256 16-bit values
+per colour channel: `SetGamma` stores the target value times 257, cut off and limited to
+the 16-bit range, and `GammaRed`, `GammaGreen` and `GammaBlue` read it back divided by 257.
+Only full screen has a gamma control: there the table starts from the system's and
+`UpdateGamma` puts it on the display; it is restored by the next `Graphics` and at exit. In
+a window the table starts at 0 to 255 — so `GammaRed(100)` is 0.389 — and `UpdateGamma` does
+nothing. Measured against Blitz3D 11.8 in a window; full screen was not measured yet.
+
+Full suite: 126 passed, 0 failed (all tests using Graphics or Delay) and 9 passed (BUG-195 and signature tests), 108 negative tests passed.
+
 ## 2026-10-26 — the screen keeps its picture after Flip
 
 In a window Blitz3D has a single surface, and `Flip` only shows it: whatever a program drew

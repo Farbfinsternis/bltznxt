@@ -52,7 +52,7 @@ an old program is a bug.
 
 ## Compatibility Progress
 
-*State 2026-10-26:* 4 open bugs that can break an old program and 28 missing commands, all
+*State 2026-10-26:* 4 open bugs that can break an old program and 23 missing commands, all
 listed in [KNOWN_ISSUES.md](KNOWN_ISSUES.md). Userlibs are not supported, so `CallDLL` does
 nothing.
 
@@ -114,7 +114,7 @@ bin\blitzcc.exe hello.bb
 | **Runtime** | Maths, strings, files, banks, timers, keyboard, mouse, joystick and gamepad, audio including 3D sound, TCP and UDP |
 | **2D** | Drawing, text and fonts, images with masks, handles and transforms, pixel buffers, image overlap tests |
 | **3D** | Entities, cameras, lights, textures, brushes, meshes and surfaces, `.x`/`.3ds`/`.b3d`/MD2/glTF loading, animation, sprites, mirrors, collisions, picking and projection, terrain |
-| **Missing** | 28 commands: BSP, DirectPlay, movies, gamma |
+| **Missing** | 23 commands: BSP, DirectPlay, movies |
 
 Where something exists but does not yet behave like Blitz3D, it is listed in
 [KNOWN_ISSUES.md](KNOWN_ISSUES.md). `blitzcc -k` prints every available command, `blitzcc +k`
