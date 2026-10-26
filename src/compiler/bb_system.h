@@ -100,11 +100,30 @@ inline void bb_FreeTimer(int handle) {
 #ifdef _WIN32
 #include <windows.h>
 #include <shellapi.h>   // ShellExecuteW (ExecFile)
-inline void bb_Delay(int ms) { Sleep(static_cast<DWORD>(ms)); }
+inline void bb_sleep_ms_(int ms) { Sleep(static_cast<DWORD>(ms)); }
 #else
 #include <unistd.h>
-inline void bb_Delay(int ms) { usleep(static_cast<useconds_t>(ms) * 1000u); }
+inline void bb_sleep_ms_(int ms) { usleep(static_cast<useconds_t>(ms) * 1000u); }
 #endif
+
+// Ereignisse abholen, solange ein Fenster offen ist; gesetzt von
+// bb_graphics2d.h.
+inline void (*bb_idle_hook_)() = nullptr;
+
+// Wie gxRuntime::delay: in Schritten von hoechstens 100 ms schlafen und
+// davor jeweils Nachrichten abholen. Erst dabei erscheint, was in den
+// Frontpuffer gezeichnet wurde (BUG-219).
+inline void bb_Delay(int ms) {
+  if (!bb_idle_hook_) { if (ms > 0) bb_sleep_ms_(ms); return; }
+  const auto end = std::chrono::steady_clock::now() + std::chrono::milliseconds(ms);
+  for (;;) {
+    bb_idle_hook_();
+    const auto left = std::chrono::duration_cast<std::chrono::milliseconds>(
+        end - std::chrono::steady_clock::now()).count();
+    if (left <= 0) return;
+    bb_sleep_ms_(static_cast<int>(left > 100 ? 100 : left));
+  }
+}
 
 // ---- System / Process Functions ----
 

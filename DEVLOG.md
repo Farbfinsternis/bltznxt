@@ -1,5 +1,22 @@
 # BlitzNext Developer Log
 
+## 2026-10-26 — drawing to the front buffer shows without Flip
+
+In a window, Blitz3D's front and back buffer are one and the same surface; a timer redraws the
+window every 100 ms when something was drawn through `FrontBuffer()`, as soon as the program
+handles messages (`Delay`, `WaitKey`, `KeyHit` …), and `Flip` shows it at once. BlitzNext only
+showed the picture on `Flip`, so a program that draws to the front buffer — the default after
+`Graphics` — and waits for a key stayed black, like the `doublebuffering` tutorial (BUG-219).
+Every drawing command now notes when it draws to the front buffer, and handling events shows
+the picture if that happened at least 100 ms ago; the surface is read before and restored
+after, because the back buffer is undefined once shown. `Delay` now handles events in steps of
+at most 100 ms, as Blitz3D does. Measured against Blitz3D 11.8 by reading the screen under the
+window in eight phases: front buffer shown without `Flip`, back buffer only with `Flip`,
+nothing during a loop that handles no events; `doublebuffering` now looks the same before the
+first key.
+
+Full suite: 122 passed, 0 failed (all tests using Graphics or Delay).
+
 ## 2026-10-26 — an empty source file is an empty program
 
 Blitz3D accepts a source file with 0 bytes as a program that does nothing — the installation

@@ -489,6 +489,10 @@ inline void bb_sdl_process_event_(const SDL_Event &ev) {
 
 inline void (*bb_audio_update_hook_)() = nullptr;
 
+// Zeigt, was in den Frontpuffer gezeichnet wurde (bb_graphics2d.h, BUG-219);
+// wie der Audio-Haken nach jedem Abholen der Ereignisse.
+inline void (*bb_front_show_hook_)() = nullptr;
+
 // ---- TTF quit hook ----
 //
 // Set by bb_graphics2d.h (M43) when SDL3_ttf is compiled in.
@@ -508,6 +512,7 @@ inline bool bb_PollEvents() {
   while (SDL_PollEvent(&ev))
     bb_sdl_process_event_(ev);
   if (bb_audio_update_hook_) bb_audio_update_hook_();
+  if (bb_front_show_hook_) bb_front_show_hook_();
   return false;
 }
 

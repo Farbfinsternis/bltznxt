@@ -370,7 +370,7 @@ inline void bb_canvas_blit_(bb_Canvas_& d, int x, int y, const bb_Canvas_& s,
 
 inline bool bb_canvas_draw_image_(int handle, int x, int y, int frame,
                                   int sx, int sy, int sw, int sh, bool whole, bool solid) {
-  if (bb_buf_is_screen_(bb_active_buffer_)) return false;
+  if (bb_buf_is_screen_(bb_active_buffer_)) { bb_front_mark_(bb_active_buffer_); return false; }
   bb_Canvas_ d, s;
   if (!bb_canvas_open_(bb_active_buffer_, d)) return true;
   if (!bb_canvas_from_img_(handle, frame, s)) return true;
@@ -382,7 +382,7 @@ inline bool bb_canvas_draw_image_(int handle, int x, int y, int frame,
 
 // tile() aus bbruntime/bbgraphics.cpp
 inline bool bb_canvas_tile_(int handle, int x, int y, int frame, bool solid) {
-  if (bb_buf_is_screen_(bb_active_buffer_)) return false;
+  if (bb_buf_is_screen_(bb_active_buffer_)) { bb_front_mark_(bb_active_buffer_); return false; }
   bb_Canvas_ d, s;
   if (!bb_canvas_open_(bb_active_buffer_, d)) return true;
   if (!bb_canvas_from_img_(handle, frame, s)) return true;

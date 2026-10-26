@@ -280,6 +280,24 @@ inline bool bb_buf_is_screen_(int buf) {
   return buf == BB_BACK_BUFFER_H || buf == BB_FRONT_BUFFER_H;
 }
 
+// ---- Frontpuffer (BUG-219) ----
+//
+// Im Fenster sind Front- und Backbuffer des Originals dieselbe Flaeche
+// (gxRuntime::openWindowedGraphics: gxGraphics(...,fs,fs,...)), nur mit zwei
+// Aenderungszaehlern. Ein Zeitgeber zeichnet das Fenster alle 100 ms neu, wenn
+// ueber den Frontpuffer gezeichnet wurde - sobald das Programm Nachrichten
+// abholt (Delay, WaitKey, KeyHit ...), in einer reinen Rechenschleife nicht.
+// Was in den Backbuffer geht, erscheint erst mit Flip. Gemessen
+// build/bug219_20261026/fb. Wir zeichnen ebenfalls in eine Flaeche; jedes
+// Zeichnen auf den Bildschirm meldet hier seinen Puffer, angezeigt wird beim
+// Abholen der Ereignisse (bb_front_show_). Im Vollbild hat das Original zwei
+// getrennte Flaechen; dort zeigen wir dasselbe wie im Fenster.
+inline bool   bb_front_dirty_    = false;
+inline Uint64 bb_front_shown_ms_ = 0;
+inline void bb_front_mark_(int buf) {
+  if (buf == BB_FRONT_BUFFER_H) bb_front_dirty_ = true;
+}
+
 // Zeichnen in Image- und Texturpuffer: definiert in bb_canvas.h (BUG-141).
 inline void bb_canvas_reset_(int buf);
 inline void bb_canvas_origin_(int x, int y);
@@ -378,6 +396,7 @@ inline void bb_SetBuffer(int buf) {
 inline void bb_Cls() {
   if (!bb_buf_is_screen_(bb_active_buffer_)) { bb_canvas_cls_(); return; }
   if (!bb_renderer_) return;
+  bb_front_mark_(bb_active_buffer_);
   SDL_SetRenderDrawColor(bb_renderer_, bb_cls_r_, bb_cls_g_, bb_cls_b_, 255);
   SDL_RenderClear(bb_renderer_);
 }
@@ -401,6 +420,8 @@ inline void bb_Cls() {
 
 inline void bb_Flip(int vblank = 1) {
   const int want = (vblank && bb_gfx_fullscreen_) ? 1 : 0;   // BUG-178
+  bb_front_dirty_ = false;   // Flip zeigt die ganze Flaeche (BUG-219)
+  bb_front_shown_ms_ = SDL_GetTicks();
   if (bb_gl_active_) {
     // 3D mode: flush pending 2D draws, then swap the GL backbuffer. Der
     // 2D-Renderer zeichnet in denselben Backbuffer, laesst aber seinen eigenen
@@ -424,6 +445,45 @@ inline void bb_Flip(int vblank = 1) {
   bb_PollEvents();
 }
 
+// Zeigt die Flaeche, wenn seit mindestens 100 ms ueber den Frontpuffer
+// gezeichnet wurde (BUG-219). Nach dem Anzeigen ist der Inhalt des
+// Backbuffers undefiniert, die Flaeche muss aber bleiben wie im Original:
+// vorher lesen, danach zurueckschreiben - wie Lock-/UnlockBuffer.
+inline void bb_front_show_() {
+  if (!bb_front_dirty_ || !bb_renderer_ || !bb_window_) return;
+  const Uint64 now = SDL_GetTicks();
+  if (now - bb_front_shown_ms_ < 100) return;
+  bb_front_dirty_ = false;
+  bb_front_shown_ms_ = now;
+  SDL_SetRenderViewport(bb_renderer_, nullptr);
+  SDL_Surface* surf = SDL_RenderReadPixels(bb_renderer_, nullptr);
+  SDL_Texture* tex = surf ? SDL_CreateTextureFromSurface(bb_renderer_, surf) : nullptr;
+  if (surf) SDL_DestroySurface(surf);
+  if (!tex) { bb_apply_viewport_(); return; }
+  if (bb_gl_active_) {
+    SDL_FlushRenderer(bb_renderer_);
+    bb_gl_use_();
+    SDL_GL_SwapWindow(bb_window_);
+  } else {
+    SDL_RenderPresent(bb_renderer_);
+  }
+  SDL_SetTextureBlendMode(tex, SDL_BLENDMODE_NONE);
+  SDL_RenderTexture(bb_renderer_, tex, nullptr, nullptr);
+  SDL_DestroyTexture(tex);
+  bb_apply_viewport_();
+  if (bb_gl_active_) {
+    SDL_FlushRenderer(bb_renderer_);
+    bb_gl_use_();
+  }
+}
+
+inline void bb_gfx_idle_() {
+  if (bb_window_) bb_PollEvents();
+}
+
+inline const bool bb_front_hook_reg_ =
+    (bb_front_show_hook_ = bb_front_show_, bb_idle_hook_ = bb_gfx_idle_, true);
+
 // ---- CopyRect() ----
 //
 // Copies a pixel rectangle from srcbuf to dstbuf.
@@ -446,6 +506,7 @@ inline void bb_CopyRect(int sx, int sy, int sw, int sh,
                         int dx, int dy,
                         int srcbuf = 0,
                         int dstbuf = 0) {
+  bb_front_mark_(dstbuf ? dstbuf : bb_active_buffer_);
   bb_canvas_copyrect_(sx, sy, sw, sh, dx, dy,
                       srcbuf ? srcbuf : bb_active_buffer_,
                       dstbuf ? dstbuf : bb_active_buffer_);
@@ -540,6 +601,7 @@ inline int bb_Rgb(int r, int g, int b) {
 inline void bb_Plot(int x, int y) {
   if (!bb_buf_is_screen_(bb_active_buffer_)) { bb_canvas_plot_(x, y); return; }
   if (!bb_renderer_) return;
+  bb_front_mark_(bb_active_buffer_);
   SDL_SetRenderDrawColor(bb_renderer_, bb_draw_r_, bb_draw_g_, bb_draw_b_, 255);
   SDL_RenderPoint(bb_renderer_, (float)x, (float)y);
 }
@@ -555,6 +617,7 @@ inline void bb_Plot(int x, int y) {
 inline void bb_Line(int x1, int y1, int x2, int y2) {
   if (!bb_buf_is_screen_(bb_active_buffer_)) { bb_canvas_line_(x1, y1, x2, y2); return; }
   if (!bb_renderer_) return;
+  bb_front_mark_(bb_active_buffer_);
   SDL_SetRenderDrawColor(bb_renderer_, bb_draw_r_, bb_draw_g_, bb_draw_b_, 255);
   SDL_RenderLine(bb_renderer_, (float)x1, (float)y1, (float)x2, (float)y2);
 }
@@ -571,6 +634,7 @@ inline void bb_Rect(int x, int y, int w, int h, int solid = 1) {
   // Breite oder Hoehe <= 0 zeichnet im Original nichts (das Rechteck faellt
   // aus dem Clipping, gxCanvas::rect); SDL zeichnete es gespiegelt (BUG-209).
   if (w <= 0 || h <= 0) return;
+  bb_front_mark_(bb_active_buffer_);
   SDL_SetRenderDrawColor(bb_renderer_, bb_draw_r_, bb_draw_g_, bb_draw_b_, 255);
   SDL_FRect r = { (float)x, (float)y, (float)w, (float)h };
   if (solid)
@@ -591,6 +655,7 @@ inline void bb_Oval(int x, int y, int w, int h, int solid = 1) {
   if (!bb_buf_is_screen_(bb_active_buffer_)) { bb_canvas_oval_(x, y, w, h, solid != 0); return; }
   if (!bb_renderer_) return;
   if (w <= 0 || h <= 0) return;
+  bb_front_mark_(bb_active_buffer_);
   SDL_SetRenderDrawColor(bb_renderer_, bb_draw_r_, bb_draw_g_, bb_draw_b_, 255);
   // Dasselbe Raster wie im Bildpuffer (bb_canvas.h, gxCanvas::oval, BUG-209).
   bb_screen_oval_(x, y, w, h, solid != 0);
@@ -603,6 +668,7 @@ inline void bb_Oval(int x, int y, int w, int h, int solid = 1) {
 
 inline void bb_Poly(int x0, int y0, int x1, int y1, int x2, int y2) {
   if (!bb_renderer_) return;
+  bb_front_mark_(bb_active_buffer_);
   const float r = bb_draw_r_ / 255.0f;
   const float g = bb_draw_g_ / 255.0f;
   const float b = bb_draw_b_ / 255.0f;
@@ -1273,6 +1339,7 @@ inline void bb_Text(int x, int y, const bbString& s,
         return;
     }
     if (!bb_renderer_ || s.empty()) return;
+    bb_front_mark_(bb_active_buffer_);
 #ifdef BB_HAS_SDL3_TTF
     if (bb_font_active_().ttf) {
         bb_Text_ttf_(x, y, s, centerX, centerY);

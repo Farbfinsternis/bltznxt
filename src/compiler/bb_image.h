@@ -758,6 +758,7 @@ inline void bb_DrawImageEllipse(int handle, int x, int y, int rx, int ry,
     const bb_FrameData_* fd = bb_img_frame_(handle, frame);
     const auto& img = bb_images_[handle];
     if (!fd || !fd->tex) return;
+    bb_front_mark_(bb_active_buffer_);
 
     SDL_Rect clip = { x - rx, y - ry, 2 * rx, 2 * ry };
     SDL_SetRenderClipRect(bb_renderer_, &clip);
@@ -1070,6 +1071,7 @@ inline void bb_UnlockBuffer(int buf = bb_active_buffer_) {
 
     if (lock.dirty) {
         if (buf == BB_BACK_BUFFER_H || buf == BB_FRONT_BUFFER_H) {
+            bb_front_mark_(buf);
             if (bb_renderer_ && !lock.pixels.empty()) {
                 SDL_Surface* surf = SDL_CreateSurfaceFrom(
                     lock.width, lock.height, SDL_PIXELFORMAT_RGBA32,
@@ -1196,6 +1198,7 @@ inline void bb_WritePixel(int x, int y, int color, int buf = bb_active_buffer_) 
         // Bildschirm ist das ein einzelner Punkt in genau dieser Farbe.
         if (buf == BB_BACK_BUFFER_H || buf == BB_FRONT_BUFFER_H) {
             if (!bb_renderer_) return;
+            bb_front_mark_(buf);
             SDL_SetRenderDrawColor(bb_renderer_, (color >> 16) & 0xFF,
                                    (color >> 8) & 0xFF, color & 0xFF, 255);
             SDL_RenderPoint(bb_renderer_, (float)x, (float)y);
