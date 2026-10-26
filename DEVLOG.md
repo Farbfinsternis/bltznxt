@@ -1,5 +1,20 @@
 # BlitzNext Developer Log
 
+## 2026-10-26 — LoadBSP, BSPLighting, BSPAmbientLight
+
+The three commands for Quake 3 maps were missing (BUG-195). `LoadBSP` follows Blitz3D's
+loader: the same walk through the BSP tree and the same rules for which faces are drawn and
+which only collide, curved patches subdivided once, lightmaps with the gamma adjustment,
+the lightmap added on texture layer 0 and the surface texture on layer 1. The map becomes an
+ordinary mesh, so collisions work as for any mesh; faces that only collide sit in an
+invisible surface. On the way, the texture layers now clamp an added or doubled colour to
+white as the fixed pipeline does — a lightmap plus `BSPAmbientLight` was too bright before
+the texture multiplied it. Measured against Blitz3D 11.8 on a generated test map: five views
+with 25 pixels each differ by at most 1 per channel, and the collisions are the same.
+Visibility culling inside the map and point lights on the map are not reproduced.
+
+Full suite: 5 passed, 0 failed (tests using TextureBlend, LoadBSP or gamma), 9 passed (BUG-195 and signature tests), 108 negative tests passed.
+
 ## 2026-10-26 — SetGamma, UpdateGamma, GammaRed/Green/Blue
 
 The five gamma commands were missing (BUG-195). Blitz3D keeps a table of 256 16-bit values

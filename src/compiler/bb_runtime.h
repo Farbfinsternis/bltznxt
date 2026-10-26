@@ -23,6 +23,7 @@
 #include "bb_gfxmode.h"   // CountGfxModes3D/GfxModeWidth/... - Modus- und Treiberabfrage
 #include "bb_image.h"      // LoadImage, CreateImage, DrawImage, ImageWidth/Height
 #include "bb_graphics3d.h" // Graphics3D(), RenderWorld(), UpdateWorld(), GL loader
+#include "bb_bsp.h"        // LoadBSP, BSPLighting, BSPAmbientLight (BUG-195)
 
 // ---- Lifecycle ----
 

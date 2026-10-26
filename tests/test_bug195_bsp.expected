@@ -1,0 +1,10 @@
+fehlt 0
+bsp 1
+normal: 25/25
+ohne lichtkarte: 25/25
+ambient: 25/25
+links: 25/25
+gamma 0.5: 25/25
+kugel z -95 kollisionen 1
+kugel vor wand z 145
+DONE

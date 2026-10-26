@@ -181,8 +181,11 @@ uniform int u_tex_flags[4];
 vec4 bb_tex_layer(vec4 c, vec4 t, int blend, int flags) {
     if ((flags & 2) == 0) t.a = 1.0;
     if (blend == 1) return vec4(mix(c.rgb, t.rgb, t.a), c.a * t.a);
-    if (blend == 3) return vec4(c.rgb + t.rgb, c.a);
-    if (blend == 5) return vec4(c.rgb * t.rgb * 2.0, c.a * t.a);
+    // Jede Texturstufe der festen Pipeline begrenzt ihr Ergebnis auf 0..1,
+    // die naechste Stufe rechnet mit dem begrenzten Wert weiter: Lichtkarte
+    // plus Umgebungslicht einer BSP-Karte, danach mal Textur (BUG-195).
+    if (blend == 3) return vec4(min(c.rgb + t.rgb, vec3(1.0)), c.a);
+    if (blend == 5) return vec4(min(c.rgb * t.rgb * 2.0, vec3(1.0)), c.a * t.a);
     return c * t;
 }
 
