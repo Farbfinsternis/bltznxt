@@ -263,12 +263,12 @@ inline void bb_canvas_rect_(int x, int y, int w, int h, bool solid) {
   bb_canvas_done_(c);
 }
 
-inline void bb_canvas_oval_(int x1, int y1, int w, int h, bool solid) {
-  bb_Canvas_ c;
-  if (!bb_canvas_open_(bb_active_buffer_, c)) return;
-  const int color = bb_canvas_color_();
-  const bb_CRect_& vp = c.st->vp;
-  x1 += c.st->ox; y1 += c.st->oy;
+// Das Raster von gxCanvas::oval, einmal fuer Bildpuffer und Bildschirm: `fill`
+// fuellt ein Rechteck (BUG-209, RED-14 - bis dahin zeichnete der Bildschirm
+// mit einer eigenen Formel und wurde 1 Pixel zu breit und zu hoch).
+template <class Fill>
+inline void bb_oval_raster_(int x1, int y1, int w, int h, bool solid,
+                            const bb_CRect_& vp, Fill fill) {
   bb_CRect_ dest = bb_crect_(x1, y1, w, h);
   if (!bb_cclip_(vp, &dest)) return;
 
@@ -287,9 +287,8 @@ inline void bb_canvas_oval_(int x1, int y1, int w, int h, bool solid) {
       dr.t = t; dr.b = t + 1;
       dr.l = xa < vp.l ? vp.l : xa;
       dr.r = xb > vp.r ? vp.r : xb;
-      bb_canvas_fill_(c, dr, color);
+      fill(dr);
     }
-    bb_canvas_done_(c);
     return;
   }
 
@@ -303,9 +302,9 @@ inline void bb_canvas_oval_(int x1, int y1, int w, int h, bool solid) {
     int xa = static_cast<int>(std::floor(static_cast<double>(cx - x)));
     int xb = static_cast<int>(std::floor(static_cast<double>(cx + x)));
     bb_CRect_ r1 = bb_crect_(xa, t, p_xa - xa, 1); if (r1.r <= r1.l) r1.r = r1.l + 1;
-    if (bb_cclip_(vp, &r1)) bb_canvas_fill_(c, r1, color);
+    if (bb_cclip_(vp, &r1)) fill(r1);
     bb_CRect_ r2 = bb_crect_(p_xb, t, xb - p_xb, 1); if (r2.l >= r2.r) r2.l = r2.r - 1;
-    if (bb_cclip_(vp, &r2)) bb_canvas_fill_(c, r2, color);
+    if (bb_cclip_(vp, &r2)) fill(r2);
     p_xa = xa; p_xb = xb;
   }
   p_xa = p_xb = static_cast<int>(cx);
@@ -316,11 +315,30 @@ inline void bb_canvas_oval_(int x1, int y1, int w, int h, bool solid) {
     int xa = static_cast<int>(std::floor(static_cast<double>(cx - x)));
     int xb = static_cast<int>(std::floor(static_cast<double>(cx + x)));
     bb_CRect_ r1 = bb_crect_(xa, t, p_xa - xa, 1); if (r1.r <= r1.l) r1.r = r1.l + 1;
-    if (bb_cclip_(vp, &r1)) bb_canvas_fill_(c, r1, color);
+    if (bb_cclip_(vp, &r1)) fill(r1);
     bb_CRect_ r2 = bb_crect_(p_xb, t, xb - p_xb, 1); if (r2.l >= r2.r) r2.l = r2.r - 1;
-    if (bb_cclip_(vp, &r2)) bb_canvas_fill_(c, r2, color);
+    if (bb_cclip_(vp, &r2)) fill(r2);
     p_xa = xa; p_xb = xb;
   }
+}
+
+// Auf dem Bildschirm setzen Origin und Viewport der SDL-Viewport und das
+// Clipping, deshalb hier ohne eigenes Beschneiden; jedes Stueck wird ein
+// gefuelltes Rechteck des Renderers.
+inline void bb_screen_oval_(int x, int y, int w, int h, bool solid) {
+  const bb_CRect_ all = { -(1 << 28), -(1 << 28), 1 << 28, 1 << 28 };
+  bb_oval_raster_(x, y, w, h, solid, all, [](const bb_CRect_& r) {
+    const SDL_FRect fr = { (float)r.l, (float)r.t, (float)(r.r - r.l), (float)(r.b - r.t) };
+    SDL_RenderFillRect(bb_renderer_, &fr);
+  });
+}
+
+inline void bb_canvas_oval_(int x1, int y1, int w, int h, bool solid) {
+  bb_Canvas_ c;
+  if (!bb_canvas_open_(bb_active_buffer_, c)) return;
+  const int color = bb_canvas_color_();
+  bb_oval_raster_(x1 + c.st->ox, y1 + c.st->oy, w, h, solid, c.st->vp,
+                  [&](const bb_CRect_& r) { bb_canvas_fill_(c, r, color); });
   bb_canvas_done_(c);
 }
 

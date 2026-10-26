@@ -1,0 +1,26 @@
+plot n=1 box=5,5-5,5 h=5539
+line diag n=160 box=0,0-159,119 h=10197056
+line anti n=160 box=0,0-159,119 h=16450896
+line flach n=41 box=10,10-50,13 h=8763169
+line steil n=41 box=10,10-13,50 h=378789
+line flach rueck n=41 box=10,10-50,13 h=4199966
+line punkt n=1 box=140,10-140,10 h=138089
+rect offen n=96 box=10,10-39,29 h=2111784
+rect voll n=600 box=50,10-79,29 h=10680492
+rect w0 n=0 box=999,999--1,-1 h=0
+rect w-5 n=0 box=999,999--1,-1 h=0
+oval offen n=72 box=10,40-40,60 h=4727402
+oval voll n=511 box=50,40-80,60 h=10683494
+oval 1 n=1 box=90,40-90,40 h=93169
+oval 2 n=4 box=100,40-101,41 h=15701634
+oval 3 offen n=8 box=110,40-112,42 h=12192292
+kreis 40 n=1264 box=10,10-49,49 h=12908152
+kreis 41 offen n=112 box=10,10-50,50 h=8913884
+origin rect n=100 box=5,75-14,84 h=8031538
+viewport n=400 box=20,90-39,109 h=8900296
+drawimage n=16 box=122,92-125,95 h=1280776
+drawimage maske n=0 box=999,999--1,-1 h=0
+drawblock n=16 box=142,92-145,95 h=15621896
+drawblock handle n=16 box=148,98-151,101 h=6248200
+line clip n=160 box=0,50-159,57 h=6479644
+oval clip n=352 box=0,0-19,19 h=257454

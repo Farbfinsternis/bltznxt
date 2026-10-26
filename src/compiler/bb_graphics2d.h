@@ -282,6 +282,7 @@ inline void bb_canvas_plot_(int x, int y);
 inline void bb_canvas_line_(int x0, int y0, int x1, int y1);
 inline void bb_canvas_rect_(int x, int y, int w, int h, bool solid);
 inline void bb_canvas_oval_(int x, int y, int w, int h, bool solid);
+inline void bb_screen_oval_(int x, int y, int w, int h, bool solid);   // bb_canvas.h
 inline void bb_canvas_text_(int x, int y, const bbString& s, int centerX, int centerY);
 
 // Clear colour used by Cls() — defaults to black (0,0,0).
@@ -560,6 +561,9 @@ inline void bb_Line(int x1, int y1, int x2, int y2) {
 inline void bb_Rect(int x, int y, int w, int h, int solid = 1) {
   if (!bb_buf_is_screen_(bb_active_buffer_)) { bb_canvas_rect_(x, y, w, h, solid != 0); return; }
   if (!bb_renderer_) return;
+  // Breite oder Hoehe <= 0 zeichnet im Original nichts (das Rechteck faellt
+  // aus dem Clipping, gxCanvas::rect); SDL zeichnete es gespiegelt (BUG-209).
+  if (w <= 0 || h <= 0) return;
   SDL_SetRenderDrawColor(bb_renderer_, bb_draw_r_, bb_draw_g_, bb_draw_b_, 255);
   SDL_FRect r = { (float)x, (float)y, (float)w, (float)h };
   if (solid)
@@ -581,32 +585,8 @@ inline void bb_Oval(int x, int y, int w, int h, int solid = 1) {
   if (!bb_renderer_) return;
   if (w <= 0 || h <= 0) return;
   SDL_SetRenderDrawColor(bb_renderer_, bb_draw_r_, bb_draw_g_, bb_draw_b_, 255);
-
-  const float cx = x + w * 0.5f;
-  const float cy = y + h * 0.5f;
-  const float rx = w * 0.5f;
-  const float ry = h * 0.5f;
-
-  if (solid) {
-    // Fill: one horizontal scanline per pixel row inside the bounding box.
-    for (int sy = y; sy <= y + h; ++sy) {
-      const float dy = sy - cy;
-      if (std::fabs(dy) > ry) continue;
-      const float t  = dy / ry;
-      const float dx = rx * std::sqrt(1.0f - t * t);
-      SDL_RenderLine(bb_renderer_, cx - dx, (float)sy, cx + dx, (float)sy);
-    }
-  } else {
-    // Outline: parametric ellipse, enough steps for a smooth curve.
-    const int steps = static_cast<int>(2.0f * 3.14159265f * std::fmax(rx, ry)) + 4;
-    const int N     = steps < 16 ? 16 : steps;
-    std::vector<SDL_FPoint> pts(N + 1);
-    for (int i = 0; i <= N; ++i) {
-      const float angle = 2.0f * 3.14159265f * i / N;
-      pts[i] = { cx + rx * std::cos(angle), cy + ry * std::sin(angle) };
-    }
-    SDL_RenderLines(bb_renderer_, pts.data(), (int)pts.size());
-  }
+  // Dasselbe Raster wie im Bildpuffer (bb_canvas.h, gxCanvas::oval, BUG-209).
+  bb_screen_oval_(x, y, w, h, solid != 0);
 }
 
 // ---- Poly(x0, y0, x1, y1, x2, y2) ----

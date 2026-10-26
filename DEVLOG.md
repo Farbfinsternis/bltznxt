@@ -1,5 +1,15 @@
 # BlitzNext Developer Log
 
+## 2026-10-26 — `Oval` and `Rect` on the screen
+
+The screen had its own way of drawing the basic shapes, and it differed from the one used
+for image buffers: `Oval` came out one pixel too wide and too high, and `Rect` with a zero or
+negative size drew a rectangle where Blitz3D draws nothing (BUG-209). The screen now uses
+the same oval raster as image buffers, which follows Blitz3D's `gxCanvas::oval`. Measured
+against Blitz3D 11.8: the pixels of outlined and filled ovals and rectangles are the same.
+
+Full suite: 366 passed, 0 failed.
+
 ## 2026-10-26 — `-o name.exe` writes `name.exe`
 
 `blitzcc` always appended `.exe` to the output name, so `-o game.exe` wrote `game.exe.exe`,

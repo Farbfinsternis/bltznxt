@@ -12,7 +12,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-10-25 — 9 open bugs, 28 missing commands.* A review against the
+*Last updated: 2026-10-25 — 8 open bugs, 28 missing commands.* A review against the
 original on 2026-10-13 found eleven more (BUG-201 to BUG-211); they are fixed first, for
 version 0.7.0.
 
@@ -205,9 +205,6 @@ with a font, the window title and the console.
   Blitz3D opens a full screen unless the program is compiled with debugging. Mode 6 is full
   screen here and a window (paused while inactive) in Blitz3D, and modes 3 and 7 do not scale
   the picture with the window. The same applies to `Graphics3D`. (BUG-208)
-- **`Oval` on the screen is one pixel too wide and too high**, and `Rect` with a negative
-  width draws a rectangle where Blitz3D draws nothing. Drawing into an image buffer is exact.
-  (BUG-209)
 - **The default font is 8 pixels high instead of 13.** Fonts from `LoadFont` keep their
   height as in Blitz3D, but `FontWidth` reports the width of "M" where Blitz3D reports the
   widest character. (BUG-139)
