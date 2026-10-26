@@ -4,6 +4,7 @@
 #include <SDL3/SDL.h>
 #include <iostream>
 #include <string>
+#include <cwchar>       // wcstoull - Laenge des MIDI-Stuecks (BUG-222)
 #include <cctype>
 #include "bb_sdl.h"    // bb_sdl_ensure_(), bb_sdl_initialized_, bb_audio_update_hook_
 #include "bb_string.h" // bbString
@@ -231,6 +232,13 @@ inline void bb_snd_quit_() {
 inline constexpr int BB_MIDI_CH_ = 0x10000;
 inline bool bb_midi_on_     = false;
 inline bool bb_midi_paused_ = false;
+// Eine MCI-Abfrage kostet etwa 10 ms. bb_snd_update_ laeuft bei jedem Abholen
+// der Ereignisse (jedes KeyHit, jedes Flip); die Musik in Games/wing_ring
+// bremste das Menue so auf 20 Bilder je Sekunde (BUG-222). Gefragt wird
+// deshalb erst, wenn das Stueck nach seiner Laenge zu Ende sein muesste.
+inline Uint64 bb_midi_len_ms_   = 0;   // 0 = Laenge unbekannt
+inline Uint64 bb_midi_due_ms_   = 0;   // naechste Abfrage
+inline Uint64 bb_midi_pause_ms_ = 0;
 
 inline bool bb_midi_cmd_(const std::wstring &c, std::wstring *ret = nullptr) {
 #ifdef _WIN32
@@ -260,12 +268,21 @@ inline int bb_midi_play_(const bbString &file) {
   bb_midi_stop_();
 #ifdef _WIN32
   const std::wstring f = bb_wide_from_(file, CP_ACP);
-  if (!bb_midi_cmd_(L"open \"" + f + L"\" type sequencer alias bb_midi") ||
-      !bb_midi_cmd_(L"play bb_midi from 0")) {
+  if (!bb_midi_cmd_(L"open \"" + f + L"\" type sequencer alias bb_midi")) {
+    std::cerr << "[runtime] PlayMusic: cannot play MIDI file '" << file << "'\n";
+    return 0;
+  }
+  std::wstring len;
+  bb_midi_len_ms_ = 0;
+  if (bb_midi_cmd_(L"set bb_midi time format milliseconds") &&
+      bb_midi_cmd_(L"status bb_midi length", &len))
+    bb_midi_len_ms_ = static_cast<Uint64>(std::wcstoull(len.c_str(), nullptr, 10));
+  if (!bb_midi_cmd_(L"play bb_midi from 0")) {
     bb_midi_cmd_(L"close bb_midi");
     std::cerr << "[runtime] PlayMusic: cannot play MIDI file '" << file << "'\n";
     return 0;
   }
+  bb_midi_due_ms_ = SDL_GetTicks() + (bb_midi_len_ms_ ? bb_midi_len_ms_ : 500);
   bb_midi_on_ = true;
   return BB_MIDI_CH_;
 #else
@@ -275,8 +292,19 @@ inline int bb_midi_play_(const bbString &file) {
 }
 
 inline void bb_snd_update_() {
-  // MIDI-Musik wiederholen, wenn sie zu Ende ist
-  if (bb_midi_on_ && !bb_midi_paused_ && !bb_midi_playing_()) bb_midi_cmd_(L"play bb_midi from 0");
+  // MIDI-Musik wiederholen, wenn sie zu Ende ist; MCI erst fragen, wenn es
+  // so weit sein muss (BUG-222)
+  if (bb_midi_on_ && !bb_midi_paused_) {
+    const Uint64 now = SDL_GetTicks();
+    if (now >= bb_midi_due_ms_) {
+      if (!bb_midi_playing_()) {
+        bb_midi_cmd_(L"play bb_midi from 0");
+        bb_midi_due_ms_ = now + (bb_midi_len_ms_ ? bb_midi_len_ms_ : 500);
+      } else {
+        bb_midi_due_ms_ = now + (bb_midi_len_ms_ ? 100 : 500);
+      }
+    }
+  }
   if (!bb_snd_dev_) return;
   for (int i = 1; i < BB_MAX_CHANNELS; ++i)
     if (bb_snd_done_(bb_snd_channels_[i]) && !bb_snd_channels_[i].paused)
@@ -515,14 +543,28 @@ inline void bb_StopChannel(int ch) {
 
 // Pause: the mixer skips the channel, its position stays.
 inline void bb_PauseChannel(int ch) {
-  if (ch == BB_MIDI_CH_) { if (bb_midi_on_) { bb_midi_cmd_(L"pause bb_midi"); bb_midi_paused_ = true; } return; }
+  if (ch == BB_MIDI_CH_) {
+    if (bb_midi_on_ && !bb_midi_paused_) {
+      bb_midi_cmd_(L"pause bb_midi");
+      bb_midi_paused_ = true;
+      bb_midi_pause_ms_ = SDL_GetTicks();
+    }
+    return;
+  }
   if (ch < 1 || ch >= BB_MAX_CHANNELS || !bb_snd_channels_[ch].stream) return;
   bb_SndLock_ lock;
   bb_snd_channels_[ch].paused = true;
 }
 
 inline void bb_ResumeChannel(int ch) {
-  if (ch == BB_MIDI_CH_) { if (bb_midi_on_) { bb_midi_cmd_(L"resume bb_midi"); bb_midi_paused_ = false; } return; }
+  if (ch == BB_MIDI_CH_) {
+    if (bb_midi_on_ && bb_midi_paused_) {
+      bb_midi_cmd_(L"resume bb_midi");
+      bb_midi_paused_ = false;
+      bb_midi_due_ms_ += SDL_GetTicks() - bb_midi_pause_ms_;   // die Pause verschiebt das Ende
+    }
+    return;
+  }
   if (ch < 1 || ch >= BB_MAX_CHANNELS || !bb_snd_channels_[ch].stream) return;
   bb_SndLock_ lock;
   bb_snd_channels_[ch].paused = false;

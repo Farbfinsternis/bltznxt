@@ -1,5 +1,17 @@
 # BlitzNext Developer Log
 
+## 2026-10-26 — MIDI music no longer slows down the program
+
+Since MIDI music plays through the Windows MCI sequencer (BUG-216), the sound update asked
+MCI whether the piece was still playing every time events were handled — on every `KeyHit`
+and every `Flip` — and each query takes about 10 ms. The menu of `Games/wing_ring` dropped
+to 20 frames per second, three times slower than in Blitz3D, so its colour cycle fell
+behind (BUG-222). The length of the piece is now read once when it starts, and MCI is only
+asked when the piece should have ended; pausing moves that point. A loop with four `KeyHit`
+calls and MIDI music ran 58 frames in three seconds before and 9540 now.
+
+Full suite: 7 passed, 0 failed (tests using TileBlock, TileImage, PlayMusic or channel control).
+
 ## 2026-10-26 — TileBlock and TileImage on the screen
 
 Drawn on the screen, `TileBlock` and `TileImage` swapped the x and y offsets: the menu
