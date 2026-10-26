@@ -859,6 +859,30 @@ private:
     return size;
   }
 
+  // Der Zaehler einer For-Schleife als Kette aus "\feld" und "[index]" hinter
+  // `base` - dieselben Glieder wie bei parseChainAssign, aber als ein
+  // Ausdruck, den ForStmt als Ziel haelt (BUG-160).
+  std::unique_ptr<ExprNode> parseForChain(std::unique_ptr<ExprNode> base) {
+    for (;;) {
+      if (peek().type == TokenType::OPERATOR && peek().value == "\\") {
+        advance();
+        Token fname = expect(TokenType::ID, "Expected field name after \\");
+        parseOptionalTypeTag(); // "For p\f# = ..." - read, dropped (BUG-31)
+        base = std::make_unique<FieldAccess>(std::move(base), fname.value);
+      } else if (peek().type == TokenType::OPERATOR && peek().value == "[") {
+        advance();
+        auto idx = parseExpr();
+        if (peek().type == TokenType::OPERATOR && peek().value == ",")
+          error(peek().line, peek().col,
+                "Blitz arrays are one-dimensional; expected ']'");
+        expect(TokenType::OPERATOR, "Expected ']'", "]");
+        base = std::make_unique<VectorAccess>(std::move(base), std::move(idx));
+      } else {
+        return base;
+      }
+    }
+  }
+
   std::unique_ptr<StmtNode> parseFor() {
     int ln = peek().line;
     advance(); // FOR
@@ -903,12 +927,11 @@ private:
     // exactly the way the assignment statement recognises them, including the
     // Dim'd-name test that tells "arr(i)" from a call.
     std::unique_ptr<ExprNode> target;
-    if (peek().type == TokenType::OPERATOR && peek().value == "\\") {
-      advance(); // consume the field separator
-      Token fname = expect(TokenType::ID, "Expected field name after \\");
-      parseOptionalTypeTag(); // "For p\f# = ..." - read, dropped (BUG-31)
-      target = std::make_unique<FieldAccess>(
-          std::make_unique<VarExpr>(nameTok.value), fname.value);
+    if (peek().type == TokenType::OPERATOR &&
+        (peek().value == "\\" || peek().value == "[")) {
+      // Eine ganze Kette wie links von einem "=": "For a\b\c = ...",
+      // "For v[0] = ...", "For o\v[i] = ..." - bis BUG-160 nur ein Feld.
+      target = parseForChain(std::make_unique<VarExpr>(nameTok.value));
     } else if (peek().type == TokenType::OPERATOR && peek().value == "(") {
       if (!dimmedArrays.count(toLower(nameTok.value))) {
         // Without a Dim this reads as a call, and the two errors that follow
@@ -930,6 +953,10 @@ private:
       }
       expect(TokenType::OPERATOR, "Expected ')'", ")");
       target = std::move(arr);
+      // "For a(i)\x = ..." - eine Kette auch hinter dem Dim-Element
+      if (peek().type == TokenType::OPERATOR &&
+          (peek().value == "\\" || peek().value == "["))
+        target = parseForChain(std::move(target));
     }
     if (target) {
       // Without this every diagnostic about the counter reports line 0.

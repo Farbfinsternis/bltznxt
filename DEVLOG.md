@@ -1,5 +1,15 @@
 # BlitzNext Developer Log
 
+## 2026-10-26 — a For counter may be an array element or a chain of fields
+
+Blitz3D reads the counter of a `For` loop like the target of an assignment, so
+`For v[0] = …`, `For a\b\c = …` and `For d(1)\k = …` are valid. BlitzNext rejected an
+element of a fixed array and knew only a single field after the name (BUG-160). The counter
+is now read as the same chain of fields and indices. Measured against Blitz3D 11.8: 11
+values, all the same.
+
+Full suite: 357 passed, 1 failed (test_m43_fonts already expected the default font height of BUG-139, committed later).
+
 ## 2026-10-26 — Not on a string
 
 Blitz3D builds `Not x` as the comparison `x = 0`; for a string that is a string comparison,

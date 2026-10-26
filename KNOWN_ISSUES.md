@@ -12,7 +12,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-10-25 — 14 open bugs, 28 missing commands.* A review against the
+*Last updated: 2026-10-25 — 13 open bugs, 28 missing commands.* A review against the
 original on 2026-10-13 found eleven more (BUG-201 to BUG-211); they are fixed first, for
 version 0.7.0.
 
@@ -189,9 +189,6 @@ not handled yet:
 
 - **`Dim` inside an `If`, `While`, `For` or `Select` block of the main program** fails in the
   C++ compiler. *Workaround:* move the `Dim` to the top level. (WEAK-05)
-- **An element of a fixed array as `For` counter** (`For v[0] = 1 To 3`) is rejected, and so
-  is a chain of fields (`For a\b\c = …`). *Workaround:* count in a plain variable and assign
-  it inside the loop. (BUG-160)
 - **An empty source file** is rejected with "could not read file". (BUG-110)
 - **Some errors are reported by the C++ compiler** instead of with a Blitz-style message,
   pointing into generated code. Every such case listed on this page is a bug. (WEAK-14)
