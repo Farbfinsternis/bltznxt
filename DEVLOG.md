@@ -1,5 +1,20 @@
 # BlitzNext Developer Log
 
+## 2026-10-26 — movies
+
+The six movie commands were missing (BUG-195): `OpenMovie`, `DrawMovie`, `CloseMovie`,
+`MovieWidth`, `MovieHeight` and `MoviePlaying`. As in Blitz3D, DirectShow decodes the movie
+into a DirectDraw surface and plays its sound, so whatever formats DirectShow handles on the
+machine play here too. Every `DrawMovie` fetches the next frame — it waits until that
+frame is due, and never skips one — and draws it scaled to the given rectangle, on the
+screen or into an image buffer; after the last frame it returns 0 and draws nothing.
+Measured against Blitz3D 11.8 with a generated AVI of ten frames: colours, orientation,
+timing, end of the movie, scaling and image buffers are the same, with `Graphics` and with
+`Graphics3D`. Unlike Blitz3D, `Origin` and `Viewport` apply as they do for `DrawBlock`.
+Only the 14 DirectPlay commands are still missing; they belong to a separate update.
+
+Full suite: 9 passed, 0 failed (BUG-195 and signature tests), 10 passed (tests using OpenMovie, LoadBSP, SetGamma or DrawBlock), 108 negative tests passed.
+
 ## 2026-10-26 — LoadBSP, BSPLighting, BSPAmbientLight
 
 The three commands for Quake 3 maps were missing (BUG-195). `LoadBSP` follows Blitz3D's
