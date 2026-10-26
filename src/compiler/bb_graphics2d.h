@@ -99,7 +99,7 @@ inline void bb_Graphics(int width, int height, int depth = 32, int mode = 0) {
   if (!bb_sdl_initialized_) return;
 
   // Tear down any existing window/renderer before creating a new one.
-  if (bb_renderer_) { SDL_DestroyRenderer(bb_renderer_); bb_renderer_ = nullptr; }
+  if (bb_renderer_) { SDL_DestroyRenderer(bb_renderer_); bb_renderer_ = nullptr; bb_screen_tex_ = nullptr; }
   if (bb_window_)   { SDL_DestroyWindow(bb_window_);     bb_window_   = nullptr; }
 
   SDL_WindowFlags flags = 0;
@@ -153,6 +153,23 @@ inline void bb_Graphics(int width, int height, int depth = 32, int mode = 0) {
   }
   bb_present_update_(width, height);
 
+  // Der Bildschirm ist eine Zieltextur in Spielgroesse (BUG-221): im Fenster
+  // ist die Flaeche des Originals eine einzige, Flip zeigt sie nur und laesst
+  // sie stehen. Der Backbuffer des Renderers ist nach jedem Present
+  // undefiniert; Programme, die ohne Cls weiterzeichnen, sahen bei uns
+  // abwechselnd alte oder leere Bilder. Flip kopiert die Textur ins Fenster
+  // (bb_screen_present_). Die logische Darstellung oben gilt nur fuers Fenster.
+  bb_screen_tex_ = SDL_CreateTexture(bb_renderer_, SDL_PIXELFORMAT_ARGB8888,
+                                     SDL_TEXTUREACCESS_TARGET, width, height);
+  if (bb_screen_tex_) {
+    SDL_SetTextureBlendMode(bb_screen_tex_, SDL_BLENDMODE_NONE);
+    SDL_SetTextureScaleMode(bb_screen_tex_, (fullscreen || scaled_windowed)
+                                                ? SDL_SCALEMODE_LINEAR : SDL_SCALEMODE_NEAREST);
+    SDL_SetRenderTarget(bb_renderer_, bb_screen_tex_);
+    SDL_SetRenderDrawColor(bb_renderer_, 0, 0, 0, 255);
+    SDL_RenderClear(bb_renderer_);
+  }
+
   // Query the refresh rate from the display the window landed on.
   SDL_DisplayID disp = SDL_GetDisplayForWindow(bb_window_);
   const SDL_DisplayMode* dm = SDL_GetCurrentDisplayMode(disp);
@@ -172,7 +189,7 @@ inline void bb_Graphics(int width, int height, int depth = 32, int mode = 0) {
 
 inline void bb_EndGraphics() {
   bb_close_scene_();
-  if (bb_renderer_) { SDL_DestroyRenderer(bb_renderer_); bb_renderer_ = nullptr; }
+  if (bb_renderer_) { SDL_DestroyRenderer(bb_renderer_); bb_renderer_ = nullptr; bb_screen_tex_ = nullptr; }
   if (bb_window_)   { SDL_DestroyWindow(bb_window_);     bb_window_   = nullptr; }
   bb_gfx_width_ = bb_gfx_height_ = bb_gfx_depth_ = bb_gfx_rate_ = 0;
   bb_gfx_fullscreen_ = false;
@@ -292,6 +309,12 @@ inline bool bb_buf_is_screen_(int buf) {
 // Zeichnen auf den Bildschirm meldet hier seinen Puffer, angezeigt wird beim
 // Abholen der Ereignisse (bb_front_show_). Im Vollbild hat das Original zwei
 // getrennte Flaechen; dort zeigen wir dasselbe wie im Fenster.
+// Zurueck auf den Bildschirm zeichnen: im 2D-Modus die Zieltextur
+// bb_screen_tex_, im 3D-Modus das Fenster (BUG-221).
+inline void bb_target_screen_() {
+  if (bb_renderer_) SDL_SetRenderTarget(bb_renderer_, bb_screen_tex_);
+}
+
 inline bool   bb_front_dirty_    = false;
 inline Uint64 bb_front_shown_ms_ = 0;
 inline void bb_front_mark_(int buf) {
@@ -350,7 +373,7 @@ inline void bb_apply_viewport_() {
            bb_viewport_rect_.h };
   } else {
     int w = 0, h = 0;
-    SDL_GetRenderOutputSize(bb_renderer_, &w, &h);
+    SDL_GetCurrentRenderOutputSize(bb_renderer_, &w, &h);   // Zieltextur (BUG-221)
     vp = { bb_origin_x_, bb_origin_y_,
            w - bb_origin_x_, h - bb_origin_y_ };
   }
@@ -418,6 +441,20 @@ inline void bb_Cls() {
 // Events are pumped after every present so the game loop stays responsive
 // even when the program does not call PollEvent() explicitly.
 
+// 2D: die Zieltextur ins Fenster kopieren und anzeigen; sie selbst bleibt
+// unveraendert stehen wie die Flaeche im Original (BUG-221). Ohne Textur
+// (sie liess sich nicht anlegen) wie frueher direkt.
+inline void bb_screen_present_() {
+  if (!bb_screen_tex_) { SDL_RenderPresent(bb_renderer_); return; }
+  SDL_SetRenderTarget(bb_renderer_, nullptr);
+  SDL_SetRenderDrawColor(bb_renderer_, 0, 0, 0, 255);
+  SDL_RenderClear(bb_renderer_);   // Raender der logischen Darstellung
+  SDL_RenderTexture(bb_renderer_, bb_screen_tex_, nullptr, nullptr);
+  SDL_RenderPresent(bb_renderer_);
+  SDL_SetRenderTarget(bb_renderer_, bb_screen_tex_);
+  bb_apply_viewport_();
+}
+
 inline void bb_Flip(int vblank = 1) {
   const int want = (vblank && bb_gfx_fullscreen_) ? 1 : 0;   // BUG-178
   bb_front_dirty_ = false;   // Flip zeigt die ganze Flaeche (BUG-219)
@@ -441,20 +478,22 @@ inline void bb_Flip(int vblank = 1) {
     SDL_SetRenderVSync(bb_renderer_, want);
     bb_vsync_mode_ = want;
   }
-  SDL_RenderPresent(bb_renderer_);
+  bb_screen_present_();
   bb_PollEvents();
 }
 
 // Zeigt die Flaeche, wenn seit mindestens 100 ms ueber den Frontpuffer
-// gezeichnet wurde (BUG-219). Nach dem Anzeigen ist der Inhalt des
-// Backbuffers undefiniert, die Flaeche muss aber bleiben wie im Original:
-// vorher lesen, danach zurueckschreiben - wie Lock-/UnlockBuffer.
+// gezeichnet wurde (BUG-219). Im 2D-Modus genuegt das Kopieren der
+// Zieltextur. Im 3D-Modus ist nach dem Anzeigen der Inhalt des Backbuffers
+// undefiniert, die Flaeche muss aber bleiben wie im Original: vorher lesen,
+// danach zurueckschreiben - wie Lock-/UnlockBuffer.
 inline void bb_front_show_() {
   if (!bb_front_dirty_ || !bb_renderer_ || !bb_window_) return;
   const Uint64 now = SDL_GetTicks();
   if (now - bb_front_shown_ms_ < 100) return;
   bb_front_dirty_ = false;
   bb_front_shown_ms_ = now;
+  if (!bb_gl_active_ && bb_screen_tex_) { bb_screen_present_(); return; }
   SDL_SetRenderViewport(bb_renderer_, nullptr);
   SDL_Surface* surf = SDL_RenderReadPixels(bb_renderer_, nullptr);
   SDL_Texture* tex = surf ? SDL_CreateTextureFromSurface(bb_renderer_, surf) : nullptr;

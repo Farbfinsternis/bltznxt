@@ -1040,7 +1040,7 @@ inline void bb_LockBuffer(int buf = bb_active_buffer_) {
             bool read = false;
             if (SDL_SetRenderTarget(bb_renderer_, fd.tex)) {
                 SDL_Surface* surf = SDL_RenderReadPixels(bb_renderer_, nullptr);
-                SDL_SetRenderTarget(bb_renderer_, nullptr);
+                bb_target_screen_();
                 if (surf) {
                     SDL_Surface* rgba = SDL_ConvertSurface(surf, SDL_PIXELFORMAT_RGBA32);
                     SDL_DestroySurface(surf);
@@ -1052,7 +1052,7 @@ inline void bb_LockBuffer(int buf = bb_active_buffer_) {
                     }
                 }
             }
-            SDL_SetRenderTarget(bb_renderer_, nullptr);
+            bb_target_screen_();
             if (!read) lock.pixels.assign(n, 0);
             lock.locked = true;
         } else {
@@ -1083,7 +1083,7 @@ inline void bb_UnlockBuffer(int buf = bb_active_buffer_) {
                     SDL_Texture* tex = SDL_CreateTextureFromSurface(bb_renderer_, surf);
                     SDL_DestroySurface(surf);
                     if (tex) {
-                        SDL_SetRenderTarget(bb_renderer_, nullptr);
+                        bb_target_screen_();
                         SDL_SetRenderViewport(bb_renderer_, nullptr);  // ganzer Puffer
                         SDL_SetTextureBlendMode(tex, SDL_BLENDMODE_NONE);
                         SDL_RenderTexture(bb_renderer_, tex, nullptr, nullptr);
@@ -1511,7 +1511,7 @@ inline int bb_CopyImage(int handle) {
             if (SDL_SetRenderTarget(bb_renderer_,
                     const_cast<SDL_Texture*>(sfd.tex))) {
                 SDL_Surface* s = SDL_RenderReadPixels(bb_renderer_, nullptr);
-                SDL_SetRenderTarget(bb_renderer_, nullptr);
+                bb_target_screen_();
                 if (s) {
                     SDL_Surface* r = SDL_ConvertSurface(s, SDL_PIXELFORMAT_RGBA32);
                     SDL_DestroySurface(s);
@@ -1532,7 +1532,7 @@ inline int bb_CopyImage(int handle) {
                     }
                 }
             } else {
-                SDL_SetRenderTarget(bb_renderer_, nullptr);
+                bb_target_screen_();
             }
         }
 

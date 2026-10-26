@@ -34,6 +34,9 @@ inline void *bb_window_hwnd_() {
 }
 
 inline SDL_Renderer* bb_renderer_        = nullptr;
+// 2D: der Bildschirm als Zieltextur, damit er nach Flip erhalten bleibt
+// (bb_graphics2d.h, BUG-221); nullptr im 3D-Modus.
+inline SDL_Texture*  bb_screen_tex_      = nullptr;
 inline SDL_GLContext bb_gl_ctx_          = nullptr;
 inline bool          bb_gl_active_       = false;
 inline bool          bb_sdl_initialized_ = false;
@@ -345,7 +348,7 @@ inline void bb_sdl_quit_() {
     if (bb_joy_[i].handle) SDL_CloseJoystick(bb_joy_[i].handle);
     bb_joy_[i] = bb_JoyPort_();
   }
-  if (bb_renderer_) { SDL_DestroyRenderer(bb_renderer_); bb_renderer_ = nullptr; }
+  if (bb_renderer_) { SDL_DestroyRenderer(bb_renderer_); bb_renderer_ = nullptr; bb_screen_tex_ = nullptr; }
   if (bb_gl_quit_hook_)    { bb_gl_quit_hook_();    bb_gl_quit_hook_    = nullptr; }
   if (bb_window_)   { SDL_DestroyWindow(bb_window_);     bb_window_   = nullptr; }
   if (bb_sdl_initialized_) { SDL_Quit(); bb_sdl_initialized_ = false; }

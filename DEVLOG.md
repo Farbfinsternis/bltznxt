@@ -1,5 +1,18 @@
 # BlitzNext Developer Log
 
+## 2026-10-26 — the screen keeps its picture after Flip
+
+In a window Blitz3D has a single surface, and `Flip` only shows it: whatever a program drew
+stays there until it is drawn over or cleared. BlitzNext drew straight into the back buffer
+of the renderer, whose content is undefined after every present, so programs that keep
+drawing without `Cls` — trails, paint programs, text written once — flickered or lost their
+picture (BUG-221). In 2D the screen is now a texture of the game's size; `Flip` copies it
+to the window and drawing continues in the same texture. Measured against Blitz3D 11.8: a
+trail drawn over ten `Flip`s, reading the front and back buffer, and `Cls` give the same
+values.
+
+Full suite: 126 passed, 0 failed (all tests using Graphics or Delay).
+
 ## 2026-10-26 — UpdateNormals rounds shared corners like Blitz3D
 
 Blitz3D's `UpdateNormals` adds up the normalised triangle normals of every corner at the same

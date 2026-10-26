@@ -532,7 +532,7 @@ inline void bb_Graphics3D(int w, int h, int depth = 32, int mode = 0) {
   if (!bb_sdl_initialized_) return;
 
   // Tear down any existing window / context / renderer.
-  if (bb_renderer_) { SDL_DestroyRenderer(bb_renderer_); bb_renderer_ = nullptr; }
+  if (bb_renderer_) { SDL_DestroyRenderer(bb_renderer_); bb_renderer_ = nullptr; bb_screen_tex_ = nullptr; }
   if (bb_gl_ctx_)   { SDL_GL_DestroyContext(bb_gl_ctx_); bb_gl_ctx_   = nullptr; }
   if (bb_window_)   { SDL_DestroyWindow(bb_window_);     bb_window_   = nullptr; }
   bb_gl_active_ = false;
