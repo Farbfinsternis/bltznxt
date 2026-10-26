@@ -79,6 +79,9 @@ inline void bbInit(int argc = 0, char** argv = nullptr) {
     if (out_missing) freopen("CONOUT$", "w", stdout);
     if (err_missing) freopen("CONOUT$", "w", stderr);
   }
+  // Eine Konsole (eigene oder die des Terminals) zeigt Print und liest Input$
+  // in der ANSI-Codepage, wie die Strings im Programm (BUG-203).
+  bb_console_ansi_();
 #endif
   // SDL is initialised lazily by bb_sdl_ensure_() when a window is first needed.
 #ifdef _WIN32

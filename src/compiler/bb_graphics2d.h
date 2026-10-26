@@ -15,7 +15,7 @@
 // Updates the live window title when a window is already open.
 
 inline void bb_update_window_title_(const char* title) {
-  if (bb_window_) SDL_SetWindowTitle(bb_window_, title);
+  if (bb_window_) SDL_SetWindowTitle(bb_window_, bb_utf8_(title).c_str());   // BUG-203
 }
 
 // Register at startup — inline bool trick (same pattern as bb_audio_update_hook_).
@@ -111,7 +111,9 @@ inline void bb_Graphics(int width, int height, int depth = 32, int mode = 0) {
   if (fullscreen)      flags |= SDL_WINDOW_FULLSCREEN;
   if (scaled_windowed) flags |= SDL_WINDOW_RESIZABLE;
 
-  const char* title = bb_app_title_.empty() ? "BLTZNXT" : bb_app_title_.c_str();
+  const std::string title8 = bb_app_title_.empty() ? std::string("BLTZNXT")
+                                                  : bb_utf8_(bb_app_title_);   // BUG-203
+  const char* title = title8.c_str();
 
   // Fullscreen: create at desktop resolution (0,0 → SDL picks current mode).
   // Windowed scaled: physical window is 2× the logical size.
@@ -1076,7 +1078,9 @@ inline int bb_StringWidth(const bbString& s) {
         && bb_active_font_ < static_cast<int>(bb_fonts_.size())
         && bb_fonts_[bb_active_font_].ttf) {
         int w = 0, h = 0;
-        TTF_GetStringSize(bb_fonts_[bb_active_font_].ttf, s.c_str(), 0, &w, &h);
+        // Blitz-Strings sind ANSI, SDL_ttf will UTF-8 - sonst misst "\xe4" das
+        // Ersatzzeichen (BUG-203).
+        TTF_GetStringSize(bb_fonts_[bb_active_font_].ttf, bb_utf8_(s).c_str(), 0, &w, &h);
         return w;
     }
 #endif
@@ -1089,7 +1093,7 @@ inline int bb_StringHeight(const bbString& s) {
         && bb_active_font_ < static_cast<int>(bb_fonts_.size())
         && bb_fonts_[bb_active_font_].ttf) {
         int w = 0, h = 0;
-        TTF_GetStringSize(bb_fonts_[bb_active_font_].ttf, s.c_str(), 0, &w, &h);
+        TTF_GetStringSize(bb_fonts_[bb_active_font_].ttf, bb_utf8_(s).c_str(), 0, &w, &h);
         return h;
     }
 #endif
@@ -1104,7 +1108,7 @@ inline void bb_Text_ttf_(int x, int y, const bbString& s,
 #ifdef BB_HAS_SDL3_TTF
     TTF_Font* font = bb_fonts_[bb_active_font_].ttf;
     SDL_Color fg   = { bb_draw_r_, bb_draw_g_, bb_draw_b_, 255 };
-    SDL_Surface* surf = TTF_RenderText_Blended(font, s.c_str(), 0, fg);
+    SDL_Surface* surf = TTF_RenderText_Blended(font, bb_utf8_(s).c_str(), 0, fg);   // BUG-203
     if (!surf) return;
     SDL_Texture* tex = SDL_CreateTextureFromSurface(bb_renderer_, surf);
     SDL_DestroySurface(surf);

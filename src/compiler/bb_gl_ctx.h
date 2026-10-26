@@ -548,7 +548,9 @@ inline void bb_Graphics3D(int w, int h, int depth = 32, int mode = 0) {
   SDL_WindowFlags flags = SDL_WINDOW_OPENGL;
   if (fullscreen) flags |= SDL_WINDOW_FULLSCREEN;
 
-  const char* title = bb_app_title_.empty() ? "BLTZNXT" : bb_app_title_.c_str();
+  const std::string title8 = bb_app_title_.empty() ? std::string("BLTZNXT")
+                                                  : bb_utf8_(bb_app_title_);   // BUG-203
+  const char* title = title8.c_str();
   int win_w = fullscreen ? 0 : w;
   int win_h = fullscreen ? 0 : h;
 

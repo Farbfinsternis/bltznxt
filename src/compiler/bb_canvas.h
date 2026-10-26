@@ -398,7 +398,8 @@ inline void bb_canvas_text_(int x, int y, const bbString& s, int centerX, int ce
   if (bb_active_font_ > 0 && bb_active_font_ < static_cast<int>(bb_fonts_.size()) &&
       bb_fonts_[bb_active_font_].ttf) {
     SDL_Color fg = { 255, 255, 255, 255 };
-    SDL_Surface* surf = TTF_RenderText_Solid(bb_fonts_[bb_active_font_].ttf, s.c_str(), 0, fg);
+    SDL_Surface* surf = TTF_RenderText_Solid(bb_fonts_[bb_active_font_].ttf,
+                                             bb_utf8_(s).c_str(), 0, fg);   // ANSI -> UTF-8 (BUG-203)
     if (!surf) return;
     SDL_Surface* rgba = SDL_ConvertSurface(surf, SDL_PIXELFORMAT_RGBA32);
     SDL_DestroySurface(surf);

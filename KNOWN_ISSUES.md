@@ -12,7 +12,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-10-25 — 13 open bugs, 28 missing commands.* A review against the
+*Last updated: 2026-10-25 — 12 open bugs, 28 missing commands.* A review against the
 original on 2026-10-13 found eleven more (BUG-201 to BUG-211); they are fixed first, for
 version 0.7.0.
 
@@ -165,14 +165,9 @@ and without a debugger Blitz3D suspends the program until its window is activate
 ## Umlauts and other non-ASCII characters
 
 Blitz3D strings and source files use the Windows code page (Windows-1252 on Western
-systems), so `ä`, `ö`, `ü`, `ß`, `é` and the like work everywhere in Blitz3D. In BlitzNext
-they work in paths, `Include` names and the file and folder names a program uses; text is
-not handled yet:
-
-- **Text with such characters is shown wrong**: with a font from `LoadFont` they appear as a
-  replacement glyph and `StringWidth` measures that glyph; the window title from `AppTitle`
-  and `Print`/`Input` in the console are affected as well. The built-in default font is
-  fine. (BUG-203)
+systems), so `ä`, `ö`, `ü`, `ß`, `é` and the like work everywhere in Blitz3D. BlitzNext
+handles them the same way: in paths, `Include` names, file and folder names, text drawn
+with a font, the window title and the console.
 
 ---
 

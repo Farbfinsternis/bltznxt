@@ -1,5 +1,18 @@
 # BlitzNext Developer Log
 
+## 2026-10-26 — umlauts in text, the window title and the console
+
+A Blitz3D string is a sequence of bytes in the Windows code page. SDL_ttf and the window
+title received these bytes as UTF-8, so `ä` in a font from `LoadFont` became a replacement
+glyph — `StringWidth("ä")` measured that glyph — and `AppTitle "Größe"` showed garbage;
+`Print` and `Input$` in the console used the OEM code page (BUG-203). Text now reaches SDL
+as UTF-8, and a console uses the ANSI code page while the program runs; the code page of a
+terminal the program attaches to is restored when it ends. Measured against Blitz3D 11.8:
+`StringWidth("ä")` equals `StringWidth("a")`, as there; the window title and the console
+were read back from outside the program.
+
+Full suite: 357 passed, 1 failed (test_m43_fonts already expected the default font height of BUG-139, committed later).
+
 ## 2026-10-26 — ReadDir returns "." and ".."
 
 Blitz3D reads a folder with `FindFirstFile`/`FindNextFile`, so `.` and `..` come first in

@@ -64,6 +64,23 @@ inline void bb_gl_use_() {
 inline bool bb_console_own_  = false;   // von uns geoeffnet, Graphics schliesst
 inline bool bb_console_done_ = false;   // schon geprueft
 
+// Print und Input$ arbeiten mit ANSI-Bytes wie die Literale im Quelltext;
+// eine Konsole steht unter deutschem Windows aber auf OEM (850) - "\xe4" kam
+// als anderes Zeichen an (BUG-203). Deshalb die Codepage der Konsole fuer die
+// Laufzeit des Programms auf ANSI, und danach zurueck: die Konsole eines
+// Terminals, an das sich das Programm haengt, gehoert dem Nutzer.
+inline void bb_console_ansi_() {
+#ifdef _WIN32
+  static bool done = false;
+  if (done || !GetConsoleWindow()) return;
+  done = true;
+  static UINT old_out = GetConsoleOutputCP(), old_in = GetConsoleCP();
+  SetConsoleOutputCP(GetACP());
+  SetConsoleCP(GetACP());
+  std::atexit([] { SetConsoleOutputCP(old_out); SetConsoleCP(old_in); });
+#endif
+}
+
 inline void bb_console_ensure_() {
 #ifdef _WIN32
   if (bb_console_done_ || bb_window_) return;
@@ -86,6 +103,7 @@ inline void bb_console_ensure_() {
     freopen("CONIN$", "r", stdin);
     std::cin.clear();
   }
+  bb_console_ansi_();
 #endif
 }
 
