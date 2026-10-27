@@ -1,0 +1,12 @@
+host 2
+local 1 1 1
+40 H1->H2 [H1 to H2]
+100 A1
+11 A1->H1 [A1 to H1]
+12 A1-><all> [A1 to all]
+13 len 3 mid 0
+100 B1
+20 B1-><all> [B1 to all]
+101 B1
+101 A1
+stopped

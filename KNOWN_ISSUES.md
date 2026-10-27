@@ -103,6 +103,13 @@ These are not bugs but decisions, and they will stay:
 - **Fields of `Null` or a deleted object are always checked, as in Blitz3D's debug mode.**
   `p\x` on such a reference ends the program with `Object does not exist` on stderr, and so
   do `After Null` and `Before Null`. A Blitz3D release build crashes there. (BUG-104)
+- **Multiplayer runs on BlitzNext's own UDP protocol, not on DirectPlay.** The 14 network
+  commands keep their names and return values, but `StartNetGame` shows no dialog: it searches
+  the LAN, joins a game it finds or hosts one. A BlitzNext program cannot join a game of a
+  program built with the original Blitz3D. Message types travel as full integers instead of
+  bytes, a message to one of the program's own players arrives, and a crashed host is
+  replaced after 5 s. All differences and the new commands for finding games are in
+  [NETWORKING.md](NETWORKING.md).
 
 The full reasoning is in [ROADMAP3D.md](ROADMAP3D.md), section
 "Richtlinie: Was exakt stimmen muss und was besser werden darf".
@@ -141,17 +148,10 @@ counted as bugs and are not planned to be fixed:
 
 ## Missing commands
 
-14 of Blitz3D's commands (not counting language keywords) are not available yet. A
-program that uses one of them is rejected with `unknown function or command`. `blitzcc -k` lists
-everything that is available. The number comes from comparing `blitzcc +k` of Blitz3D 11.8
-with `blitzcc -k` (2026-10-04).
-
-None of the 156 source files in the samples, games and tutorials that ship with Blitz3D uses
-one of them any more (measured 2026-10-04; on 2026-10-03 it was 36).
-
-| Area | Missing | Example files using it |
-|------|---------|---|
-| Networking | the DirectPlay commands (`StartNetGame`, `HostNetGame`, `JoinNetGame`, `SendNetMsg`, …, 14 in all); TCP and UDP streams and `CopyStream` are available | none |
+All of Blitz3D's commands are available since the Network Update (2026-10-27): the last 14
+were the DirectPlay commands, rebuilt on BlitzNext's own protocol (see [NETWORKING.md](NETWORKING.md)).
+`blitzcc -k` lists everything that is available; the comparison is between `blitzcc +k` of
+Blitz3D 11.8 and `blitzcc -k`.
 
 `Stop` is available but does not pause the program: in Blitz3D it is a debugger breakpoint,
 and without a debugger Blitz3D suspends the program until its window is activated again.

@@ -1,0 +1,4 @@
+start h 0
+start a 300
+start b 2000
+timeout 30

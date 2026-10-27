@@ -10,6 +10,9 @@
 # Graphics-Modus 0 und 1 sind Vollbild wie im Original (BUG-208); die Tests
 # bleiben im Fenster und halten ohne Fokus nicht an.
 export BLTZNXT_WINDOWED=1
+# Net-Befehle (bb_net.h): Sockets an 127.0.0.1 binden. Das bleibt auf dem Rechner
+# und ruft keine Firewall-Abfrage hervor.
+export BLTZNXT_NET_BIND=127.0.0.1
 
 PASS=0; FAIL=0; SKIP=0
 
@@ -93,6 +96,15 @@ for f in tests/neg_*.bb; do
         ((PASS++))
     fi
 done
+
+# ---- Mehrprozess-Tests der Net-Befehle (tests/net/) ----
+net_result=$(bash tests/net/run_net_tests.sh | tee /dev/stderr | tail -1)
+net_re="([0-9]+) passed, ([0-9]+) failed, ([0-9]+) skipped"
+if [[ "$net_result" =~ $net_re ]]; then
+    ((PASS += BASH_REMATCH[1])); ((FAIL += BASH_REMATCH[2])); ((SKIP += BASH_REMATCH[3]))
+else
+    echo "FAIL (net runner): $net_result"; ((FAIL++))
+fi
 
 echo ""
 echo "Result: $PASS passed, $FAIL failed, $SKIP skipped"

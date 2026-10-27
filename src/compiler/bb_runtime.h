@@ -16,6 +16,7 @@
 #include "bb_file.h"    // OpenFile, ReadFile, WriteFile, CloseFile, Seek, Eof
 #include "bb_bank.h"    // CreateBank, FreeBank, BankSize, Peek/Poke, ReadBytes/WriteBytes
 #include "bb_socket.h"  // TCP-Streams, DottedIP, HostIP
+#include "bb_net.h"     // Mehrspieler: StartNetGame ... NetMsgData, FindNetGames
 #include "bb_sdl.h"     // SDL3 init/quit, PollEvents, WaitKey, key state arrays
 #include "bb_input.h"   // Keyboard + Mouse + Joystick input API
 #include "bb_sound.h"   // Sound loading, playback, looping, channel control
@@ -96,6 +97,7 @@ inline void bbEnd() {
 #ifdef _WIN32
   timeEndPeriod(1);
 #endif
+  bb_net_quit_();    // leave a network game (BYE to the others)
   bb_socket_quit_(); // close open TCP streams and servers
   bb_file_quit_();  // close open file + dir handles
   bb_bank_quit_();  // free remaining bank handles

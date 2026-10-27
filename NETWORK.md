@@ -1,7 +1,8 @@
 # BLTZNXT — Netzwerk (Network Update)
 
-Stand: 2026-10-27 · Konzept, noch kein Code; Original gemessen (Arbeitspaket 1). Ergänzt: Handshake mit Programmkennung, Schalter
-von außen, Listen-Server. Release-Plan: als Nächstes kommt das Network Update
+Stand: 2026-10-27 · **Umgesetzt** in [bb_net.h](src/compiler/bb_net.h), Nutzer-Doku in
+[NETWORKING.md](NETWORKING.md), Tests in [tests/net/](tests/net/). Offen: UPnP (Arbeitspaket 7)
+und ein Versuch über einen echten Webspace. Release-Plan: als Nächstes kommt das Network Update
 (nur Mehrspieler), danach IDE.
 
 Blitz3D hatte zwei Netzwerk-Schichten: rohe TCP- und UDP-Streams (bei uns seit 2026-09-30
@@ -11,6 +12,32 @@ abgeschaltetes Legacy-Feature. BLTZNXT baut deshalb **die Befehle mit denselben 
 demselben Verhalten nach, aber auf eigenem UDP**. Nachgebaut wird das Verhalten, nicht die
 Bibliothek. Der größere Rahmen (WebRTC, Treffpunkt, Plugins) steht in [VISION.md](VISION.md),
 Abschnitt Netzwerk; dieses Papier ist Phase 1.
+
+## Umsetzung: was anders kam als geplant (2026-10-27)
+
+Der Nutzer hat für die Umsetzung freie Hand gegeben: Blitz3D-Kompatibilität ist hier nicht mehr
+Pflicht, sauberes Funktionieren geht vor. Abgleich Konzept gegen Ergebnis:
+
+| Punkt | Konzept | Umgesetzt | Warum |
+|---|---|---|---|
+| Programmkennung, Vorgabe | Name der Exe | **leer** = gemeinsamer Namensraum aller BLTZNXT-Programme | Mit dem Exe-Namen fänden sich ein Host-Programm und ein *anderes* Client-Programm nie, genau der Fall der Hilfe-Beispiele (`SendNetMsg.bb` hostet, `RecvNetMsg.bb` tritt per `StartNetGame` bei) und vieler alter Server/Client-Paare. DirectPlay ließ ebenfalls alle Blitz-Programme einander sehen. `NetGameApp` grenzt ein |
+| `JoinNetGame`, Spielname | genau wie im Original (leerer Name findet nichts) | leerer Name passt auf jedes Spiel, Vergleich ohne Groß-/Kleinschreibung | bequemer, kein altes Programm verlässt sich auf das Scheitern |
+| Nachrichtentyp | Byte mit Vorzeichen wie gemessen | ganze Zahl; Typ 0 wird verworfen | die Byte-Kürzung ist ein Artefakt, kein Verhalten, auf das man bauen will |
+| Nachricht an eigenen Spieler | kommt nie an (gemessen) | kommt an; an alle (0) weiterhin nicht beim Absender | eine ausdrücklich adressierte Nachricht soll ankommen (geteilter Bildschirm mit mehreren lokalen Spielern) |
+| Host-Migration | ältestes Programm; sonst 200 | dazu: antwortet der Kandidat 8 s nicht, übernimmt der nächste | fällt der Kandidat mit dem Host weg, ginge sonst die ganze Sitzung verloren |
+| Referenz-Listen-Server | `games.php`, Alternativen beschrieben | `games.php` **und** `listserver.js` (Node.js) | auf dem Entwicklungsrechner gibt es weder PHP noch ein funktionierendes Python; Node ist da und prüft die Schnittstelle in der Testreihe. `games.php` ist ungetestet |
+| Neuer Befehl | — | `NetGameHost()` | nach einer Migration muss ein Programm fragen können, ob es jetzt Host ist |
+| Einstellung | join, server, app, port | dazu `lan = 0` (keine LAN-Suche), nur für Tests `bind`, `drop` | `lan` für reine Internet-Spiele und zum Prüfen des Listen-Servers |
+| UPnP | Teil des Network-Updates | **nicht gebaut** | eine Weiterleitung am Router lässt sich hier nur am echten Router des Nutzers prüfen und ändert dessen Einstellungen; vorher fragen |
+| Suche im LAN | Broadcast | Broadcast an 255.255.255.255, an x.y.z.255 jeder eigenen Adresse (/24 angenommen) und an 127.0.0.1 | Netze mit anderer Maske erreicht nur der allgemeine Broadcast |
+| HTTPS | WinHTTP / libcurl | WinHTTP unter Windows; anderswo nur http:// über einen eigenen Socket | blitzcc baut heute nur unter Windows |
+
+Gemessen an den Arbeitspaketen: 2 (Zuverlässigkeit) mit 10 000 Nachrichten und 1 MB bei 20 %
+Verlust, 3–6 durch die Testfälle in `tests/net/`. Nicht erfüllt: „Hilfe-Beispiele
+`SendNetMsg.bb` + `RecvNetMsg.bb` laufen gegeneinander“ — `SendNetMsg.bb` (und
+`DeleteNetPlayer.bb`) sind in der Hilfe beschädigt (`player\x` wurde zu `playerx`), auch der
+Original-Compiler lehnt sie ab; die übrigen 12 Beispiele übersetzen. „Lobby-Beispiel“: siehe
+`samples/network/`. „Zwei Rechner über einen echten Webspace“ steht aus.
 
 ## Entscheidungen (2026-10-27)
 
@@ -33,9 +60,9 @@ Abschnitt Netzwerk; dieses Papier ist Phase 1.
 - `HostNetGame` und `JoinNetGame` funktionieren wie im Original. `JoinNetGame(name$, "")` mit
   leerer IP sucht im LAN.
 - Für einen eigenen Beitritts-Dialog gibt es neue Befehle (`FindNetGames` und Verwandte, unten).
-- Ein Spiel tritt nur einem Host **desselben Programms** bei, auch mit direkter IP. Maßgeblich ist
-  die Programmkennung (Vorgabe: Name der Exe). Wer seine Exe umbenennt, setzt sie mit
-  `NetGameApp`; sonst scheitert der Beitritt mit einer Meldung, die beide Namen zeigt.
+- Ein Spiel tritt nur einem Host **mit derselben Programmkennung** bei, auch mit direkter IP. Maßgeblich ist
+  die Programmkennung (Vorgabe: leer, alle BLTZNXT-Programme sehen einander). Wer sie mit
+  `NetGameApp` setzt, findet nur noch Spiele mit derselben Kennung; ein Beitritt bei einer anderen scheitert mit einer Meldung, die beide zeigt.
 - Nur TCP/IP-Netze, genauer UDP. Modem, IPX und serielle Verbindungen gibt es nicht mehr.
 - LAN und direkte IP gehen sofort. Fürs Internet gibt es einen **Listen-Server**, den man selbst
   betreibt (Referenz liegt bei). Der Host muss für andere erreichbar sein: BLTZNXT bittet den
@@ -101,9 +128,9 @@ und sind groß, wie die DPIDs von DirectPlay, damit niemand sie als Index missbr
 Die zweite Suche entschärft den Fall, dass zwei Rechner gleichzeitig starten und beide hosten.
 Ganz ausschließen lässt er sich nicht; das steht als Grenze in der Nutzer-Doku.
 
-**Programmkennung**: Vorgabe ist der Name der Exe ohne Endung, ohne Unterscheidung von Groß- und
-Kleinschreibung. Ein neuer Befehl `NetGameApp id$` setzt sie ausdrücklich, für umbenannte Exes
-oder für verschiedene Programme, die zusammen spielen sollen. Sie gilt überall: bei der Suche im
+**Programmkennung**: Vorgabe ist leer (gemeinsamer Namensraum, siehe „Umsetzung“), ohne Unterscheidung von Groß- und
+Kleinschreibung. `NetGameApp id$` setzt sie ausdrücklich, damit sich nur Programme desselben Spiels
+finden. Sie gilt überall: bei der Suche im
 LAN, beim Listen-Server (dort ist sie der Namensraum) und beim Beitritt im Handshake, auch mit
 direkter IP.
 
@@ -263,8 +290,7 @@ und derselben Protokollversion.
 Jeder Entwickler betreibt seinen eigenen; BLTZNXT betreibt keinen zentralen Dienst (Betrieb,
 Missbrauch, Impressum). Mitgeliefert wird `listserver/`:
 - `games.php` mit SQLite: läuft auf jedem billigen Webspace, eine Datei hochladen genügt.
-- Kurze Anleitung, auch für Alternativen (Cloudflare Worker, kleines Python- oder Go-Programm),
-  die nur die Schnittstelle oben erfüllen müssen.
+- `listserver.js` für Node.js ohne Pakete; beide erfüllen dieselbe Schnittstelle (README daneben).
 
 Schutz gegen Missbrauch im Referenz-Server: Längen begrenzen (Name, Kennung), höchstens wenige
 Einträge je IP, Anfragen je IP und Minute begrenzen, alte Einträge löschen.
@@ -363,11 +389,11 @@ fremden Spielers, Host-Wahl mit mehr Kandidaten, echtes LAN mit zwei Rechnern.
 | # | Paket | Fertig, wenn |
 |---|---|---|
 | 1 | ~~Messen am Original~~ erledigt 2026-10-27 | Fragen beantwortet (Messergebnisse), DEVLOG |
-| 2 | Transport + Zuverlässigkeit (`bb_net.h`), I/O-Thread, Verlust-Schalter | Test: 10 000 zuverlässige Nachrichten bei 20 % Verlust kommen vollständig und in Reihenfolge an |
-| 3 | Sitzung: Host, Join, Spielerliste, Nachrichtenschlange, die 14 Befehle | Hilfe-Beispiele `SendNetMsg.bb` + `RecvNetMsg.bb` laufen gegeneinander |
-| 4 | Spielsuche im LAN, Auto-Modus, Handshake mit Kennung, Schalter von außen, neue Befehle | Auto-Modus- und `REJECT`-Tests grün; Lobby-Beispiel läuft |
-| 5 | Host-Migration, Abbruch, 200 | Test: Host beenden, ein Client wird Host, Spiel geht weiter |
-| 6 | Listen-Server: HTTP-Client (WinHTTP/libcurl), Anmelden/Lebenszeichen/Abmelden, `NetGameServer`, Referenz `listserver/games.php` | Tests gegen den lokalen Referenz-Server grün; zwei Rechner finden sich über einen echten Webspace |
-| 7 | UPnP mit `miniupnpc` | Am echten Router: Weiterleitung entsteht beim Hosten und verschwindet beim Beenden |
-| 8 | Doku: Nutzer-Doku „Netzwerk – Unterschiede zu Blitz3D“ (inkl. Listen-Server, NAT, Datenschutz), KNOWN_ISSUES, roadmap, Release Notes, Website | Unterschiede an allen Stellen gleich beschrieben |
+| 2 | ~~Transport + Zuverlässigkeit (`bb_net.h`), I/O-Thread, Verlust-Schalter~~ erledigt | Test: 10 000 zuverlässige Nachrichten bei 20 % Verlust kommen vollständig und in Reihenfolge an |
+| 3 | ~~Sitzung: Host, Join, Spielerliste, Nachrichtenschlange, die 14 Befehle~~ erledigt (Hilfe-Beispiel siehe „Umsetzung“) | Hilfe-Beispiele `SendNetMsg.bb` + `RecvNetMsg.bb` laufen gegeneinander |
+| 4 | ~~Spielsuche im LAN, Auto-Modus, Handshake mit Kennung, Schalter von außen, neue Befehle~~ erledigt | Auto-Modus- und `REJECT`-Tests grün; Lobby-Beispiel läuft |
+| 5 | ~~Host-Migration, Abbruch, 200~~ erledigt | Test: Host beenden, ein Client wird Host, Spiel geht weiter |
+| 6 | ~~Listen-Server~~ erledigt bis auf den Webspace-Versuch: HTTP-Client (WinHTTP/libcurl), Anmelden/Lebenszeichen/Abmelden, `NetGameServer`, Referenz `listserver/games.php` | Tests gegen den lokalen Referenz-Server grün; zwei Rechner finden sich über einen echten Webspace |
+| 7 | UPnP mit `miniupnpc` (**offen**) | Am echten Router: Weiterleitung entsteht beim Hosten und verschwindet beim Beenden |
+| 8 | ~~Doku~~ erledigt bis auf Release Notes und Website: Nutzer-Doku „Netzwerk – Unterschiede zu Blitz3D“ (inkl. Listen-Server, NAT, Datenschutz), KNOWN_ISSUES, roadmap, Release Notes, Website | Unterschiede an allen Stellen gleich beschrieben |
 | 9 | Friendly Fire: Mehrspieler auf den Net-Befehlen oder eigenem UDP (Entscheidung offen) | Siehe FRIENDLY_FIRE.md, Abschnitt Mehrspieler |

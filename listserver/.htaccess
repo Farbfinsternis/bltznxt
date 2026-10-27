@@ -1,0 +1,4 @@
+# Die Datenbank enthaelt IP-Adressen: nicht ausliefern.
+<FilesMatch "\.(sqlite|sqlite-journal|sqlite-wal)$">
+    Require all denied
+</FilesMatch>

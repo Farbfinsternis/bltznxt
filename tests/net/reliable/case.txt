@@ -1,0 +1,3 @@
+start h 0 BLTZNXT_NET_DROP=20
+start c 400 BLTZNXT_NET_DROP=20
+timeout 60

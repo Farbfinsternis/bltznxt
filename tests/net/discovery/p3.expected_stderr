@@ -1,0 +1,5 @@
+JoinNetGame: host runs (no NetGameApp), this program is 'other'
+JoinNetGame: host's game is 'net_discovery_p1', not 'wrong'
+HostNetGame: port 28765 is in use
+JoinNetGame: found no game 'nope'
+JoinNetGame: unknown host 'no.such.host.invalid'

@@ -14,7 +14,8 @@
 // Gegenseite geschlossen hat, und -1 nach einem Fehler.
 //
 // UDP (CreateUDPStream und Verwandte) steht weiter unten; ein UDP-Stream ist
-// ebenfalls ein Stream wie eine Datei. Die DirectPlay-Befehle fehlen weiterhin.
+// ebenfalls ein Stream wie eine Datei. Die Net-Befehle (StartNetGame ...)
+// stehen in bb_net.h.
 
 #include "bb_file.h"
 #include "bb_string.h"

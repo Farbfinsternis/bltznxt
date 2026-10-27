@@ -1,0 +1,6 @@
+found 1
+net_discovery_p1 players 1 lan 1 ip 127.0.0.1
+beyond [] 0
+start 1
+early 100 P1
+stopped

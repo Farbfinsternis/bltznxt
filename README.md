@@ -52,14 +52,15 @@ an old program is a bug.
 
 ## Compatibility Progress
 
-*State 2026-10-27:* no open bug that can break an old program, and 14 missing commands,
-all listed in [KNOWN_ISSUES.md](KNOWN_ISSUES.md). Userlibs are not supported, so `CallDLL` does
-nothing.
+*State 2026-10-27:* no open bug that can break an old program, and every Blitz3D command is
+available — the DirectPlay multiplayer commands on a protocol of their own
+([NETWORKING.md](NETWORKING.md)). Differences are listed in [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+Userlibs are not supported, so `CallDLL` does nothing.
 
 Compatibility is measured, not estimated: language questions are answered from the
 [original source](https://github.com/blitz-research/blitz3d), and behaviour is compared with a
 running Blitz3D 11.8 — to find out what a command does, not to reproduce every last pixel. None
-of the 156 example sources that ship with Blitz3D uses a missing command any more.
+of the 156 example sources that ship with Blitz3D uses a missing command.
 
 **Sample baseline.** The 156 sources that ship with Blitz3D hold 105 programs, 103 of which
 Blitz3D itself compiles. Each is started side by side in Blitz3D and BlitzNext, with the
@@ -117,9 +118,9 @@ bin\blitzcc.exe hello.bb
 |------|-----------|
 | **Language** | Every Blitz3D construct: control flow, functions, `Type` objects, arrays, `Const`, `Goto`/`Gosub`, `Data`/`Read`, `Include` |
 | **Runtime** | Maths, strings, files, banks, timers, keyboard, mouse, joystick and gamepad, audio including 3D sound, TCP and UDP |
+| **Multiplayer** | The 14 DirectPlay commands on BlitzNext's own UDP protocol, LAN search, list server for internet games, host migration — see [NETWORKING.md](NETWORKING.md) |
 | **2D** | Drawing, text and fonts, images with masks, handles and transforms, pixel buffers, image overlap tests |
 | **3D** | Entities, cameras, lights, textures, brushes, meshes and surfaces, `.x`/`.3ds`/`.b3d`/MD2/glTF loading, animation, sprites, mirrors, collisions, picking and projection, terrain |
-| **Missing** | 14 commands: DirectPlay |
 
 Where something exists but does not yet behave like Blitz3D, it is listed in
 [KNOWN_ISSUES.md](KNOWN_ISSUES.md). `blitzcc -k` prints every available command, `blitzcc +k`
@@ -231,6 +232,7 @@ This repository holds two deliberately independent subprojects:
 bltznxt/
   src/compiler/   ← the compiler and its header-only runtime
   bin/ tests/ examples/ libs/ tools/
+  listserver/     ← list server for internet games (games.php, listserver.js)
   CMakeLists.txt  build_windows.bat  build_linux.sh
   ide/            ← BLTZNXT IDE (Electron + Vite + Monaco)
 ```
@@ -377,6 +379,11 @@ The suite contains **308 tests, 106 of them negative**. Positive tests with an
 Negative tests require a nonzero compiler exit status and, where an `.expected_err` exists,
 an exact diagnostic match. The current runner does not enforce exit code 1 specifically,
 check the executed program's exit status, or impose timeouts.
+
+The network commands get a runner of their own, `bash tests/net/run_net_tests.sh`, which
+`run_tests.sh` calls at the end: each case in `tests/net/` starts several programs that talk to
+each other over 127.0.0.1 and compares the output of every one of them. The list-server case
+needs Node.js and is skipped without it.
 
 Where expected values are identified as reference measurements, they come from Blitz3D 11.8.
 The primary game test supplements this suite; it does not replace coverage of features absent

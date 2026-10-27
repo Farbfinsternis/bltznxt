@@ -1,0 +1,9 @@
+join 1
+early 100 H1
+early 100 H2
+14 H1-><all> [host to all]
+15 H1-><all> [host to all unreliable]
+100 B1
+20 B1-><all> [B1 to all]
+101 B1
+stopped

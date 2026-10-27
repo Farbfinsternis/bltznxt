@@ -1,0 +1,7 @@
+join 1
+early 100 H1
+early 100 H2
+early 100 A1
+30 H2->B1 [host to B1]
+deleted <unknown> 0
+stopped

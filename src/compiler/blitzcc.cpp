@@ -554,8 +554,9 @@ public:
     // Link winmm for timeBeginPeriod/timeEndPeriod (high-res timer on Windows)
     cmd += L" -lwinmm";
 
-    // Winsock fuer die TCP-Befehle (bb_socket.h)
-    cmd += L" -lws2_32";
+    // Winsock fuer die TCP-Befehle (bb_socket.h), WinHTTP fuer den
+    // Listen-Server der Net-Befehle (bb_net.h)
+    cmd += L" -lws2_32 -lwinhttp";
 
     // Link opengl32 for OpenGL (3D programs via bb_gl_ctx.h)
     cmd += L" -lopengl32";

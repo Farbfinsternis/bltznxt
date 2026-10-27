@@ -1,5 +1,41 @@
 # BlitzNext Developer Log
 
+## 2026-10-27 — Network Update: the 14 multiplayer commands
+
+The DirectPlay commands are back, on a protocol of BlitzNext's own (`src/compiler/bb_net.h`).
+With them every Blitz3D command is available; `blitzcc +k` of Blitz3D 11.8 and `blitzcc -k`
+now differ only in language keywords.
+
+The host is the centre of a star: every client keeps one UDP connection to it, and the host
+passes messages on. Each connection has a reliable channel (sequence numbers, acknowledgements,
+resending, a window of 256 packets, delivery in order) and an unreliable one; long messages
+are split and joined again. A background thread receives, acknowledges, resends and pings, so
+connections survive a program that does not call `RecvNetMsg` for a while. When the host
+leaves or is silent for 5 s, the oldest remaining program becomes host and gets a 102; the
+others reconnect to it, and if the chosen one does not answer either, the next one takes over.
+
+`StartNetGame` shows no dialog: it searches the LAN for a second and joins or hosts. New
+commands find games for a join dialog of one's own (`FindNetGames`, `NetGameName$`,
+`NetGameIP$`, `NetGamePlayers`, `NetGameLAN`), set a program ID, the port and a list server
+(`NetGameApp`, `NetGamePort`, `NetGameServer`) and tell whether the program is host
+(`NetGameHost`). The list server is plain HTTP; `listserver/` holds `games.php` for web space
+and `listserver.js` for Node.js. Settings can also come from environment variables or a
+`.net` file next to the program, so old programs can join a given address or list server
+without changes. NETWORKING.md describes all of it and every difference from Blitz3D; the
+user decided that the network commands need not copy DirectPlay where it behaved badly, so
+message types are full integers, a message to one's own player arrives, and a crashed host is
+replaced instead of blocking everybody.
+
+`tests/net/run_net_tests.sh` runs several programs at once over 127.0.0.1 and compares the
+output of each: joining and leaving, messages to one player, to all, local to local, with
+`Chr(0)`; 10 000 reliable messages and 1 MB in one piece at 20 % packet loss; host migration
+after `StopNetGame` and after the host process is killed; the LAN search, `StartNetGame` both
+ways, rejected joins with their messages; and the list server. `run_tests.sh` calls it.
+`samples/network/netdemo.bb` is a small game with a lobby.
+
+Not done: UPnP port forwarding (it changes the user's router, so it waits for a test on real
+hardware), and `games.php` has not run on a real web space yet.
+
 ## 2026-10-27 — Network Update: concept and measurements on the original
 
 The Network Update rebuilds the 14 DirectPlay commands of Blitz3D on BlitzNext's own UDP

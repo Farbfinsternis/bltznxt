@@ -1,0 +1,5 @@
+server 0 28790
+start h 1500
+start c 3500 BLTZNXT_NET_LAN=0
+start d 9000 BLTZNXT_NET_LAN=0
+timeout 30

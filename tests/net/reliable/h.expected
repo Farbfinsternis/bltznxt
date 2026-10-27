@@ -1,0 +1,5 @@
+host 2
+big 1048576 ok
+in order 10000 bad 0
+unreliable some 1 not all 1
+stopped

@@ -1,0 +1,5 @@
+start p1 0
+start p2 3000
+start p3 4500
+start p4 9000 BLTZNXT_NET_JOIN=127.0.0.1:28765
+timeout 40

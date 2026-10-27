@@ -122,7 +122,8 @@ setzen kann, aber nicht muss.
    DirectPlay selbst gibt es auf aktuellen Systemen nicht mehr; nachgebaut wird das Verhalten,
    nicht die Bibliothek. Ohne Dialog: `StartNetGame()` sucht im LAN und tritt bei oder hostet,
    neue Befehle zur Spielsuche erlauben einen eigenen Dialog (entschieden 2026-10-27, Konzept in
-   [NETWORK.md](NETWORK.md)).
+   [NETWORK.md](NETWORK.md)). **Umgesetzt 2026-10-27** ([NETWORKING.md](NETWORKING.md)), dazu ein
+   Listen-Server für Internet-Spiele; UPnP steht noch aus.
 2. **NEXT: WebRTC als Transport darunter.** Die DirectPlay-Schicht und eine neue, einfache API
    benutzen denselben Weg; alte Programme bekommen Internet-Mehrspieler ohne Änderung, sobald
    ein Treffpunkt eingestellt ist. Im Browser ist es derselbe Transport.

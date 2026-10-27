@@ -838,11 +838,12 @@ Blitz3D itself does not have (e.g. `FreeSurface`, `VectorDistance`) are not coun
     - [x] ReadDir, CloseDir, NextFile, CurrentDir, ChangeDir, CreateDir, DeleteDir, FileType, FileSize, CopyFile, DeleteFile *(M27)*
     - [x] ReadByte, ReadShort, ReadInt, ReadFloat, ReadString, ReadLine, ReadBytes(stub) *(M25)*
     - [x] WriteByte, WriteShort, WriteInt, WriteFloat, WriteString, WriteLine, WriteBytes(stub) *(M26)*
-- [ ] **Network**
+- [x] **Network**
     - [x] OpenTCPStream, CloseTCPStream, CreateTCPServer, CloseTCPServer, AcceptTCPStream, TCPStreamIP, TCPStreamPort, TCPTimeouts, DottedIP, CountHostIPs, HostIP
     - [x] CreateUDPStream, CloseUDPStream, SendUDPMsg, RecvUDPMsg, UDPStreamIP, UDPStreamPort, UDPMsgIP, UDPMsgPort, UDPTimeouts, CopyStream *(2026-09-30)*
-    - [ ] StartNetGame, HostNetGame, JoinNetGame, StopNetGame, CreateNetPlayer, DeleteNetPlayer, NetPlayerName, NetPlayerLocal, SendNetMsg, RecvNetMsg, NetMsgType, NetMsgFrom, NetMsgTo, NetMsgData — eigenes UDP statt DirectPlay, StartNetGame ohne Dialog im Auto-Modus (Konzept [NETWORK.md](NETWORK.md))
-    - [ ] NEXT: FindNetGames, NetGameName, NetGameIP, NetGamePlayers, NetGameLAN, NetGameApp, NetGamePort, NetGameServer (Spielsuche im LAN und ueber Listen-Server, fuer eigene Dialoge)
+    - [x] StartNetGame, HostNetGame, JoinNetGame, StopNetGame, CreateNetPlayer, DeleteNetPlayer, NetPlayerName, NetPlayerLocal, SendNetMsg, RecvNetMsg, NetMsgType, NetMsgFrom, NetMsgTo, NetMsgData — eigenes UDP statt DirectPlay, StartNetGame ohne Dialog im Auto-Modus (bb_net.h, [NETWORK.md](NETWORK.md), [NETWORKING.md](NETWORKING.md)) *(2026-10-27)*
+    - [x] NEXT: FindNetGames, NetGameName, NetGameIP, NetGamePlayers, NetGameLAN, NetGameHost, NetGameApp, NetGamePort, NetGameServer (Spielsuche im LAN und ueber Listen-Server, fuer eigene Dialoge) *(2026-10-27)*
+    - [ ] NEXT: UPnP-Portweiterleitung, NAT Hole Punching (Treffpunkt, VISION.md Phase 2)
 - [x] **Time / System** *(M21–M23)*
     - [x] Delay, MilliSecs, CurrentDate, CurrentTime *(M21)*
     - [x] CreateTimer, FreeTimer, WaitTimer *(M22)*
