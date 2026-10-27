@@ -153,13 +153,13 @@ inline void bb_BrushTexture(int brush, int texture, int frame = 0, int index = 0
 // Das Original legt hier eine **neue** Textur an, die sich die Bilddaten mit
 // der alten teilt, und traegt sie in seine Texturliste ein. Deshalb ein
 // neues Handle auf dieselben Daten: `FreeTexture` darauf nimmt dem Brush
-// seine Textur nicht weg.
+// seine Textur nicht weg. Auch eine leere Lage bekommt ein Handle, das auf
+// keine Textur zeigt: TextureName liefert darauf "", EntityTexture nimmt die
+// Textur weg - gemessen build/bug223_20261027, wie im Original (BUG-223).
 inline int bb_GetBrushTexture(int brush, int index = 0) {
   auto* br = bb_brush_get_(brush);
   if (!br || index < 0 || index >= BB_TEX_SLOTS) return 0;
-  bb_TexRef_ t = br->tex.tex[index];
-  if (!t) return 0;
-  return bb_texture_register_(t);
+  return bb_texture_register_(br->tex.tex[index]);
 }
 
 // 1 = Alpha, 2 = Multiply, 3 = Add. 0 heisst "nicht gesetzt" und ueberlaesst

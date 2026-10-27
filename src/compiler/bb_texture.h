@@ -334,7 +334,12 @@ inline bbString bb_TextureName(int texture) {
   return t ? t->name : bbString();
 }
 
-inline int bb_ActiveTextures() { return static_cast<int>(bb_textures_.size()); }
+// Leere Handles aus GetBrushTexture (BUG-223) zaehlen nicht mit.
+inline int bb_ActiveTextures() {
+  int n = 0;
+  for (const auto& kv : bb_textures_) n += kv.second ? 1 : 0;
+  return n;
+}
 
 // Wieviele Lagen der Shader wirklich mischt. Eine groessere Zahl zu melden
 // waere eine Zusage, die das Bild nicht einloest.

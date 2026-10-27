@@ -1,5 +1,15 @@
 # BlitzNext Developer Log
 
+## 2026-10-27 — GetBrushTexture on an empty layer
+
+`GetBrushTexture` returned 0 for a brush layer without a texture (BUG-223). Blitz3D always
+hands out a new texture handle, which then refers to no texture: `TextureName` on it is
+empty, `TextureBuffer` is 0, and `EntityTexture` with it removes the entity's texture.
+BlitzNext now does the same. Where Blitz3D crashes on such a handle, in `TextureWidth` and
+`TextureHeight`, BlitzNext returns 0.
+
+Full suite: not run for this header-only change; the 10 tests that use brush textures pass.
+
 ## 2026-10-27 — FitMesh and .3ds materials
 
 The last two samples that looked different from Blitz3D (BUG-217) were rebuilt to render one

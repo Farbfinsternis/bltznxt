@@ -77,8 +77,10 @@ t = GetBrushTexture(lb)
 If t <> 0 Then Print "getbrushtexture lage 0" Else Print "FEHLER getbrushtexture lage 0"
 If TextureWidth(t) = 16 And TextureHeight(t) = 16 Then Print "textur groesse" Else Print "FEHLER textur groesse"
 
-; Eine leere Lage hat keine Textur
-If GetBrushTexture(lb, 3) = 0 Then Print "getbrushtexture leere lage" Else Print "FEHLER getbrushtexture leere lage"
+; Eine leere Lage hat keine Textur, bekommt aber wie im Original ein eigenes
+; Handle, dessen Name leer ist (BUG-223)
+t3 = GetBrushTexture(lb, 3)
+If t3 <> 0 And TextureName(t3) = "" Then Print "getbrushtexture leere lage" Else Print "FEHLER getbrushtexture leere lage"
 
 ; Die zurueckgegebene Textur ist ein eigenes Handle - sie freizugeben nimmt
 ; dem Brush seine Textur nicht weg.
