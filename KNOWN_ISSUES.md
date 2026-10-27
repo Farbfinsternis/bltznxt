@@ -12,8 +12,8 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-10-27 — 1 open bug, 14 missing commands.* A review against the
-original on 2026-10-13 found eleven more (BUG-201 to BUG-211); they are fixed first, for
+*Last updated: 2026-10-27 — no open bugs, 14 missing commands.* A review against the
+original on 2026-10-13 found eleven more (BUG-201 to BUG-211); all of them are fixed for
 version 0.7.0.
 
 If an old program breaks and the cause is not listed here, please open an issue with a
@@ -25,9 +25,7 @@ minimal `.bb` file and a description of what happens in both.
 - [Accepted differences](#accepted-differences)
 - [Missing commands](#missing-commands)
 - [Umlauts and other non-ASCII characters](#umlauts-and-other-non-ascii-characters) — read this first
-- [Keyboard and mouse input](#keyboard-and-mouse-input) — read this first
 - [Language and compiler](#language-and-compiler)
-- [2D graphics](#2d-graphics)
 - [3D graphics](#3d-graphics)
 - [Platform and tooling](#platform-and-tooling)
 

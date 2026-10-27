@@ -31,13 +31,15 @@
 //
 //    0x4D4D  Datei          0x3D3D  Editorabschnitt
 //    0xAFFF  Material         0xA000 Name        0xA020 Diffusfarbe
-//                             0xA040 Glanz       0xA050 Transparenz
+//                             0xA081 zweiseitig
 //                             0xA200 Texturkarte  -> 0xA300 Dateiname
 //    0x4000  Objekt (Name, dann Unterchunks)
 //    0x4100  Dreiecksnetz     0x4110 Vertices    0x4140 UV-Koordinaten
 //                             0x4120 Dreiecke    -> 0x4130 Materialgruppe
-//                                                -> 0x4150 Glaettungsgruppen
 //                             0x4160 lokales Koordinatensystem
+//
+//  Glanz, Transparenz und Glaettungsgruppen stehen zwar in vielen Dateien,
+//  das Original liest sie aber nicht (blitz3d/loader_3ds.cpp).
 //
 //  Vier Dinge sind am laufenden Original nachgemessen und nicht geraten -
 //  jedes davon haette man plausibel anders gemacht:
@@ -64,8 +66,8 @@
 //     Objektgrenzen spielen dabei keine Rolle: zusammengefasst wird ueber
 //     die ganze Datei.
 //
-//  4. Die Vertexfarbe ist 255,255,255; Materialfarbe, Glanz und Transparenz
-//     landen im Brush der Flaeche.
+//  4. Die Vertexfarbe ist 255,255,255; die Materialfarbe landet im Brush der
+//     Flaeche.
 // ============================================================
 
 // ============================================================
@@ -219,11 +221,14 @@ struct bb_3ds_buf_ {
 // Zwischenformen beim Einlesen
 // ============================================================
 
+// Von einem Material liest das Original (parseMaterial) nur Diffusfarbe und
+// Texturname; Glanz (0xA040) und Transparenz (0xA050) uebergeht es. Gemessen
+// build/bug217_20261027/mat: dieselbe Datei mit 50 % Transparenz bleibt im
+// Original deckend. Der Glanz von 50 % aus my_stargate3.3ds machte bei uns
+// den inneren Ring von samples/Richard_Betson/emerald_gate weiss (BUG-217).
 struct bb_3ds_mat_ {
   std::string name;
   float r = 255.0f, g = 255.0f, b = 255.0f;
-  float shininess = 0.0f;
-  float alpha     = 1.0f;
   std::string texfile;
   bool twosided = false;
 };
@@ -235,7 +240,6 @@ struct bb_3ds_obj_ {
   std::vector<float>    vx, vy, vz;      // rohe 3DS-Koordinaten
   std::vector<float>    tu, tv;
   std::vector<uint16_t> fa, fb, fc;
-  std::vector<uint32_t> smooth;          // je Dreieck, 0 = keine Glaettung
   std::vector<int>      fmat;            // Materialindex je Dreieck, -1 = keins
 };
 
@@ -293,17 +297,6 @@ inline void bb_3ds_read_track_(const bb_3ds_buf_& b, size_t s, size_t e,
 
 // ---- Materialabschnitt ----
 
-inline void bb_3ds_read_pct_(const bb_3ds_buf_& b, size_t s, size_t e, float& out) {
-  size_t p = s;
-  while (p + 6 <= e) {
-    uint16_t id = b.u16(p);
-    uint32_t ln = b.u32(p + 2);
-    if (ln < 6 || p + ln > e) break;
-    if (id == BB_3DS_PCT_INT)        out = b.u16(p + 6) / 100.0f;
-    else if (id == BB_3DS_PCT_FLOAT) out = b.f32(p + 6);
-    p += ln;
-  }
-}
 
 inline void bb_3ds_read_color_(const bb_3ds_buf_& b, size_t s, size_t e,
                                float& r, float& g, float& bl) {
@@ -335,14 +328,7 @@ inline void bb_3ds_read_material_(const bb_3ds_buf_& b, size_t s, size_t e,
     switch (id) {
       case BB_3DS_MAT_NAME: { size_t l; m.name = b.cstr(body, l); break; }
       case BB_3DS_MAT_DIFF: bb_3ds_read_color_(b, body, bend, m.r, m.g, m.b); break;
-      case BB_3DS_MAT_SHIN: bb_3ds_read_pct_(b, body, bend, m.shininess); break;
       case BB_3DS_MAT_2SIDE: m.twosided = true; break;
-      case BB_3DS_MAT_TRANS: {
-        float t = 0.0f;
-        bb_3ds_read_pct_(b, body, bend, t);
-        m.alpha = 1.0f - t;
-        break;
-      }
       case BB_3DS_MAT_TEX: {
         size_t q = body;
         while (q + 6 <= bend) {
@@ -397,7 +383,6 @@ inline void bb_3ds_read_trimesh_(const bb_3ds_buf_& b, size_t s, size_t e,
         o.fb.push_back(b.u16(q + 2));
         o.fc.push_back(b.u16(q + 4));
       }
-      o.smooth.assign(o.fa.size(), 0);
       o.fmat.assign(o.fa.size(), -1);
 
       // Unterchunks stehen hinter der Dreiecksliste.
@@ -417,12 +402,6 @@ inline void bb_3ds_read_trimesh_(const bb_3ds_buf_& b, size_t s, size_t e,
           for (uint16_t i = 0; i < fc; ++i) {
             uint16_t fi = b.u16(r + 2 + static_cast<size_t>(i) * 2);
             if (fi < o.fmat.size()) o.fmat[fi] = mi;
-          }
-        } else if (sid == BB_3DS_SMOOTH) {
-          for (size_t i = 0; i < o.smooth.size(); ++i) {
-            size_t r = q + 6 + i * 4;
-            if (!b.ok(r, 4)) break;
-            o.smooth[i] = b.u32(r);
           }
         }
         q += sln;
@@ -533,20 +512,16 @@ inline bool bb_3ds_parse_(const bb_3ds_buf_& b, bb_3ds_scene_& sc) {
 // landen im Original in **einer** Flaeche.
 inline std::string bb_3ds_brush_key_(const bb_3ds_mat_* m, int texhandle) {
   char buf[160];
-  if (!m) {
-    std::snprintf(buf, sizeof buf, "255,255,255|0|1|%d", texhandle);
-  } else {
-    // Dieselbe Regel wie beim Anlegen des Brushes: mit Textur zaehlt die
-    // Diffusfarbe nicht mit, sonst wuerden Flaechen getrennt, die im Bild
-    // gleich aussehen.
-    const bool named = !m->texfile.empty();
-    const float r = named ? 255.0f : m->r;
-    const float g = named ? 255.0f : m->g;
-    const float b = named ? 255.0f : m->b;
-    std::snprintf(buf, sizeof buf, "%.3f,%.3f,%.3f|%.3f|%.3f|%d",
-                  r, g, b, m->shininess,
-                  m->alpha + (m->twosided ? 1000.0f : 0.0f), texhandle);
-  }
+  // Dieselbe Regel wie beim Anlegen des Brushes: mit Textur zaehlt die
+  // Diffusfarbe nicht mit, sonst wuerden Flaechen getrennt, die im Bild
+  // gleich aussehen. Ohne Material ist der Brush weiss wie ein Material
+  // ohne Farbe und Textur.
+  const bool named = m && !m->texfile.empty();
+  const float r = (m && !named) ? m->r : 255.0f;
+  const float g = (m && !named) ? m->g : 255.0f;
+  const float b = (m && !named) ? m->b : 255.0f;
+  std::snprintf(buf, sizeof buf, "%.3f,%.3f,%.3f|%d|%d",
+                r, g, b, (m && m->twosided) ? 1 : 0, texhandle);
   return buf;
 }
 
@@ -568,10 +543,10 @@ inline bool bb_3ds_read_file_(const bbString& file, std::vector<uint8_t>& data) 
 }
 
 // Die Flaechen eines Netzes, das gerade gebaut wird: ein Eintrag je Brush.
-// Der Vertexschluessel enthaelt die Glaettungsgruppe: zwei Dreiecke teilen
-// sich einen Vertex nur, wenn sie in derselben Gruppe liegen - sonst entsteht
-// eine harte Kante. Gruppe 0 heisst "keine Glaettung", jedes Dreieck bekommt
-// dann eigene Vertices.
+// Dreiecke eines Objekts teilen sich ihre Vertices wie in der Datei; eine
+// harte Kante gibt es trotzdem nicht, weil UpdateNormals nach Lage mittelt.
+// Gemessen an my_stargate3.3ds: 240 und 800 Vertices wie im Original (vorher
+// je Glaettungsgruppe getrennt 360 und 1600, BUG-217).
 struct bb_3ds_build_ {
   bb_MeshEntity_* ent = nullptr;
   struct Group { size_t surf; std::unordered_map<uint64_t, unsigned> vmap; };
@@ -613,8 +588,6 @@ inline void bb_3ds_build_obj_(bb_3ds_build_& B, const bb_3ds_scene_& sc,
         // gefunden wurde. Ein Netz ohne Material faellt dadurch mit
         // den texturlosen weissen zusammen.
         if (m->texfile.empty()) { br.r = m->r; br.g = m->g; br.b = m->b; }
-        br.shininess = m->shininess;
-        br.alpha = m->alpha;
         br.twosided = m->twosided;
       }
       if (th) { br.tex.tex[0] = bb_texture_ref_(th); br.tex.frame[0] = 0; }
@@ -623,18 +596,15 @@ inline void bb_3ds_build_obj_(bb_3ds_build_& B, const bb_3ds_scene_& sc,
     bb_3ds_build_::Group& g = it->second;
     bb_MeshData_& surf = B.ent->surfaces()[g.surf];
 
-    const uint32_t sm = (fi < o.smooth.size()) ? o.smooth[fi] : 0;
     const uint16_t idx[3] = { o.fa[fi], o.fb[fi], o.fc[fi] };
     unsigned out[3];
     for (int k = 0; k < 3; ++k) {
       const uint16_t vi = idx[k];
       if (vi >= o.vx.size()) { out[k] = 0; continue; }
-      // Schluessel: Objekt, Vertex und Glaettungsgruppe. Ohne Gruppe wird
-      // je Dreieck ein eigener Vertex angelegt, damit die Flaeche flach
-      // bleibt.
-      uint64_t vkey = (static_cast<uint64_t>(oi) << 48) ^
-                      (static_cast<uint64_t>(vi) << 32) ^
-                      (sm ? sm : (0x80000000u | static_cast<uint32_t>(fi)));
+      // Schluessel: Objekt und Vertex - wie MeshLoader::endMesh legt jede
+      // Flaeche jeden Vertex der Datei einmal an, beim ersten Dreieck, das
+      // ihn nennt.
+      uint64_t vkey = (static_cast<uint64_t>(oi) << 32) | vi;
       auto vit = g.vmap.find(vkey);
       if (vit != g.vmap.end()) {
         out[k] = vit->second;

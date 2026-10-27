@@ -1,0 +1,9 @@
+fit 0.0,0.0,0.0 .. 4.0,2.0,6.0
+fit uniform 1.0,0.0,2.0 .. 3.0,2.0,4.0
+fit gleich xy -1.0,-1.0,0.0 .. 5.0,5.0,6.0
+fit gleich yz 1.0,0.0,0.0 .. 5.0,4.0,4.0
+fit gleich xz 0.0,1.0,0.0 .. 4.0,5.0,4.0
+fit verschoben -0.5,-1.0,-0.25 .. 0.5,1.0,0.25
+fit negativ -3.0,2.0,3.0 .. 1.0,4.0,9.0
+3ds flaechen 1 vertices 8 dreiecke 12
+3ds farbe 200,100,50

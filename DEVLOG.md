@@ -1,5 +1,20 @@
 # BlitzNext Developer Log
 
+## 2026-10-27 — FitMesh and .3ds materials
+
+The last two samples that looked different from Blitz3D (BUG-217) were rebuilt to render one
+frame at a fixed time and save it, so both sides could be compared without input. In
+`Richard_Betson/emerald_gate` the gate stood beside the water and its inner ring was white.
+`FitMesh` with uniform scaling placed the mesh at the minimum corner of the box; Blitz3D
+centres it, and when the two smallest factors are equal it takes the z factor even if that
+is larger. The `.3ds` loader also read shininess and transparency from materials, which
+Blitz3D ignores — the gate's 50 % shininess made the ring white — and split vertices by
+smoothing group, so `CountVertices` gave 360 instead of 240. `RobHutchinson/BloxAndSpheres`
+matches the original once the random seed is fixed; its earlier difference came from the
+seed and the frame time.
+
+Full suite: not run for this header-only change; the 14 tests that load meshes or call FitMesh pass.
+
 ## 2026-10-27 — Graphics modes
 
 The `Graphics` modes were not Blitz3D's (BUG-208): mode 0, the default, always opened a

@@ -608,8 +608,16 @@ inline void bb_RotateMesh(int h, float pitch, float yaw, float roll) {
   bb_mesh_touch_(me);
 }
 
-// Gemessen: x,y,z ist die **Mindestecke** der Zielbox, nicht deren Mitte, und
-// uniform nimmt den kleinsten der drei Faktoren.
+// Wie bbFitMesh: die Zielbox reicht von x,y,z bis x+width,y+height,z+depth
+// (negative Ausmasse drehen nur die Ecken), und das Netz wird mit seiner
+// Mitte auf die Mitte der Box gesetzt. Ohne uniform fuellt es die Box damit
+// genau aus. Mit uniform gilt ein Faktor fuer alle Achsen: x, wenn er echt
+// kleiner als y und z ist, sonst y, wenn der echt kleiner als x und z ist,
+// sonst z - bei Gleichstand der beiden kleinsten also z, auch wenn der
+// groesser ist. Gemessen build/bug217_20261027/fit: FitMesh in eine
+// 4x4x6-Box macht aus dem Wuerfel einen 6er-Wuerfel von -1 bis 5.
+// samples/Richard_Betson/emerald_gate setzte das Tor bei uns an die
+// Mindestecke statt in die Mitte, neben die Wasserflaeche (BUG-217).
 inline void bb_FitMesh(int h, float x, float y, float z,
                        float width, float height, float depth,
                        int uniform = 0) {
@@ -621,21 +629,23 @@ inline void bb_FitMesh(int h, float x, float y, float z,
   if (x1 < x0) return;                       // keine Vertices
 
   float ex = x1 - x0, ey = y1 - y0, ez = z1 - z0;
-  float sx = (ex > 1e-9f) ? width  / ex : 1.0f;
-  float sy = (ey > 1e-9f) ? height / ey : 1.0f;
-  float sz = (ez > 1e-9f) ? depth  / ez : 1.0f;
+  float sx = (ex > 1e-9f) ? std::fabs(width)  / ex : 1.0f;
+  float sy = (ey > 1e-9f) ? std::fabs(height) / ey : 1.0f;
+  float sz = (ez > 1e-9f) ? std::fabs(depth)  / ez : 1.0f;
   if (uniform) {
-    float s = sx;
-    if (sy < s) s = sy;
-    if (sz < s) s = sz;
-    sx = sy = sz = s;
+    if (sx < sy && sx < sz)      sy = sz = sx;
+    else if (sy < sx && sy < sz) sx = sz = sy;
+    else                         sx = sy = sz;
   }
+  const float cx = x + width * 0.5f,  mx = (x0 + x1) * 0.5f;
+  const float cy = y + height * 0.5f, my = (y0 + y1) * 0.5f;
+  const float cz = z + depth * 0.5f,  mz = (z0 + z1) * 0.5f;
 
   for (auto& s : me->surfaces())
     for (size_t i = 0; i + BB_VF - 1 < s.vertices.size(); i += BB_VF) {
-      s.vertices[i]     = (s.vertices[i]     - x0) * sx + x;
-      s.vertices[i + 1] = (s.vertices[i + 1] - y0) * sy + y;
-      s.vertices[i + 2] = (s.vertices[i + 2] - z0) * sz + z;
+      s.vertices[i]     = (s.vertices[i]     - mx) * sx + cx;
+      s.vertices[i + 1] = (s.vertices[i + 1] - my) * sy + cy;
+      s.vertices[i + 2] = (s.vertices[i + 2] - mz) * sz + cz;
     }
   bb_mesh_touch_(me);
 }
