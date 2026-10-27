@@ -1,5 +1,24 @@
 # BlitzNext Developer Log
 
+## 2026-10-27 — v0.7.0: The Tide Update
+
+A release made only of fixes. Since 0.6.5, 41 entries of the bug list were fixed, each
+measured against Blitz3D 11.8, and with them the last 14 non-network commands arrived: BSP
+maps, movies and gamma. Of the 105 sample programs that ship with Blitz3D, 103 compile there;
+all 103 now compile, start and run like the original in a side-by-side run with the same
+keys and answers (2026-10-25: 97, 94 and 85). KNOWN_ISSUES lists no open bug that can break
+an old program; still missing are the 14 DirectPlay commands, which belong to an update of
+their own.
+
+One change is visible at once: `Graphics` modes now follow Blitz3D, so a program without a
+mode opens full screen unless it is built with `-d` (BUG-208); `BLTZNXT_WINDOWED=1` keeps
+every program in a window.
+
+The README and the website carry the Tide Update logo, and the website's accent colour moves
+from green to the logo's water blue.
+
+Version 0.7.0 (`blitzcc -v`, IDE). Full suite: 377 passed, 0 failed, 0 skipped.
+
 ## 2026-10-27 — GetBrushTexture on an empty layer
 
 `GetBrushTexture` returned 0 for a brush layer without a texture (BUG-223). Blitz3D always

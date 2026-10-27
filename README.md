@@ -1,12 +1,12 @@
 <p align="center">
-  <img src="terrain-update.jpg" alt="BLTZNXT Terrain Update" width="720">
+  <img src="tide-update.jpg" alt="BLTZNXT Tide Update" width="720">
 </p>
 
 # BlitzNext
 
 **BlitzNext** is the successor to Blitz3D: a modern compiler that turns Blitz3D (`.bb`) source files into native Windows executables via a C++17 transpilation pipeline, using a bundled MinGW toolchain and SDL3 for audio and graphics. It aims to do everything the original could — and to run the programs written for it, unchanged.
 
-> **Status: active development — v0.6.5.** BlitzNext now has its own IDE, and there is a self-contained Windows package to try it: [download the ZIP from the latest release](https://github.com/Farbfinsternis/bltznxt/releases/latest), unpack it, double-click `BLTZNXT IDE.bat`. BlitzNext compiles and runs the unmodified game **blox-n-balls**, and it can be used to make new games: [Friendly Fire](samples/friendlyfire/), a small Quake III style arena shooter, is an ordinary Blitz3D program that loads its models as glTF from Blender and plays its sounds in 3D. The runtime includes keyframe and skeletal animation, glTF, 3D sound, planes and terrain; full gameplay compatibility of old programs is still being verified.
+> **Status: active development — v0.7.0 "The Tide Update".** Every sample program that ships with Blitz3D and compiles there now runs like the original, and no known bug that can break an old program is open. BlitzNext has its own IDE, and there is a self-contained Windows package to try it: [download the ZIP from the latest release](https://github.com/Farbfinsternis/bltznxt/releases/latest), unpack it, double-click `BLTZNXT IDE.bat`. BlitzNext compiles and runs the unmodified game **blox-n-balls**, and it can be used to make new games: [Friendly Fire](samples/friendlyfire/), a small Quake III style arena shooter, is an ordinary Blitz3D program that loads its models as glTF from Blender and plays its sounds in 3D. The runtime includes keyframe and skeletal animation, glTF, 3D sound, planes and terrain; full gameplay compatibility of old programs is still being verified.
 > **[KNOWN_ISSUES.md](KNOWN_ISSUES.md) lists everything that does not yet behave like Blitz3D** — please check it before reporting a bug.
 > See [roadmap.md](roadmap.md) and [ROADMAP3D.md](ROADMAP3D.md) for the milestones and [DEVLOG.md](DEVLOG.md) for the changelog.
 
@@ -60,6 +60,11 @@ Compatibility is measured, not estimated: language questions are answered from t
 [original source](https://github.com/blitz-research/blitz3d), and behaviour is compared with a
 running Blitz3D 11.8 — to find out what a command does, not to reproduce every last pixel. None
 of the 156 example sources that ship with Blitz3D uses a missing command any more.
+
+**Sample baseline.** The 156 sources that ship with Blitz3D hold 105 programs, 103 of which
+Blitz3D itself compiles. Each is started side by side in Blitz3D and BlitzNext, with the
+same keys and answers, and the pictures and output are compared. On 2026-10-27 (v0.7.0)
+all 103 compile, start and run like the original; on 2026-10-25 it was 97, 94 and 85.
 
 **Test priority.** blox-n-balls is the primary integration test: all 26 source files compile
 unchanged, it loads, the menus work and levels can be played. It uses only part of Blitz3D,
