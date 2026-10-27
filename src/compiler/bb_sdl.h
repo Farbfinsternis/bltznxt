@@ -125,12 +125,13 @@ inline void bb_console_release_() {
 //
 // Indexed by SDL_Scancode (max value 511; we allocate 512 slots).
 // bb_sdl_key_down_   : true while the key is held.
-// bb_sdl_key_hit_raw_: edge-triggered — set on first KEY_DOWN, cleared by KeyHit().
+// bb_sdl_key_hit_raw_: Anzahl der Druecke seit dem letzten KeyHit (hit_count
+//                      in gxdevice.cpp, BUG-206).
 // bb_key_queue_buf_  : circular FIFO of scancodes for GetKey().
 
 inline constexpr int BB_KEY_QUEUE_CAP                    = 64;
 inline bool          bb_sdl_key_down_[512]               = {};
-inline bool          bb_sdl_key_hit_raw_[512]            = {};
+inline int           bb_sdl_key_hit_raw_[512]            = {};
 inline SDL_Scancode  bb_key_queue_buf_[BB_KEY_QUEUE_CAP] = {};
 inline int           bb_key_queue_head_                  = 0;
 inline int           bb_key_queue_tail_                  = 0;
@@ -141,7 +142,7 @@ inline int           bb_key_queue_tail_                  = 0;
 // bb_mouse_z_                  : scroll-wheel accumulator (ticks, up = +).
 // bb_mouse_zrel_               : wheel delta accumulator; reset on each read.
 // bb_mouse_down_[1..3]         : 1 = held; indices: 1=left,2=right,3=middle.
-// bb_mouse_hit_[1..3]          : edge-triggered press flag, cleared on read.
+// bb_mouse_hit_[1..3]          : Anzahl der Klicks seit dem letzten MouseHit.
 // bb_mouse_queue_buf_          : FIFO of button numbers for WaitMouse().
 
 inline float bb_mouse_x_    = 0.0f, bb_mouse_y_    = 0.0f;
@@ -214,7 +215,7 @@ inline void bb_present_update_(int gw, int gh) {
 }
 
 inline bool  bb_mouse_down_[4] = {};  // [1]=left  [2]=right  [3]=middle
-inline bool  bb_mouse_hit_[4]  = {};
+inline int   bb_mouse_hit_[4]  = {};
 inline constexpr int BB_MOUSE_QUEUE_CAP                  = 16;
 inline int           bb_mouse_queue_buf_[BB_MOUSE_QUEUE_CAP] = {};
 inline int           bb_mouse_queue_head_                = 0;
@@ -399,7 +400,7 @@ inline void bb_sdl_process_event_(const SDL_Event &ev) {
     int sc = (int)ev.key.scancode;
     if (sc > 0 && sc < 512) {
       if (!ev.key.repeat) {
-        bb_sdl_key_hit_raw_[sc] = true;
+        ++bb_sdl_key_hit_raw_[sc];
         int next = (bb_key_queue_tail_ + 1) % BB_KEY_QUEUE_CAP;
         if (next != bb_key_queue_head_) {
           bb_key_queue_buf_[bb_key_queue_tail_] = ev.key.scancode;
@@ -424,7 +425,7 @@ inline void bb_sdl_process_event_(const SDL_Event &ev) {
     int btn = bb_sdl_btn_to_blitz_(ev.button.button);
     if (btn >= 1 && btn <= 3) {
       bb_mouse_down_[btn] = true;
-      bb_mouse_hit_[btn]  = true;
+      ++bb_mouse_hit_[btn];
       int next = (bb_mouse_queue_tail_ + 1) % BB_MOUSE_QUEUE_CAP;
       if (next != bb_mouse_queue_head_) {
         bb_mouse_queue_buf_[bb_mouse_queue_tail_] = btn;

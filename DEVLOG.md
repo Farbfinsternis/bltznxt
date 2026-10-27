@@ -1,5 +1,16 @@
 # BlitzNext Developer Log
 
+## 2026-10-27 — KeyHit, MouseHit and the flush commands
+
+`KeyHit` and `MouseHit` returned 1 even when the key had been pressed three times since
+the last call (BUG-206); like Blitz3D they now return the number of presses.
+`FlushKeys` and `FlushMouse` forgot keys that were still held, and because they threw away
+the pending events, a key released during the flush could stay down. Now they clear only
+the hits and the queue, as in Blitz3D: a held arrow key is still down after `FlushKeys`.
+Measured against Blitz3D 11.8 with real key presses and clicks; every value matches.
+
+Full suite: 16 passed, 0 failed (tests using KeyHit, MouseHit, FlushKeys, FlushMouse, KeyDown, MouseDown, GetKey, WaitKey or Input).
+
 ## 2026-10-26 — movies
 
 The six movie commands were missing (BUG-195): `OpenMovie`, `DrawMovie`, `CloseMovie`,

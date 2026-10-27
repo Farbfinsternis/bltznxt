@@ -183,16 +183,17 @@ inline int bb_KeyDown(int code) {
   return bb_sdl_key_down_[sc] ? 1 : 0;
 }
 
-// Returns non-zero if the key was pressed since the last call to KeyHit
-// for that key.  Edge-triggered: the flag is cleared after reading.
+// Wie oft die Taste seit dem letzten KeyHit fuer sie gedrueckt wurde
+// (gxDevice::keyHit). Bis BUG-206 nur 0 oder 1: dreimal A zwischen zwei
+// Abfragen ergab 1, im Original 3.
 inline int bb_KeyHit(int code) {
   if (bb_sdl_initialized_) bb_PollEvents();
   if (code < 1 || code > 255) return 0;
   int sc = (int)bb_blitz_to_sdl_[(size_t)code];
   if (sc <= 0) return 0;
-  bool hit = bb_sdl_key_hit_raw_[sc];
-  bb_sdl_key_hit_raw_[sc] = false;
-  return hit ? 1 : 0;
+  const int n = bb_sdl_key_hit_raw_[sc];
+  bb_sdl_key_hit_raw_[sc] = 0;
+  return n;
 }
 
 // Naechste Taste aus der Warteschlange, 0 wenn keine ansteht - GetKey wartet
@@ -206,15 +207,14 @@ inline int bb_GetKey() {
   return bb_key_queue_pop_ascii_(nullptr);   // Zeichen, nicht Tastencode (BUG-205)
 }
 
-// Clears all keyboard state: held flags, edge-triggered flags, and the queue.
+// Wie gxDevice::flush: erst die anstehenden Ereignisse abholen, dann Treffer
+// und Warteschlange leeren. Eine gehaltene Taste bleibt gehalten - bis
+// BUG-206 meldete KeyDown nach FlushKeys 0, obwohl die Taste noch unten war,
+// und weil die Ereignisse verworfen wurden, ging auch das Loslassen verloren.
 inline void bb_FlushKeys() {
-  for (int i = 0; i < 512; ++i) {
-    bb_sdl_key_down_[i]    = false;
-    bb_sdl_key_hit_raw_[i] = false;
-  }
+  if (bb_sdl_initialized_) bb_PollEvents();
+  for (int i = 0; i < 512; ++i) bb_sdl_key_hit_raw_[i] = 0;
   bb_key_queue_head_ = bb_key_queue_tail_ = 0;
-  if (bb_sdl_initialized_)
-    SDL_FlushEvents(SDL_EVENT_KEY_DOWN, SDL_EVENT_KEY_UP);
 }
 
 // ---- Mouse API ----
@@ -273,14 +273,14 @@ inline int bb_MouseDown(int btn) {
   return bb_mouse_down_[btn] ? 1 : 0;
 }
 
-// Returns non-zero if button was pressed since the last MouseHit call
-// for that button.  Edge-triggered: flag is cleared after reading.
+// Wie oft die Taste seit dem letzten MouseHit fuer sie geklickt wurde
+// (gxDevice::keyHit, BUG-206).
 inline int bb_MouseHit(int btn) {
   if (bb_sdl_initialized_) bb_PollEvents();
   if (btn < 1 || btn > 3) return 0;
-  bool hit = bb_mouse_hit_[btn];
-  bb_mouse_hit_[btn] = false;
-  return hit ? 1 : 0;
+  const int n = bb_mouse_hit_[btn];
+  bb_mouse_hit_[btn] = 0;
+  return n;
 }
 
 // Blocks until any mouse button is pressed; returns button number (1/2/3).
@@ -311,19 +311,14 @@ inline int bb_GetMouse() {
   return btn;
 }
 
-// Clears all mouse state: held/hit flags, speed accumulators, and the queue.
+// Wie gxDevice::flush: anstehende Ereignisse abholen, dann Treffer und
+// Warteschlange leeren. Gehaltene Tasten bleiben gehalten, Lage und Rad
+// bleiben, wie sie sind (BUG-165, BUG-206) - bbMouseZSpeed misst im Original
+// den Abstand zum letzten Aufruf, FlushMouse beruehrt ihn nicht.
 inline void bb_FlushMouse() {
-  for (int i = 0; i < 4; ++i) {
-    bb_mouse_down_[i] = false;
-    bb_mouse_hit_[i]  = false;
-  }
-  bb_mouse_zrel_ = 0.0f;
+  if (bb_sdl_initialized_) bb_PollEvents();
+  for (int i = 0; i < 4; ++i) bb_mouse_hit_[i] = 0;
   bb_mouse_queue_head_ = bb_mouse_queue_tail_ = 0;
-  // Bewegungen bleiben erhalten: gxDevice::flush im Original setzt nur Tasten
-  // und Warteschlange zurueck. Vorher warf das hier auch die noch nicht
-  // abgeholten Bewegungsereignisse weg (BUG-165).
-  if (bb_sdl_initialized_)
-    SDL_FlushEvents(SDL_EVENT_MOUSE_BUTTON_DOWN, SDL_EVENT_MOUSE_WHEEL);
 }
 
 // HidePointer hat den Zeiger versteckt (ShowPointer zeigt ihn wieder).

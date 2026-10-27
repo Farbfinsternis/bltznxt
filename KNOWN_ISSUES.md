@@ -12,7 +12,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-10-26 — 4 open bugs, 14 missing commands.* A review against the
+*Last updated: 2026-10-26 — 3 open bugs, 14 missing commands.* A review against the
 original on 2026-10-13 found eleven more (BUG-201 to BUG-211); they are fixed first, for
 version 0.7.0.
 
@@ -162,15 +162,6 @@ Blitz3D strings and source files use the Windows code page (Windows-1252 on West
 systems), so `ä`, `ö`, `ü`, `ß`, `é` and the like work everywhere in Blitz3D. BlitzNext
 handles them the same way: in paths, `Include` names, file and folder names, text drawn
 with a font, the window title and the console.
-
----
-
-## Keyboard and mouse input
-
-- **`KeyHit` and `MouseHit` return 1 instead of the number of presses** since the last
-  call, and **`FlushKeys`/`FlushMouse` also forget keys that are still held** — after
-  `FlushKeys`, `KeyDown` reports a held arrow key as up until it is pressed again. Blitz3D
-  only clears the hits and the queue. (BUG-206)
 
 ---
 
