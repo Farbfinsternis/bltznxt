@@ -1,5 +1,36 @@
 # BlitzNext Developer Log
 
+## 2026-10-27 — Network Update: concept and measurements on the original
+
+The Network Update rebuilds the 14 DirectPlay commands of Blitz3D on BlitzNext's own UDP
+protocol; NETWORK.md holds the concept. `StartNetGame` will show no dialog: it searches the
+LAN, joins a game it finds or hosts one. New commands let programs find games and build their
+own join dialog, and a list server, which each developer runs on their own, extends the search
+to the internet.
+
+Before writing code, the commands were measured on Blitz3D 1.108 with DirectPlay enabled, two
+to three programs over 127.0.0.1 (`scripts/measure_network.sh`, programs in
+`tests/network/original/`). The findings that shape the implementation:
+
+- A joining program gets a 100 for every player already in the game right after
+  `JoinNetGame`, before it creates its own player. No program gets a 100 for its own players.
+- Messages never reach the sending program, not even from one local player to another.
+- The message type travels as a signed byte (150 arrives as -106), type 0 never arrives, and
+  `reliable` defaults to 1.
+- `NetPlayerName$` returns `<unknown>` for unknown or departed players and `<all>` for 0. On a
+  102, `NetMsgFrom` is -1.
+- `JoinNetGame` needs the exact game name; an empty IP or `0.0.0.0` searches the LAN.
+- Messages of 1 MB arrive, reliable or not; 600 messages sent at once arrive complete and in
+  order.
+- Without a game, `RecvNetMsg`, `SendNetMsg` and `CreateNetPlayer` stop with "Multiplayer game
+  not started"; a second `HostNetGame` stops with "Multiplayer game already started".
+- When the host leaves with `StopNetGame`, the others get a 101 for each of its players and the
+  new host a 102. When the host process dies, DirectPlay notices nothing for at least 17 s and
+  the clients block; BlitzNext will detect it after 5 s instead.
+
+`JoinNetGame` takes about 6 s even over loopback and `StopNetGame` about 3 s; BlitzNext may be
+faster.
+
 ## 2026-10-27 — v0.7.0: The Tide Update
 
 A release made only of fixes. Since 0.6.5, 41 entries of the bug list were fixed, each

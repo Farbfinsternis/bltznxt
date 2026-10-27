@@ -1,6 +1,6 @@
 # BLTZNXT — Netzwerk (Network Update)
 
-Stand: 2026-10-27 · Konzept, noch kein Code. Ergänzt: Handshake mit Programmkennung, Schalter
+Stand: 2026-10-27 · Konzept, noch kein Code; Original gemessen (Arbeitspaket 1). Ergänzt: Handshake mit Programmkennung, Schalter
 von außen, Listen-Server. Release-Plan: als Nächstes kommt das Network Update
 (nur Mehrspieler), danach IDE.
 
@@ -51,23 +51,28 @@ Abschnitt Netzwerk; dieses Papier ist Phase 1.
 
 ## Die 14 Befehle in BLTZNXT
 
-Die Texte der Original-Hilfe (`F:\dev\Blitz3D\help\commands\2d_commands\*.htm`) sind die Vorlage.
-Was dort offen bleibt, steht unter „Messen am Original“.
+Die Texte der Original-Hilfe (`F:\dev\Blitz3D\help\commands\2d_commands\*.htm`) sind die Vorlage,
+die Messung vom 2026-10-27 (unten, „Messergebnisse“) legt das Verhalten fest. Die Signaturen
+stammen aus der Laufzeit des Originals.
 
 | Befehl | Verhalten |
 |---|---|
 | `StartNetGame()` | Auto-Modus (unten). 0 = fehlgeschlagen, 1 = beigetreten, 2 = Host |
-| `HostNetGame(gamename$)` | Öffnet den Port, beantwortet Suchanfragen mit `gamename$`. 2 = Host, 0 = fehlgeschlagen (Port belegt) |
-| `JoinNetGame(gamename$, serverIP$)` | Beitritt beim Host unter `serverIP$`. Leere IP: im LAN nach `gamename$` suchen. 1 = beigetreten, 0 = fehlgeschlagen |
-| `StopNetGame()` | Verlässt das Spiel; alle lokalen Spieler gehen (101 bei den anderen). Ist man Host, übernimmt ein anderer (Host-Migration) |
-| `CreateNetPlayer(name$)` | Neuer lokaler Spieler; der Host vergibt die ID. Alle anderen bekommen 100. Mehrere lokale Spieler je Programm sind erlaubt (das Beispiel `SendNetMsg.bb` legt fünf an) |
-| `DeleteNetPlayer(id)` | Entfernt einen lokalen Spieler, die anderen bekommen 101 |
-| `NetPlayerName$(id)` | Name des Spielers |
-| `NetPlayerLocal(id)` | 1, wenn der Spieler zu diesem Programm gehört |
-| `SendNetMsg type, data$, from, to [, reliable]` | Typ 1–99; `to` = 0 an alle; `reliable` = zugestellt und in Reihenfolge |
+| `HostNetGame(game_name$)` | Öffnet den Port, beantwortet Suchanfragen mit `game_name$`. 2 = Host, 0 = fehlgeschlagen (Port belegt). Läuft schon ein Spiel: Laufzeitfehler „Multiplayer game already started“ |
+| `JoinNetGame(game_name$, ip_address$)` | Beitritt beim Host unter `ip_address$`. Leere IP oder `"0.0.0.0"`: im LAN suchen; `"localhost"` geht auch. `game_name$` muss genau passen, ein leerer Name findet nichts. 1 = beigetreten, 0 = fehlgeschlagen |
+| `StopNetGame()` | Verlässt das Spiel; die anderen bekommen 101 für jeden lokalen Spieler. Ist man Host, übernimmt ein anderer (Host-Migration). Danach darf man wieder hosten oder beitreten |
+| `CreateNetPlayer(name$)` | Neuer lokaler Spieler; der Host vergibt die ID. Alle anderen Programme bekommen 100, das eigene nicht. Mehrere lokale Spieler je Programm sind erlaubt (das Beispiel `SendNetMsg.bb` legt fünf an) |
+| `DeleteNetPlayer(player)` | Entfernt einen lokalen Spieler, die anderen bekommen 101. Unbekannte ID: nichts |
+| `NetPlayerName$(player)` | Name des Spielers; `"<all>"` für 0, `"<unknown>"` für unbekannte und gelöschte IDs |
+| `NetPlayerLocal(player)` | 1, wenn der Spieler zu diesem Programm gehört, sonst 0 (auch für unbekannte IDs) |
+| `SendNetMsg type, msg$, from_player [, to_player = 0, reliable = 1]` | `to_player` = 0 an alle; zuverlässig ist die **Vorgabe**. Der Typ geht als Byte mit Vorzeichen über die Leitung (150 kommt als −106 an, 300 als 44), Typ 0 kommt nie an. Nachrichten an eigene Spieler oder an alle erreichen das eigene Programm nicht. Unbekannte `from`- oder `to`-ID: kein Fehler |
 | `RecvNetMsg()` | Holt die nächste Nachricht aus der Schlange, 1 wenn eine da war |
-| `NetMsgType()` | 1–99 Nutzer, 100 Spieler dazu, 101 Spieler weg, 102 dieses Programm ist jetzt Host, 200 Sitzung verloren |
-| `NetMsgFrom()`, `NetMsgTo()`, `NetMsgData$()` | Felder der zuletzt geholten Nachricht |
+| `NetMsgType()` | 1–99 Nutzer, 100 Spieler dazu, 101 Spieler weg, 102 dieses Programm ist jetzt Host, 200 Sitzung verloren. Vor dem ersten `RecvNetMsg` 0 |
+| `NetMsgFrom()`, `NetMsgTo()`, `NetMsgData$()` | Felder der zuletzt geholten Nachricht. Bei 100/101 ist `NetMsgFrom` der betroffene Spieler, bei 102 −1; `NetMsgTo` 0, `NetMsgData$` leer |
+
+`RecvNetMsg`, `SendNetMsg` und `CreateNetPlayer` ohne laufendes Spiel (auch nach `StopNetGame`)
+sind im Original ein Laufzeitfehler „Multiplayer game not started“. BLTZNXT meldet das wie jeden
+Laufzeitfehler auf stderr und beendet das Programm.
 
 **Die Nachrichtenschlange ist das Herzstück.** Nutzer- und Systemnachrichten (100, 101, 102,
 200) landen in einer einzigen Schlange in der Reihenfolge ihres Eintreffens; `RecvNetMsg` holt
@@ -165,8 +170,8 @@ Eigenes Protokoll auf **einem UDP-Socket** je Programm.
   in dieser Reihenfolge und antwortet bei einem Fehler mit `REJECT` und Grund:
   1. Protokollversion verschieden → „protocol“ (verschiedene BLTZNXT-Stände)
   2. Programmkennung verschieden → „app“
-  3. `gamename$` verschieden (nur wenn nicht leer) → „name“; ob das Original hier ablehnt, ist
-     Messfrage 4
+  3. `gamename$` verschieden → „name“ (das Original lehnt ab, auch bei leerem Namen; nur der
+     Auto-Modus von `StartNetGame()` fragt intern ohne Namen)
   4. Spiel voll oder Host beendet gerade → „closed“
 
   `JoinNetGame` gibt dann 0 zurück und schreibt den Grund auf stderr, etwa
@@ -177,10 +182,12 @@ Eigenes Protokoll auf **einem UDP-Socket** je Programm.
 - **Zuverlässig** (`reliable` = 1): Sequenznummer je Verbindung, Bestätigung, Neusendung nach
   etwa 1,5 × Laufzeit (anfangs 100 ms), Zustellung in Reihenfolge. **Unzuverlässig**: einmal
   senden, keine Reihenfolge. Systemereignisse gehen immer zuverlässig.
-- **Größe**: Nachrichten über etwa 1200 Bytes werden zerlegt und wieder zusammengesetzt. Geht
-  bei einer unzuverlässigen Nachricht ein Teil verloren, fällt die ganze Nachricht weg.
-- **Lebenszeichen**: `PING` alle 250 ms; eine Gegenstelle gilt nach 5 s ohne Antwort als weg
-  (Wert vorläufig, siehe Messen).
+- **Größe**: Nachrichten über etwa 1200 Bytes werden zerlegt und wieder zusammengesetzt, bis
+  mindestens 1 MB (das Original überträgt 1 MB, zuverlässig wie unzuverlässig). Geht bei einer
+  unzuverlässigen Nachricht ein Teil verloren, fällt die ganze Nachricht weg.
+- **Lebenszeichen**: `PING` alle 250 ms; eine Gegenstelle gilt nach 5 s ohne Antwort als weg.
+  Das Original erkennt einen abgerissenen Host auch nach 30 s nicht und blockiert dabei
+  (Messergebnisse); hier ist BLTZNXT bewusst besser.
 
 ### Stern über den Host
 
@@ -192,8 +199,10 @@ die vollständige Spielerliste und schickt sie beim Beitritt mit; Änderungen ve
 ### Host-Migration
 
 Alle kennen die Liste der Programme in Beitrittsreihenfolge, samt IP und Port. Fällt der Host
-weg (`BYE` oder Zeitüberschreitung), wird das älteste verbliebene Programm Host:
-- Es bekommt 102 und für jeden Spieler des alten Hosts 101.
+weg (`BYE` oder Zeitüberschreitung), wird das älteste verbliebene Programm Host. (Im Original
+wurde in der einzigen Messung mit zwei Kandidaten das zuletzt beigetretene Host; eine feste Regel
+lässt sich daraus nicht ablesen, und kein Programm kann sich darauf verlassen.)
+- Es bekommt für jeden Spieler des alten Hosts 101, danach 102 mit `NetMsgFrom` = −1.
 - Die anderen verbinden sich neu mit ihm und bekommen ebenfalls 101 für die Spieler des alten
   Hosts.
 - Wer den neuen Host nicht erreicht, bekommt 200.
@@ -252,7 +261,7 @@ und derselben Protokollversion.
 ### Referenz-Server
 
 Jeder Entwickler betreibt seinen eigenen; BLTZNXT betreibt keinen zentralen Dienst (Betrieb,
-Missbrauch, Impressum). Mitgeliefert wird `tools/listserver/`:
+Missbrauch, Impressum). Mitgeliefert wird `listserver/`:
 - `games.php` mit SQLite: läuft auf jedem billigen Webspace, eine Datei hochladen genügt.
 - Kurze Anleitung, auch für Alternativen (Cloudflare Worker, kleines Python- oder Go-Programm),
   die nur die Schnittstelle oben erfüllen müssen.
@@ -285,9 +294,11 @@ und das in der Liste vermerkt. Mit PHP allein geht das nur eingeschränkt.
 
 ## Messen am Original
 
-Vor dem Bauen am Original messen, mit zwei Exes aus `F:\dev\Blitz3D` auf einem Rechner oder
-zwei. **Voraussetzung**: Auf dem Messrechner muss das Windows-Feature DirectPlay eingeschaltet
-sein (Windows-Features → Legacykomponenten). Das macht der Nutzer selbst.
+Gemessen am 2026-10-27 mit Blitz3D 1.108 auf einem Rechner über 127.0.0.1. Messprogramme in
+[tests/network/original/](tests/network/original/), Ablauf mit
+`bash scripts/measure_network.sh [pfad/zu/Blitz3D] [szenario …]` (etwa 5 Minuten, öffnet
+Fenster), Ergebnis in `build/netmess/ergebnis.txt`. **Voraussetzung**: Das Windows-Feature
+DirectPlay (Legacykomponenten) ist eingeschaltet.
 
 Fragen:
 1. Bekommt der Host beim eigenen `CreateNetPlayer` eine 100? Bekommen neue Spieler 100 für die
@@ -304,8 +315,29 @@ Fragen:
 9. Wie schnell erkennt DirectPlay einen abgerissenen Spieler (Kabel ziehen, Prozess beenden)?
 10. Was bekommt man nach `StopNetGame`, und darf man danach erneut hosten oder beitreten?
 
-Wo die Messung nicht möglich ist, gilt der Text der Original-Hilfe und das plausibelste
-Verhalten; das wird im DEVLOG vermerkt.
+### Messergebnisse (2026-10-27)
+
+| # | Ergebnis |
+|---|---|
+| 1 | Der Host bekommt keine 100 für eigene Spieler. Ein Beitretender bekommt **direkt nach `JoinNetGame`, noch vor `CreateNetPlayer`**, je eine 100 für jeden vorhandenen Spieler, für eigene Spieler keine |
+| 2 | Nein. Weder lokal an lokal (H1 → H2) noch an alle kommt beim eigenen Programm etwas an |
+| 3 | 100/101: `NetMsgFrom` = betroffener Spieler, `NetMsgTo` = 0, `NetMsgData$` leer. 102: `NetMsgFrom` = −1. 200 trat nicht auf. `NetPlayerName$` eines gegangenen Spielers: `"<unknown>"` |
+| 4 | Falscher oder leerer Name: 0 nach etwa 8,4 s. `"localhost"`, `"0.0.0.0"` und leere IP treten bei (die beiden letzten suchen im LAN). Kein Dialog |
+| 5 | Ohne Spieler, mit fremder `from`- oder unbekannter `to`-ID: kein Fehler. Typ = Byte mit Vorzeichen (−1 → −1, 150 → −106, 200 → −56, 255 → −1, 300 → 44); Typ 0 kommt nicht an; selbst gesendete 100–102 kommen als solche an, mit Daten. Ohne Spiel: Laufzeitfehler „Multiplayer game not started“ |
+| 6 | `NetPlayerName$`: `"<unknown>"` für unbekannte, `"<all>"` für 0. `NetPlayerLocal`: 0. Kein Fehler |
+| 7 | 1 MB kommt an, zuverlässig wie unzuverlässig (dauert über Loopback 2–3 s). 300 unzuverlässige und 300 zuverlässige Nachrichten ohne Pause: alle da, in Reihenfolge |
+| 8 | Host verlässt per `StopNetGame`: die anderen bekommen sofort 101 für seine Spieler, der neue Host danach 102. Neuer Host wurde der zuletzt beigetretene (eine Messung). Nachrichten fließen danach weiter |
+| 9 | Host-Prozess hart beendet: **keine** 101 und keine 102 innerhalb von 17 s; die Clients hängen in DirectPlay-Aufrufen bis zu 16 s, `StopNetGame` hängt danach ganz |
+| 10 | Nach `StopNetGame` erneut beitreten geht (alle 100 kommen wieder). `RecvNetMsg` nach `StopNetGame`: Laufzeitfehler. `HostNetGame` bei laufendem Spiel: „Multiplayer game already started“ |
+
+Dazu: `HostNetGame` braucht 0,5–0,8 s, `JoinNetGame` 5,7–6,2 s auch über Loopback, `StopNetGame`
+etwa 3 s. BLTZNXT darf überall schneller sein. Spieler-IDs sind groß (rund 219 Millionen) und
+werden in einer Sitzung nach unten vergeben. Der Dialog von `StartNetGame` gehörte zu Blitz
+selbst („Please enter a name for the new game“, „<no games found>“), nur die IP-Abfrage kam
+von DirectPlay („DirectPlay Request“).
+
+Nicht gemessen: Groß-/Kleinschreibung beim Spielnamen, `DeleteNetPlayer` mit der ID eines
+fremden Spielers, Host-Wahl mit mehr Kandidaten, echtes LAN mit zwei Rechnern.
 
 ## Prüfstand
 
@@ -330,12 +362,12 @@ Verhalten; das wird im DEVLOG vermerkt.
 
 | # | Paket | Fertig, wenn |
 |---|---|---|
-| 1 | Messen am Original (nach Freigabe DirectPlay durch den Nutzer) | Fragen oben beantwortet, Ergebnis im DEVLOG |
+| 1 | ~~Messen am Original~~ erledigt 2026-10-27 | Fragen beantwortet (Messergebnisse), DEVLOG |
 | 2 | Transport + Zuverlässigkeit (`bb_net.h`), I/O-Thread, Verlust-Schalter | Test: 10 000 zuverlässige Nachrichten bei 20 % Verlust kommen vollständig und in Reihenfolge an |
 | 3 | Sitzung: Host, Join, Spielerliste, Nachrichtenschlange, die 14 Befehle | Hilfe-Beispiele `SendNetMsg.bb` + `RecvNetMsg.bb` laufen gegeneinander |
 | 4 | Spielsuche im LAN, Auto-Modus, Handshake mit Kennung, Schalter von außen, neue Befehle | Auto-Modus- und `REJECT`-Tests grün; Lobby-Beispiel läuft |
 | 5 | Host-Migration, Abbruch, 200 | Test: Host beenden, ein Client wird Host, Spiel geht weiter |
-| 6 | Listen-Server: HTTP-Client (WinHTTP/libcurl), Anmelden/Lebenszeichen/Abmelden, `NetGameServer`, Referenz `tools/listserver/games.php` | Tests gegen den lokalen Referenz-Server grün; zwei Rechner finden sich über einen echten Webspace |
+| 6 | Listen-Server: HTTP-Client (WinHTTP/libcurl), Anmelden/Lebenszeichen/Abmelden, `NetGameServer`, Referenz `listserver/games.php` | Tests gegen den lokalen Referenz-Server grün; zwei Rechner finden sich über einen echten Webspace |
 | 7 | UPnP mit `miniupnpc` | Am echten Router: Weiterleitung entsteht beim Hosten und verschwindet beim Beenden |
 | 8 | Doku: Nutzer-Doku „Netzwerk – Unterschiede zu Blitz3D“ (inkl. Listen-Server, NAT, Datenschutz), KNOWN_ISSUES, roadmap, Release Notes, Website | Unterschiede an allen Stellen gleich beschrieben |
 | 9 | Friendly Fire: Mehrspieler auf den Net-Befehlen oder eigenem UDP (Entscheidung offen) | Siehe FRIENDLY_FIRE.md, Abschnitt Mehrspieler |
