@@ -315,6 +315,15 @@ inline void bb_snd_update_() {
 // The inline bool ensures exactly one registration per program.
 inline const bool bb_snd_hook_reg_ = (bb_audio_update_hook_ = bb_snd_update_, true);
 
+// Angehaltenes Programm (Fenster ohne Fokus, BUG-208): der Ton steht wie bei
+// pauseAudio im Original und laeuft danach an derselben Stelle weiter.
+inline void bb_snd_pause_all_(bool pause) {
+  if (!bb_snd_out_) return;
+  if (pause) SDL_PauseAudioStreamDevice(bb_snd_out_);
+  else       SDL_ResumeAudioStreamDevice(bb_snd_out_);
+}
+inline const bool bb_snd_pause_reg_ = (bb_audio_pause_hook_ = bb_snd_pause_all_, true);
+
 // ---- Sound API ----
 
 // Internal: detect file extension (lowercase, no dot).

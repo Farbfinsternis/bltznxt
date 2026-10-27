@@ -1,5 +1,21 @@
 # BlitzNext Developer Log
 
+## 2026-10-27 — Graphics modes
+
+The `Graphics` modes were not Blitz3D's (BUG-208): mode 0, the default, always opened a
+window, mode 6 was a full screen with vsync, and modes 3 and 7 were plain windows. They now
+follow Blitz3D: 0 is full screen — or a window when the program is built with `-d`, which is
+what Blitz3D's debug build did, and what the Blitz3D IDE's debug switch now does here —
+1 is full screen, 2 a window, 3 a window you can resize that stretches the picture to fill it,
+and 6 and 7 are 2 and 3 that pause the program, its sound and its input while the window is
+inactive, as full screen does. Like Blitz3D, mode 3 starts at the size of the window before
+it, 400×300 at first. Mode 5 stays BlitzNext's resizable double-size window; any other
+mode stops with `Illegal Graphics mode`. The mouse and `RenderWorld` now follow a resized
+window, which mode 5 did not do before. `BLTZNXT_WINDOWED=1` keeps every program in a window
+that never pauses; the test scripts set it. Full screen still keeps the desktop resolution.
+
+Full suite: 374 passed, 0 failed, 0 skipped (all tests, with BLTZNXT_WINDOWED=1).
+
 ## 2026-10-27 — keys in the console before Graphics
 
 Text before `Graphics` goes to the console here, where Blitz3D has a text window — and

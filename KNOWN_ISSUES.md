@@ -12,7 +12,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-10-27 — 2 open bugs, 14 missing commands.* A review against the
+*Last updated: 2026-10-27 — 1 open bug, 14 missing commands.* A review against the
 original on 2026-10-13 found eleven more (BUG-201 to BUG-211); they are fixed first, for
 version 0.7.0.
 
@@ -81,6 +81,10 @@ These are not bugs but decisions, and they will stay:
   fixed step per frame therefore run faster here; time them with `MilliSecs()`. In
   fullscreen both wait for the display with `Flip`/`Flip 1` and neither waits with `Flip 0`.
   (BUG-178)
+
+- **Full screen keeps the desktop resolution.** `Graphics` and `Graphics3D` in modes 0 and 1
+  cover the screen without switching the display to the program's resolution, as Blitz3D
+  does; the picture is scaled up, with bars where the aspect ratio differs. (BUG-159, BUG-208)
 
 - **Userlibs (`.decls`) are not supported, and will not be.** Blitz3D extends its command set with
   32-bit Windows DLLs declared in `userlibs/*.decls`; the interface prescribes `_stdcall` and hands
@@ -175,15 +179,6 @@ with a font, the window title and the console.
   One that only invalid programs hit: an array with the same name as a constant
   (`Const SIZE = 4 : Dim size(3)`) — Blitz3D reports `Duplicate identifier`, here the C++
   compiler fails. Names in Blitz are not case-sensitive. (BUG-183)
-
----
-
-## 2D graphics
-
-- **The `Graphics` modes are not Blitz3D's yet.** Mode 0 (the default) always opens a window;
-  Blitz3D opens a full screen unless the program is compiled with debugging. Mode 6 is full
-  screen here and a window (paused while inactive) in Blitz3D, and modes 3 and 7 do not scale
-  the picture with the window. The same applies to `Graphics3D`. (BUG-208)
 
 ---
 

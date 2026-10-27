@@ -7,6 +7,10 @@
 # und verglichen wird Zeichen fuer Zeichen. Eine mit LF geschriebene Datei faellt
 # durch, obwohl das Protokoll erwartet und tatsaechlich gleich anzeigt.
 
+# Graphics-Modus 0 und 1 sind Vollbild wie im Original (BUG-208); die Tests
+# bleiben im Fenster und halten ohne Fokus nicht an.
+export BLTZNXT_WINDOWED=1
+
 PASS=0; FAIL=0; SKIP=0
 
 # Tests mit bekannten pre-existing Bugs (nicht Refactor-Scope):

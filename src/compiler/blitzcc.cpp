@@ -63,6 +63,10 @@ static constexpr const char *kVersion = "0.6.5";
 struct Config {
   bool        compileOnly = false;
   bool        debug       = false;
+  // Mit -d gebaut: Graphics/Graphics3D Modus 0 oeffnet ein Fenster statt des
+  // Vollbilds, wie der Debug-Build des Originals (BUG-208). Aus der IDE gilt
+  // das auch, wenn der Build dort optimiert bleibt.
+  bool        debugMode   = false;
   bool        quiet       = false;
   bool        veryQuiet   = false;
   // Aufruf aus der Original-IDE von Blitz3D: sie setzt die Umgebungsvariable
@@ -502,7 +506,7 @@ static int checkGosubScope(const std::vector<std::unique_ptr<ASTNode>> &nodes,
 class Transpiler {
 public:
   bool compile(const std::string &cppPath, const std::string &outputPath,
-               bool debug) const {
+               bool debug, bool debugMode) const {
     fs::path gppPath = resolvePath("tools/mingw64/bin/g++.exe");
     if (!fs::exists(gppPath)) {
       std::cerr << "[ERROR] g++ not found at \"" << ansiString(gppPath) << "\"\n";
@@ -534,6 +538,8 @@ public:
 
     if (haveTtf)
       cmd += L" -I" + q(ttfInc) + L" -DBB_HAS_SDL3_TTF";
+    if (debug || debugMode)
+      cmd += L" -DBB_DEBUG=1";
 
     cmd += L" " + q(finalCpp) + L" -o " + q(finalOut);
 
@@ -628,7 +634,8 @@ public:
   //
   // Ohne -o entsteht das Programm in einem eigenen Ordner unter %TEMP% und
   // wird danach geloescht; neben der Quelle bleibt nichts liegen. -d
-  // (Debugger des Originals) gibt es hier nicht und wird uebergangen.
+  // (Debugger des Originals) gibt es hier nicht; es oeffnet nur Modus 0 im
+  // Fenster wie dort, der Build bleibt optimiert.
   int transpileIde(Config cfg) const {
     std::ostream ide(std::cout.rdbuf());
     std::ostringstream log;
@@ -655,6 +662,7 @@ public:
 
     cfg.ide = false;
     cfg.quiet = true;
+    cfg.debugMode = cfg.debug;   // "Debug enabled": Modus 0 im Fenster (BUG-208)
     cfg.debug = false;
     g_noConsole_ = true;
 
@@ -775,7 +783,7 @@ public:
 
     // Compile with MinGW
     step("Compiling C++...");
-    if (compile(output + ".cpp", output, cfg.debug)) {
+    if (compile(output + ".cpp", output, cfg.debug, cfg.debugMode)) {
       if (!cfg.quiet)
         std::cout << "Success: " << output << ".exe created.\n";
       if (!cfg.debug) {

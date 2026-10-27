@@ -518,12 +518,13 @@ inline void bb_gl_fullscreen_overhang_(int gw, int gh) {
 // ============================================================
 
 inline void bb_Graphics3D(int w, int h, int depth = 32, int mode = 0) {
+  const bb_GfxKind_ m = bb_gfx_mode_(mode, true);   // BUG-208, siehe bb_graphics2d.h
   bb_console_release_();   // das Grafikfenster ersetzt das Textfenster (bb_sdl.h)
   bb_gfx_width_  = w;
   bb_gfx_height_ = h;
   bb_gfx_depth_  = depth;
   bb_gfx_rate_   = 0;
-  bb_gfx_fullscreen_ = (mode == 1 || mode == 6);   // BUG-178: Flip wartet nur im Vollbild
+  bb_gfx_fullscreen_ = m.full;                     // BUG-178: Flip wartet nur im Vollbild
   bb_vsync_mode_ = -1;                             // neues Fenster, Swap-Intervall unbekannt
   bb_close_scene_();             // alte Welt freigeben, solange der Kontext lebt
   bb_gfx_reset_draw_state_(1);   // BackBuffer (BUG-131)
@@ -532,9 +533,7 @@ inline void bb_Graphics3D(int w, int h, int depth = 32, int mode = 0) {
   if (!bb_sdl_initialized_) return;
 
   // Tear down any existing window / context / renderer.
-  if (bb_renderer_) { SDL_DestroyRenderer(bb_renderer_); bb_renderer_ = nullptr; bb_screen_tex_ = nullptr; }
-  if (bb_gl_ctx_)   { SDL_GL_DestroyContext(bb_gl_ctx_); bb_gl_ctx_   = nullptr; }
-  if (bb_window_)   { SDL_DestroyWindow(bb_window_);     bb_window_   = nullptr; }
+  bb_gfx_close_window_();
   bb_gl_active_ = false;
 
   // Request OpenGL 3.3 Core Profile attributes *before* window creation.
@@ -544,15 +543,15 @@ inline void bb_Graphics3D(int w, int h, int depth = 32, int mode = 0) {
   SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
   SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE,   24);
 
-  const bool fullscreen = (mode == 1 || mode == 6);
+  const bool fullscreen = m.full;
+  const bool scaled = m.full || m.x2 || m.stretch;
   SDL_WindowFlags flags = SDL_WINDOW_OPENGL;
-  if (fullscreen) flags |= SDL_WINDOW_FULLSCREEN;
+  int win_w = 0, win_h = 0;
+  bb_gfx_window_size_(m, w, h, win_w, win_h, flags);
 
   const std::string title8 = bb_app_title_.empty() ? std::string("BLTZNXT")
                                                   : bb_utf8_(bb_app_title_);   // BUG-203
   const char* title = title8.c_str();
-  int win_w = fullscreen ? 0 : w;
-  int win_h = fullscreen ? 0 : h;
 
   bb_window_ = SDL_CreateWindow(title, win_w, win_h, flags);
   if (!bb_window_) {
@@ -607,10 +606,13 @@ inline void bb_Graphics3D(int w, int h, int depth = 32, int mode = 0) {
   // Im Vollbild ist das Fenster so gross wie der Bildschirm; das Bild des
   // Programms wird darauf skaliert, nicht in die Ecke gelegt (BUG-159). Fuer
   // die 2D-Befehle macht das der Renderer, fuer RenderWorld der Viewport.
-  if (bb_renderer_ && fullscreen)
+  // Ebenso in den Fenstern zum Ziehen, Modus 3 und 7 gestreckt (BUG-208).
+  if (bb_renderer_ && scaled)
     SDL_SetRenderLogicalPresentation(bb_renderer_, w, h,
-                                     SDL_LOGICAL_PRESENTATION_LETTERBOX);
-  bb_present_update_(w, h);
+                                     m.stretch ? SDL_LOGICAL_PRESENTATION_STRETCH
+                                               : SDL_LOGICAL_PRESENTATION_LETTERBOX);
+  bb_present_update_(w, h, m.stretch);
+  bb_auto_suspend_ = m.suspend;
 
   bb_gl_active_    = true;
   bb_scene_open_   = true;       // BUG-120, siehe bb_close_scene_

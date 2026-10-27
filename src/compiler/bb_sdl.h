@@ -162,7 +162,8 @@ inline float bb_mouse_off_x_  = 0.0f, bb_mouse_off_y_  = 0.0f;
 // aber in der Aufloesung, die es bei Graphics/Graphics3D angegeben hat. Bild
 // und Maus muessen deshalb umgerechnet werden. Im Fenstermodus steht der
 // Massstab auf 1 und der Rand auf 0, dann faellt die Rechnung weg.
-inline float bb_present_scale_ = 1.0f;
+inline float bb_present_scale_   = 1.0f;   // x; im Vollbild und Fenster 5 auch y
+inline float bb_present_scale_y_ = 1.0f;
 inline float bb_present_ox_    = 0.0f;
 inline float bb_present_oy_    = 0.0f;
 inline int   bb_present_pw_    = 0;   // Fenstergroesse in Pixeln
@@ -171,28 +172,24 @@ inline int   bb_present_ph_    = 0;
 // rechnen in Fensterkoordinaten, Massstab und Rand in Pixeln; bei einer
 // Windows-Skalierung ueber 100 % ist das nicht dasselbe.
 inline float bb_present_density_ = 1.0f;
+// Spielaufloesung und Art der Abbildung; gestreckt (ohne Rand, x und y
+// getrennt) im skalierten Fenster der Modi 3 und 7 wie im Original (BUG-208).
+inline int   bb_present_gw_      = 0;
+inline int   bb_present_gh_      = 0;
+inline bool  bb_present_stretch_ = false;
 
 inline float bb_present_to_game_x_(float x) { return (x * bb_present_density_ - bb_present_ox_) / bb_present_scale_; }
-inline float bb_present_to_game_y_(float y) { return (y * bb_present_density_ - bb_present_oy_) / bb_present_scale_; }
+inline float bb_present_to_game_y_(float y) { return (y * bb_present_density_ - bb_present_oy_) / bb_present_scale_y_; }
 inline float bb_present_to_window_x_(float x) { return (bb_present_ox_ + x * bb_present_scale_) / bb_present_density_; }
-inline float bb_present_to_window_y_(float y) { return (bb_present_oy_ + y * bb_present_scale_) / bb_present_density_; }
+inline float bb_present_to_window_y_(float y) { return (bb_present_oy_ + y * bb_present_scale_y_) / bb_present_density_; }
 
 // Massstab und Rand aus Fenstergroesse und Spielaufloesung bestimmen. Passt
 // das Seitenverhaeltnis nicht, bleibt oben/unten bzw. links/rechts ein Rand -
-// das Bild wird nie beschnitten.
-inline void bb_present_update_(int gw, int gh) {
-  // Nach einem Moduswechsel steht die Maus im Original auf 0,0, bis sie sich
-  // bewegt. Das Ereignis, mit dem SDL beim Anlegen des Fensters die Lage des
-  // Cursors meldet, wird deshalb verworfen.
-  bb_mouse_x_ = bb_mouse_y_ = 0.0f;
-  bb_mouse_speed_x_ = bb_mouse_speed_y_ = 0;
-  bb_mouse_read_x_ = bb_mouse_read_y_ = 0.0f;
-  bb_mouse_off_x_ = bb_mouse_off_y_ = 0.0f;
-  if (bb_window_) {
-    SDL_PumpEvents();
-    SDL_FlushEvent(SDL_EVENT_MOUSE_MOTION);
-  }
-  bb_present_scale_ = 1.0f;
+// das Bild wird nie beschnitten. Gestreckt fuellt es das Fenster. Auch nach
+// jeder Groessenaenderung des Fensters (bb_sdl_process_event_).
+inline void bb_present_fit_() {
+  const int gw = bb_present_gw_, gh = bb_present_gh_;
+  bb_present_scale_ = bb_present_scale_y_ = 1.0f;
   bb_present_density_ = 1.0f;
   bb_present_ox_ = bb_present_oy_ = 0.0f;
   bb_present_pw_ = gw;
@@ -208,10 +205,33 @@ inline void bb_present_update_(int gw, int gh) {
   bb_present_ph_ = ph;
   const float sx = (float)pw / (float)gw;
   const float sy = (float)ph / (float)gh;
+  if (bb_present_stretch_) {
+    bb_present_scale_ = sx;
+    bb_present_scale_y_ = sy;
+    return;
+  }
   const float sc = sx < sy ? sx : sy;
-  bb_present_scale_ = sc;
+  bb_present_scale_ = bb_present_scale_y_ = sc;
   bb_present_ox_ = (pw - gw * sc) * 0.5f;
   bb_present_oy_ = (ph - gh * sc) * 0.5f;
+}
+
+inline void bb_present_update_(int gw, int gh, bool stretch = false) {
+  // Nach einem Moduswechsel steht die Maus im Original auf 0,0, bis sie sich
+  // bewegt. Das Ereignis, mit dem SDL beim Anlegen des Fensters die Lage des
+  // Cursors meldet, wird deshalb verworfen.
+  bb_mouse_x_ = bb_mouse_y_ = 0.0f;
+  bb_mouse_speed_x_ = bb_mouse_speed_y_ = 0;
+  bb_mouse_read_x_ = bb_mouse_read_y_ = 0.0f;
+  bb_mouse_off_x_ = bb_mouse_off_y_ = 0.0f;
+  if (bb_window_) {
+    SDL_PumpEvents();
+    SDL_FlushEvent(SDL_EVENT_MOUSE_MOTION);
+  }
+  bb_present_gw_ = gw;
+  bb_present_gh_ = gh;
+  bb_present_stretch_ = stretch;
+  bb_present_fit_();
 }
 
 inline bool  bb_mouse_down_[4] = {};  // [1]=left  [2]=right  [3]=middle
@@ -379,6 +399,32 @@ inline bool bb_stdin_is_console_() {
 // Called by bb_PollEvents (non-blocking pump), bb_WaitKey, and
 // bb_GetKey (defined in bb_input.h).
 
+// ---- Anhalten ohne Fokus (BUG-208) ----
+//
+// Wie auto_suspend in gxruntime.cpp: im Vollbild (Modus 0 und 1) und in den
+// Fenstermodi 6 und 7 haelt das Programm an, sobald sein Fenster den Fokus
+// verliert, und laeuft weiter, wenn es ihn zurueckbekommt. Ausloeser ist der
+// Wechsel (WM_ACTIVATEAPP im Original), nicht ein Fenster, das nie den Fokus
+// hatte. Beim Anhalten und Weiterlaufen werden Tasten und Maus zurueckgesetzt
+// (input->reset) und der Ton angehalten; bb_PollEvents wartet so lange.
+inline bool bb_auto_suspend_ = false;
+inline bool bb_suspended_    = false;
+inline void (*bb_audio_pause_hook_)(bool pause) = nullptr;   // bb_sound.h
+
+inline void bb_input_reset_() {
+  for (int i = 0; i < 512; ++i) { bb_sdl_key_down_[i] = false; bb_sdl_key_hit_raw_[i] = 0; }
+  bb_key_queue_head_ = bb_key_queue_tail_ = 0;
+  for (int i = 0; i < 4; ++i) { bb_mouse_down_[i] = false; bb_mouse_hit_[i] = 0; }
+  bb_mouse_queue_head_ = bb_mouse_queue_tail_ = 0;
+}
+
+inline void bb_suspend_(bool on) {
+  if (on == bb_suspended_) return;
+  bb_suspended_ = on;
+  bb_input_reset_();
+  if (bb_audio_pause_hook_) bb_audio_pause_hook_(on);
+}
+
 inline void bb_sdl_process_event_(const SDL_Event &ev) {
   if (ev.type == SDL_EVENT_QUIT) {
 #ifdef _WIN32
@@ -396,6 +442,11 @@ inline void bb_sdl_process_event_(const SDL_Event &ev) {
     bb_sdl_quit_();
     std::exit(0);
   }
+  if (ev.type == SDL_EVENT_WINDOW_FOCUS_LOST) {
+    if (bb_auto_suspend_) bb_suspend_(true);
+  }
+  if (ev.type == SDL_EVENT_WINDOW_FOCUS_GAINED) bb_suspend_(false);
+  if (ev.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED) bb_present_fit_();
   if (ev.type == SDL_EVENT_KEY_DOWN) {
     int sc = (int)ev.key.scancode;
     if (sc > 0 && sc < 512) {
@@ -515,6 +566,9 @@ inline bool bb_PollEvents() {
   SDL_Event ev;
   while (SDL_PollEvent(&ev))
     bb_sdl_process_event_(ev);
+  // Angehalten: warten, bis das Fenster den Fokus zurueckbekommt (BUG-208).
+  while (bb_suspended_ && bb_window_)
+    if (SDL_WaitEvent(&ev)) bb_sdl_process_event_(ev);
   if (bb_audio_update_hook_) bb_audio_update_hook_();
   if (bb_front_show_hook_) bb_front_show_hook_();
   return false;

@@ -52,7 +52,7 @@ an old program is a bug.
 
 ## Compatibility Progress
 
-*State 2026-10-27:* 2 open bugs that can break an old program and 14 missing commands, all
+*State 2026-10-27:* 1 open bug that can break an old program and 14 missing commands, all
 listed in [KNOWN_ISSUES.md](KNOWN_ISSUES.md). Userlibs are not supported, so `CallDLL` does
 nothing.
 
@@ -120,9 +120,13 @@ Where something exists but does not yet behave like Blitz3D, it is listed in
 [KNOWN_ISSUES.md](KNOWN_ISSUES.md). `blitzcc -k` prints every available command, `blitzcc +k`
 their signatures.
 
-**Extra `Graphics` modes.** Besides Blitz3D's modes, `Graphics w,h,d,5` opens a resizable window
-at twice the size that scales the `w×h` picture with letterboxing, and mode `6` is fullscreen
-with vsync.
+**`Graphics` modes.** Modes 0, 1, 2, 3, 6 and 7 behave as in Blitz3D: 0 is full screen, or a
+window when the program is built with `-d`; 1 is full screen; 2 a window; 3 a window you can
+resize, with the picture stretched to it; 6 and 7 are 2 and 3 that pause while the window is
+inactive, as full screen does. One extra: mode `5` opens a resizable window at twice the size
+that scales the `w×h` picture with letterboxing. Any other mode stops with
+`Illegal Graphics mode`. With `BLTZNXT_WINDOWED=1` in the environment every program stays in a
+window and never pauses — the test suite runs that way.
 
 ---
 
@@ -136,7 +140,8 @@ blitzcc [options] <file.bb>
   -q          Quiet mode (suppress progress output)
   +q          Very quiet mode
   -c          Transpile only — emit .cpp, skip compile step
-  -d          Debug build (passes -g to g++ without optimisation, keeps .cpp)
+  -d          Debug build (passes -g to g++ without optimisation, keeps .cpp);
+              Graphics mode 0 opens a window, as in Blitz3D's debug build
   -release    Release build, optimised with -O2 (default; explicit flag for IDE compatibility)
   -o <name>   Output executable name (without .exe)
   -k          List all known built-in command names
@@ -145,6 +150,7 @@ blitzcc [options] <file.bb>
 Environment:
   BLITZPATH   Fallback root for toolchain lookup (after CWD and ../)
   blitzide    Set by the Blitz3D IDE (see below)
+  BLTZNXT_WINDOWED  Set to 1 when running a program: all Graphics modes open a window
 ```
 
 ---
@@ -206,8 +212,8 @@ copying them. To go back, delete the four copied files, remove the junctions wit
 `cmd /c rmdir "$b3d\tools"` (and `src`, `libs` — this removes only the link) and rename
 `blitzcc_blitz3d.exe` back.
 
-Not available: Blitz3D's debugger — programs always run with BLTZNXT's runtime checks, and the
-IDE's debug switch is ignored. The quick help shows BLTZNXT's parameter names (`h` instead of
+Not available: Blitz3D's debugger — programs always run with BLTZNXT's runtime checks. The
+IDE's debug switch only makes `Graphics` mode 0 open a window, as it does in Blitz3D. The quick help shows BLTZNXT's parameter names (`h` instead of
 `entity`).
 
 ---

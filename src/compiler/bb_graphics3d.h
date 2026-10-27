@@ -221,11 +221,12 @@ inline void bb_RenderWorld(float tween = 1.0f) {
     if (vw <= 0 || vh <= 0) continue;
     // Der Viewport steht in der Aufloesung des Programms; im Vollbild ist das
     // Fenster groesser und alles wird skaliert (BUG-159).
-    const float sc = bb_present_scale_;
+    // Im gestreckten Fenster (Modus 3/7) x und y getrennt (BUG-208).
+    const float sc = bb_present_scale_, scy = bb_present_scale_y_;
     const int px = (int)(bb_present_ox_ + cam->vpX * sc + 0.5f);
     const int pw = (int)(vw * sc + 0.5f);
-    const int phh = (int)(vh * sc + 0.5f);
-    const int py_top = (int)(bb_present_oy_ + cam->vpY * sc + 0.5f);
+    const int phh = (int)(vh * scy + 0.5f);
+    const int py_top = (int)(bb_present_oy_ + cam->vpY * scy + 0.5f);
     int gl_y = bb_present_ph_ - py_top - phh;
     glViewport(px, gl_y, pw, phh);
     // glClear beachtet den Viewport nicht, die Schere schon. Im Original

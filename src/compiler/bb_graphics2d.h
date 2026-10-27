@@ -41,19 +41,100 @@ inline bool bb_gfx_fullscreen_ = false;
 // weil der gemerkte Wert schon passt.
 inline int bb_vsync_mode_ = -1;
 
+// ---- Graphics-Modi (BUG-208) ----
+//
+// Wie bbGraphics und bbGraphics3D (bbgraphics.cpp):
+//   0 = Vollbild, im Debug-Build (blitzcc -d, "Debug enabled" in der IDE)
+//       ein Fenster
+//   1 = Vollbild
+//   2 = Fenster in Spielgroesse
+//   3 = Fenster zum Ziehen; das Bild wird ohne Rand auf die Fenstergroesse
+//       gestreckt. Es beginnt so gross wie das Fenster davor - im Original
+//       zuerst das Textfenster mit 400x300 (gemessen 2026-10-27).
+//   5 = Fenster zum Ziehen, doppelt so gross, Bild mit Rand skaliert
+//       (BLTZNXT; im Original nicht belegt)
+//   6 = wie 2, 7 = wie 3, beide halten an, solange das Fenster keinen Fokus
+//       hat - wie das Vollbild
+//   sonst Laufzeitfehler "Illegal Graphics mode"
+// Das Vollbild liegt bei uns in Desktop-Aufloesung, das Bild wird mit Rand
+// darauf skaliert (BUG-159); Flip wartet dort auf den Bildaufbau (BUG-178).
+// Bis BUG-208 war 0 immer ein Fenster und 6 ein Vollbild mit VSync - das ist
+// das Vollbild jetzt ohnehin.
+//
+// BLTZNXT_WINDOWED=1 in der Umgebung haelt jedes Programm im Fenster und
+// ohne Anhalten (0 und 1 wie 2, 6 wie 2, 7 wie 3) - fuer die Testsuite und
+// fuer Vergleichslaeufe, die das Programm im Hintergrund laufen lassen.
+#ifndef BB_DEBUG
+#define BB_DEBUG 0
+#endif
+
+struct bb_GfxKind_ {
+  bool full = false;      // Vollbild
+  bool stretch = false;   // 3/7: gestreckt, Fenster zum Ziehen
+  bool x2 = false;        // 5: doppelt, Fenster zum Ziehen
+  bool suspend = false;   // ohne Fokus anhalten
+};
+
+inline bool bb_gfx_windowed_env_() {
+  const char *e = std::getenv("BLTZNXT_WINDOWED");
+  return e && *e && *e != '0';
+}
+
+inline bb_GfxKind_ bb_gfx_mode_(int mode, bool three_d) {
+  bb_GfxKind_ m;
+  switch (mode) {
+    case 0: m.full = !BB_DEBUG; break;   // Graphics3D: und Windowed3D(), bei uns immer 1
+    case 1: m.full = true; break;
+    case 2: break;
+    case 3: m.stretch = true; break;
+    case 5: m.x2 = true; break;
+    case 6: m.suspend = true; break;
+    case 7: m.stretch = m.suspend = true; break;
+    default:
+      bb_RuntimeError(three_d ? "Illegal Graphics3D mode" : "Illegal Graphics mode");
+  }
+  if (m.full) m.suspend = true;
+  if (bb_gfx_windowed_env_()) m.full = m.suspend = false;
+  return m;
+}
+
+// Innengroesse des letzten Fensters: damit beginnt ein Fenster der Modi 3
+// und 7. Ohne Fenster davor die des Textfensters im Original.
+inline int bb_gfx_last_w_ = 400, bb_gfx_last_h_ = 300;
+
+// Altes Fenster schliessen; seine Groesse merken (Modus 3/7).
+inline void bb_gfx_close_window_() {
+  // Ein Vollbild zaehlt nicht: danach stellt das Original das Fenster davor
+  // wieder her.
+  if (bb_window_ && !(SDL_GetWindowFlags(bb_window_) & SDL_WINDOW_FULLSCREEN)) {
+    int w = 0, h = 0;
+    SDL_GetWindowSize(bb_window_, &w, &h);
+    if (w > 0 && h > 0) { bb_gfx_last_w_ = w; bb_gfx_last_h_ = h; }
+  }
+  if (bb_renderer_) { SDL_DestroyRenderer(bb_renderer_); bb_renderer_ = nullptr; bb_screen_tex_ = nullptr; }
+  if (bb_gl_ctx_)   { SDL_GL_DestroyContext(bb_gl_ctx_); bb_gl_ctx_   = nullptr; }
+  bb_gl_active_ = false;
+  if (bb_window_)   { SDL_DestroyWindow(bb_window_);     bb_window_   = nullptr; }
+  bb_auto_suspend_ = false;
+  bb_suspended_    = false;
+}
+
+// Fenstergroesse und -art fuer einen Modus.
+inline void bb_gfx_window_size_(const bb_GfxKind_ &m, int w, int h, int &ww, int &wh,
+                                SDL_WindowFlags &flags) {
+  ww = w; wh = h;
+  if (m.full)    { ww = wh = 0; flags |= SDL_WINDOW_FULLSCREEN; }
+  if (m.x2)      { ww = w * 2; wh = h * 2; flags |= SDL_WINDOW_RESIZABLE; }
+  if (m.stretch) { ww = bb_gfx_last_w_; wh = bb_gfx_last_h_; flags |= SDL_WINDOW_RESIZABLE; }
+}
+
 // ---- Graphics() ----
 //
 // Opens an SDL3 window and hardware renderer.
 //
 //  width, height : desired framebuffer size in pixels (logical resolution)
 //  depth         : colour depth in bits (stored for API parity; SDL3 is always 32-bit)
-//  mode          : 0 = windowed
-//                  1 = fullscreen (display-mode change)
-//                  2 = fullscreen desktop (current desktop resolution)
-//                  5 = windowed 2× scaled (BLTZNXT extension — physical window is
-//                      width*2 × height*2; game draws at logical resolution)
-//                  6 = fullscreen + vsync hint
-//                  other values treated as windowed
+//  mode          : siehe oben
 //
 // If SDL cannot be initialized (headless), the parameters are stored and the
 // function returns quietly — all query functions still return the stored values.
@@ -84,13 +165,14 @@ inline void bb_close_scene_() {
 }
 
 inline void bb_Graphics(int width, int height, int depth = 32, int mode = 0) {
+  const bb_GfxKind_ m = bb_gfx_mode_(mode, false);   // BUG-208
   bb_console_release_();   // das Grafikfenster ersetzt das Textfenster (bb_sdl.h)
   // Store requested parameters unconditionally so query functions always work.
   bb_gfx_width_  = width;
   bb_gfx_height_ = height;
   bb_gfx_depth_  = depth;
   bb_gfx_rate_   = 0;
-  bb_gfx_fullscreen_ = (mode == 1 || mode == 6);   // BUG-178
+  bb_gfx_fullscreen_ = m.full;   // BUG-178
   bb_vsync_mode_ = -1;
   bb_close_scene_();
   bb_gfx_reset_draw_state_(2);   // FrontBuffer
@@ -99,34 +181,16 @@ inline void bb_Graphics(int width, int height, int depth = 32, int mode = 0) {
   if (!bb_sdl_initialized_) return;
 
   // Tear down any existing window/renderer before creating a new one.
-  if (bb_renderer_) { SDL_DestroyRenderer(bb_renderer_); bb_renderer_ = nullptr; bb_screen_tex_ = nullptr; }
-  if (bb_window_)   { SDL_DestroyWindow(bb_window_);     bb_window_   = nullptr; }
+  bb_gfx_close_window_();
 
   SDL_WindowFlags flags = 0;
-
-  // Blitz3D Graphics mode parameter:
-  //   0 = windowed
-  //   1 = fullscreen  (window at desktop res; game content scaled via logical presentation)
-  //   2 = windowed
-  //   3 = windowed
-  //   5 = windowed 2× scaled, resizable (BLTZNXT extension; physical window starts at
-  //       width*2 × height*2; SDL_WINDOW_RESIZABLE + logical presentation letterbox
-  //       so the game scales to any window size the user drags or maximises to)
-  //   6 = fullscreen + vsync (BLTZNXT extension; same scaling approach as mode 1)
-  const bool fullscreen      = (mode == 1 || mode == 6);
-  const bool scaled_windowed = (mode == 5);
-  if (fullscreen)      flags |= SDL_WINDOW_FULLSCREEN;
-  if (scaled_windowed) flags |= SDL_WINDOW_RESIZABLE;
+  int win_w = 0, win_h = 0;
+  bb_gfx_window_size_(m, width, height, win_w, win_h, flags);
+  const bool scaled = m.full || m.x2 || m.stretch;
 
   const std::string title8 = bb_app_title_.empty() ? std::string("BLTZNXT")
                                                   : bb_utf8_(bb_app_title_);   // BUG-203
   const char* title = title8.c_str();
-
-  // Fullscreen: create at desktop resolution (0,0 → SDL picks current mode).
-  // Windowed scaled: physical window is 2× the logical size.
-  // Windowed: create at the exact requested size.
-  int win_w = fullscreen ? 0 : (scaled_windowed ? width  * 2 : width);
-  int win_h = fullscreen ? 0 : (scaled_windowed ? height * 2 : height);
 
   bb_window_ = SDL_CreateWindow(title, win_w, win_h, flags);
   if (!bb_window_) {
@@ -144,14 +208,16 @@ inline void bb_Graphics(int width, int height, int depth = 32, int mode = 0) {
 
   // Fullscreen / windowed-scaled: set a logical presentation so all drawing
   // commands use the game's virtual resolution (width × height).  SDL3 scales
-  // to fill the physical window and letterboxes if the aspect ratio differs.
+  // to fill the physical window and letterboxes if the aspect ratio differs;
+  // Modus 3 und 7 strecken ohne Rand wie das Original (BUG-208).
   // GraphicsWidth()/Height() still return width/height so game code sees the
   // expected logical values regardless of the physical window size.
-  if (fullscreen || scaled_windowed) {
+  if (scaled) {
     SDL_SetRenderLogicalPresentation(bb_renderer_, width, height,
-                                     SDL_LOGICAL_PRESENTATION_LETTERBOX);
+                                     m.stretch ? SDL_LOGICAL_PRESENTATION_STRETCH
+                                               : SDL_LOGICAL_PRESENTATION_LETTERBOX);
   }
-  bb_present_update_(width, height);
+  bb_present_update_(width, height, m.stretch);
 
   // Der Bildschirm ist eine Zieltextur in Spielgroesse (BUG-221): im Fenster
   // ist die Flaeche des Originals eine einzige, Flip zeigt sie nur und laesst
@@ -163,8 +229,7 @@ inline void bb_Graphics(int width, int height, int depth = 32, int mode = 0) {
                                      SDL_TEXTUREACCESS_TARGET, width, height);
   if (bb_screen_tex_) {
     SDL_SetTextureBlendMode(bb_screen_tex_, SDL_BLENDMODE_NONE);
-    SDL_SetTextureScaleMode(bb_screen_tex_, (fullscreen || scaled_windowed)
-                                                ? SDL_SCALEMODE_LINEAR : SDL_SCALEMODE_NEAREST);
+    SDL_SetTextureScaleMode(bb_screen_tex_, scaled ? SDL_SCALEMODE_LINEAR : SDL_SCALEMODE_NEAREST);
     SDL_SetRenderTarget(bb_renderer_, bb_screen_tex_);
     SDL_SetRenderDrawColor(bb_renderer_, 0, 0, 0, 255);
     SDL_RenderClear(bb_renderer_);
@@ -176,9 +241,7 @@ inline void bb_Graphics(int width, int height, int depth = 32, int mode = 0) {
   if (dm && dm->refresh_rate > 0.0f)
     bb_gfx_rate_ = static_cast<int>(dm->refresh_rate);
 
-  // Enable vsync when mode == 6.
-  if (mode == 6)
-    SDL_SetRenderVSync(bb_renderer_, 1);
+  bb_auto_suspend_ = m.suspend;
 }
 
 // ---- EndGraphics() ----
@@ -189,8 +252,10 @@ inline void bb_Graphics(int width, int height, int depth = 32, int mode = 0) {
 
 inline void bb_EndGraphics() {
   bb_close_scene_();
-  if (bb_renderer_) { SDL_DestroyRenderer(bb_renderer_); bb_renderer_ = nullptr; bb_screen_tex_ = nullptr; }
-  if (bb_window_)   { SDL_DestroyWindow(bb_window_);     bb_window_   = nullptr; }
+  bb_gfx_close_window_();
+  // Das Original oeffnet danach wieder sein Textfenster mit 400x300.
+  bb_gfx_last_w_ = 400;
+  bb_gfx_last_h_ = 300;
   bb_gfx_width_ = bb_gfx_height_ = bb_gfx_depth_ = bb_gfx_rate_ = 0;
   bb_gfx_fullscreen_ = false;
   bb_vsync_mode_ = -1;
