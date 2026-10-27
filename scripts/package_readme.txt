@@ -1,5 +1,5 @@
-BLTZNXT @VERSION@  -  "Birth of IDE"
-====================================
+BLTZNXT @VERSION@  -  "The Tide Update"
+=======================================
 
 BlitzNext is the successor to Blitz3D: a compiler that turns Blitz3D (.bb) programs
 into native Windows executables, and now an IDE to write them in.
@@ -11,7 +11,7 @@ Getting started
 ---------------
 1. Unpack the ZIP anywhere (a path without special characters is best).
 2. Double-click "BLTZNXT IDE.bat" (or ide\BLTZNXT IDE.exe).
-3. File > Open Folder... and choose samplesriendlyfire, open friendlyfire.bb, press F5.
+3. File > Open Folder... and choose samples\friendlyfire, open friendlyfire.bb, press F5.
    The first build takes some seconds; the Output tab shows what the compiler does.
 
 Windows may show a "SmartScreen" warning the first time: the programs are not
@@ -35,6 +35,9 @@ The compiler on its own
     bin\blitzcc.exe hello.bb
 
 writes hello.exe next to the source. "bin\blitzcc.exe -h" lists the options.
+As in Blitz3D, "Graphics w,h" without a mode opens full screen; built with
+"bin\blitzcc.exe -d" it opens a window. Set BLTZNXT_WINDOWED=1 to keep every
+program in a window.
 The compiler finds its toolchain, headers and libraries relative to bin\, so the folder
 can be moved or copied as a whole. The Blitz3D IDE can also use it as its compiler
 (see the repository README).
