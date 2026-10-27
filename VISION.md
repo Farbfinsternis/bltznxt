@@ -120,7 +120,9 @@ setzen kann, aber nicht muss.
    brauchen genau diese Befehle. Vorher am Original messen: Nachrichtentypen und ihre Reihenfolge,
    was beim Beitreten und Verlassen ankommt, Host-Wechsel, Verhalten bei Verbindungsabbruch.
    DirectPlay selbst gibt es auf aktuellen Systemen nicht mehr; nachgebaut wird das Verhalten,
-   nicht die Bibliothek.
+   nicht die Bibliothek. Ohne Dialog: `StartNetGame()` sucht im LAN und tritt bei oder hostet,
+   neue Befehle zur Spielsuche erlauben einen eigenen Dialog (entschieden 2026-10-27, Konzept in
+   [NETWORK.md](NETWORK.md)).
 2. **NEXT: WebRTC als Transport darunter.** Die DirectPlay-Schicht und eine neue, einfache API
    benutzen denselben Weg; alte Programme bekommen Internet-Mehrspieler ohne Änderung, sobald
    ein Treffpunkt eingestellt ist. Im Browser ist es derselbe Transport.

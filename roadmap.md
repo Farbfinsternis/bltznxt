@@ -841,7 +841,8 @@ Blitz3D itself does not have (e.g. `FreeSurface`, `VectorDistance`) are not coun
 - [ ] **Network**
     - [x] OpenTCPStream, CloseTCPStream, CreateTCPServer, CloseTCPServer, AcceptTCPStream, TCPStreamIP, TCPStreamPort, TCPTimeouts, DottedIP, CountHostIPs, HostIP
     - [x] CreateUDPStream, CloseUDPStream, SendUDPMsg, RecvUDPMsg, UDPStreamIP, UDPStreamPort, UDPMsgIP, UDPMsgPort, UDPTimeouts, CopyStream *(2026-09-30)*
-    - [ ] StartNetGame, HostNetGame, JoinNetGame, StopNetGame, CreateNetPlayer, DeleteNetPlayer, NetPlayerName, NetPlayerLocal, SendNetMsg, RecvNetMsg, NetMsgType, NetMsgFrom, NetMsgTo, NetMsgData
+    - [ ] StartNetGame, HostNetGame, JoinNetGame, StopNetGame, CreateNetPlayer, DeleteNetPlayer, NetPlayerName, NetPlayerLocal, SendNetMsg, RecvNetMsg, NetMsgType, NetMsgFrom, NetMsgTo, NetMsgData — eigenes UDP statt DirectPlay, StartNetGame ohne Dialog im Auto-Modus (Konzept [NETWORK.md](NETWORK.md))
+    - [ ] NEXT: FindNetGames, NetGameName, NetGameIP, NetGamePlayers, NetGameLAN, NetGameApp, NetGamePort, NetGameServer (Spielsuche im LAN und ueber Listen-Server, fuer eigene Dialoge)
 - [x] **Time / System** *(M21–M23)*
     - [x] Delay, MilliSecs, CurrentDate, CurrentTime *(M21)*
     - [x] CreateTimer, FreeTimer, WaitTimer *(M22)*
