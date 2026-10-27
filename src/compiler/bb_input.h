@@ -171,12 +171,61 @@ inline int bb_key_queue_pop_ascii_(bool *empty) {
   return (sc > 0 && sc < 512) ? bb_key_to_ascii_(bb_sdl_to_blitz_[(size_t)sc]) : 0;
 }
 
+// ---- Tasten aus der Konsole (BUG-214) ----
+//
+// Vor Graphics steht der Text bei uns in der Konsole, nicht in einem Fenster
+// wie im Original - und ohne SDL-Fenster kommt kein Tastenereignis an:
+// "Press ESC to Exit" (Repeat : VWait : Until KeyHit(1)) oder WaitKey hingen
+// ewig. Solange kein Fenster offen ist, holen die Tastenabfragen deshalb die
+// Tastenereignisse der Konsole ab und fuehren sie in denselben Zustand wie
+// die SDL-Ereignisse. Scancode und Erweitert-Bit ergeben den Blitz-Code wie
+// im WM_KEYDOWN des Originals; eine gehaltene Taste meldet die Konsole
+// wiederholt, das zaehlt wie dort nicht als neuer Druck. Nur die
+// Tastenabfragen lesen hier: Text, der vorab fuer Input$ getippt wird,
+// bleibt in der Konsole stehen.
+inline void bb_console_keys_() {
+#ifdef _WIN32
+  if (bb_window_) return;
+  const HANDLE h = GetStdHandle(STD_INPUT_HANDLE);
+  DWORD mode = 0, n = 0;
+  if (!GetConsoleMode(h, &mode)) return;
+  while (GetNumberOfConsoleInputEvents(h, &n) && n) {
+    INPUT_RECORD rec[32];
+    DWORD got = 0;
+    if (!ReadConsoleInputW(h, rec, 32, &got) || !got) break;
+    for (DWORD i = 0; i < got; ++i) {
+      if (rec[i].EventType != KEY_EVENT) continue;
+      const KEY_EVENT_RECORD &k = rec[i].Event.KeyEvent;
+      const int dik = (k.wVirtualScanCode & 0x7f) |
+                      ((k.dwControlKeyState & ENHANCED_KEY) ? 0x80 : 0);
+      const int sc = (int)bb_blitz_to_sdl_[(size_t)dik];
+      if (sc <= 0) continue;
+      if (!k.bKeyDown) { bb_sdl_key_down_[sc] = false; continue; }
+      if (bb_sdl_key_down_[sc]) continue;
+      bb_sdl_key_down_[sc] = true;
+      ++bb_sdl_key_hit_raw_[sc];
+      const int next = (bb_key_queue_tail_ + 1) % BB_KEY_QUEUE_CAP;
+      if (next != bb_key_queue_head_) {
+        bb_key_queue_buf_[bb_key_queue_tail_] = (SDL_Scancode)sc;
+        bb_key_queue_tail_ = next;
+      }
+    }
+  }
+#endif
+}
+
+// Ereignisse fuer die Tastenabfragen: Konsole, dann SDL.
+inline void bb_keys_pump_() {
+  bb_console_keys_();
+  if (bb_sdl_initialized_) bb_PollEvents();
+}
+
 // ---- Keyboard API ----
 
 // Returns non-zero if the key (Blitz3D code) is currently held down.
 // Pumps SDL events first if SDL is running (keeps state fresh in game loops).
 inline int bb_KeyDown(int code) {
-  if (bb_sdl_initialized_) bb_PollEvents();
+  bb_keys_pump_();
   if (code < 1 || code > 255) return 0;
   int sc = (int)bb_blitz_to_sdl_[(size_t)code];
   if (sc <= 0) return 0;
@@ -187,7 +236,7 @@ inline int bb_KeyDown(int code) {
 // (gxDevice::keyHit). Bis BUG-206 nur 0 oder 1: dreimal A zwischen zwei
 // Abfragen ergab 1, im Original 3.
 inline int bb_KeyHit(int code) {
-  if (bb_sdl_initialized_) bb_PollEvents();
+  bb_keys_pump_();
   if (code < 1 || code > 255) return 0;
   int sc = (int)bb_blitz_to_sdl_[(size_t)code];
   if (sc <= 0) return 0;
@@ -202,8 +251,7 @@ inline int bb_KeyHit(int code) {
 // jede Spielschleife mit "key=GetKey()" stand in jedem Bild still.
 inline int bb_GetKey() {
   bb_sdl_ensure_();
-  if (!bb_sdl_initialized_) return 0;
-  bb_PollEvents();
+  bb_keys_pump_();
   return bb_key_queue_pop_ascii_(nullptr);   // Zeichen, nicht Tastencode (BUG-205)
 }
 
@@ -212,7 +260,7 @@ inline int bb_GetKey() {
 // BUG-206 meldete KeyDown nach FlushKeys 0, obwohl die Taste noch unten war,
 // und weil die Ereignisse verworfen wurden, ging auch das Loslassen verloren.
 inline void bb_FlushKeys() {
-  if (bb_sdl_initialized_) bb_PollEvents();
+  bb_keys_pump_();
   for (int i = 0; i < 512; ++i) bb_sdl_key_hit_raw_[i] = 0;
   bb_key_queue_head_ = bb_key_queue_tail_ = 0;
 }

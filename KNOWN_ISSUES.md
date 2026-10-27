@@ -12,7 +12,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-10-26 — 3 open bugs, 14 missing commands.* A review against the
+*Last updated: 2026-10-27 — 2 open bugs, 14 missing commands.* A review against the
 original on 2026-10-13 found eleven more (BUG-201 to BUG-211); they are fixed first, for
 version 0.7.0.
 
@@ -68,7 +68,8 @@ These are not bugs but decisions, and they will stay:
   terminal, it still writes `Print` and error messages there; redirected output stays
   redirected. Started without a terminal (double-click, Blitz3D IDE), `Print`, `Write` and
   `Input` before `Graphics` open a console of their own, which `Graphics` closes again — where
-  Blitz3D shows its text window. A text-only program keeps its console. (BUG-188)
+  Blitz3D shows its text window. A text-only program keeps its console. Keys pressed in
+  that console reach `KeyHit`, `KeyDown`, `GetKey` and `WaitKey`. (BUG-188, BUG-214)
 - **Colours read back from the rendered 3D image are not guaranteed.** `ReadPixel` or
   `CopyRect` after `RenderWorld` return BlitzNext's shading, not Direct3D 7's. What is in the
   image — geometry, visibility, texture contents — does match.

@@ -1,5 +1,16 @@
 # BlitzNext Developer Log
 
+## 2026-10-27 — keys in the console before Graphics
+
+Text before `Graphics` goes to the console here, where Blitz3D has a text window — and
+keys pressed in that console never reached the program (BUG-214): "Press ESC to exit"
+with `KeyHit(1)`, or "press a key" with `WaitKey`, waited forever. While no window is open,
+`KeyHit`, `KeyDown`, `GetKey`, `FlushKeys` and `WaitKey` now read the console's keys. Text
+typed ahead for `Input` stays where it is. Measured against Blitz3D 11.8 with real key
+presses; the values match.
+
+Full suite: 16 passed, 0 failed (tests using KeyHit, MouseHit, FlushKeys, FlushMouse, KeyDown, MouseDown, GetKey, WaitKey or Input).
+
 ## 2026-10-27 — KeyHit, MouseHit and the flush commands
 
 `KeyHit` and `MouseHit` returned 1 even when the key had been pressed three times since

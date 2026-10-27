@@ -542,6 +542,7 @@ inline bool bb_PollEvents() {
 // BUG-205). Bis dahin lieferte es den rohen SDL-Scancode der naechsten neuen
 // Taste: "If WaitKey()=27" griff nie.
 inline int bb_key_queue_pop_ascii_(bool *empty);   // bb_input.h
+inline void bb_console_keys_();                    // bb_input.h
 
 inline int bb_WaitKey() {
   // Case 1: graphical window is open — use SDL unconditionally.
@@ -559,6 +560,18 @@ inline int bb_WaitKey() {
 
   // Case 2: console-only — skip if stdin is not a real terminal (test runner).
   if (!bb_stdin_is_console_()) return 0;
+
+#ifdef _WIN32
+  // Ohne Fenster kommen die Tasten aus der Konsole (BUG-214); SDL bekaeme
+  // keine und wartete ewig.
+  for (;;) {
+    bb_console_keys_();
+    bool empty = false;
+    while (!empty)
+      if (int a = bb_key_queue_pop_ascii_(&empty)) return a;
+    Sleep(20);
+  }
+#endif
 
   // Interactive console path: ensure SDL is up, then wait for a key-down event.
   bb_sdl_ensure_();
