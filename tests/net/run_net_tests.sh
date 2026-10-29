@@ -9,6 +9,9 @@
 #   server <ms> <port>                  Referenz-Listen-Server (listserver/
 #                                       listserver.js, Node.js) starten; ohne
 #                                       Node.js wird der Fall uebersprungen
+#   igd <ms> <port> [opt ...]           nachgebauter Router fuer UPnP
+#                                       (fake_igd.js, Node.js), Protokoll der
+#                                       Aufrufe auf TCP <port> + 1
 #   timeout <s>                         Zeitlimit des Falls (Vorgabe 40)
 #
 # Verglichen wird die Ausgabe jedes Programms mit <prog>.expected (ohne
@@ -28,8 +31,8 @@ command -v node > /dev/null 2>&1 && NODE=node
 for c in $CASES; do
     dir="tests/net/$c"
     [ -f "$dir/case.txt" ] || continue
-    if grep -q "^server" "$dir/case.txt" && [ -z "$NODE" ]; then
-        echo "SKIP (no Node.js for the list server): net/$c"
+    if grep -q "^server\|^igd" "$dir/case.txt" && [ -z "$NODE" ]; then
+        echo "SKIP (no Node.js for the list server or router): net/$c"
         ((SKIP++)); continue
     fi
     out="bin/net_$c"
@@ -66,7 +69,11 @@ for c in $CASES; do
         server)
             ( sleep "$(awk "BEGIN{print $a/1000}")"
               exec $NODE listserver/listserver.js --host 127.0.0.1 --port "$b" --lifetime "$limit" > "$out/server.log" 2>&1 ) &
-            SERVERPID=$! ;;
+            SERVERPIDS="$SERVERPIDS $!" ;;
+        igd)
+            ( sleep "$(awk "BEGIN{print $a/1000}")"
+              exec $NODE tests/net/fake_igd.js --port "$b" --lifetime "$limit" $rest > "$out/igd.log" 2>&1 ) &
+            SERVERPIDS="$SERVERPIDS $!" ;;
         timeout) limit="$a" ;;
         esac
     done < <(tr -d '\r' < "$dir/case.txt")
@@ -74,7 +81,9 @@ for c in $CASES; do
     end=$((SECONDS + limit))
     while [ $SECONDS -lt $end ]; do
         alive=0
-        [ -n "$(jobs -rp | grep -vx "${SERVERPID:-none}")" ] && alive=1
+        for j in $(jobs -rp); do
+            [[ " $SERVERPIDS " == *" $j "* ]] || alive=1
+        done
         [ $alive = 0 ] && break
         sleep 0.2
     done
@@ -86,7 +95,8 @@ for c in $CASES; do
             taskkill //F //IM "net_${c}_$p.exe" > /dev/null 2>&1
         fi
     done
-    unset SERVERPID
+    [ -n "$SERVERPIDS" ] && kill $SERVERPIDS 2> /dev/null
+    unset SERVERPIDS
     wait 2>/dev/null
 
     for f in "$dir"/*.expected; do

@@ -1,0 +1,8 @@
+before 0
+host 2
+forwarded 0
+after stop 0
+router: add refused lease 3600
+router: add UDP 28767 -> 127.0.0.1:28767 lease 0 [BLTZNXT cgnat]
+router: ext
+router: del UDP 28767

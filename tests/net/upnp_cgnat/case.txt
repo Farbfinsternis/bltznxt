@@ -1,0 +1,3 @@
+igd 0 28791 --permanent --ext 100.64.1.2
+start h 800 BLTZNXT_NET_UPNP=http://127.0.0.1:28791/desc.xml
+timeout 20

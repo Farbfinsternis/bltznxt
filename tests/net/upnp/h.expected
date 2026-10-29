@@ -1,0 +1,7 @@
+before 0
+host 2
+forwarded 1
+after stop 0
+router: add UDP 28767 -> 127.0.0.1:28767 lease 3600 [BLTZNXT upnp]
+router: ext
+router: del UDP 28767

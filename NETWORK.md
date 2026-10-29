@@ -1,8 +1,8 @@
 # BLTZNXT — Netzwerk (Network Update)
 
 Stand: 2026-10-27 · **Umgesetzt** in [bb_net.h](src/compiler/bb_net.h), Nutzer-Doku in
-[NETWORKING.md](NETWORKING.md), Tests in [tests/net/](tests/net/). Offen: UPnP (Arbeitspaket 7)
-und ein Versuch über einen echten Webspace. Release-Plan: als Nächstes kommt das Network Update
+[NETWORKING.md](NETWORKING.md), Tests in [tests/net/](tests/net/). UPnP gebaut und am echten
+Router geprüft 2026-10-29. Offen: ein Versuch über einen echten Webspace. Release-Plan: als Nächstes kommt das Network Update
 (nur Mehrspieler), danach IDE.
 
 Blitz3D hatte zwei Netzwerk-Schichten: rohe TCP- und UDP-Streams (bei uns seit 2026-09-30
@@ -28,7 +28,8 @@ Pflicht, sauberes Funktionieren geht vor. Abgleich Konzept gegen Ergebnis:
 | Referenz-Listen-Server | `games.php`, Alternativen beschrieben | `games.php` **und** `listserver.js` (Node.js) | auf dem Entwicklungsrechner gibt es weder PHP noch ein funktionierendes Python; Node ist da und prüft die Schnittstelle in der Testreihe. `games.php` ist ungetestet |
 | Neuer Befehl | — | `NetGameHost()` | nach einer Migration muss ein Programm fragen können, ob es jetzt Host ist |
 | Einstellung | join, server, app, port | dazu `lan = 0` (keine LAN-Suche), nur für Tests `bind`, `drop` | `lan` für reine Internet-Spiele und zum Prüfen des Listen-Servers |
-| UPnP | Teil des Network-Updates | **nicht gebaut** | eine Weiterleitung am Router lässt sich hier nur am echten Router des Nutzers prüfen und ändert dessen Einstellungen; vorher fragen |
+| UPnP | `miniupnpc`, auch NAT-PMP | **eigener kleiner IGD-Client** in `bb_net.h` (2026-10-29): SSDP-Suche, Geräte­beschreibung, SOAP `AddPortMapping`/`DeletePortMapping`/`GetExternalIPAddress`, eigener Thread; Leihfrist 1 h mit Erneuerung, bei Fehler 725 dauerhaft. Kein NAT-PMP | Die Laufzeit steckt als Header in jedem Programm; `miniupnpc` hätte eine vorgebaute Bibliothek für jedes Programm gebraucht. Der benötigte Teil von UPnP sind gut 200 Zeilen. NAT-PMP/PCP bräuchte die Gateway-Adresse (iphlpapi); erst nachziehen, wenn ein Router nur das kann |
+| Neue Befehle (UPnP) | — | `NetGameUPnP enable` (Vorgabe an), `NetGameForwarded()` (1/0/−1); Einstellung `upnp = 0/1/URL` | ein reines LAN-Spiel soll den Port nicht ins Internet öffnen müssen; ein Spiel soll zeigen können, ob es von außen erreichbar ist. Die URL überspringt die Suche (Tests gegen `tests/net/fake_igd.js`, Router, die SSDP nicht beantworten). Carrier-NAT (externe Adresse privat oder 100.64/10) zählt als 0 mit Meldung |
 | Suche im LAN | Broadcast | Broadcast an 255.255.255.255, an x.y.z.255 jeder eigenen Adresse (/24 angenommen) und an 127.0.0.1 | Netze mit anderer Maske erreicht nur der allgemeine Broadcast |
 | HTTPS | WinHTTP / libcurl | WinHTTP unter Windows; anderswo nur http:// über einen eigenen Socket | blitzcc baut heute nur unter Windows |
 
@@ -394,6 +395,6 @@ fremden Spielers, Host-Wahl mit mehr Kandidaten, echtes LAN mit zwei Rechnern.
 | 4 | ~~Spielsuche im LAN, Auto-Modus, Handshake mit Kennung, Schalter von außen, neue Befehle~~ erledigt | Auto-Modus- und `REJECT`-Tests grün; Lobby-Beispiel läuft |
 | 5 | ~~Host-Migration, Abbruch, 200~~ erledigt | Test: Host beenden, ein Client wird Host, Spiel geht weiter |
 | 6 | ~~Listen-Server~~ erledigt bis auf den Webspace-Versuch: HTTP-Client (WinHTTP/libcurl), Anmelden/Lebenszeichen/Abmelden, `NetGameServer`, Referenz `listserver/games.php` | Tests gegen den lokalen Referenz-Server grün; zwei Rechner finden sich über einen echten Webspace |
-| 7 | UPnP mit `miniupnpc` (**offen**) | Am echten Router: Weiterleitung entsteht beim Hosten und verschwindet beim Beenden |
+| 7 | ~~UPnP, eigener IGD-Client~~ erledigt 2026-10-29: Tests gegen nachgebauten Router grün, am echten Router (miniupnpd) angelegt und wieder gelöscht, Carrier-NAT erkannt (DEVLOG) | Am echten Router: Weiterleitung entsteht beim Hosten und verschwindet beim Beenden (`samples/network/upnpcheck.bb`) |
 | 8 | ~~Doku~~ erledigt bis auf Release Notes und Website: Nutzer-Doku „Netzwerk – Unterschiede zu Blitz3D“ (inkl. Listen-Server, NAT, Datenschutz), KNOWN_ISSUES, roadmap, Release Notes, Website | Unterschiede an allen Stellen gleich beschrieben |
 | 9 | Friendly Fire: Mehrspieler auf den Net-Befehlen oder eigenem UDP (Entscheidung offen) | Siehe FRIENDLY_FIRE.md, Abschnitt Mehrspieler |

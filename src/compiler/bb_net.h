@@ -22,12 +22,13 @@
 //   Rueckfrage beim Host, nie 0 und nie -1.
 //
 // Einstellungen von aussen (gewinnen vor dem Code): Umgebungsvariablen
-// BLTZNXT_NET_JOIN/SERVER/APP/PORT/LAN, sonst die Datei <exe>.net neben der
+// BLTZNXT_NET_JOIN/SERVER/APP/PORT/LAN/UPNP, sonst die Datei <exe>.net neben der
 // Exe. Nur fuer Tests: BLTZNXT_NET_BIND (Adresse der Sockets, 127.0.0.1 haelt
 // die Firewall-Abfrage fern) und BLTZNXT_NET_DROP (Prozent verworfener
 // Pakete).
 
 #include "bb_socket.h"
+#include <algorithm>
 #include <atomic>
 #include <cctype>
 #include <chrono>
@@ -235,6 +236,15 @@ struct bb_NetState_ {
   std::atomic<int> regGen{0};
   std::string regKey, regUrl;
 
+  // UPnP: Schalter (ext -1 = nicht gesetzt), feste Geraetebeschreibung statt
+  // der Suche, Stand und was DeletePortMapping braucht
+  int extUpnp = -1, codeUpnp = 1;
+  std::string upnpUrl;
+  std::atomic<int> upnpGen{0};
+  int upnpState = 0;                       // 1 weitergeleitet, 0 nicht, -1 Antwort steht aus
+  std::string upnpCtl, upnpSvc;
+  int upnpPort = 0;
+
   std::mt19937 rng{std::random_device{}()};
 };
 
@@ -267,6 +277,11 @@ inline void bb_net_setting_(const std::string& key, const std::string& val, cons
     if (inet_pton(AF_INET, val.c_str(), &a) == 1) S.bindIp = ntohl(a.s_addr);
   }
   else if (k == "drop") S.drop = std::max(0, std::min(100, std::atoi(val.c_str())));
+  else if (k == "upnp") {
+    // 0 aus, 1 an, oder die URL der Geraetebeschreibung (Tests, Router, die die Suche nicht beantworten)
+    if (val.compare(0, 7, "http://") == 0) { S.upnpUrl = val; S.extUpnp = 1; }
+    else S.extUpnp = std::atoi(val.c_str()) != 0;
+  }
   else std::cerr << "Net settings: unknown key '" << key << "' in " << where << "\n";
 }
 
@@ -297,7 +312,7 @@ inline void bb_net_read_settings_() {
     bb_net_setting_(bb_net_trim_(line.substr(0, eq)), bb_net_trim_(line.substr(eq + 1)), (base + ".net").c_str());
   }
   // Umgebungsvariablen gewinnen vor der Datei
-  static const char* keys[] = {"JOIN", "SERVER", "APP", "PORT", "LAN", "BIND", "DROP"};
+  static const char* keys[] = {"JOIN", "SERVER", "APP", "PORT", "LAN", "BIND", "DROP", "UPNP"};
   for (const char* k : keys) {
     const std::string name = std::string("BLTZNXT_NET_") + k;
     if (const char* v = std::getenv(name.c_str())) bb_net_setting_(k, v, name.c_str());
@@ -522,6 +537,7 @@ inline void bb_net_remove_machine_(int machine) {
 }
 
 inline void bb_net_reg_start_();
+inline void bb_net_upnp_start_();
 
 inline void bb_net_become_host_(int64_t now) {
   auto& S = bb_net_;
@@ -537,6 +553,7 @@ inline void bb_net_become_host_(int64_t now) {
   if (S.sockH == BB_INVALID_SOCKET) S.sockH = bb_net_open_socket_(bb_net_port_());
   bb_net_event_(102, -1);
   bb_net_reg_start_();
+  bb_net_upnp_start_();
 }
 
 // Der Client hat den Host verloren (BYE oder Zeitueberschreitung).
@@ -1065,18 +1082,30 @@ inline std::string bb_net_urlenc_(const std::string& s) {
   return o;
 }
 
-// HTTP/1.0 ueber einen eigenen Socket, nur http://. Unter Windows nimmt
-// bb_net_http_ WinHTTP, das auch https kann.
-inline std::string bb_net_http_plain_(bool post, const std::string& url, const std::string& body,
-                                      int timeout, int& status) {
-  status = 0;
-  if (url.compare(0, 7, "http://") != 0) return std::string();
+// "http://host:port/pfad" zerlegen; false bei einem anderen Schema.
+inline bool bb_net_url_split_(const std::string& url, std::string& hostport, std::string& host, std::string& port,
+                              std::string& path) {
+  if (url.compare(0, 7, "http://") != 0) return false;
   const size_t slash = url.find('/', 7);
-  std::string hostport = url.substr(7, slash == std::string::npos ? std::string::npos : slash - 7);
-  const std::string path = slash == std::string::npos ? "/" : url.substr(slash);
-  std::string host = hostport, port = "80";
+  hostport = url.substr(7, slash == std::string::npos ? std::string::npos : slash - 7);
+  path = slash == std::string::npos ? "/" : url.substr(slash);
+  host = hostport;
+  port = "80";
   const size_t colon = hostport.find(':');
   if (colon != std::string::npos) { host = hostport.substr(0, colon); port = hostport.substr(colon + 1); }
+  return true;
+}
+
+// HTTP/1.0 ueber einen eigenen Socket, nur http://. Unter Windows nimmt
+// bb_net_http_ WinHTTP, das auch https kann. Fuer UPnP im LAN immer diese
+// Fassung: WinHTTP wuerde einen eingestellten Proxy nehmen.
+inline std::string bb_net_http_plain_(bool post, const std::string& url, const std::string& body,
+                                      int timeout, int& status,
+                                      const char* ctype = "application/x-www-form-urlencoded",
+                                      const std::string& extra = std::string()) {
+  status = 0;
+  std::string hostport, host, port, path;
+  if (!bb_net_url_split_(url, hostport, host, port, path)) return std::string();
   addrinfo hints{}, *res = nullptr;
   hints.ai_family = AF_INET;
   hints.ai_socktype = SOCK_STREAM;
@@ -1093,10 +1122,9 @@ inline std::string bb_net_http_plain_(bool post, const std::string& url, const s
     setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, reinterpret_cast<const char*>(&tv), sizeof(tv));
     if (connect(s, res->ai_addr, static_cast<int>(res->ai_addrlen)) == 0) {
       std::string req = std::string(post ? "POST " : "GET ") + path + " HTTP/1.0\r\nHost: " + hostport +
-                        "\r\nUser-Agent: BLTZNXT\r\nConnection: close\r\n";
+                        "\r\nUser-Agent: BLTZNXT\r\nConnection: close\r\n" + extra;
       if (post)
-        req += "Content-Type: application/x-www-form-urlencoded\r\nContent-Length: " +
-               std::to_string(body.size()) + "\r\n";
+        req += std::string("Content-Type: ") + ctype + "\r\nContent-Length: " + std::to_string(body.size()) + "\r\n";
       req += "\r\n" + body;
       send(s, req.data(), static_cast<int>(req.size()), 0);
       char b[4096];
@@ -1109,7 +1137,22 @@ inline std::string bb_net_http_plain_(bool post, const std::string& url, const s
   const size_t sp = out.find(' '), hdrEnd = out.find("\r\n\r\n");
   if (sp == std::string::npos || hdrEnd == std::string::npos) return std::string();
   status = std::atoi(out.c_str() + sp + 1);
-  return out.substr(hdrEnd + 4);
+  std::string data = out.substr(hdrEnd + 4);
+  // Manche Router antworten auch auf HTTP/1.0 in Stuecken.
+  if (bb_net_lower_(out.substr(0, hdrEnd)).find("transfer-encoding: chunked") != std::string::npos) {
+    std::string plain;
+    size_t p = 0;
+    while (p < data.size()) {
+      const size_t eol = data.find("\r\n", p);
+      if (eol == std::string::npos) break;
+      const size_t n = std::strtoul(data.c_str() + p, nullptr, 16);
+      if (n == 0 || eol + 2 + n > data.size()) break;
+      plain.append(data, eol + 2, n);
+      p = eol + 4 + n;
+    }
+    data.swap(plain);
+  }
+  return data;
 }
 
 inline std::string bb_net_http_(bool post, const std::string& url, const std::string& body, int timeout,
@@ -1282,6 +1325,266 @@ inline std::vector<bb_NetOffer_> bb_net_server_list_(int timeout) {
 }
 
 // ============================================================
+// UPnP: der Router leitet den Spielport weiter
+// ============================================================
+//
+// Beim Hosten bittet ein eigener Thread den Router (Internet Gateway Device)
+// um eine Weiterleitung des UDP-Spielports auf diesen Rechner: SSDP-Suche im
+// LAN, Geraetebeschreibung holen, AddPortMapping per SOAP. Die Leihfrist ist
+// eine Stunde und wird nach der halben Zeit erneuert; Router, die nur
+// dauerhafte Weiterleitungen kennen (Fehler 725), bekommen eine dauerhafte.
+// StopNetGame gibt die Weiterleitung mit DeletePortMapping zurueck.
+
+inline constexpr int BB_NET_LEASE = 3600;
+
+inline bool bb_net_resolve_(const std::string& text, sockaddr_in& out);
+
+// Inhalt des ersten <tag>...</tag> ab from, auch mit Namensraum (<u:tag>).
+inline std::string bb_net_xml_(const std::string& x, const std::string& tag, size_t from = 0) {
+  size_t p = from;
+  while ((p = x.find(tag + ">", p)) != std::string::npos) {
+    if (p > 0 && (x[p - 1] == '<' || x[p - 1] == ':')) {
+      size_t lt = p - 1;
+      while (lt > 0 && x[lt] != '<') --lt;
+      if (x[lt] == '<' && x[lt + 1] != '/') {
+        const size_t a = p + tag.size() + 1, e = x.find('<', a);
+        return bb_net_trim_(x.substr(a, e == std::string::npos ? std::string::npos : e - a));
+      }
+    }
+    p += tag.size();
+  }
+  return std::string();
+}
+
+inline std::string bb_net_xml_esc_(const std::string& s) {
+  std::string o;
+  for (char c : s) {
+    if (c == '&') o += "&amp;";
+    else if (c == '<') o += "&lt;";
+    else if (c == '>') o += "&gt;";
+    else o += c;
+  }
+  return o;
+}
+
+// SSDP-Suche nach dem Router; die LOCATION-Adressen der Antworten.
+inline std::vector<std::string> bb_net_ssdp_(int timeout) {
+  std::vector<std::string> out;
+  bb_socket_t s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+  if (s == BB_INVALID_SOCKET) return out;
+#ifdef _WIN32
+  DWORD tv = 100;
+#else
+  timeval tv{0, 100000};
+#endif
+  setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&tv), sizeof(tv));
+  const sockaddr_in to = bb_net_addr_(0xEFFFFFFAu, 1900);   // 239.255.255.250
+  static const char* types[] = {"urn:schemas-upnp-org:device:InternetGatewayDevice:1",
+                                "urn:schemas-upnp-org:device:InternetGatewayDevice:2",
+                                "urn:schemas-upnp-org:service:WANIPConnection:1",
+                                "urn:schemas-upnp-org:service:WANPPPConnection:1"};
+  for (const char* st : types) {
+    const std::string q = std::string("M-SEARCH * HTTP/1.1\r\nHOST: 239.255.255.250:1900\r\n"
+                                      "MAN: \"ssdp:discover\"\r\nMX: 2\r\nST: ") + st + "\r\n\r\n";
+    bb_net_sendto_(s, to, q);
+  }
+  const int64_t start = bb_net_now_();
+  int64_t end = start + timeout;
+  char b[2048];
+  while (bb_net_now_() < end) {
+    const int n = recv(s, b, sizeof(b) - 1, 0);
+    if (n <= 0) continue;
+    const std::string r(b, n), low = bb_net_lower_(r);
+    const size_t l = low.find("\nlocation:");
+    if (l == std::string::npos) continue;
+    const size_t e = r.find('\r', l + 10);
+    const std::string loc = bb_net_trim_(r.substr(l + 10, e == std::string::npos ? std::string::npos : e - l - 10));
+    if (std::find(out.begin(), out.end(), loc) == out.end()) out.push_back(loc);
+    end = std::min(end, bb_net_now_() + 300);   // weitere Antworten kommen fast gleichzeitig
+  }
+  closesocket(s);
+  return out;
+}
+
+struct bb_NetIgd_ { std::string ctl, svc; };
+
+// Geraetebeschreibung lesen: Steuer-URL des Dienstes WANIPConnection (vor WANPPPConnection).
+inline bool bb_net_igd_(const std::string& loc, bb_NetIgd_& out) {
+  int status = 0;
+  const std::string x = bb_net_http_plain_(false, loc, "", 3000, status);
+  if (status != 200) return false;
+  std::string hostport, host, port, path;
+  std::string base = bb_net_xml_(x, "URLBase");
+  if (!bb_net_url_split_(base, hostport, host, port, path) && !bb_net_url_split_(loc, hostport, host, port, path))
+    return false;
+  size_t p = 0;
+  while ((p = x.find("<serviceType>", p)) != std::string::npos) {
+    const std::string type = bb_net_xml_(x, "serviceType", p);
+    const size_t next = x.find("<serviceType>", p + 13);
+    std::string ctl = bb_net_xml_(x.substr(0, next), "controlURL", p);
+    p += 13;
+    const bool ip = type.find(":WANIPConnection:") != std::string::npos;
+    if (ctl.empty() || (!ip && type.find(":WANPPPConnection:") == std::string::npos)) continue;
+    if (!ip && !out.ctl.empty()) continue;
+    if (ctl.compare(0, 7, "http://") != 0) ctl = "http://" + hostport + (ctl[0] == '/' ? "" : "/") + ctl;
+    out.ctl = ctl;
+    out.svc = type;
+    if (ip) break;
+  }
+  return !out.ctl.empty();
+}
+
+inline std::string bb_net_soap_(const bb_NetIgd_& d, const std::string& action, const std::string& args,
+                                int timeout, int& status) {
+  const std::string body =
+      "<?xml version=\"1.0\"?>\r\n<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" "
+      "s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\"><s:Body><u:" + action + " xmlns:u=\"" + d.svc +
+      "\">" + args + "</u:" + action + "></s:Body></s:Envelope>\r\n";
+  return bb_net_http_plain_(true, d.ctl, body, timeout, status, "text/xml; charset=\"utf-8\"",
+                            "SOAPAction: \"" + d.svc + "#" + action + "\"\r\n");
+}
+
+// Eigene Adresse, ueber die dieser Rechner den Router erreicht.
+inline std::string bb_net_local_ip_for_(const std::string& url) {
+  std::string hostport, host, port, path;
+  sockaddr_in a{};
+  if (!bb_net_url_split_(url, hostport, host, port, path) || !bb_net_resolve_(host + ":" + port, a)) return "";
+  bb_socket_t s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+  if (s == BB_INVALID_SOCKET) return "";
+  sockaddr_in me{};
+  socklen_t n = sizeof(me);
+  const bool ok = connect(s, reinterpret_cast<sockaddr*>(&a), sizeof(a)) == 0 &&
+                  getsockname(s, reinterpret_cast<sockaddr*>(&me), &n) == 0;
+  closesocket(s);
+  return ok ? bb_net_ip_text_(me) : "";
+}
+
+// 0 bei Erfolg, sonst der UPnP-Fehlercode (-1 ohne Antwort).
+inline int bb_net_upnp_add_(const bb_NetIgd_& d, int port, const std::string& ip, const std::string& desc, int lease) {
+  const std::string p = std::to_string(port);
+  int status = 0;
+  const std::string r = bb_net_soap_(d, "AddPortMapping",
+      "<NewRemoteHost></NewRemoteHost><NewExternalPort>" + p + "</NewExternalPort><NewProtocol>UDP</NewProtocol>"
+      "<NewInternalPort>" + p + "</NewInternalPort><NewInternalClient>" + ip + "</NewInternalClient>"
+      "<NewEnabled>1</NewEnabled><NewPortMappingDescription>" + bb_net_xml_esc_(desc) +
+      "</NewPortMappingDescription><NewLeaseDuration>" + std::to_string(lease) + "</NewLeaseDuration>",
+      3000, status);
+  if (status == 200) return 0;
+  const std::string code = bb_net_xml_(r, "errorCode");
+  return code.empty() ? -1 : std::atoi(code.c_str());
+}
+
+inline void bb_net_upnp_del_(const bb_NetIgd_& d, int port, int timeout) {
+  int status = 0;
+  bb_net_soap_(d, "DeletePortMapping",
+               "<NewRemoteHost></NewRemoteHost><NewExternalPort>" + std::to_string(port) +
+                   "</NewExternalPort><NewProtocol>UDP</NewProtocol>",
+               timeout, status);
+}
+
+// Private Bereiche und Carrier-NAT (100.64.0.0/10): von dort ist der Router selbst nicht erreichbar.
+inline bool bb_net_ip_public_(const std::string& text) {
+  in_addr a{};
+  if (inet_pton(AF_INET, text.c_str(), &a) != 1) return true;   // unbekannt: nicht warnen
+  const uint32_t ip = ntohl(a.s_addr);
+  return !((ip >> 24) == 10 || (ip >> 24) == 127 || (ip >> 24) == 0 || (ip >> 20) == 0xAC1 ||
+           (ip >> 16) == 0xC0A8 || (ip >> 22) == (0x6440 >> 6) || (ip >> 16) == 0xA9FE);
+}
+
+inline void bb_net_upnp_run_(int gen, int port, std::string fixed, std::string desc) {
+  auto& S = bb_net_;
+  auto alive = [&] { return !S.quit && S.upnpGen == gen; };
+  auto fail = [&](const std::string& why) {
+    std::lock_guard<std::mutex> g(S.m);
+    if (S.upnpGen != gen) return;
+    S.upnpState = 0;
+    std::cerr << "Net UPnP: " << why << "; to host over the Internet, forward UDP port " << port
+              << " to this computer by hand\n";
+  };
+  std::vector<std::string> locs;
+  if (!fixed.empty()) locs.push_back(fixed);
+  else locs = bb_net_ssdp_(2500);
+  bb_NetIgd_ d;
+  bool found = false;
+  for (auto& l : locs)
+    if (alive() && (found = bb_net_igd_(l, d))) break;
+  if (!alive()) return;
+  if (!found) {
+    fail(locs.empty() ? "no router answered" : "the router offers no port forwarding");
+    return;
+  }
+  const std::string ip = bb_net_local_ip_for_(d.ctl);
+  int lease = BB_NET_LEASE;
+  int err = bb_net_upnp_add_(d, port, ip, desc, lease);
+  if (err == 725) err = bb_net_upnp_add_(d, port, ip, desc, lease = 0);
+  if (err != 0) {
+    if (err == 718) fail("the router already forwards UDP port " + std::to_string(port) + " to another computer");
+    else if (err == 606 || err == 401) fail("the router does not allow programs to change its settings (UPnP)");
+    else if (err < 0) fail("the router did not answer");
+    else fail("the router refused the forwarding (error " + std::to_string(err) + ")");
+    return;
+  }
+  int status = 0;
+  const std::string ext = bb_net_xml_(bb_net_soap_(d, "GetExternalIPAddress", "", 3000, status), "NewExternalIPAddress");
+  const bool pub = ext.empty() || bb_net_ip_public_(ext);
+  {
+    std::lock_guard<std::mutex> g(S.m);
+    if (S.upnpGen == gen) {
+      S.upnpState = pub ? 1 : 0;
+      S.upnpCtl = d.ctl;
+      S.upnpSvc = d.svc;
+      S.upnpPort = port;
+    }
+  }
+  if (!alive()) { bb_net_upnp_del_(d, port, 1500); return; }   // StopNetGame kam waehrenddessen
+  if (!pub)
+    std::cerr << "Net UPnP: the router forwards UDP port " << port << ", but its own address " << ext
+              << " is not public (carrier NAT); others cannot join over the Internet\n";
+  int64_t next = lease ? bb_net_now_() + lease * 500LL : INT64_MAX;
+  while (alive()) {
+    if (bb_net_now_() >= next) {
+      bb_net_upnp_add_(d, port, ip, desc, lease);
+      if (!alive()) bb_net_upnp_del_(d, port, 1500);
+      next = bb_net_now_() + lease * 500LL;
+    }
+    bb_net_sleep_(50);
+  }
+}
+
+inline bool bb_net_upnp_on_() {
+  auto& S = bb_net_;
+  if (!S.upnpUrl.empty()) return true;
+  if ((S.extUpnp >= 0 ? S.extUpnp : S.codeUpnp) == 0) return false;
+  return (S.bindIp >> 24) != 127;   // Tests an 127.0.0.1: kein Router im Spiel
+}
+
+// unter dem Mutex aufrufen; beim Hosten und nach einer Migration
+inline void bb_net_upnp_start_() {
+  auto& S = bb_net_;
+  const int gen = ++S.upnpGen;
+  S.upnpState = 0;
+  S.upnpCtl.clear();
+  if (!S.isHost || !bb_net_upnp_on_() || S.sockH == BB_INVALID_SOCKET) return;
+  S.upnpState = -1;
+  std::thread(bb_net_upnp_run_, gen, bb_net_sock_port_(S.sockH), S.upnpUrl, "BLTZNXT " + S.gameName).detach();
+}
+
+// Gibt die Weiterleitung zurueck; aus dem Hauptthread, ohne Mutex.
+inline void bb_net_upnp_stop_() {
+  bb_NetIgd_ d;
+  int port = 0;
+  {
+    std::lock_guard<std::mutex> g(bb_net_.m);
+    ++bb_net_.upnpGen;
+    bb_net_.upnpState = 0;
+    d.ctl.swap(bb_net_.upnpCtl);
+    d.svc = bb_net_.upnpSvc;
+    port = bb_net_.upnpPort;
+  }
+  if (!d.ctl.empty()) bb_net_upnp_del_(d, port, 1500);
+}
+
+// ============================================================
 // Start, Ende
 // ============================================================
 
@@ -1344,6 +1647,7 @@ inline void bb_net_stop_(int flush_ms) {
     bb_net_clear_session_();
   }
   bb_net_reg_stop_();
+  bb_net_upnp_stop_();
 }
 
 inline void bb_net_quit_() {
@@ -1473,6 +1777,7 @@ inline int bb_net_host_(const std::string& name) {
   S.cur = bb_NetMsg_();
   S.started = true;
   bb_net_reg_start_();
+  bb_net_upnp_start_();
   return 2;
 }
 
@@ -1705,6 +2010,19 @@ inline void bb_NetGameServer(const bbString& url) {
   bb_net_init_();
   std::lock_guard<std::mutex> g(bb_net_.m);
   bb_net_.codeServer = bb_net_trim_(url);
+}
+
+// UPnP beim Hosten ein (Vorgabe) oder aus, etwa fuer reine LAN-Spiele.
+inline void bb_NetGameUPnP(int enable) {
+  bb_net_init_();
+  std::lock_guard<std::mutex> g(bb_net_.m);
+  bb_net_.codeUpnp = enable != 0;
+}
+
+// 1: der Router leitet den Spielport weiter, 0: nicht, -1: die Antwort steht noch aus.
+inline int bb_NetGameForwarded() {
+  std::lock_guard<std::mutex> g(bb_net_.m);
+  return bb_net_.started && bb_net_.isHost ? bb_net_.upnpState : 0;
 }
 
 #endif // BB_NET_H

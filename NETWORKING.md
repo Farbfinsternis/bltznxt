@@ -60,6 +60,8 @@ game already started" (hosting or joining twice).
 | `NetGameApp id$` | Program ID: only games with the same ID are found or joined. Default: empty, so all BlitzNext programs see each other, as with DirectPlay |
 | `NetGamePort port` | Game port, default 2350 |
 | `NetGameServer url$` | List server for internet games; `""` switches it off |
+| `NetGameUPnP enable` | Ask the router to forward the game port while hosting (UPnP); default on, 0 switches it off, for example for LAN-only games |
+| `NetGameForwarded()` | While hosting: 1 if the router forwards the game port, 0 if not, -1 while the answer is still pending (a few seconds after hosting) |
 
 A join dialog in a few lines:
 
@@ -82,7 +84,7 @@ Old programs can be pointed at another game or list server without changing thei
 first source that sets a value wins:
 
 1. Environment variables `BLTZNXT_NET_JOIN`, `BLTZNXT_NET_SERVER`, `BLTZNXT_NET_APP`,
-   `BLTZNXT_NET_PORT`, `BLTZNXT_NET_LAN`
+   `BLTZNXT_NET_PORT`, `BLTZNXT_NET_LAN`, `BLTZNXT_NET_UPNP`
 2. A file `<program>.net` next to the program, one setting per line:
    ```
    ; comment
@@ -91,8 +93,9 @@ first source that sets a value wins:
    app    = racer
    port   = 2350
    lan    = 0                 ; do not search the LAN
+   upnp   = 0                 ; do not ask the router to forward the port
    ```
-3. What the program sets with `NetGameServer`, `NetGameApp` and `NetGamePort`
+3. What the program sets with `NetGameServer`, `NetGameApp`, `NetGamePort` and `NetGameUPnP`
 
 ## Internet games
 
@@ -103,8 +106,23 @@ LAN games and games at a known IP work right away. To find games over the intern
 author runs their own; there is no central BlitzNext server.
 
 The host must be reachable from outside. Behind a home router that means forwarding the game
-port (UDP 2350 unless changed) to the hosting machine. Automatic forwarding (UPnP) and NAT
-hole punching are planned, not yet built.
+port (UDP 2350 unless changed) to the hosting machine. BlitzNext asks the router to do that by
+itself (UPnP) whenever a program hosts, also after a host migration, and removes the forwarding
+again on `StopNetGame` and when the program ends. The forwarding is leased for an hour and
+renewed while the game runs, so a crashed program does not leave it open for long; routers that
+only know permanent forwardings get a permanent one. `NetGameForwarded()` tells whether it
+worked.
+
+It does not work when UPnP is off in the router (a FRITZ!Box has to allow it per device, under
+the port sharing settings of that device), when another computer already has the port, or
+behind carrier-grade NAT (DS-Lite, many mobile networks): there the router gets the forwarding,
+but its own address is not public. BlitzNext says which case it is on stderr, for example
+`Net UPnP: no router answered; to host over the Internet, forward UDP port 2350 to this
+computer by hand`. Then forward the port by hand, or host on another machine. NAT hole
+punching is planned, not yet built.
+
+While a game is hosted with UPnP, its port is open to the internet, not only to the LAN. A game
+meant only for the LAN can switch it off with `NetGameUPnP 0`.
 
 **Privacy:** a game that is hosted through a list server shows its public IP address to
 everyone who reads the list, and the operator of the list server stores it while the game
@@ -124,5 +142,6 @@ switch may be lost, reliable ones from clients are delivered after it. The desig
 ## Testing
 
 `bash tests/net/run_net_tests.sh` runs several programs at once over 127.0.0.1: joining,
-messages, 20 % packet loss, host migration, a crashed host, the LAN search and the list
-server. `bash tests/run_tests.sh` includes it.
+messages, 20 % packet loss, host migration, a crashed host, the LAN search, the list server,
+and UPnP against a simulated router (`tests/net/fake_igd.js`). A real router can be checked
+with [samples/network/upnpcheck.bb](samples/network/upnpcheck.bb). `bash tests/run_tests.sh` includes it.

@@ -1,5 +1,42 @@
 # BlitzNext Developer Log
 
+## 2026-10-29 — Network: the router forwards the game port by itself (UPnP)
+
+A host behind a home router was only reachable from the internet after forwarding the game
+port by hand. Now `HostNetGame`, `StartNetGame` when it hosts, and a host migration ask the
+router for that forwarding (UPnP Internet Gateway Device), and `StopNetGame` and the end of the
+program give it back. A background thread does the SSDP search, reads the device description
+and calls `AddPortMapping`; hosting does not wait for it. The lease is one hour and is renewed
+at half time, so a crashed program leaves the port open for an hour at most; routers that only
+take permanent forwardings (error 725) get a permanent one. `GetExternalIPAddress` then tells
+whether the router itself is public: a private or carrier-grade NAT address (100.64.0.0/10)
+counts as not forwarded, with a message on stderr.
+
+The plan named `miniupnpc`. The runtime is a header compiled into every program, so a library
+would have had to be prebuilt and linked into each one; the part of UPnP this needs is about
+200 lines on the existing sockets. NAT-PMP is left out until a router turns up that only
+speaks that.
+
+New: `NetGameUPnP enable` (default on; off for games meant only for the LAN, because a
+forwarded port is open to the whole internet), `NetGameForwarded()` (1, 0, or -1 while the
+router has not answered yet), and the setting `upnp = 0 | 1 | <device description URL>` in
+`<program>.net` or `BLTZNXT_NET_UPNP`. The URL skips the search, for routers that do not answer
+it and for the tests. With sockets bound to 127.0.0.1, as in all tests, UPnP stays off unless a
+URL is given.
+
+Tested against a simulated router (`tests/net/fake_igd.js`, HTTP on 127.0.0.1 only): case
+`upnp` (add, external address, delete) and case `upnp_cgnat` (only permanent leases, carrier
+NAT, the message). All eight `tests/net` cases pass. On the developer's real router
+(miniupnpd) with `samples/network/upnpcheck.bb`: the router accepted the forwarding of UDP 2350
+and reported 100.98.x.x as its own address, so the line has carrier-grade NAT and the program
+said so; after `StopNetGame` the router's mapping list had no entry for the port any more.
+Three older permanent entries in that list (`dplaysvr` and `e_probe`) come from DirectPlay on
+the original Blitz3D, not from BlitzNext.
+
+Files: `src/compiler/bb_net.h`, `src/compiler/commands.h`, `tests/net/fake_igd.js`,
+`tests/net/run_net_tests.sh` (new step `igd`), `tests/net/upnp`, `tests/net/upnp_cgnat`,
+`samples/network/upnpcheck.bb`, `NETWORKING.md`, `NETWORK.md`, `roadmap.md`.
+
 ## 2026-10-29 — v0.7.1: bugfix release of The Tide Update
 
 Five fixes on top of 0.7.0, each measured against Blitz3D 11.8 and described in the entries

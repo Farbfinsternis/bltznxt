@@ -1,0 +1,1 @@
+Net UPnP: the router forwards UDP port 28767, but its own address 100.64.1.2 is not public (carrier NAT); others cannot join over the Internet
