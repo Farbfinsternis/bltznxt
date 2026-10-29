@@ -104,3 +104,7 @@ dist/
 # Friendly Fire: Rohmodelle vor dem Veredeln (werkzeug/kenney.py)
 samples/friendlyfire/werkzeug/roh/
 samples/friendlyfire/werkzeug/astra/
+
+# BLTZCRFT -test: Bilder und Ergebnisse
+samples/bltzcrft/test_*.bmp
+samples/bltzcrft/test_*.txt

@@ -101,6 +101,55 @@ Function Welt_Setzen(x, y, z, b)
 	Return True
 End Function
 
+; ---- Aenderungen -----------------------------------------------------------
+;
+; Jeder abgebaute oder gesetzte Block kommt in eine Liste. Ein Chunk, der zu
+; weit weg war, entsteht beim Zurueckkommen wieder aus der Saat und bekommt
+; seine Aenderungen dann neu. Im Mehrspieler kommen auch die Bloecke der
+; anderen hierher, auch fuer Chunks, die hier noch gar nicht geladen sind.
+; Je Stelle steht nur der letzte Block in der Liste.
+
+Type Aenderung
+	Field x, y, z, b
+End Type
+
+Function Welt_Aendern(x, y, z, b)
+	If y < 1 Or y >= HOEHE Then Return False
+	gefunden = False
+	For a.Aenderung = Each Aenderung
+		If a\x = x And a\y = y And a\z = z Then a\b = b : gefunden = True : Exit
+	Next
+	If Not gefunden
+		a.Aenderung = New Aenderung
+		a\x = x : a\y = y : a\z = z : a\b = b
+	EndIf
+	Welt_Setzen(x, y, z, b)
+	Return True
+End Function
+
+; Gleich nach dem Erzeugen: die Nachbarn sind dann noch nicht gebaut, ein
+; Block am Rand braucht sie nicht neu zu bauen.
+Function Aenderungen_Anwenden(c.Chunk)
+	For a.Aenderung = Each Aenderung
+		If (a\x Sar 4) = c\cx And (a\z Sar 4) = c\cz
+			PokeByte c\daten, Ofs(a\x And 15, a\y, a\z And 15), a\b
+			If a\y > c\hmax Then c\hmax = a\y
+		EndIf
+	Next
+End Function
+
+; Eine andere Welt: alle Chunks weg, neue Saat. Die Aenderungen bleiben -
+; sie gehoeren schon zur neuen Welt (Beitritt im Mehrspieler).
+Function Welt_Neu(saat)
+	c.Chunk = First Chunk
+	While c <> Null
+		n.Chunk = After c
+		Chunk_Weg(c)
+		c = n
+	Wend
+	Welt_Saat(saat)
+End Function
+
 ; ---- Laden und Entladen --------------------------------------------------
 
 Function Chunk_Neu.Chunk(cx, cz)
@@ -113,6 +162,7 @@ Function Chunk_Neu.Chunk(cx, cz)
 	ch_ring(cx And (RING - 1), cz And (RING - 1)) = c
 	welt_chunks = welt_chunks + 1
 	Chunk_Erzeugen(c)
+	Aenderungen_Anwenden(c)
 	Return c
 End Function
 

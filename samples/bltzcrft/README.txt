@@ -13,6 +13,10 @@ hindurch, kann schwimmen und fliegen. Abgebaute Blöcke landen im Inventar
 (36 Plätze, Stapel bis 64) und lassen sich wieder setzen.
 Gespeichert wird noch nichts.
 
+Mehrspieler im LAN: Mitspieler laufen als Klötzchenfigur mit Namen durch
+dieselbe Welt, abgebaute und gesetzte Blöcke sehen alle, dazu ein Chat.
+Sonst wirkt niemand auf den anderen.
+
 
 Starten
 -------
@@ -25,6 +29,26 @@ Im Ordner übersetzen und starten:
   bltzcrft.exe 2026 -rundflug   (20 s Flug von selbst, misst die Bildzeiten)
 
 Voraussetzungen: Windows 64 Bit, eine Grafikkarte mit OpenGL 3.3.
+
+
+Mehrspieler
+-----------
+
+Im Titelbild M drücken. BLTZCRFT sucht etwa eine Sekunde im LAN nach einem
+laufenden Spiel und tritt bei - man bekommt die Welt des Hosts samt allen
+Änderungen und steht vier Blöcke neben ihm. Findet es keins, hostet es
+selbst, und die anderen treten dort bei. Geht der Host, übernimmt ein
+anderer; das Spiel läuft weiter.
+
+  bltzcrft.exe -mehrspieler             (gleich so, ohne Titelbild)
+  bltzcrft.exe -mehrspieler -name Anna  (eigener Name, sonst "Spieler" + Zahl)
+  bltzcrft.exe -join 192.168.0.5        (genau dort beitreten)
+  bltzcrft.exe -test 14                 (Selbsttest ohne Maus und Tastatur,
+                                         siehe bltzcrft.bb)
+
+Beim ersten Hosten fragt die Windows-Firewall, ob BLTZCRFT Verbindungen
+annehmen darf. Über das Internet geht es nur, wenn der Router den
+UDP-Port 2350 weiterleitet; BLTZNXT bittet ihn darum (UPnP).
 
 
 Steuerung
@@ -45,7 +69,8 @@ E                     Inventar öffnen/schließen; darin: Linksklick Stapel
                       bzw. ein Stück, Umschalt+Klick zwischen Leiste und Vorrat
 F1                    Hilfe: alle Tasten im Spiel
 F3                    Anzeige ein/aus
-Esc                   beenden (bei offenem Inventar oder Hilfe: schließen)
+T                     Chat im Mehrspieler (Enter schickt, Esc verwirft)
+Esc                  beenden (bei offenem Inventar oder Hilfe: schließen)
 
 
 Aufbau
@@ -54,12 +79,13 @@ Aufbau
 bltzcrft.bb     Hauptprogramm: Fenster, Eingabe, Hauptschleife
 rauschen.bb     Perlin-Rauschen 2D/3D, fraktal
 bloecke.bb      Blockarten und ihre selbst gemalten Texturen
-welt.bb         Chunks, Zugriff, Erzeugung der Welt
+welt.bb         Chunks, Zugriff, Erzeugung der Welt, Liste der Änderungen
 netz.bb         Meshes aus den Blöcken: sichtbare Flächen, Schatten, Wasser
 laden.bb        Nachladen und Vergessen von Chunks um den Spieler
 spieler.bb      Bewegung und Kollision gegen das Blockraster, Blickstrahl
 inventar.bb     Inventar: Stapel, Klicks, zur Laufzeit gemalte Blocksymbole
 abbau.bb        Abbauen über die Zeit, zur Laufzeit gemalte Risse
+mehrspieler.bb  Mehrspieler: Beitritt, Figuren, Blöcke, Chat (Net-Befehle)
 
 daten/logo.png  das Logo für Titel- und Ladebild
 

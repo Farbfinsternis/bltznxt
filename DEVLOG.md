@@ -1,5 +1,30 @@
 # BlitzNext Developer Log
 
+## 2026-10-29 — BLTZCRFT: multiplayer in the LAN, the first game on the Net commands
+
+BLTZCRFT is the first sample that uses the Network Update, ahead of Friendly Fire: it is the
+simpler case. Players walk through the same world, see each other as a blocky figure with
+their name above it, see the blocks the others dig or place, and can chat (T). Nobody acts on
+anybody else.
+
+M on the title screen (or `-mehrspieler`) searches the LAN for a game with the program ID
+`bltzcrft` and joins it, otherwise it hosts. The world comes from the seed alone, so the host
+only sends its seed and its position to a newcomer, followed by every block that has changed
+so far. Positions go out 15 times a second on the unreliable channel and are followed smoothly
+on the other side; blocks and chat lines go on the reliable one. Every program keeps the full
+list of changes, so after a host migration the new host can serve newcomers as well. The list
+also fixes a gap in single player: a chunk that was forgotten and generated again from the
+seed now gets its changes back instead of returning untouched.
+
+`-test <s>` checks it without mouse or keyboard: the joining program sends a chat line and
+places a stone between itself and the host, each program saves a screenshot and writes what it
+saw. Two programs over 127.0.0.1: the guest got the host's world (seed 2026), saw the host's
+figure, and the stone and the chat line arrived on both sides. `test_bltzcrft_welt` still
+passes.
+
+Files: `samples/bltzcrft/mehrspieler.bb` (new), `samples/bltzcrft/bltzcrft.bb`,
+`samples/bltzcrft/welt.bb`, `samples/bltzcrft/README.txt`, `NETWORK.md`.
+
 ## 2026-10-29 — Network: the router forwards the game port by itself (UPnP)
 
 A host behind a home router was only reachable from the internet after forwarding the game
