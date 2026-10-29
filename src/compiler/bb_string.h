@@ -21,6 +21,19 @@
 
 typedef std::string bbString;
 
+// Steht in bb_system.h, das erst nach diesem Header kommt.
+inline void bb_RuntimeError(const bbString &msg);
+
+// Pruefungen aus bbruntime/bbstring.cpp (CHKPOS, CHKOFF). Das Original
+// wirft sie auch ohne Debug; das Programm endet dort mit dieser Meldung
+// (BUG-226).
+inline void bb_chkpos_(int n) {
+    if (n < 0) bb_RuntimeError("parameter must be positive");
+}
+inline void bb_chkoff_(int n) {
+    if (n <= 0) bb_RuntimeError("parameter must be greater than 0");
+}
+
 // Not auf einem String: Vergleich mit "0" (BUG-108, die Zahlenfassungen
 // stehen in bb_math.h).
 inline int bb_not_(const bbString &s) { return s == "0"; }
@@ -238,12 +251,14 @@ inline int      bb_Len(const bbString &s)   { return static_cast<int>(s.size());
 
 // Left(s, n) — first n characters
 inline bbString bb_Left(const bbString &s, int n) {
+    bb_chkpos_(n);
     if (n <= 0) return "";
     return s.substr(0, std::min(n, (int)s.size()));
 }
 
 // Right(s, n) — last n characters
 inline bbString bb_Right(const bbString &s, int n) {
+    bb_chkpos_(n);
     if (n <= 0) return "";
     int len = (int)s.size();
     return s.substr(std::max(0, len - n));
@@ -251,7 +266,7 @@ inline bbString bb_Right(const bbString &s, int n) {
 
 // Mid(s, pos) — from 1-based pos to end of string
 inline bbString bb_Mid(const bbString &s, int pos) {
-    if (pos < 1) pos = 1;
+    bb_chkoff_(pos);
     int idx = pos - 1;
     if (idx >= (int)s.size()) return "";
     return s.substr(idx);
@@ -262,8 +277,8 @@ inline bbString bb_Mid(const bbString &s, int pos) {
 // takes substr(o) for every n < 0, and -1 is the default for the omitted
 // length. Only n == 0 gives an empty string (BUG-114).
 inline bbString bb_Mid(const bbString &s, int pos, int n) {
+    bb_chkoff_(pos);
     if (n < 0) return bb_Mid(s, pos);
-    if (pos < 1) pos = 1;
     if (n == 0) return "";
     int idx = pos - 1;
     if (idx >= (int)s.size()) return "";
@@ -280,7 +295,7 @@ inline int bb_Instr(const bbString &s, const bbString &sub) {
 
 // Instr(s, sub, start) — search from 1-based start position
 inline int bb_Instr(const bbString &s, const bbString &sub, int start) {
-    if (start < 1) start = 1;
+    bb_chkoff_(start);
     auto pos = s.find(sub, (size_t)(start - 1));
     return pos == bbString::npos ? 0 : (int)pos + 1;
 }
@@ -333,6 +348,7 @@ inline bbString bb_Trim(const bbString &s) {
 
 // LSet(s, n) — left-aligned: pad with spaces on right, or truncate to n chars
 inline bbString bb_LSet(const bbString &s, int n) {
+    bb_chkpos_(n);
     if (n <= 0) return "";
     if ((int)s.size() >= n) return s.substr(0, n);
     return s + bbString(n - (int)s.size(), ' ');
@@ -342,6 +358,7 @@ inline bbString bb_LSet(const bbString &s, int n) {
 // n chars. bbRSet in bbruntime/bbstring.cpp cuts with substr(size-n), so a
 // right-aligned column keeps its end: RSet("abcdef",3) = "def" (BUG-113).
 inline bbString bb_RSet(const bbString &s, int n) {
+    bb_chkpos_(n);
     if (n <= 0) return "";
     if ((int)s.size() >= n) return s.substr(s.size() - n);
     return bbString(n - (int)s.size(), ' ') + s;
