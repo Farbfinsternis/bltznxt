@@ -1,5 +1,25 @@
 # BlitzNext Developer Log
 
+## 2026-10-29 — v0.7.1: bugfix release of The Tide Update
+
+Five fixes on top of 0.7.0, each measured against Blitz3D 11.8 and listed below. They came
+from an outside tester whose old projects did not compile, from bug reports in the Blitz
+forum archive and from a large collection of old Blitz3D programs on GitHub:
+
+- object tags in expressions such as `Print p.T\x` and `If p.T = Null` compile (BUG-224);
+- `Flip` and `Flip 1` wait for the display in a window too, only `Flip 0` does not (BUG-178);
+- `LoadFont("verdana.ttf", 12)` without the file uses the installed font, as in Blitz3D,
+  instead of the small built-in one (BUG-227);
+- comparisons with NaN give the results of Blitz3D's x87 code (BUG-225);
+- `Mid`, `Instr`, `Left`, `Right`, `LSet` and `RSet` stop with Blitz3D's runtime error on
+  an invalid position or length (BUG-226, BUG-125).
+
+The release is built from the `release/0.7.x` branch, which starts at the v0.7.0 tag and
+holds only these fixes; the Network Update on `main` is not part of it. Still missing are the
+14 DirectPlay commands.
+
+Version 0.7.1 (`blitzcc -v`, IDE).
+
 ## 2026-10-29 — String functions stop on an invalid position or length (BUG-125, BUG-226)
 
 Blitz3D checks the arguments of six string functions and ends the program with a runtime

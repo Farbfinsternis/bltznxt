@@ -12,7 +12,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-10-29 — no open bugs, no missing commands.* A review against the
+*Last updated: 2026-10-29 — no open bugs, 14 missing commands.* A review against the
 original on 2026-10-13 found eleven more (BUG-201 to BUG-211); all of them are fixed for
 version 0.7.0.
 
