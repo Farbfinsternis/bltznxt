@@ -1,5 +1,29 @@
 # BlitzNext Developer Log
 
+## 2026-10-29 — Flip waits for the display in a window too (BUG-178)
+
+`Flip` and `Flip 1` now wait for the screen refresh in a window as well as in fullscreen;
+`Flip 0` still never waits. In Blitz3D the argument is `vwait` and waiting is the default,
+so a program has to write `Flip 0` on purpose to run free.
+
+Until now BlitzNext copied what today's Blitz3D actually does in a window: its DirectDraw
+blit is not synchronised under DWM, so it runs at about 150 frames per second on a 60 Hz
+monitor, and BlitzNext, which presents almost for free, ran at thousands. A collection of
+76 hobby programs (github.com/Pakz001/Blitz3d) showed what that costs: 18 of them have no
+timer, `Delay` or `MilliSecs()` and move a fixed step per frame. They were written for the
+refresh rate — a jump in `Player jumping example.bb` takes about 60 frames — and at
+thousands of frames per second they were over before they could be seen.
+
+Measured in a 320x240 window on a 60 Hz monitor: 2D `Flip 0` 10909 fps, `Flip 1` and
+`Flip` 59 fps; 3D 4615, 61 and 59. `test_bug178_flip_fenster` now checks exactly that, with
+limits that hold for monitors up to 250 Hz.
+
+The same collection compiles completely: the 70 programs Blitz3D accepts all build, the
+6 it rejects (BlitzPlus GUI commands, data files) are rejected here too.
+
+Files: `src/compiler/bb_graphics2d.h`, `src/compiler/bb_gl_ctx.h`,
+`tests/test_bug178_flip_fenster`, `KNOWN_ISSUES.md`.
+
 ## 2026-10-29 — Object tags in expressions (BUG-224)
 
 An outside tester could not compile two large old projects because they write the object tag
