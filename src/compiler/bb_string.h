@@ -185,20 +185,25 @@ inline float  bb_ToNum(const bbString &s)  { return bb_ToFloat(s); }
 // '010'" still am Default vorbeigefuehrt - vorher scheiterte diese Form
 // wenigstens laut an C++. Zahl gegen Zahl bleibt Zeichen fuer Zeichen das,
 // was der erzeugte Code vorher schon rechnete.
+// Ein Float-Select vergleicht wie "=": mit NaN auf einer Seite trifft er,
+// "Select n : Case 1" nimmt schon den ersten Case (gemessen, BUG-225). Die
+// Helfer bb_eq_ in bb_math.h stehen erst hinter dieser Datei, daher hier
+// dieselbe Regel ausgeschrieben.
+template <class A, class B> inline bool bb_case_feq_(A s, B c) { return !(s < c) && !(s > c); }
 inline bool bb_CaseEq(int s, int c)                        { return s == c; }
 // Ein Kommawert trifft einen ganzzahligen Select nach Rundung: "Select 2 :
 // Case 1.9" und "Case 2.5" treffen im Original (BUG-95).
 inline bool bb_CaseEq(int s, float c)                      { return s == bb_ToInt(c); }
 inline bool bb_CaseEq(int s, double c)                     { return s == bb_ToInt(c); }
-inline bool bb_CaseEq(float s, int c)                      { return s == c; }
-inline bool bb_CaseEq(float s, float c)                    { return s == c; }
-inline bool bb_CaseEq(float s, double c)                   { return s == c; }
-inline bool bb_CaseEq(double s, int c)                     { return s == c; }
-inline bool bb_CaseEq(double s, float c)                   { return s == c; }
-inline bool bb_CaseEq(double s, double c)                  { return s == c; }
+inline bool bb_CaseEq(float s, int c)                      { return bb_case_feq_(s, c); }
+inline bool bb_CaseEq(float s, float c)                    { return bb_case_feq_(s, c); }
+inline bool bb_CaseEq(float s, double c)                   { return bb_case_feq_(s, c); }
+inline bool bb_CaseEq(double s, int c)                     { return bb_case_feq_(s, c); }
+inline bool bb_CaseEq(double s, float c)                   { return bb_case_feq_(s, c); }
+inline bool bb_CaseEq(double s, double c)                  { return bb_case_feq_(s, c); }
 inline bool bb_CaseEq(int s, const bbString &c)            { return s == bb_ToInt(c); }
-inline bool bb_CaseEq(float s, const bbString &c)          { return s == bb_ToFloat(c); }
-inline bool bb_CaseEq(double s, const bbString &c)         { return (float)s == bb_ToFloat(c); }
+inline bool bb_CaseEq(float s, const bbString &c)          { return bb_case_feq_(s, bb_ToFloat(c)); }
+inline bool bb_CaseEq(double s, const bbString &c)         { return bb_case_feq_((float)s, bb_ToFloat(c)); }
 inline bool bb_CaseEq(const bbString &s, int c)            { return s == bb_Str(c); }
 inline bool bb_CaseEq(const bbString &s, float c)          { return s == bb_Str((double)c); }
 inline bool bb_CaseEq(const bbString &s, double c)         { return s == bb_Str(c); }

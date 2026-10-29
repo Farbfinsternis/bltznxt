@@ -1,5 +1,27 @@
 # BlitzNext Developer Log
 
+## 2026-10-29 — Comparisons with NaN (BUG-225)
+
+Blitz3D compares floats with the x87, where an unordered comparison reads as "equal" and as
+"greater". So when one side is NaN — typically from `ACos` of a dot product that rounding
+pushed just above 1 — `=`, `>` and `>=` are true and `<>`, `<` and `<=` false; `Not` gives
+1 and `Sgn` -1. C++ follows IEEE 754, where only `<>` is true, so a program that ran into a
+NaN took different branches here: `If winkel > 0.1 Then TurnEntity ...` did nothing,
+`While n <> 0` looped, `Select n` fell through to `Default`.
+
+The emitter now writes `=`, `<>`, `>` and `>=` through small helpers in `bb_math.h`. With a
+float on either side they are built from `<` and `>` of the same operands, so every
+conversion stays exactly what it was (int to float, unrounded intermediate values at full
+precision) and only NaN behaves differently; everything else — strings, objects, integers —
+goes to the operator as before. `Not`, `Sgn` and a float `Select` follow the same rule.
+Measured against the original for float against float, int and infinity in both orders,
+`ASin`/`ACos`, unrounded intermediate values, `Select`, `While`, `Until` and a maximum
+search: all the same now, kept in `tests/test_bug225_nan`. A loop of 20 million iterations
+with three float comparisons takes the same time as before.
+
+Files: `src/compiler/emitter.h`, `src/compiler/bb_math.h`, `src/compiler/bb_string.h`,
+`tests/test_bug225_nan`, `KNOWN_ISSUES.md`.
+
 ## 2026-10-29 — LoadFont with a file name (BUG-227)
 
 Many old programs load a font as `LoadFont("verdana.ttf",12)` without shipping the file —
