@@ -33,7 +33,7 @@ inline int bb_gfx_height_ = 0;
 inline int bb_gfx_depth_  = 32;
 inline int bb_gfx_rate_   = 0;
 
-// Nur im Vollbild wartet Flip auf den Bildaufbau - im Fenster nie (BUG-178).
+// Ob das aktuelle Fenster ein Vollbild ist (BUG-178, BUG-159).
 inline bool bb_gfx_fullscreen_ = false;
 
 // Zuletzt an SDL uebergebenes Swap-Intervall; -1 = unbekannt. Jedes neue
@@ -566,15 +566,17 @@ inline void bb_Cls() {
 // ---- Flip() ----
 //
 // Presents the back buffer to the screen.
-//  vblank : 1 = warte im Vollbild auf den Bildaufbau (Standard); 0 = nie warten.
+//  vblank : 1 = auf den Bildaufbau warten (Standard); 0 = nie warten.
 //
-// Im Original wartet nur das Vollbild. Gemessen am 2026-09-22 auf einem
-// 60-Hz-Monitor (Programme in build/flip_20260922, 300 Bilder je Phase):
-// Vollbild 640x480 `Flip 1` 60,6 fps, `Flip 0` 2679 fps - Fenster 320x240
-// dagegen `Flip 1` 164 fps (2D) und 149 fps (3D), also weit ueber der
-// Bildwiederholrate. Blitz3Ds DirectDraw-Blit im Fenster synchronisiert unter
-// dem heutigen Windows/DWM nicht; Programme timen ihre Bildrate selbst
-// (BUG-178). Deshalb gilt das Argument nur im Vollbild.
+// Im Vollbild wie im Fenster: `Flip` und `Flip 1` warten, nur `Flip 0` nicht.
+// Das ist die Bedeutung des Arguments in Blitz3D (vwait=True als Vorgabe).
+// Das heutige Original haelt sie im Fenster nicht mehr ein - gemessen am
+// 2026-09-22 (build/flip_20260922) 164 fps im 2D- und 149 fps im 3D-Fenster
+// auf 60 Hz, weil sein DirectDraw-Blit unter DWM nicht synchronisiert. Hobby-
+// code ohne eigene Zeitbremse ist aber fuer die Bildwiederholrate geschrieben
+// (18 von 76 Programmen in Pakz001/Blitz3d); ganz ohne Warten liefe er mit
+// Tausenden Bildern je Sekunde und waere unspielbar. Entscheidung des Nutzers
+// 2026-10-29 (BUG-178).
 // SDL_SetRenderVSync is called only when the mode changes, so repeated
 // Flip() calls with the same argument have no per-frame overhead.
 // Events are pumped after every present so the game loop stays responsive
@@ -595,7 +597,7 @@ inline void bb_screen_present_() {
 }
 
 inline void bb_Flip(int vblank = 1) {
-  const int want = (vblank && bb_gfx_fullscreen_) ? 1 : 0;   // BUG-178
+  const int want = vblank ? 1 : 0;   // BUG-178
   bb_front_dirty_ = false;   // Flip zeigt die ganze Flaeche (BUG-219)
   bb_front_shown_ms_ = SDL_GetTicks();
   if (bb_gl_active_) {

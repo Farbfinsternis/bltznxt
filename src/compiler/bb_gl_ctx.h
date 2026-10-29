@@ -524,7 +524,7 @@ inline void bb_Graphics3D(int w, int h, int depth = 32, int mode = 0) {
   bb_gfx_height_ = h;
   bb_gfx_depth_  = depth;
   bb_gfx_rate_   = 0;
-  bb_gfx_fullscreen_ = m.full;                     // BUG-178: Flip wartet nur im Vollbild
+  bb_gfx_fullscreen_ = m.full;                     // BUG-178, BUG-159
   bb_vsync_mode_ = -1;                             // neues Fenster, Swap-Intervall unbekannt
   bb_close_scene_();             // alte Welt freigeben, solange der Kontext lebt
   bb_gfx_reset_draw_state_(1);   // BackBuffer (BUG-131)

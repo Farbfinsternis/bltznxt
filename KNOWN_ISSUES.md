@@ -72,13 +72,15 @@ These are not bugs but decisions, and they will stay:
   `CopyRect` after `RenderWorld` return BlitzNext's shading, not Direct3D 7's. What is in the
   image — geometry, visibility, texture contents — does match.
 
-- **In a window, a loop with `Flip` can run faster than in Blitz3D.** Neither waits for the
-  display there — Blitz3D's `Flip` does not sync in windowed mode on today's Windows — but
-  Blitz3D still pays for its DirectDraw blit (about 6.5 ms a frame, measured: 164 frames per
-  second on a 60 Hz monitor), while BlitzNext presents almost for free. Programs that move a
-  fixed step per frame therefore run faster here; time them with `MilliSecs()`. In
-  fullscreen both wait for the display with `Flip`/`Flip 1` and neither waits with `Flip 0`.
-  (BUG-178)
+- **In a window, `Flip` waits for the display.** `Flip` and `Flip 1` wait for the next
+  screen refresh in a window as in fullscreen; only `Flip 0` does not wait. That is what the
+  argument means in Blitz3D, where waiting is the default. Blitz3D itself no longer keeps to
+  it in a window on today's Windows: its DirectDraw blit is not synchronised there, so a loop
+  with `Flip` runs at about 150 frames per second on a 60 Hz monitor (measured: 164 in 2D,
+  149 in 3D). BlitzNext runs it at the refresh rate instead, the speed such programs were
+  written for — without waiting, a program that moves a fixed step per frame would run at
+  thousands of frames per second. Programs that use `Flip 0` and time themselves with
+  `MilliSecs()` or `CreateTimer` behave the same in both. (BUG-178)
 
 - **Full screen keeps the desktop resolution.** `Graphics` and `Graphics3D` in modes 0 and 1
   cover the screen without switching the display to the program's resolution, as Blitz3D
