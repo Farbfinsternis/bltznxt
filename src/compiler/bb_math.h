@@ -66,14 +66,56 @@ BB_EXT_CMP_(<=) BB_EXT_CMP_(>=)
 #undef BB_EXT_CMP_
 inline bb_Ext operator-(const bb_Ext &a) { return {-a.v}; }
 
+// Vergleiche mit NaN wie im Original (BUG-225). Es vergleicht mit dem x87;
+// ein ungeordneter Vergleich liest sich dort als "gleich" und als "groesser":
+// ist eine Seite NaN, sind "=", ">" und ">=" wahr, "<>", "<" und "<=" falsch -
+// gemessen fuer Float gegen Float, Int, Unendlich, ASin/ACos und ungerundete
+// Zwischenwerte. C++ folgt IEEE 754, dort ist nur "!=" wahr. Gebaut wird
+// alles aus "<" und ">" derselben Operanden, so bleiben die Umwandlungen
+// (Int nach Float, bb_Ext in voller Genauigkeit) genau die von vorher; nur
+// NaN faellt anders. Alles ohne Float-Seite - Strings, Objekte, Ganzzahlen -
+// geht unveraendert an den Operator. "<" und "<=" stimmen schon mit IEEE
+// ueberein und brauchen keinen Helfer.
+template <class T>
+constexpr bool bb_fltlike_ = std::is_floating_point_v<T> || std::is_same_v<T, bb_Ext>;
+template <class T>
+constexpr bool bb_numlike_ = std::is_arithmetic_v<T> || std::is_same_v<T, bb_Ext>;
+template <class A, class B>
+constexpr bool bb_fcmp_ = bb_numlike_<A> && bb_numlike_<B> && (bb_fltlike_<A> || bb_fltlike_<B>);
+// Objekt gegen 0 ("Object.t(h) = 0"): vorher stand dort "ptr == 0", und das
+// Literal galt in C++ als Nullzeiger. Im Helfer ist die 0 ein int, daher hier
+// ausdruecklich gegen nullptr.
+template <class A, class B>
+constexpr bool bb_ptrint_ = std::is_pointer_v<A> && std::is_integral_v<B>;
+template <class A, class B> inline bool bb_eq_(const A &a, const B &b) {
+  if constexpr (bb_fcmp_<A, B>) return !(a < b) && !(a > b);
+  else if constexpr (bb_ptrint_<A, B>) return b == 0 && a == nullptr;
+  else if constexpr (bb_ptrint_<B, A>) return a == 0 && b == nullptr;
+  else return a == b;
+}
+template <class A, class B> inline bool bb_ne_(const A &a, const B &b) {
+  if constexpr (bb_fcmp_<A, B>) return a < b || a > b;
+  else if constexpr (bb_ptrint_<A, B> || bb_ptrint_<B, A>) return !bb_eq_(a, b);
+  else return a != b;
+}
+template <class A, class B> inline bool bb_gt_(const A &a, const B &b) {
+  if constexpr (bb_fcmp_<A, B>) return !(a <= b);
+  else return a > b;
+}
+template <class A, class B> inline bool bb_ge_(const A &a, const B &b) {
+  if constexpr (bb_fcmp_<A, B>) return !(a < b);
+  else return a >= b;
+}
+
 // Not baut das Original als Vergleich mit 0 (RelExprNode "=" in parser.cpp):
 // fuer Zahlen x = 0, fuer einen String der Stringvergleich mit "0" -
 // Not "0" ist 1, Not "" und Not "abc" 0 (gemessen). Das C++-"!" gab es fuer
-// bbString nicht (BUG-108); die String-Fassung steht in bb_string.h.
+// bbString nicht (BUG-108); die String-Fassung steht in bb_string.h. Fuer
+// NaN ist der Vergleich mit 0 wahr, Not also 1 (BUG-225).
 inline int bb_not_(int v) { return v == 0; }
-inline int bb_not_(float v) { return v == 0.0f; }
-inline int bb_not_(double v) { return v == 0.0; }
-inline int bb_not_(const bb_Ext &v) { return v.v == 0.0L; }
+inline int bb_not_(float v) { return bb_eq_(v, 0.0f); }
+inline int bb_not_(double v) { return bb_eq_(v, 0.0); }
+inline int bb_not_(const bb_Ext &v) { return bb_eq_(v.v, 0.0L); }
 inline bb_Ext operator+(const bb_Ext &a) { return a; }
 
 // Zur Ganzzahl rundet fistp den Registerwert selbst, nicht erst einen float:
@@ -170,9 +212,10 @@ inline float bb_Ceil(float x)  { return std::ceil(x); }
 inline int   bb_Int(double x)  { return bb_FloatToInt_(x); }
 inline int   bb_Int(int x)     { return x; }
 
-// Sgn — -1, 0 oder 1 im Typ des Operanden (siehe Abs).
+// Sgn — -1, 0 oder 1 im Typ des Operanden (siehe Abs). NaN ergibt im
+// Original -1, auch fuer -NaN (gemessen, BUG-225).
 inline int   bb_Sgn(int x)     { return (x > 0) - (x < 0); }
-inline float bb_Sgn(float x)   { return x > 0.0f ? 1.0f : (x < 0.0f ? -1.0f : 0.0f); }
+inline float bb_Sgn(float x)   { return x > 0.0f ? 1.0f : (x == 0.0f ? 0.0f : -1.0f); }
 inline float bb_Sgn(double x)  { return bb_Sgn(static_cast<float>(x)); }
 
 // Mod — Blitz3D's remainder operator, which C++ "%" only covers for integers.

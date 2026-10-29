@@ -321,6 +321,15 @@ public:
       output << ", ";
       emitOperand(node->right.get());
       output << ")";
+    } else if (const char *cmp = nanCmpHelper(node->op)) {
+      // "=", "<>", ">" und ">=" verhalten sich mit NaN anders als in C++;
+      // die Helfer in bb_math.h waehlen die Regel des Originals an den
+      // C++-Typen, wie _bb_mod (BUG-225).
+      output << cmp << "(";
+      emitOperand(node->left.get());
+      output << ", ";
+      emitOperand(node->right.get());
+      output << ")";
     } else {
       output << "(";
       emitOperand(node->left.get());
@@ -330,6 +339,14 @@ public:
     }
 
     inExprCtx = prev;
+  }
+
+  static const char *nanCmpHelper(const std::string &op) {
+    if (op == "=")  return "bb_eq_";
+    if (op == "<>") return "bb_ne_";
+    if (op == ">")  return "bb_gt_";
+    if (op == ">=") return "bb_ge_";
+    return nullptr;
   }
 
   // Ein Ausdruck, den das Original schon beim Uebersetzen faltet: Literale,

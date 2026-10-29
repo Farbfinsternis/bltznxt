@@ -1,0 +1,27 @@
+NaN
+= 1111
+<> 000
+< 000
+> 111
+<= 00
+>= 11
+int: 100101
+nint: 100101
+asin: 100101
+acos: 1111
+ext: 110110
+inf: 11
+if n
+not n
+both
+b=1
+select case 1
+select3 default
+while n<>0: 0
+until n>100: 1
+max NaN
+sgn -1.0 -1.0 -1.0 0.0 -1.0
+neg 11
+NaN
+-2147483648
+1 1 1 0
