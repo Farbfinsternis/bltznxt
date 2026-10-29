@@ -2,7 +2,8 @@
 
 Stand: 2026-10-27 · **Umgesetzt** in [bb_net.h](src/compiler/bb_net.h), Nutzer-Doku in
 [NETWORKING.md](NETWORKING.md), Tests in [tests/net/](tests/net/). UPnP gebaut und am echten
-Router geprüft 2026-10-29, `games.php` auf echtem Webspace geprüft 2026-10-29. Release-Plan: als Nächstes kommt das Network Update
+Router geprüft 2026-10-29, `games.php` auf echtem Webspace geprüft 2026-10-29. Neu: Konzept
+IPv6 (Abschnitt „IPv6“, 2026-10-29), Entscheidungen getroffen, Bau steht aus. Release-Plan: als Nächstes kommt das Network Update
 (nur Mehrspieler), danach IDE.
 
 Blitz3D hatte zwei Netzwerk-Schichten: rohe TCP- und UDP-Streams (bei uns seit 2026-09-30
@@ -307,6 +308,7 @@ Beitritt scheitert, wenn der Router die Pakete nicht durchlässt. Drei Stufen:
 | 1 | Portweiterleitung von Hand | Immer möglich; steht in der Nutzer-Doku |
 | 2 | **UPnP/NAT-PMP**: `HostNetGame` bittet den Router selbst um eine Weiterleitung (Bibliothek `miniupnpc`, BSD-Lizenz), `StopNetGame` gibt sie zurück | **Network-Update**. Hilft bei den meisten Heim-Routern, nicht bei Carrier-NAT |
 | 3 | **Hole Punching**: der Server nennt beiden Seiten gleichzeitig die öffentliche UDP-Adresse der anderen, beide senden sofort | Später, mit dem Treffpunkt (VISION.md, Phase 2). Braucht einen kleinen UDP-Dienst; ein PHP-Skript sieht nur HTTP über TCP, nicht die UDP-Adresse |
+| 4 | **IPv6**: ohne NAT, nur die Firewall des Routers steht im Weg | Konzept 2026-10-29, Abschnitt „IPv6“. Hilft gerade bei Carrier-NAT, wenn beide Seiten IPv6 haben |
 
 Offen: ob der Listen-Server bei der Anmeldung prüfen soll, ob der Host von außen erreichbar ist,
 und das in der Liste vermerkt. Mit PHP allein geht das nur eingeschränkt.
@@ -318,6 +320,142 @@ und das in der Liste vermerkt. Mit PHP allein geht das nur eingeschränkt.
 - `miniupnpc` für Stufe 2.
 - Datenschutz in die Nutzer-Doku: Wer öffentlich hostet, macht seine IP für alle sichtbar, die
   die Liste abrufen; der Betreiber des Listen-Servers speichert IPs.
+
+## IPv6 (Konzept 2026-10-29)
+
+### Warum
+
+IPv4-Adressen sind aufgebraucht. Neue Anschlüsse bekommen immer öfter keine eigene öffentliche
+IPv4-Adresse mehr, sondern teilen sich eine beim Anbieter (Carrier-NAT: DS-Lite, Mobilfunk,
+viele Glasfaser- und Kabelanschlüsse). Dahinter kann **niemand** hosten: keine Weiterleitung von
+Hand, kein UPnP hilft, weil der Router selbst keine öffentliche Adresse hat. Am 2026-10-29 am
+Anschluss des Entwicklers gemessen: der Router meldet 100.98.x.x (Carrier-NAT), derselbe
+Anschluss hat aber eine öffentliche IPv6-Adresse.
+
+Bei IPv6 hat jeder Rechner eine eigene öffentliche Adresse; es gibt kein NAT. Im Weg steht nur
+die Firewall des Routers, die unaufgeforderte Pakete von außen abweist. Damit ist IPv6 für einen
+wachsenden Teil der Spieler der einzige Weg, übers Internet zu hosten.
+
+Grenze: Es geht nur, wenn **beide** Seiten IPv6 haben. Wer nur IPv4 hat, erreicht einen Host
+hinter Carrier-NAT weiterhin nicht; dafür bleiben Hole Punching und ein Relais (Stufe 3 oben,
+VISION.md Phase 2).
+
+### Ausgangslage im Code
+
+IPv4 ist in `bb_net.h` an vielen Stellen fest eingebaut:
+
+| Stelle | Heute |
+|---|---|
+| Adressen | `sockaddr_in` überall: Peers, Beitritt, Angebote, Vergleich, Text |
+| Rechnerliste für die Host-Migration | `bb_NetMachine_::ip` ist ein `uint32_t`; WELCOME und MADD tragen ihn als 4 Byte |
+| Sockets | `socket(AF_INET, …)` für Client und Host, `BIND` nimmt nur IPv4 |
+| Suche im LAN | Broadcast an 255.255.255.255 und x.y.z.255 |
+| Listen-Server | speichert die Absenderadresse der Anmeldung; der Client liest nur IPv4 (`inet_pton(AF_INET, …)`) |
+| `NetGameIP$`, `JoinNetGame`, `BLTZNXT_NET_JOIN` | `"ip:port"` – bei IPv6 mehrdeutig |
+| UPnP | nur IPv4-Weiterleitung (`WANIPConnection`) |
+
+Kompatibilität ist kein Thema: das Net-Protokoll und das Format des Listen-Servers sind noch in
+keinem Release. Sie dürfen sich ändern, ohne dass alte Fassungen mitspielen müssen.
+
+### Plan
+
+**1. Adressen.** Ein eigener Typ `bb_NetAddr_` (Familie, 16 Byte Adresse, Port) ersetzt
+`sockaddr_in` in Peers, Angeboten, Beitritt und Rechnerliste. Vergleich, Text und Umwandlung in
+die Socket-Adresse an einer Stelle. IPv4 bleibt ein eigener Fall, keine IPv4-in-IPv6-Adressen.
+
+**2. Zwei Sockets je Rolle.** Je ein IPv4- und ein IPv6-Socket für den Client-Verkehr und, beim
+Hosten, für den Spielport (derselbe Port in beiden Familien). Der I/O-Thread liest beide. Ein
+einziger „Dual-Mode“-Socket wäre kürzer, aber Broadcast über ihn ist unsicher, und die Suche im
+LAN braucht Broadcast. Lässt sich der IPv6-Socket nicht öffnen (IPv6 im System aus), läuft alles
+wie heute über IPv4, ohne Meldung.
+
+**3. Jeder Rechner nennt alle seine Adressen.** Beim Beitritt schickt ein Programm seine Ports
+und seine globale IPv6-Adresse mit; der Host trägt zusätzlich die Absenderadresse ein, wie er
+sie sieht. WELCOME und MADD tragen je Rechner eine Liste von Adressen statt einer IPv4-Adresse.
+Bei einer Host-Migration versuchen die Clients alle Adressen des Kandidaten. So kommt auch ein
+Client nur mit IPv4 zu einem neuen Host, der beides hat, und umgekehrt.
+
+**4. Listen-Server mit zwei Adressen.** Ein Listen-Server, der nur über IPv4 erreichbar ist (wie
+der Webspace auf bltznxt.com), sieht die IPv6-Adresse des Hosts nie. Deshalb schickt der Host
+sie bei der Anmeldung selbst mit (`ip6=`); die IPv4-Adresse nimmt der Server wie bisher aus der
+Verbindung. Kommt die Anmeldung über IPv6, nimmt er die IPv6-Adresse aus der Verbindung und
+lässt `ip6=` weg. Die Liste bekommt ein sechstes Feld:
+`name<TAB>ip<TAB>port<TAB>players<TAB>token<TAB>ip6`; leere Felder, wo eine Familie fehlt.
+`games.php` und `listserver.js` werden gleich geändert.
+
+Missbrauch: Eine angegebene IPv6-Adresse prüft niemand. Ein Host könnte die Adresse eines
+Fremden eintragen; Clients schickten dann ein paar JOIN-Pakete dorthin. Das ist wenig Verkehr
+und endet nach drei Sekunden. Der Server nimmt nur globale Adressen an (2000::/3), keine aus
+dem LAN.
+
+**5. Beitreten mit beiden Familien.** `JoinNetGame` mit einem Spiel aus der Liste schickt JOIN
+an alle Adressen des Spiels zugleich, IPv6 zuerst; die erste Antwort gewinnt. Die doppelten
+JOINs fängt der Host schon heute über die Nonce ab. `NetGameIP$` gibt die bevorzugte Adresse
+zurück: IPv6, wenn das Spiel eine hat und dieser Rechner selbst eine globale IPv6-Adresse hat,
+sonst IPv4. Wird sie an `JoinNetGame` gegeben, findet die Laufzeit das Spiel in der zuletzt
+gesuchten Liste wieder und nimmt die anderen Adressen dazu.
+
+**6. Schreibweise.** IPv6 mit Port in eckigen Klammern: `[2a03:ed00::1]:2350`; ohne Port auch
+ohne Klammern. Gilt für `NetGameIP$`, `JoinNetGame`, `join =` und `BLTZNXT_NET_JOIN`.
+
+**7. Die Firewall des Routers.** Ohne NAT bleibt sie das einzige Hindernis. Drei Wege, in
+dieser Reihenfolge:
+
+| Weg | Wie | Grenze |
+|---|---|---|
+| a. Klopfen über den Listen-Server | Der Client meldet beim Listen-Server „ich will zu Spiel X, von Adresse Y“ (`a=knock`). Der Host fragt die Klopfer ab und schickt jedem ein paar Pakete; das öffnet seine Firewall für genau diese Adresse. Der Client schickt währenddessen JOIN. Weil IPv6 nicht übersetzt wird, ist die Adresse, die der Client meldet, die, von der er sendet | Nur mit Listen-Server. Der Host muss ihn oft fragen (Entscheidung 2), sonst dauert der Beitritt so lange wie das Abfrageintervall |
+| b. Lücke per UPnP | Wie die IPv4-Weiterleitung, mit dem Dienst `WANIPv6FirewallControl` (IGD 2): `AddPinhole` beim Hosten, `DeletePinhole` beim Ende, Leihfrist mit Erneuerung | Nicht jeder Router kann es oder hat es an. Ob der Router des Entwicklers (miniupnpd) es kann, zeigt der Versuch |
+| c. Von Hand | Freigabe in der Router-Oberfläche, in der Nutzer-Doku beschrieben | Immer möglich, aber umständlich |
+
+Weg a ist der wichtigste: er geht mit jedem Router und ohne Einstellungen, und er ist die
+IPv6-Fassung des Hole Punching. Für IPv4 hinter NAT reicht er nicht, dort kennt der
+Listen-Server die übersetzte UDP-Adresse des Clients nicht; das bleibt beim Treffpunkt.
+
+**8. Suche im LAN.** Bleibt bei IPv4-Broadcast. Jedes Heimnetz hat IPv4, auch hinter
+Carrier-NAT; ein Netz nur mit IPv6 ist im LAN selten. IPv6-Multicast (`ff02::1`) kommt erst
+dazu, wenn es jemand braucht.
+
+**9. Datenschutz.** Windows nimmt für ausgehende Verbindungen wechselnde („temporäre")
+IPv6-Adressen. Der Host meldet die Adresse, die das System für ausgehende Pakete wählt; sie
+verrät wie eine IPv4-Adresse den Anschluss, aber nicht dauerhaft den Rechner. In die Nutzer-Doku.
+
+### Entscheidungen (vom Nutzer übernommen 2026-10-29)
+
+| # | Frage | Entscheidung |
+|---|---|---|
+| 1 | IPv6 noch ins Network-Update, vor dem Release? | **Ja.** Ohne IPv6 bleibt das Hosten übers Internet für einen wachsenden Teil der Spieler versperrt, und Protokoll und Listenformat lassen sich jetzt noch ohne Rücksicht ändern |
+| 2 | Wie oft fragt ein Host den Listen-Server nach Klopfern? | **Alle 3 s.** Ein Beitritt dauert dann höchstens etwa 3 s. Das sind 20 Anfragen je Minute und Host; die Grenze im Referenz-Server (60 je IP und Minute) reicht dafür. Auf einem kleinen Webspace sind auch zehn gleichzeitig gehostete Spiele kein Problem |
+| 3 | Weg b (UPnP-Lücke) gleich mitbauen oder erst, wenn Weg a nicht reicht? | **Mitbauen**, wenn der Router des Entwicklers es kann – dann lässt es sich prüfen; sonst weglassen |
+| 4 | IPv6-Multicast für die Suche im LAN? | **Nein**, siehe Punkt 8 |
+
+### Prüfstand
+
+- Alle Fälle in `tests/net/` laufen zusätzlich über `::1` (`BLTZNXT_NET_BIND=::1`).
+- Neue Fälle: gemischt (ein Client nur IPv4, einer nur IPv6, Host mit beidem), Host-Migration
+  von einem IPv6-Host zu einem Client, der nur über IPv4 zu erreichen ist, Beitritt mit beiden
+  Adressen (die erste Antwort gewinnt, kein doppelter Spieler), Schreibweise `[…]:port`.
+- Listen-Server: Anmeldung mit `ip6=`, Feld 6 in der Liste, `a=knock` und Abfrage durch den
+  Host, Ablehnung nicht globaler Adressen; gegen `listserver.js` in der Testreihe und von Hand
+  gegen `games.php` auf bltznxt.com.
+- UPnP-Lücke gegen `tests/net/fake_igd.js` (dort `WANIPv6FirewallControl` nachbauen).
+- Echter Beweis: zwei Anschlüsse mit IPv6. Der Entwicklerrechner hinter Carrier-NAT hostet, der
+  zweite tritt bei – etwa ein Laptop am Hotspot eines Mobiltelefons (Mobilfunk hat meist
+  IPv6) oder der externe Tester. Vorher fragen: der Test öffnet die Firewall des Routers.
+
+### Arbeitspakete IPv6
+
+| # | Paket | Fertig, wenn |
+|---|---|---|
+| 6.1 | Adresstyp, zwei Sockets je Rolle, `BIND` mit IPv6, Schreibweise `[…]:port` | Alle bisherigen `tests/net`-Fälle grün über `127.0.0.1` und über `::1` |
+| 6.2 | Adresslisten je Rechner in JOIN, WELCOME, MADD; Migration über alle Adressen | Gemischter Fall und Migration über die Familie hinweg grün |
+| 6.3 | Listen-Server: `ip6=`, Feld 6, Beitritt an alle Adressen, `NetGameIP$` bevorzugt IPv6 | Tests gegen `listserver.js` grün; `games.php` auf bltznxt.com zeigt Feld 6 |
+| 6.4 | Klopfen (`a=knock`, Abfrage durch den Host, Pakete an den Klopfer) | Test: Host, dessen Pakete von Fremden die Testumgebung verwirft, bis er geklopft hat |
+| 6.5 | UPnP-Lücke (`AddPinhole`/`DeletePinhole`), nur wenn Entscheidung 3 so fällt | Test gegen nachgebauten Router; Versuch am echten Router |
+| 6.6 | Doku: NETWORKING.md (IPv6, Schreibweise, Firewall, Datenschutz), README des Listen-Servers | Unterschiede an allen Stellen gleich beschrieben |
+| 6.7 | Echter Versuch über zwei Anschlüsse | Ein Rechner hinter Carrier-NAT hostet, ein anderer Anschluss tritt über IPv6 bei |
+
+Für 6.4 braucht der Prüfstand eine nachgebaute Firewall: ein Testschalter im Laufzeitsystem
+(wie `DROP`), der Pakete von Adressen verwirft, an die das Programm noch nichts geschickt hat.
 
 ## Messen am Original
 
