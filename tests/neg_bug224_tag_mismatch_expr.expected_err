@@ -1,0 +1,1 @@
+tests/neg_bug224_tag_mismatch_expr.bb:10:4: error: Variable type mismatch: 'p' is .T, but is used as .U

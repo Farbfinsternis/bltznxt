@@ -197,7 +197,12 @@ private:
         flush();
         advance();
         lastField = expect(TokenType::ID, "Expected field name after \\").value;
-        parseOptionalTypeTag(); // "p\f#" - read and dropped (BUG-31)
+        // Blitz3D's parseVar() reads a tag after *every* name, including a
+        // field name; FieldVarNode::semant then ignores it and takes the type
+        // from the field declaration (BUG-31). So the tag is accepted and
+        // dropped here too - even a contradicting one, exactly as in the
+        // reference. "p\f.T" included (BUG-224).
+        parseTypeTag();
         last = FIELD;
       } else if (peek().type == TokenType::OPERATOR && peek().value == "[") {
         flush();
@@ -805,21 +810,9 @@ private:
 
   // ------------------------------------------------------------------ FOR
 
-  // Consumes a type tag if one is there and returns it ("" otherwise).
-  // Blitz3D's parseVar() reads a tag after *every* name, including a field
-  // name; FieldVarNode::semant then ignores it and takes the type from the
-  // field declaration (BUG-31). So the tag is accepted and dropped here too -
-  // even a contradicting one, exactly as in the reference.
-  std::string parseOptionalTypeTag() {
-    if (peek().type == TokenType::OPERATOR &&
-        (peek().value == "#" || peek().value == "%" ||
-         peek().value == "$"))
-      return advance().value;
-    return "";
-  }
-
-  // Dasselbe, aber einschliesslich des Objekt-Tags ".TypeName" - das ist der
-  // vollstaendige parseTypeTag() der Referenz:
+  // Consumes a type tag if one is there and returns it ("" otherwise),
+  // einschliesslich des Objekt-Tags ".TypeName" - das ist der vollstaendige
+  // parseTypeTag() der Referenz:
   //
   //   case '%': case '#': case '$': next; return das Zeichen
   //   case '.': next; return parseIdent()
@@ -867,7 +860,7 @@ private:
       if (peek().type == TokenType::OPERATOR && peek().value == "\\") {
         advance();
         Token fname = expect(TokenType::ID, "Expected field name after \\");
-        parseOptionalTypeTag(); // "For p\f# = ..." - read, dropped (BUG-31)
+        parseTypeTag(); // "For p\f# = ..." - read, dropped (BUG-31)
         base = std::make_unique<FieldAccess>(std::move(base), fname.value);
       } else if (peek().type == TokenType::OPERATOR && peek().value == "[") {
         advance();
@@ -1809,7 +1802,7 @@ private:
         int ln = peek().line;
         advance(); // consume '\'
         Token fname = expect(TokenType::ID, "Expected field name after \\");
-        parseOptionalTypeTag(); // "p\f#" on the reading side too (BUG-31).
+        parseTypeTag();         // "p\f#" on the reading side too (BUG-31).
                                 // It used to fall through to the statement
                                 // parser, which silently dropped it.
         auto fa  = std::make_unique<FieldAccess>(std::move(left), fname.value);
@@ -1959,11 +1952,11 @@ private:
       // Type-hint suffix at a use site: it does not change which variable is
       // meant (the name alone does that, as in Blitz3D), but a contradicting
       // tag is an error — so keep it for the semantic pass.
-      std::string useHint;
-      if (peek().type == TokenType::OPERATOR &&
-          (peek().value == "#" || peek().value == "%" ||
-           peek().value == "$"))
-        useHint = advance().value;
+      // Das Objekt-Tag gehoert dazu (BUG-224): parsePrimary() der Referenz
+      // liest jeden Bezeichner mit parseTypeTag(), also auch "Print p.T\x",
+      // "If p.T = Null" und "f(p.T)". Hier fehlte der Zweig fuer '.', und
+      // Code, der den Tag konsequent mitschreibt, scheiterte an jeder Zeile.
+      std::string useHint = parseTypeTag();
 
       // Array access or function/command call: name(args)
       if (peek().type == TokenType::OPERATOR && peek().value == "(") {

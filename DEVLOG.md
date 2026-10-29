@@ -1,5 +1,32 @@
 # BlitzNext Developer Log
 
+## 2026-10-29 — Object tags in expressions (BUG-224)
+
+An outside tester could not compile two large old projects because they write the object tag
+on every use of a variable: `Print p.T\x`, `If p.T = Null`, `f(p.T)`. BUG-47 had made the
+tag legal on the left of `=` only; `parsePrimary()` and the field chain still read nothing
+but `#`, `%` and `$` after a name, so every such line failed with `unexpected token`.
+Blitz3D's parser reads every name, field names included, through `parseTypeTag()`. Both
+places now do the same, and a variable that first appears with a tag inside an expression
+(`If z.T = Null`) is created with that type instead of as an integer. A tag that contradicts
+the variable's type is still `Variable type mismatch`, as in the original.
+
+Measured with 48 small programs against Blitz3D: each one now compiles exactly when the
+original compiles it, and the output is the same. In the installation samples only two files
+produce different C++: `Return pnt.tri` and `Return c.cam` used to be read as `Return pnt`
+followed by a stray label `.tri`.
+
+The same day the old Blitz3D bug-report forum (archive.blitzbasic.org) and today's
+blitzbasic.org forum were searched for edge cases that the samples do not cover. About 25 of
+them were measured against the original; they behave the same in BlitzNext and are kept in
+`tests/test_forum_grenzfaelle` (negative division by a power of two, float-to-int rounding,
+two statements without a separator, unterminated strings, deleted references, float format,
+random sequences and more). Two differences remain open: comparisons with NaN (BUG-225) and
+`Instr`/`Mid` with position 0 (BUG-226), both in KNOWN_ISSUES.md.
+
+Files: `src/compiler/parser.h`, `src/compiler/semant.h`, `tests/test_bug224_tag_in_expr`,
+`tests/neg_bug224_tag_mismatch_expr`, `tests/test_forum_grenzfaelle`, `KNOWN_ISSUES.md`.
+
 ## 2026-10-27 — v0.7.0: The Tide Update
 
 A release made only of fixes. Since 0.6.5, 41 entries of the bug list were fixed, each
