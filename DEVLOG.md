@@ -1,5 +1,22 @@
 # BlitzNext Developer Log
 
+## 2026-10-29 — String functions stop on an invalid position or length (BUG-125, BUG-226)
+
+Blitz3D checks the arguments of six string functions and ends the program with a runtime
+error, also in a release build: `Mid` and `Instr` with a start position of 0 or less
+("parameter must be greater than 0"), `Left`, `Right`, `LSet` and `RSet` with a negative
+length ("parameter must be positive"). BlitzNext took the position as 1 or returned an empty
+string, so a program with an off-by-one went on with a made-up value where the original
+named the cause. The forum thread that brought this up again was about exactly that.
+
+`bb_string.h` now has the two checks of `bbruntime/bbstring.cpp` and calls them at the same
+places; the error goes through `bb_RuntimeError` to stderr, like every other runtime error.
+The cases that are allowed stay as they were and were measured again against the original:
+position 1, a position past the end, a length of 0 and a negative count for `Mid`.
+
+Files: `src/compiler/bb_string.h`, `tests/test_bug226_position_0`,
+`tests/test_bug226_laenge_negativ`, `KNOWN_ISSUES.md`.
+
 ## 2026-10-29 — Comparisons with NaN (BUG-225)
 
 Blitz3D compares floats with the x87, where an unordered comparison reads as "equal" and as

@@ -12,7 +12,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-10-29 — one open bug, no missing commands.* A review against the
+*Last updated: 2026-10-29 — no open bugs, no missing commands.* A review against the
 original on 2026-10-13 found eleven more (BUG-201 to BUG-211); all of them are fixed for
 version 0.7.0.
 
@@ -143,8 +143,7 @@ counted as bugs and are not planned to be fixed:
   never hits these: division by a constant zero (BUG-75), a constant index outside a fixed
   array (BUG-78), `Global x`
   after `x` has been used (BUG-81), two functions with the same name (BUG-138), the same
-  `Local` declared twice (BUG-161). String functions with an invalid position or length
-  (`Mid(s, 0)`) continue with a guessed value where Blitz3D stops with an error (BUG-125).
+  `Local` declared twice (BUG-161).
 
 ---
 
@@ -179,9 +178,6 @@ with a font, the window title and the console.
   One that only invalid programs hit: an array with the same name as a constant
   (`Const SIZE = 4 : Dim size(3)`) — Blitz3D reports `Duplicate identifier`, here the C++
   compiler fails. Names in Blitz are not case-sensitive. (BUG-183)
-- **`Instr` and `Mid` with a position of 0 do not stop the program.** Blitz3D ends it with
-  "parameter must be greater than 0"; BlitzNext goes on and treats the position as 1. Only
-  programs that also fail in Blitz3D are affected. (BUG-226)
 
 ---
 
