@@ -1,5 +1,18 @@
 # BlitzNext Developer Log
 
+## 2026-10-29 — v0.7.1: bugfix release of The Tide Update
+
+Five fixes on top of 0.7.0, each measured against Blitz3D 11.8 and described in the entries
+below: object tags in expressions (BUG-224), `Flip` waiting for the display in a window
+(BUG-178), `LoadFont` with a file name (BUG-227), comparisons with NaN (BUG-225) and string
+functions stopping on an invalid position or length (BUG-226, BUG-125).
+
+The release is built from the `release/0.7.x` branch, which starts at the v0.7.0 tag and
+holds only these fixes. The Network Update, already on `main`, is not part of it; the
+release package still lacks the 14 DirectPlay commands.
+
+Version 0.7.1 (`blitzcc -v`, IDE).
+
 ## 2026-10-29 — String functions stop on an invalid position or length (BUG-125, BUG-226)
 
 Blitz3D checks the arguments of six string functions and ends the program with a runtime

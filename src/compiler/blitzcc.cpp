@@ -56,7 +56,7 @@ std::string ansiGeneric(const fs::path &p) { return ansiFromWide(p.generic_wstri
 // ---- Version ---------------------------------------------------------------
 // Single source of truth for -h and -v output (Buglist BUG-02 / REFACTOR R12).
 
-static constexpr const char *kVersion = "0.7.0";
+static constexpr const char *kVersion = "0.7.1";
 
 // ---- Config ----------------------------------------------------------------
 
