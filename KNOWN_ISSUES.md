@@ -12,7 +12,7 @@ against the official source code at
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
 and the commit history.
 
-*Last updated: 2026-10-27 — no open bugs, 14 missing commands.* A review against the
+*Last updated: 2026-10-29 — two open bugs, no missing commands.* A review against the
 original on 2026-10-13 found eleven more (BUG-201 to BUG-211); all of them are fixed for
 version 0.7.0.
 
@@ -177,6 +177,14 @@ with a font, the window title and the console.
   One that only invalid programs hit: an array with the same name as a constant
   (`Const SIZE = 4 : Dim size(3)`) — Blitz3D reports `Duplicate identifier`, here the C++
   compiler fails. Names in Blitz are not case-sensitive. (BUG-183)
+- **Comparisons with NaN give different results.** In Blitz3D a NaN (for example from
+  `ACos` of a value just above 1) compares as equal to every number and as greater than it:
+  `=`, `>` and `>=` are true, `<>`, `<` and `<=` false, and `Sgn` returns -1. BlitzNext
+  follows IEEE 754, where only `<>` is true and `Sgn` returns 0. A program whose angle
+  calculation produces NaN can take a different branch. (BUG-225)
+- **`Instr` and `Mid` with a position of 0 do not stop the program.** Blitz3D ends it with
+  "parameter must be greater than 0"; BlitzNext goes on and treats the position as 1. Only
+  programs that also fail in Blitz3D are affected. (BUG-226)
 
 ---
 

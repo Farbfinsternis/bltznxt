@@ -983,7 +983,12 @@ private:
     if (auto *ve = dynamic_cast<VarExpr *>(e)) {
       checkTag(ve->name, ve->typeHint, ve->line, ve->col);
       if (const Ty *t = lookup(ve->name)) return *t;
-      return mk(Ty::INT); // auto-declared on use, as in Blitz3D
+      // Auto-declared on use, as in Blitz3D - mit dem Typ des Tags, wenn
+      // einer dasteht: "If z.T = Null" legt z als .T an (BUG-224, gemessen).
+      if (ve->typeHint.empty()) return mk(Ty::INT);
+      Ty t = fromHint(ve->typeHint);
+      declare(ve->name, t);
+      return t;
     }
     if (auto *aa = dynamic_cast<ArrayAccess *>(e)) {
       for (auto &i : aa->indices) integerContext(i.get());
