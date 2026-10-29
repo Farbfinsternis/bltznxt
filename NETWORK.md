@@ -2,7 +2,7 @@
 
 Stand: 2026-10-27 · **Umgesetzt** in [bb_net.h](src/compiler/bb_net.h), Nutzer-Doku in
 [NETWORKING.md](NETWORKING.md), Tests in [tests/net/](tests/net/). UPnP gebaut und am echten
-Router geprüft 2026-10-29. Offen: ein Versuch über einen echten Webspace. Release-Plan: als Nächstes kommt das Network Update
+Router geprüft 2026-10-29, `games.php` auf echtem Webspace geprüft 2026-10-29. Release-Plan: als Nächstes kommt das Network Update
 (nur Mehrspieler), danach IDE.
 
 Blitz3D hatte zwei Netzwerk-Schichten: rohe TCP- und UDP-Streams (bei uns seit 2026-09-30
@@ -25,7 +25,7 @@ Pflicht, sauberes Funktionieren geht vor. Abgleich Konzept gegen Ergebnis:
 | Nachrichtentyp | Byte mit Vorzeichen wie gemessen | ganze Zahl; Typ 0 wird verworfen | die Byte-Kürzung ist ein Artefakt, kein Verhalten, auf das man bauen will |
 | Nachricht an eigenen Spieler | kommt nie an (gemessen) | kommt an; an alle (0) weiterhin nicht beim Absender | eine ausdrücklich adressierte Nachricht soll ankommen (geteilter Bildschirm mit mehreren lokalen Spielern) |
 | Host-Migration | ältestes Programm; sonst 200 | dazu: antwortet der Kandidat 8 s nicht, übernimmt der nächste | fällt der Kandidat mit dem Host weg, ginge sonst die ganze Sitzung verloren |
-| Referenz-Listen-Server | `games.php`, Alternativen beschrieben | `games.php` **und** `listserver.js` (Node.js) | auf dem Entwicklungsrechner gibt es weder PHP noch ein funktionierendes Python; Node ist da und prüft die Schnittstelle in der Testreihe. `games.php` ist ungetestet |
+| Referenz-Listen-Server | `games.php`, Alternativen beschrieben | `games.php` **und** `listserver.js` (Node.js) | auf dem Entwicklungsrechner gibt es weder PHP noch ein funktionierendes Python; Node ist da und prüft die Schnittstelle in der Testreihe. `games.php` am 2026-10-29 auf echtem Webspace (Apache, HTTPS) geprüft |
 | Neuer Befehl | — | `NetGameHost()` | nach einer Migration muss ein Programm fragen können, ob es jetzt Host ist |
 | Einstellung | join, server, app, port | dazu `lan = 0` (keine LAN-Suche), nur für Tests `bind`, `drop` | `lan` für reine Internet-Spiele und zum Prüfen des Listen-Servers |
 | UPnP | `miniupnpc`, auch NAT-PMP | **eigener kleiner IGD-Client** in `bb_net.h` (2026-10-29): SSDP-Suche, Geräte­beschreibung, SOAP `AddPortMapping`/`DeletePortMapping`/`GetExternalIPAddress`, eigener Thread; Leihfrist 1 h mit Erneuerung, bei Fehler 725 dauerhaft. Kein NAT-PMP | Die Laufzeit steckt als Header in jedem Programm; `miniupnpc` hätte eine vorgebaute Bibliothek für jedes Programm gebraucht. Der benötigte Teil von UPnP sind gut 200 Zeilen. NAT-PMP/PCP bräuchte die Gateway-Adresse (iphlpapi); erst nachziehen, wenn ein Router nur das kann |
@@ -38,7 +38,7 @@ Verlust, 3–6 durch die Testfälle in `tests/net/`. Nicht erfüllt: „Hilfe-Be
 `SendNetMsg.bb` + `RecvNetMsg.bb` laufen gegeneinander“ — `SendNetMsg.bb` (und
 `DeleteNetPlayer.bb`) sind in der Hilfe beschädigt (`player\x` wurde zu `playerx`), auch der
 Original-Compiler lehnt sie ab; die übrigen 12 Beispiele übersetzen. „Lobby-Beispiel“: siehe
-`samples/network/`. „Zwei Rechner über einen echten Webspace“ steht aus.
+`samples/network/`. „Zwei Rechner über einen echten Webspace“: zwei Programme auf einem Rechner fanden sich über den Webspace (DEVLOG 2026-10-29); der Beitritt über die öffentliche Adresse scheitert an diesem Anschluss am Carrier-NAT, nicht an der Liste.
 
 ## Entscheidungen (2026-10-27)
 
@@ -394,7 +394,7 @@ fremden Spielers, Host-Wahl mit mehr Kandidaten, echtes LAN mit zwei Rechnern.
 | 3 | ~~Sitzung: Host, Join, Spielerliste, Nachrichtenschlange, die 14 Befehle~~ erledigt (Hilfe-Beispiel siehe „Umsetzung“) | Hilfe-Beispiele `SendNetMsg.bb` + `RecvNetMsg.bb` laufen gegeneinander |
 | 4 | ~~Spielsuche im LAN, Auto-Modus, Handshake mit Kennung, Schalter von außen, neue Befehle~~ erledigt | Auto-Modus- und `REJECT`-Tests grün; Lobby-Beispiel läuft |
 | 5 | ~~Host-Migration, Abbruch, 200~~ erledigt | Test: Host beenden, ein Client wird Host, Spiel geht weiter |
-| 6 | ~~Listen-Server~~ erledigt bis auf den Webspace-Versuch: HTTP-Client (WinHTTP/libcurl), Anmelden/Lebenszeichen/Abmelden, `NetGameServer`, Referenz `listserver/games.php` | Tests gegen den lokalen Referenz-Server grün; zwei Rechner finden sich über einen echten Webspace |
+| 6 | ~~Listen-Server~~ erledigt, `games.php` auf echtem Webspace geprüft 2026-10-29: HTTP-Client (WinHTTP/libcurl), Anmelden/Lebenszeichen/Abmelden, `NetGameServer`, Referenz `listserver/games.php` | Tests gegen den lokalen Referenz-Server grün; zwei Rechner finden sich über einen echten Webspace |
 | 7 | ~~UPnP, eigener IGD-Client~~ erledigt 2026-10-29: Tests gegen nachgebauten Router grün, am echten Router (miniupnpd) angelegt und wieder gelöscht, Carrier-NAT erkannt (DEVLOG) | Am echten Router: Weiterleitung entsteht beim Hosten und verschwindet beim Beenden (`samples/network/upnpcheck.bb`) |
 | 8 | ~~Doku~~ erledigt bis auf Release Notes und Website: Nutzer-Doku „Netzwerk – Unterschiede zu Blitz3D“ (inkl. Listen-Server, NAT, Datenschutz), KNOWN_ISSUES, roadmap, Release Notes, Website | Unterschiede an allen Stellen gleich beschrieben |
 | 9 | ~~Erstes Spiel auf den Net-Befehlen~~ erledigt 2026-10-29: **BLTZCRFT** statt Friendly Fire (Entscheidung des Nutzers: einfacher, man sieht nur die anderen, dazu Chat und gemeinsame Blöcke), `samples/bltzcrft/mehrspieler.bb` | Zwei Programme: Beitritt mit der Welt des Hosts, Figur mit Namen, Chat, Block kommt bei beiden an (`bltzcrft.exe -test`) |

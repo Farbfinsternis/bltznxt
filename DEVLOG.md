@@ -1,5 +1,23 @@
 # BlitzNext Developer Log
 
+## 2026-10-29 — Network: games.php on a real web space
+
+The PHP list server had only been written, never run: the development machine has no PHP,
+and the test suite checks the interface against `listserver.js`. Now `games.php` and its
+`.htaccess` run on a real web space (Apache, PHP with SQLite, HTTPS, IPv4 only).
+
+By hand over HTTPS: register, list, heartbeat with a new player count, a list for another
+protocol version stays empty, unregister, a heartbeat after that answers `err gone`, an invalid
+port `err port`; the database file answers 403. With two BlitzNext programs on one machine and
+`BLTZNXT_NET_LAN=0`, so that only the list server counts: the host registered through WinHTTP,
+`FindNetGames` found it within 1.5 s with the public address and the game port, and after
+`StopNetGame` the list was empty again. A host killed without unregistering stayed listed at
+64 s and was gone at 104 s, as the 90 s expiry says.
+
+Joining at the listed address was not tried: the developer's line is behind carrier-grade NAT
+(see the UPnP entry), so no host on it can be reached from outside, list server or not. That
+needs a host on another line.
+
 ## 2026-10-29 — BLTZCRFT: multiplayer in the LAN, the first game on the Net commands
 
 BLTZCRFT is the first sample that uses the Network Update, ahead of Friendly Fire: it is the
