@@ -1284,8 +1284,9 @@ inline bbString bb_find_font_file_(const bbString& name, bool bold = false, bool
 // ANSI_CHARSET, ...) - die groesste Zeichenbreite der Schrift nach dem
 // Hinting, nicht die Breite von "M" (Arial 12: 24 statt 8; gemessen
 // build/bug139_fw_20261026). Aus den TrueType-Tabellen allein ergibt sie
-// sich nicht, deshalb fragen wir GDI wie das Original. Namen mit Punkt
-// (Schriftdatei) bleiben bei den Werten von SDL_ttf (BUG-139).
+// sich nicht, deshalb fragen wir GDI wie das Original. Eine vorhandene
+// Schriftdatei bleibt bei den Werten von SDL_ttf (BUG-139); ein Dateiname
+// ohne Datei kommt als Familienname an (BUG-227).
 inline void bb_gdi_font_metrics_(const bbString& name, int height, bool bold, bool italic,
                                  bool underline, int& width, int& cell) {
     if (name.find('.') != bbString::npos) return;
@@ -1364,8 +1365,8 @@ inline bb_Font_& bb_font_active_() {
 // ---- LoadFont(name, height [, bold [, italic [, underline]]]) → handle ----
 //
 // Opens a TTF font file and returns a handle ≥1.
-// Falls back gracefully: if SDL3_ttf is not compiled in, or the font file
-// cannot be found, returns a handle with 8×8 bitmap metrics (no crash).
+// Falls back gracefully: if SDL3_ttf is not compiled in, or neither the font
+// nor Arial can be found, returns a handle with 8×8 bitmap metrics (no crash).
 
 // Vorgabehoehe 12 wie im Original (rtSym "%LoadFont$fontname%height=12...",
 // BUG-139). Die Hoehe ist dort die Zellenhoehe, die GDI einhaelt -
@@ -1385,10 +1386,25 @@ inline int bb_LoadFont(const bbString& name, int height = 12,
 
 #ifdef BB_HAS_SDL3_TTF
     bb_ttf_ensure_();
+    // Ein Name mit Punkt ist im Original eine Schriftdatei (gxGraphics::
+    // loadFont): es versucht AddFontResource mit der Datei und nimmt dann den
+    // Namen ohne Ordner und ohne Endung - ab dem ersten Punkt - als Familie.
+    // Fehlt die Datei, wird es so die installierte Schrift gleichen Namens:
+    // LoadFont("verdana.ttf",12) ist Verdana (BUG-227). Liegt die Datei da,
+    // laden wir sie selbst.
+    bbString face = name;
+    const size_t dot = name.find('.');
+    if (dot != bbString::npos) {
+        face = name.substr(0, dot);
+        const size_t sl = face.find_last_of("\\/");
+        if (sl != bbString::npos) face = face.substr(sl + 1);
+    }
+    const bool isFile = dot != bbString::npos &&
+                        std::filesystem::exists(bb_path_(name));   // ANSI (BUG-202)
 #ifdef _WIN32
-    bbString fam = name;
+    bbString fam = face;
     for (auto& c : fam) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    if (bb_ttf_initialized_ && fam == "courier" &&
+    if (bb_ttf_initialized_ && !isFile && fam == "courier" &&
         bb_open_courier_(height, bold != 0, italic != 0, underline != 0, f)) {
         bb_fonts_.push_back(f);
         return static_cast<int>(bb_fonts_.size()) - 1;
@@ -1396,7 +1412,11 @@ inline int bb_LoadFont(const bbString& name, int height = 12,
 #endif
     if (bb_ttf_initialized_) {
         bool styled = false;
-        bbString path = bb_find_font_file_(name, bold != 0, italic != 0, &styled);
+        bbString path = isFile ? name : bb_find_font_file_(face, bold != 0, italic != 0, &styled);
+        // Eine unbekannte Familie ersetzt GDI im Original durch eine andere
+        // Schrift, gemessen mit denselben Massen wie Arial - nicht durch die
+        // eingebaute 8x8-Schrift (BUG-227).
+        if (path.empty()) path = bb_find_font_file_("arial", bold != 0, italic != 0, &styled);
         if (!path.empty()) {
             TTF_Font* ttf = TTF_OpenFont(bb_utf8_(path).c_str(), static_cast<float>(height));   // SDL will UTF-8
             if (ttf) {
@@ -1417,8 +1437,9 @@ inline int bb_LoadFont(const bbString& name, int height = 12,
                 else
                     f.width = f.height / 2;
 #ifdef _WIN32
-                bb_gdi_font_metrics_(name, height, bold != 0, italic != 0, underline != 0,
-                                     f.width, f.height);
+                if (!isFile)   // GDI kennt die Familie unter `face`
+                    bb_gdi_font_metrics_(face, height, bold != 0, italic != 0, underline != 0,
+                                         f.width, f.height);
 #endif
             }
         }

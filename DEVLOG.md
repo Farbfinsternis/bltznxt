@@ -1,5 +1,28 @@
 # BlitzNext Developer Log
 
+## 2026-10-29 — LoadFont with a file name (BUG-227)
+
+Many old programs load a font as `LoadFont("verdana.ttf",12)` without shipping the file —
+15 calls in the Pakz001/Blitz3d collection alone. Blitz3D's `gxGraphics::loadFont` treats a
+name with a dot as a font file: it tries `AddFontResource` and then asks GDI for the family
+named like the file, without folder and extension. A missing file is therefore no error;
+the program gets the installed Verdana. BlitzNext only looked for the file and otherwise
+fell back to its built-in 8x8 font, so the text was tiny.
+
+Now a file that exists is loaded as before; otherwise the family is taken from the name the
+same way, for the TrueType lookup, the GDI metrics and the Courier bitmap font. An unknown
+family gives Arial, which is what GDI's replacement font measures like, instead of 8x8.
+Measured against the original in ten cases (`verdana.ttf`, `Verdana.ttf` bold,
+`fonts\arial.ttf`, unknown names, `courier.fon`, `tahoma.TTF`, `arial.ttf.bak`, ...):
+`FontHeight` and `FontWidth` match everywhere; `StringWidth` is a few pixels off, as it
+already was for plain names, because BlitzNext does not draw through GDI.
+
+`test_m43_fonts` expected the 8x8 font for an unknown name, which had never been measured;
+it now expects the original's values.
+
+Files: `src/compiler/bb_graphics2d.h`, `tests/test_bug227_loadfont_dateiname`,
+`tests/test_m43_fonts`, `KNOWN_ISSUES.md`.
+
 ## 2026-10-29 — Flip waits for the display in a window too (BUG-178)
 
 `Flip` and `Flip 1` now wait for the screen refresh in a window as well as in fullscreen;
