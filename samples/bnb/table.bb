@@ -64,8 +64,9 @@ Function Table_SetMirror(on)
 	EndIf
 End Function
 
-; Camera for playing, like the original: low and close to the table, it
-; follows the ball. Two poses, blended by camFollow (0 = ball at the
+; Camera for playing: low and close to the table, it follows the ball.
+; (The original had a fixed camera at 0, 20.1, -10, pitch 31.5, zoom 1.5;
+; the remaster keeps following on purpose.) Two poses, blended by camFollow (0 = ball at the
 ; paddle, 1 = ball at the back wall):
 ;   front: low and close, the table is big, the back rows may be cut off
 ;   back:  higher and further back, looking deeper so the ball stays in view

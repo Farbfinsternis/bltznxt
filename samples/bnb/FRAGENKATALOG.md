@@ -338,6 +338,18 @@ Antworten einfach darunter schreiben oder im Chat durchgehen.
 
 ---
 
+## Abgleich mit Originalvideo (31.10.)
+
+Demo 1.2.1, Stage 1, Einzelbilder alle 5 s. Abweichungen vom Remaster:
+- **Kamera:** Original fest (0 / 20,1 / −10, 31,5°, Zoom 1,5).
+  ✅ **Entschieden 31.10.:** Das Remaster behält die Folgekamera.
+- Getroffene Blöcke werden zu gelben, halbdurchsichtigen Kristallen (`hedra.3ds`).
+- Ball blau und glasig, mit Spiegelung und Rauchspur.
+- Große Punktzahlen steigen auf und fliegen zur Kamera.
+- Boden: großes dunkles 2×2-Schachbrett, kräftige Spiegelung.
+- Paddle silbern-weiß, abgerundet, roter Mittelteil.
+- Funkenwolke um die Blöcke beim Levelstart.
+
 ## Auffälligkeiten im alten Code (zur Info, kein Handlungsbedarf)
 
 - Score-Formel benutzt `scrorepoints` (Tippfehler) → Schwierigkeitsbonus war immer 0.
