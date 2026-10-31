@@ -15,7 +15,7 @@ Stand: 2026-10-31, BLTZNXT 0.7.1 (Commit 4417b2e), Windows 11.
 | # | Art | Thema | Schwere | Bugliste |
 |---|-----|-------|---------|----------|
 | 1 | Ausbau | Keine Normal Maps (glTF-Lader liest nur die Grundfarbe) | mittel – zurückgestellt | WEAK-35 |
-| 2 | Fehler | `ReadFile` auf eine fehlende Datei meldet sich auf stderr | niedrig – **behoben** | BUG-228 ✅ |
+| 2 | Fehler | `ReadFile` auf eine fehlende Datei meldet sich auf stderr | niedrig – **behoben** (`6b4f82a`) | BUG-228 ✅ |
 
 ---
 
@@ -43,5 +43,4 @@ Das Original liefert still 0, auch im Debug-Build (nachgemessen mit `blitzcc -d`
 **Folge im Spiel:** keine – nur drei Störzeilen in der Konsole bei jedem Start.
 
 **Behoben:** sofort, vor der Weiterarbeit am Spiel (`src/compiler/bb_file.h`,
-`bb_file_open_`); Regressionstest `tests/test_bug228_readfile_silent`. Commit folgt mit
-dem ersten Commit des Remasters.
+`bb_file_open_`); Regressionstest `tests/test_bug228_readfile_silent`, Commit `6b4f82a`.
