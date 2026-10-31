@@ -15,6 +15,7 @@ Type tBlock
 	Field hits, maxHits
 	Field ent
 	Field flash#            ; > 0 right after a hit
+	Field ang#              ; turned on the table (45 degree obstacle), 0 = axis aligned
 End Type
 
 Global blocksLeft = 0       ; destructible blocks still standing
@@ -67,6 +68,11 @@ Function Block_Create(code$, x#, z#)
 			b\ent = CreateCylinder(16)
 		Else
 			b\ent = CreateCube()
+		EndIf
+		If code = "/"
+			; a bar along the diagonal of the cell, from front left to back right
+			b\ang = 45 : b\hx = cellSize * 0.66 : b\hz = cellSize * 0.13
+			RotateEntity b\ent, 0, b\ang, 0          ; positive yaw turns +x towards +z
 		EndIf
 		ScaleEntity b\ent, b\hx, h * 1.2, b\hz
 		PositionEntity b\ent, x, h * 1.2, z

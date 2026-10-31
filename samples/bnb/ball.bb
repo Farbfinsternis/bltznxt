@@ -127,6 +127,7 @@ End Function
 ; moves all balls; returns the points earned. Lost balls are removed
 ; (ballsLost counts them).
 Global ballsLost = 0
+Global ballMaxZ# = 0          ; debug: deepest point a ball reached
 Function Balls_Update(dt#)
 	points = 0
 	ballsLost = 0
@@ -161,6 +162,7 @@ Function Ball_Step(b.tBall, dt#)
 	points = 0
 	b\x = b\x + b\vx * dt
 	b\z = b\z + b\vz * dt
+	If b\z > ballMaxZ Then ballMaxZ = b\z
 
 	; side walls and back wall
 	If b\x < -FIELD_HALF + ballR
@@ -186,9 +188,13 @@ Function Ball_Step(b.tBall, dt#)
 
 	; blocks: at most one per step
 	For k.tBlock = Each tBlock
-		If Abs(b\x - k\x) < k\hx + ballR And Abs(b\z - k\z) < k\hz + ballR
+		ex# = k\hx : ez# = k\hz
+		If k\ang <> 0 Then ex = (k\hx + k\hz) * 0.7072 : ez = ex
+		If Abs(b\x - k\x) < ex + ballR And Abs(b\z - k\z) < ez + ballR
 			If k\kind = KIND_BUMPER
 				hit = Ball_HitCircle(b, k)
+			ElseIf k\ang <> 0
+				hit = Ball_HitTurnedBox(b, k)
 			Else
 				hit = Ball_HitBox(b, k)
 			EndIf
@@ -250,6 +256,35 @@ Function Ball_HitBox(b.tBall, k.tBlock)
 End Function
 
 ; circle against circle (bumpers, round obstacles)
+; circle against a box turned by k\ang on the table: the test runs in the
+; box's own axes (u along its length, v across), the normal is turned back
+Function Ball_HitTurnedBox(b.tBall, k.tBlock)
+	c# = Cos(k\ang) : s# = Sin(k\ang)
+	dx# = b\x - k\x : dz# = b\z - k\z
+	lx# = dx * c + dz * s                   ; along u = (c, s)
+	lz# = -dx * s + dz * c                  ; along v = (-s, c)
+	px# = Clamp(lx, -k\hx, k\hx) : pz# = Clamp(lz, -k\hz, k\hz)
+	nlx# = lx - px : nlz# = lz - pz
+	d2# = nlx * nlx + nlz * nlz
+	If d2 >= ballR * ballR Then Return False
+	If d2 < 0.000001
+		; centre inside: leave across the bar, on the side the ball is on
+		nlx = 0 : nlz = Sgn(lz)
+		If nlz = 0 Then nlz = 1
+		pz = k\hz * nlz
+	Else
+		d# = Sqr(d2) : nlx = nlx / d : nlz = nlz / d
+	EndIf
+	nx# = nlx * c - nlz * s : nz# = nlx * s + nlz * c
+	Ball_Reflect(b, nx, nz)
+	; back to the table: contact point plus the radius along the normal
+	wx# = px * c - pz * s : wz# = px * s + pz * c
+	b\x = k\x + wx + nx * (ballR + 0.001)
+	b\z = k\z + wz + nz * (ballR + 0.001)
+	Ball_FixAngle(b)
+	Return True
+End Function
+
 Function Ball_HitCircle(b.tBall, k.tBlock)
 	dx# = b\x - k\x : dz# = b\z - k\z
 	r# = k\hx + ballR

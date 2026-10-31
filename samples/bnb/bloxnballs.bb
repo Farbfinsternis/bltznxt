@@ -157,7 +157,7 @@ While running
 	EndIf
 	If quitAfter > 0 And totalTime >= quitAfter
 		SaveBuffer BackBuffer(), AppPath("test_quit.bmp")
-		DebugLog "quit: state " + state + " level " + gameLevel + " score " + gameScore + " lives " + gameLives + " blocks " + blocksLeft
+		DebugLog "quit: state " + state + " level " + gameLevel + " score " + gameScore + " lives " + gameLives + " blocks " + blocksLeft + " max z " + ballMaxZ
 		running = False
 	EndIf
 	Flip
