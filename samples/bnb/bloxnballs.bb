@@ -189,7 +189,12 @@ Function SetState(s)
 		Return
 	EndIf
 	ShowPointer
-	If s <> ST_LEVELDONE Then Music_Play("mainmusic.mp3")
+	; the main menu (and its options, same picture) has its own music
+	If s = ST_MENU Or s = ST_OPTIONS
+		Music_Play("mainmenu.mp3")
+	ElseIf s <> ST_LEVELDONE
+		Music_Play("mainmusic.mp3")
+	EndIf
 	If previous = ST_PLAY Then Table_BallcamOff()
 	; an empty table looks dull behind the menu: show the first level
 	If s = ST_MENU And (Not gameActive) And blocksLeft = 0
