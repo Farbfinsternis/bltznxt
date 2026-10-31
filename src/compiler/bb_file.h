@@ -65,12 +65,12 @@ inline int bb_stream_write_(int handle, const void* buf, int n) {
 }
 
 // Internal helper — opens a file, stores it, returns handle (0 on failure).
+// Ein Fehlschlag ist kein Fehler: Programme pruefen so, ob eine Datei da ist
+// (If Not ReadFile(...)). Das Original meldet nichts, auch im Debug-Modus
+// nicht - daher keine Ausgabe auf stderr (BUG-228).
 inline int bb_file_open_(const bbString &path, const char *mode) {
   FILE *f = std::fopen(path.c_str(), mode);
-  if (!f) {
-    std::cerr << "[runtime] Cannot open file: " << path << "\n";
-    return 0;
-  }
+  if (!f) return 0;
   int id = bb_file_next_id_++;
   bb_file_handles_[id] = f;
   return id;
