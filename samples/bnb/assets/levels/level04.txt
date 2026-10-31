@@ -1,0 +1,13 @@
+; Blox'n'Balls level, converted from the original lvl04.bbl
+name: Level 4
+time: 360
+speed: 12
+music: music04.mp3
+grid:
+RQPWP....PMPQR
+......11......
+..111.11.111..
+..1B1....1B1..
+..111....111..
+..............
+...#......#...

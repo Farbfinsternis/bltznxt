@@ -108,3 +108,11 @@ samples/friendlyfire/werkzeug/astra/
 # BLTZCRFT -test: Bilder und Ergebnisse
 samples/bltzcrft/test_*.bmp
 samples/bltzcrft/test_*.txt
+
+# Blox'n'Balls: Rohdaten (Qwen, Blender) nur lokal
+samples/bnb/_work/
+samples/bnb/test_*.bmp
+samples/bnb/shot*.bmp
+samples/bnb/bloxnballs.cfg
+samples/bnb/scores.dat
+samples/bnb/save.dat

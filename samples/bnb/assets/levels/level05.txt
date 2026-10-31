@@ -1,0 +1,15 @@
+; Blox'n'Balls level, converted from the original lvl05.bbl
+name: Level 5
+time: 360
+speed: 13
+music: music01.mp3
+grid:
+R1PG1QEOQ1SP1R
+1...Q.11.Q...1
+R.|.P.11.P.|.R
+1...1P11P1...1
+R1P111PP111P1R
+1...1P11P1...1
+R.|.P.11.P.|.R
+1...1.11.1...1
+11P1111X111P11

@@ -1,0 +1,17 @@
+; Blox'n'Balls level, converted from the original lvl02.bbl
+name: Level 2
+time: 360
+speed: 10
+music: music02.mp3
+grid:
+RX1..1RR1..1TR
+1Q1..1QQ1..1Q1
+111..1111..111
+..............
+...o......o...
+11...11A1...11
+1P1..1PP1..1P1
+1P1..1PP1..1P1
+111..1111..111
+..............
+....|....|....
