@@ -1,0 +1,78 @@
+name: Compatibility report
+description: An old Blitz3D program runs differently in BLTZNXT (or does not run at all).
+title: "[Compat] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for trying your Blitz3D code with BLTZNXT! Every report helps old programs run again.
+        Only the first three fields are required – fill in whatever else you know.
+
+  - type: textarea
+    id: program
+    attributes:
+      label: Which program?
+      description: Your own project, a sample, a game from the archive ... A link is welcome if it is public.
+      placeholder: "My 2004 racing game, about 6,000 lines, uses LoadAnimMesh and CreateTerrain."
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happens in BLTZNXT?
+      description: Compile error, crash, wrong picture, wrong sound, wrong speed ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+      description: How does it behave in the original Blitz3D?
+    validations:
+      required: true
+
+  - type: textarea
+    id: output
+    attributes:
+      label: Error message or console output
+      description: Copy the text of the error, or the output of blitzcc.exe.
+      render: text
+
+  - type: textarea
+    id: code
+    attributes:
+      label: Code
+      description: The smallest piece of code that shows the problem, if you can narrow it down. A whole project as a ZIP is fine too (drag it into this field).
+      render: blitzbasic
+
+  - type: textarea
+    id: media
+    attributes:
+      label: Screenshots or video
+      description: Especially useful for graphics problems – ideally the same scene in Blitz3D and in BLTZNXT.
+
+  - type: input
+    id: version
+    attributes:
+      label: BLTZNXT version
+      placeholder: "0.7.1"
+
+  - type: dropdown
+    id: started
+    attributes:
+      label: How did you compile it?
+      options:
+        - Command line (blitzcc.exe)
+        - BLTZNXT IDE
+        - Original Blitz3D IDE
+        - Other
+
+  - type: input
+    id: system
+    attributes:
+      label: System
+      description: Windows version and graphics card.
+      placeholder: "Windows 11, GeForce RTX 3060"
