@@ -53,10 +53,12 @@ Function Menu_BuildOptions()
 	If menuSel >= menuCount Then menuSel = 0
 End Function
 
-; draws the list centred at y0; returns the id activated (click / Enter),
-; and sets menuStep to -1 / +1 for Left / Right on the selected entry
+; draws the list centred at y0 (and x0, default the middle of the screen);
+; returns the id activated (click / Enter), and sets menuStep to -1 / +1
+; for Left / Right on the selected entry
 Global menuStep = 0
-Function Menu_Run(y0)
+Function Menu_Run(y0, x0 = 0)
+	If x0 = 0 Then x0 = GraphicsWidth() / 2
 	menuStep = 0
 	lineH = U(52)
 	; the mouse selects the row under it, but only when it moves
@@ -88,13 +90,11 @@ Function Menu_Run(y0)
 	SetFont fontMid
 	For i = 0 To menuCount - 1
 		y = y0 + i * lineH
-		If i = menuSel
-			Color 255, 200, 70
-			Text GraphicsWidth() / 2, y, "> " + menuText(i) + " <", True, True
-		Else
-			Color 220, 225, 235
-			Text GraphicsWidth() / 2, y, menuText(i), True, True
-		EndIf
+		t$ = menuText(i)
+		If i = menuSel Then t = "> " + t + " <"
+		Color 0, 0, 0 : Text x0 + U(2), y + U(2), t, True, True
+		If i = menuSel Then Color 255, 200, 70 Else Color 220, 225, 235
+		Text x0, y, t, True, True
 	Next
 
 	activated = 0
@@ -113,6 +113,25 @@ Function Title_Draw()
 	Color 240, 190, 60 : Text GraphicsWidth() / 2, U(110), "BLOX'N'BALLS", True, True
 End Function
 
+; ---- main picture ------------------------------------------------------------
+
+; main.jpg is ultra wide; it fills the screen height and is centred, so at
+; 16:9 the sides are cut off. Loading screen and background of the menus.
+Global mainImage = 0
+Const MENU_X# = 0.19        ; menus stand left of the face, share of the width
+
+Function MainImage_Load()
+	mainImage = LoadImage("assets/ui/main.jpg")
+	If Not mainImage Then RuntimeError "Missing assets/ui/main.jpg"
+	s# = Float(GraphicsHeight()) / ImageHeight(mainImage)
+	If ImageWidth(mainImage) * s < GraphicsWidth() Then s = Float(GraphicsWidth()) / ImageWidth(mainImage)
+	ResizeImage mainImage, ImageWidth(mainImage) * s, ImageHeight(mainImage) * s
+End Function
+
+Function MainImage_Draw()
+	DrawBlock mainImage, (GraphicsWidth() - ImageWidth(mainImage)) / 2, (GraphicsHeight() - ImageHeight(mainImage)) / 2
+End Function
+
 ; ---- main menu ---------------------------------------------------------------
 
 Function Menu_Update(dt#)
@@ -125,9 +144,9 @@ Function Menu_Update(dt#)
 End Function
 
 Function Menu_Draw()
-	Title_Draw()
+	MainImage_Draw()
 	Menu_BuildMain()
-	id = Menu_Run(U(260))
+	id = Menu_Run(U(200), GraphicsWidth() * MENU_X)
 	Select id
 	Case M_RESUME : Menu_Resume()
 	Case M_CONTINUE
@@ -156,11 +175,13 @@ End Function
 ; ---- options -----------------------------------------------------------------
 
 Function Options_Draw()
-	Title_Draw()
-	SetFont fontSmall : Color 160, 165, 175
-	Text GraphicsWidth() / 2, U(190), "Left / Right or click to change", True, True
+	MainImage_Draw()
+	x0 = GraphicsWidth() * MENU_X
+	SetFont fontSmall
+	Color 0, 0, 0 : Text x0 + U(2), U(132), "Left / Right or click to change", True, True
+	Color 200, 205, 215 : Text x0, U(130), "Left / Right or click to change", True, True
 	Menu_BuildOptions()
-	id = Menu_Run(U(260))
+	id = Menu_Run(U(200), x0)
 	s = menuStep
 	If s = 0 Then s = 1
 	Select id

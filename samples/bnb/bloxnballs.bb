@@ -91,6 +91,10 @@ EndIf
 SetBuffer BackBuffer()
 SeedRnd MilliSecs()
 
+; loading screen while the rest loads
+MainImage_Load()
+Cls : MainImage_Draw() : Flip
+
 Fonts_Load()
 Sound_Load()
 Table_Create()
