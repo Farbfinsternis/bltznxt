@@ -17,6 +17,7 @@
 ;   -skill <n>    0 easy, 1 normal, 2 hard (default 1)
 ;   -quit <s>     quits after s seconds and saves test_quit.bmp
 ;   -ballcam      starts with the ball camera on
+;   -shots <s>    saves test_001.bmp, test_002.bmp ... every s seconds
 
 Const ST_MENU = 1
 Const ST_PLAY = 2
@@ -46,7 +47,7 @@ Include "menu.bb"
 
 ; ---- command line ----------------------------------------------------------------
 
-startLevel = 1 : startSkill = 1 : quitAfter# = 0
+startLevel = 1 : startSkill = 1 : quitAfter# = 0 : shotEvery# = 0 : shotNext# = 0 : shotCount = 0
 args$ = Trim(CommandLine())
 i = 1
 Repeat
@@ -56,6 +57,7 @@ Repeat
 	Case "-debug"    : debugMode = True
 	Case "-autoplay" : autoPlay = True
 	Case "-ballcam"  : ballcamOn = True
+	Case "-shots"    : i = i + 1 : shotEvery = Float(Part$(Replace(args, " ", ";"), i))
 	Case "-level"    : i = i + 1 : startLevel = Int(Part$(Replace(args, " ", ";"), i))
 	Case "-skill"    : i = i + 1 : startSkill = Int(Part$(Replace(args, " ", ";"), i))
 	Case "-quit"     : i = i + 1 : quitAfter = Float(Part$(Replace(args, " ", ";"), i))
@@ -135,6 +137,10 @@ While running
 	EndIf
 
 	If shot Then Screenshot()
+	If shotEvery > 0 And totalTime >= shotNext
+		shotNext = totalTime + shotEvery : shotCount = shotCount + 1
+		SaveBuffer BackBuffer(), AppPath("test_" + Right("00" + shotCount, 3) + ".bmp")
+	EndIf
 	If quitAfter > 0 And totalTime >= quitAfter
 		SaveBuffer BackBuffer(), AppPath("test_quit.bmp")
 		DebugLog "quit: state " + state + " level " + gameLevel + " score " + gameScore + " lives " + gameLives + " blocks " + blocksLeft
@@ -159,7 +165,8 @@ Function SetState(s)
 			MoveMouse GraphicsWidth() / 2, GraphicsHeight() / 2
 		EndIf
 		MouseXSpeed() : MouseYSpeed()
-		Table_GameView()
+		leader.tBall = Ball_Leader()
+		If leader <> Null Then Table_SnapView(leader\x, leader\z) Else Table_SnapView(0, 0)
 		Return
 	EndIf
 	ShowPointer

@@ -8,7 +8,7 @@
 Const FIELD_HALF# = 7.0
 Const FIELD_BACK# = 22.0
 
-Global camMain, camBall, camTarget
+Global camMain, camBall, camTarget, camLook
 Global tableBorder, tableFloor, tableMirror
 Global lightMain
 Global ballcamOn = False
@@ -31,11 +31,12 @@ Function Table_Create()
 
 	camTarget = CreatePivot()
 	PositionEntity camTarget, 0, 0, 9.5
+	camLook = CreatePivot()
 
 	camMain = CreateCamera()
 	CameraRange camMain, 0.1, 400
 	CameraClsColor camMain, 6, 8, 12
-	CameraZoom camMain, 1.15
+	CameraZoom camMain, 1.0
 
 	camBall = CreateCamera()
 	CameraRange camBall, 0.05, 100
@@ -63,10 +64,40 @@ Function Table_SetMirror(on)
 	EndIf
 End Function
 
-; fixed camera for playing: the whole table in view, paddle at the bottom
+; Camera for playing, like the original: low and close to the table, it
+; follows the ball. Two poses, blended by camFollow (0 = ball at the
+; paddle, 1 = ball at the back wall):
+;   front: low and close, the table is big, the back rows may be cut off
+;   back:  higher and further back, looking deeper so the ball stays in view
+; camFollow and the sideways shift glide towards their targets.
+Const CAM_FRONT_Y# = 6.0, CAM_FRONT_Z# = -2.5, CAM_FRONT_LOOK# = 7.5
+Const CAM_BACK_Y# = 9.0, CAM_BACK_Z# = -4.0, CAM_BACK_LOOK# = 11.0
+Const CAM_GLIDE# = 2.5      ; how fast the camera follows (per second)
+Const CAM_SIDE# = 0.25      ; share of the ball's x the camera moves along
+
+Global camFollow# = 0, camSideX# = 0
+
+Function Table_FollowTarget#(bz#)
+	t# = Clamp((bz - 4) / 14, 0, 1)
+	Return t * t * (3 - 2 * t)                  ; smoothstep: soft at both ends
+End Function
+
+; places the play camera for the current camFollow / camSideX
 Function Table_GameView()
-	PositionEntity camMain, 0, 18.5, -7.8
-	PointEntity camMain, camTarget
+	f# = camFollow
+	y# = CAM_FRONT_Y + (CAM_BACK_Y - CAM_FRONT_Y) * f
+	z# = CAM_FRONT_Z + (CAM_BACK_Z - CAM_FRONT_Z) * f
+	look# = CAM_FRONT_LOOK + (CAM_BACK_LOOK - CAM_FRONT_LOOK) * f
+	PositionEntity camMain, camSideX, y, z
+	PositionEntity camLook, camSideX * 1.4, 0, look
+	PointEntity camMain, camLook
+End Function
+
+; jumps straight to the pose for a ball at bx, bz (level start, resume)
+Function Table_SnapView(bx#, bz#)
+	camFollow = Table_FollowTarget(bz)
+	camSideX = bx * CAM_SIDE
+	Table_GameView()
 End Function
 
 ; slow flight around the table behind the menus
@@ -82,6 +113,9 @@ End Function
 
 ; per frame while playing: camera shake and the ball camera
 Function Table_Update(dt#, bx#, bz#, bvx#, bvz#)
+	k# = 1 - Exp(-CAM_GLIDE * dt)               ; same glide at any frame rate
+	camFollow = camFollow + (Table_FollowTarget(bz) - camFollow) * k
+	camSideX = camSideX + (bx * CAM_SIDE - camSideX) * k
 	Table_GameView()
 	If shakeTime > 0
 		shakeTime = shakeTime - dt

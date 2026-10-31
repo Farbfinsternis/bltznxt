@@ -41,6 +41,7 @@ Command line
   -skill <n>     0 easy, 1 normal, 2 hard
   -quit <s>      quits after s seconds and saves test_quit.bmp
   -ballcam       starts with the ball camera on
+  -shots <s>     saves test_001.bmp, test_002.bmp ... every s seconds
 
 
 Files
