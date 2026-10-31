@@ -61,7 +61,7 @@ Function Block_Create(code$, x#, z#)
 	b.tBlock = New tBlock
 	b\code = code : b\x = x : b\z = z
 	b\hx = cellSize * 0.46 : b\hz = cellSize * 0.46
-	h# = cellSize * 0.32
+	h# = b\hx                   ; blocks are cubes, as in the original
 	Select code
 	Case "1", "2", "3"
 		b\kind = KIND_NORMAL : b\maxHits = Int(code)
@@ -95,8 +95,9 @@ Function Block_Create(code$, x#, z#)
 			b\ang = 45 : b\hx = cellSize * 0.66 : b\hz = cellSize * 0.13
 			RotateEntity b\ent, 0, b\ang, 0          ; positive yaw turns +x towards +z
 		EndIf
-		ScaleEntity b\ent, b\hx, h * 1.2, b\hz
-		PositionEntity b\ent, x, h * 1.2, z
+		; twice as tall as a block, like blocker*.3ds in the original
+		ScaleEntity b\ent, b\hx, h * 2, b\hz
+		PositionEntity b\ent, x, h * 2, z
 		EntityColor b\ent, 70, 74, 82
 		EntityShininess b\ent, 0.5
 		If code = "|" Then b\kind = KIND_BUMPER : b\code = "|"
