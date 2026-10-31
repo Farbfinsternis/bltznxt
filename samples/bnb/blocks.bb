@@ -31,6 +31,35 @@ Global bumperModelR# = 1     ; radius of the foot in model units
 Const BUMPER_R# = 1.0        ; in cells
 Const BUMPER_STRETCH# = 1.5  ; height / width against the model
 
+; blox.jpg is a 5 x 5 atlas; the first BLOCK_TILES tiles are block faces.
+; Like the original (one of 17 blocktex*.jpg by chance) every block gets a
+; random tile: one hidden cube per tile with its UVs on that tile.
+Const ATLAS_COLS = 5
+Const BLOCK_TILES = 18
+Dim blockTile(BLOCK_TILES - 1)
+
+Function Blocks_Init()
+	tex = LoadTexture("assets/textures/blox.jpg", 1 + 8)
+	If Not tex Then RuntimeError "Missing assets/textures/blox.jpg"
+	brush = CreateBrush()
+	BrushTexture brush, tex
+	inset# = 0.004                 ; keeps mipmaps from bleeding into the next tile
+	For i = 0 To BLOCK_TILES - 1
+		u0# = Float(i Mod ATLAS_COLS) / ATLAS_COLS : v0# = Float(i / ATLAS_COLS) / ATLAS_COLS
+		m = CreateCube()
+		sf = GetSurface(m, 1)
+		For v = 0 To CountVertices(sf) - 1
+			tu# = inset + VertexU(sf, v) * (1 - 2 * inset)
+			tv# = inset + VertexV(sf, v) * (1 - 2 * inset)
+			VertexTexCoords sf, v, u0 + tu / ATLAS_COLS, v0 + tv / ATLAS_COLS
+		Next
+		PaintMesh m, brush
+		HideEntity m
+		blockTile(i) = m
+	Next
+	FreeBrush brush
+End Function
+
 ; bumper.glb stands on y = 0 around the origin; its width gives the scale
 Function Bumper_Mesh()
 	If Not bumperMesh
@@ -102,7 +131,8 @@ Function Block_Create(code$, x#, z#)
 		EntityShininess b\ent, 0.5
 		If code = "|" Then b\kind = KIND_BUMPER : b\code = "|"
 	Default
-		b\ent = CreateCube()
+		b\ent = CopyEntity(blockTile(Rand(0, BLOCK_TILES - 1)))
+		ShowEntity b\ent
 		ScaleEntity b\ent, b\hx, h, b\hz
 		PositionEntity b\ent, x, h, z
 		EntityShininess b\ent, 0.4
@@ -111,21 +141,12 @@ Function Block_Create(code$, x#, z#)
 	Block_Paint(b)
 End Function
 
-; colour by type and damage (placeholder until the block atlas arrives)
+; the texture shows as it is; damaged blocks get darker, a hit flashes
 Function Block_Paint(b.tBlock)
-	r = 0 : g = 0 : bl = 0
 	Select b\kind
-	Case KIND_NORMAL
-		Select b\maxHits
-		Case 1 : r = 70  : g = 140 : bl = 220
-		Case 2 : r = 230 : g = 140 : bl = 40
-		Default : r = 210 : g = 50 : bl = 50
-		End Select
-		; damaged blocks get darker ("cracks" come with the textures)
+	Case KIND_NORMAL, KIND_SPECIAL
 		f# = 0.45 + 0.55 * Float(b\hits) / b\maxHits
-		r = r * f : g = g * f : bl = bl * f
-	Case KIND_SPECIAL
-		r = 240 : g = 200 : bl = 60
+		r = 255 * f : g = r : bl = r
 	Default
 		Return
 	End Select
