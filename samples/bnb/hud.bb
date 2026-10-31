@@ -26,10 +26,17 @@ Function U(v#)
 	Return Int(v * ui)
 End Function
 
+; Road Rage, SIL Open Font License 1.1 (OFL.txt lies next to it)
+Const FONT_FILE$ = "assets/fonts/RoadRage-Regular.ttf"
+
+Function Font_Face$()
+	If FileType(FONT_FILE) = 1 Then Return FONT_FILE
+	Return "Arial Black"
+End Function
+
 Function Fonts_Load()
 	ui = GraphicsWidth() / 1280.0
-	face$ = "Arial Black"
-	If FileType("assets/fonts/bloxnballs.ttf") = 1 Then face = "assets/fonts/bloxnballs.ttf"
+	face$ = Font_Face()
 	fontBig = LoadFont(face, U(56))
 	fontMid = LoadFont(face, U(30))
 	fontSmall = LoadFont(face, U(20))
@@ -50,8 +57,7 @@ Function HUD_Create()
 	hudX0 = GraphicsWidth() / 2 - w / 2
 	hudY0 = U(6)
 	; text height: about three quarters of a field (fields are 130 template pixels high)
-	face$ = "Arial Black"
-	If FileType("assets/fonts/bloxnballs.ttf") = 1 Then face = "assets/fonts/bloxnballs.ttf"
+	face$ = Font_Face()
 	fontHud = LoadFont(face, Int(130 * hudScale * 0.78))
 	fontHudSmall = LoadFont(face, Int(130 * hudScale * 0.62))
 	If FileType(HUD_FILE) <> 1 Then Return
