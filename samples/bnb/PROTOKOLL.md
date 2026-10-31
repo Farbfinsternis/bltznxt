@@ -16,6 +16,7 @@ Stand: 2026-10-31, BLTZNXT 0.7.1 (Commit 4417b2e), Windows 11.
 |---|-----|-------|---------|----------|
 | 1 | Ausbau | Keine Normal Maps (glTF-Lader liest nur die Grundfarbe) | mittel – zurückgestellt | WEAK-35 |
 | 2 | Fehler | `ReadFile` auf eine fehlende Datei meldet sich auf stderr | niedrig – **behoben** (`6b4f82a`) | BUG-228 ✅ |
+| 3 | Fehler | glTF `doubleSided` beleuchtet die Rückseite nicht | mittel – **behoben** (`6c9ef83`) | BUG-229 ✅ |
 
 ---
 
@@ -44,3 +45,20 @@ Das Original liefert still 0, auch im Debug-Build (nachgemessen mit `blitzcc -d`
 
 **Behoben:** sofort, vor der Weiterarbeit am Spiel (`src/compiler/bb_file.h`,
 `bb_file_open_`); Regressionstest `tests/test_bug228_readfile_silent`, Commit `6b4f82a`.
+
+## 3. glTF `doubleSided` beleuchtet die Rückseite nicht
+
+**Was:** Die Lampenschirme des Tischrands bestanden zuerst aus zwei deckungsgleichen
+Schichten (Vorder- und Rückseite übereinander) – mit doppelseitigem Material ergab das
+Z-Fighting, ein Fehler im Modell. Nach der Korrektur in Blender (31.10.) war das Flimmern
+weg, aber die Schirme fast schwarz: von den verbliebenen Flächen zeigen von oben gesehen
+viele ihre Rückseite. BLTZNXT setzte für glTF `doubleSided` nur FX 16 (Rückseiten
+zeichnen); die Spezifikation verlangt dazu, die Rückseite mit umgedrehter Normale zu
+beleuchten.
+
+**Folge im Spiel:** dunkle Lampenschirme, obwohl das Licht von oben kommt.
+
+**Behoben:** sofort, vor der Weiterarbeit am Spiel: eigenes Brush-Merkmal „zweiseitig
+beleuchten“ nur für glTF, der Shader dreht für Rückseiten die Normale um. FX 16 bleibt wie
+im Original (Blitz-Programme sehen unverändert aus). Regressionstest
+`tests/test_bug229_gltf_zweiseitig`, Commit `6c9ef83`.
