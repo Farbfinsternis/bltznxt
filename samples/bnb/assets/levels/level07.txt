@@ -1,0 +1,14 @@
+; Blox'n'Balls level - a fortress with walls and a treasure inside
+name: Fortress
+time: 360
+speed: 13
+music: music03.mp3
+grid:
+#..########..#
+#..3333333...#
+#..3RQPQR3...#
+#..3EGAXT3...#
+#..3333333...#
+#............#
+###2222222####
+..o........o..

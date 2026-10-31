@@ -1,0 +1,12 @@
+; Blox'n'Balls level - bumpers everywhere, the blocks hide between them
+name: Pinball
+time: 300
+speed: 14
+music: music04.mp3
+grid:
+1P1.1Q1.1R1.1P1.1
+.o...o...o...o...
+1M1.1t1.1S1.1W1.1
+...o...o...o...o.
+1L1.1B1.1G1.1X1.1
+.o...o...o...o...

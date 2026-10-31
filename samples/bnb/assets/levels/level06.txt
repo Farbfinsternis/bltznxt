@@ -1,0 +1,13 @@
+; Blox'n'Balls level - checkerboard of hard and soft blocks
+name: Checkerboard
+time: 300
+speed: 13
+music: music02.mp3
+grid:
+2121212121212121
+1212121212121212
+21212X21212M2121
+1212121212121212
+2121212121212121
+1212T21212121W12
+2121212121212121
