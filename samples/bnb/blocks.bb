@@ -21,6 +21,26 @@ End Type
 Global blocksLeft = 0       ; destructible blocks still standing
 Global cellSize# = 1
 Global gridLeft# = 0         ; x of the left edge of the grid
+Global bumperMesh = 0        ; hidden master, every bumper is a copy of it
+Global bumperModelR# = 1     ; radius of the foot in model units
+
+; Like the original: two cells across (bumper.3ds was 20 units wide on a
+; grid of 10) and half as tall again (ScaleMesh bumper, 0.2, 0.3, 0.2).
+; The foot is its widest part and lies on the table, so it is also the
+; radius the ball bounces off.
+Const BUMPER_R# = 1.0        ; in cells
+Const BUMPER_STRETCH# = 1.5  ; height / width against the model
+
+; bumper.glb stands on y = 0 around the origin; its width gives the scale
+Function Bumper_Mesh()
+	If Not bumperMesh
+		bumperMesh = LoadMesh("assets/meshes/bumper.glb")
+		If Not bumperMesh Then RuntimeError "Missing assets/meshes/bumper.glb"
+		bumperModelR = MeshWidth(bumperMesh) / 2
+		HideEntity bumperMesh
+	EndIf
+	Return bumperMesh
+End Function
 
 Function Blocks_Build()
 	Blocks_Clear()
@@ -56,12 +76,13 @@ Function Block_Create(code$, x#, z#)
 
 	Select b\kind
 	Case KIND_BUMPER
-		b\hx = cellSize * 0.38 : b\hz = b\hx
-		b\ent = CreateCylinder(20)
-		ScaleEntity b\ent, b\hx, h * 1.4, b\hx
-		PositionEntity b\ent, x, h * 1.4, z
-		EntityColor b\ent, 200, 210, 230
-		EntityShininess b\ent, 1
+		b\hx = cellSize * BUMPER_R : b\hz = b\hx
+		b\ent = CopyEntity(Bumper_Mesh())
+		ShowEntity b\ent
+		s# = b\hx / bumperModelR
+		ScaleEntity b\ent, s, s * BUMPER_STRETCH, s
+		PositionEntity b\ent, x, 0, z
+		EntityShininess b\ent, 0.6
 	Case KIND_WALL
 		If code = "|"
 			b\hx = cellSize * 0.3 : b\hz = b\hx
@@ -119,8 +140,8 @@ Function Blocks_Update(dt#)
 			b\flash = b\flash - dt * 5
 			If b\flash < 0 Then b\flash = 0
 			If b\kind = KIND_BUMPER And b\code = "o"
-				s# = 1 + b\flash * 0.25
-				ScaleEntity b\ent, b\hx * s, cellSize * 0.45, b\hx * s
+				s# = (1 + b\flash * 0.25) * b\hx / bumperModelR
+				ScaleEntity b\ent, s, b\hx / bumperModelR * BUMPER_STRETCH, s
 			Else
 				Block_Paint(b)
 			EndIf
