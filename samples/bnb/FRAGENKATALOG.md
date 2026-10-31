@@ -15,6 +15,7 @@ Antworten einfach darunter schreiben oder im Chat durchgehen.
 - Modelle als `.glb` aus Blender: Block, Paddle, Ball, Bumper, Hindernisse, Wecker;
   Normal Maps schon mit einbetten (Engine kann sie noch nicht, siehe F39)
 - Icons für jede Shop-Ware
+- `hud.png` überarbeitet: Ecken transparent, 2048 × 162 (siehe F40)
 - Menügrafik ohne eingebrannten Text
 - Türen neu (Vorlage `türen_zusammen.jpg`)
 - Maskottchen jubelnd (Level geschafft)
@@ -271,6 +272,12 @@ Antworten einfach darunter schreiben oder im Chat durchgehen.
     oder Bitmap-Font wie früher?
     ✅ **Entschieden 31.10.:** HUD-Lesart stimmt: Score | Level | Zeit oben, 10 Ball-Slots,
     rechts gewähltes Extra; Münzen ins linke untere Feld. Schrift: eine freie TTF.
+    🔄 **Korrigiert 31.10.** (Felder in voller Auflösung ausgemessen): oben Level (schmales
+    Blaufeld) | Zeit (mittleres) | Score (breites); unten Münzen (breites Dunkelfeld) |
+    Name des Extras (mittleres) | 10 Ball-Plätze (+n ab 11) | Symbol des Extras (rechts).
+    Lieferung `hud.png`: Ecken außerhalb der Rundung transparent (PNG mit Alpha, weiche
+    Kante erlaubt), 2048 × 162, keine Beschriftungen einbacken. Das HUD wird als Textur auf
+    einer Fläche gezeichnet (eigene Kamera), nicht als 2D-Bild.
 41. **Menü:** `some-old-menu.png` hat die Menüpunkte als Bild eingebrannt (inkl. i.Score,
     Laden/Speichern). Neu rechnen ohne Text und die Punkte per Schrift darüberlegen?
     Welche Menüpunkte soll es geben?

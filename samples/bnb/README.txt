@@ -40,6 +40,7 @@ Command line
   -level <n>     first level for -autoplay
   -skill <n>     0 easy, 1 normal, 2 hard
   -quit <s>      quits after s seconds and saves test_quit.bmp
+  -ballcam       starts with the ball camera on
 
 
 Files

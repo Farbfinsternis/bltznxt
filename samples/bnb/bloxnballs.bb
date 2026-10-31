@@ -16,6 +16,7 @@
 ;   -level <n>    first level for -autoplay (default 1)
 ;   -skill <n>    0 easy, 1 normal, 2 hard (default 1)
 ;   -quit <s>     quits after s seconds and saves test_quit.bmp
+;   -ballcam      starts with the ball camera on
 
 Const ST_MENU = 1
 Const ST_PLAY = 2
@@ -54,6 +55,7 @@ Repeat
 	Select Lower(arg)
 	Case "-debug"    : debugMode = True
 	Case "-autoplay" : autoPlay = True
+	Case "-ballcam"  : ballcamOn = True
 	Case "-level"    : i = i + 1 : startLevel = Int(Part$(Replace(args, " ", ";"), i))
 	Case "-skill"    : i = i + 1 : startSkill = Int(Part$(Replace(args, " ", ";"), i))
 	Case "-quit"     : i = i + 1 : quitAfter = Float(Part$(Replace(args, " ", ";"), i))
@@ -83,6 +85,7 @@ Sound_Load()
 Table_Create()
 Effects_Create()
 Ball_Create()
+HUD_Create()
 menuSkill = startSkill
 
 If autoPlay
@@ -149,6 +152,7 @@ Function SetState(s)
 	previous = state
 	state = s : stateTime = 0
 	FlushMouse
+	HUD_Show(s = ST_PLAY)
 	If s = ST_PLAY
 		If Not autoPlay
 			HidePointer

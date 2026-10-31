@@ -41,6 +41,7 @@ Function Table_Create()
 	CameraRange camBall, 0.05, 100
 	CameraClsColor camBall, 6, 8, 12
 	CameraZoom camBall, 1.2
+	EntityOrder camBall, -1                 ; over the main picture, under the HUD
 	HideEntity camBall
 
 	lightMain = CreateLight(1)
