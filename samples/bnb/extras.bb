@@ -157,6 +157,19 @@ Function Inv_Use()
 		tWidePaddle = EXTRA_TIME : tSmallPaddle = 0
 	Case "Slow motion"
 		tSlow = EXTRA_TIME : tSpeed = 0
+	Case "Multiball"
+		; two new balls from the ball in play (or from the paddle)
+		src.tBall = Ball_Leader()
+		x# = paddleX : z# = PADDLE_Z + 1
+		If src <> Null Then x = src\x : z = src\z
+		For i = 1 To 2
+			a# = Rnd(-60, 60)
+			Ball_Add(x, z, Sin(a) * ballSpeed, Cos(a) * ballSpeed, False)
+		Next
+	Case "Big ball"
+		tBigBall = EXTRA_TIME : tTinyBall = 0
+	Case "Score x2"
+		tDouble = DOUBLE_TIME
 	End Select
 	Sfx(sndBonus)
 	For i = invSel To invCount - 2

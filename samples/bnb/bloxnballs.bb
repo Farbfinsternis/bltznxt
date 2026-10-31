@@ -3,7 +3,8 @@
 ;
 ; Version 0.1 (in progress): table, paddle, ball, blocks, HUD, winning and
 ; losing, the five original levels, the extras of the special blocks and
-; the inventory. Shop, coins and the level editor follow. Requirements: FRAGENKATALOG.md, engine findings: PROTOKOLL.md.
+; the inventory, coins and the shop between the levels. The level editor
+; follows. Requirements: FRAGENKATALOG.md, engine findings: PROTOKOLL.md.
 ;
 ; Controls:  mouse moves the paddle, left button launches the ball
 ;            Space nudges the table, Tab toggles the ball camera
@@ -20,6 +21,7 @@
 ;   -quit <s>     quits after s seconds and saves test_quit.bmp
 ;   -ballcam      starts with the ball camera on
 ;   -shots <s>    saves test_001.bmp, test_002.bmp ... every s seconds
+;   -shop         starts in the shop with 20 coins, then plays by itself
 
 Const ST_MENU = 1
 Const ST_PLAY = 2
@@ -29,6 +31,7 @@ Const ST_SCORES = 5
 Const ST_OPTIONS = 6
 Const ST_CREDITS = 7
 Const ST_NAME = 8
+Const ST_SHOP = 9
 
 Global state = 0
 Global stateTime# = 0
@@ -44,13 +47,15 @@ Include "effects.bb"
 Include "blocks.bb"
 Include "ball.bb"
 Include "extras.bb"
+Include "coins.bb"
 Include "hud.bb"
 Include "game.bb"
 Include "menu.bb"
+Include "shop.bb"
 
 ; ---- command line ----------------------------------------------------------------
 
-startLevel = 1 : startSkill = 1 : quitAfter# = 0 : shotEvery# = 0 : shotNext# = 0 : shotCount = 0
+startLevel = 1 : startSkill = 1 : quitAfter# = 0 : shotEvery# = 0 : shotNext# = 0 : shotCount = 0 : startShop = False
 args$ = Trim(CommandLine())
 i = 1
 Repeat
@@ -61,6 +66,7 @@ Repeat
 	Case "-autoplay" : autoPlay = True
 	Case "-ballcam"  : ballcamOn = True
 	Case "-shots"    : i = i + 1 : shotEvery = Float(Part$(Replace(args, " ", ";"), i))
+	Case "-shop"     : startShop = True : autoPlay = True
 	Case "-level"    : i = i + 1 : startLevel = Int(Part$(Replace(args, " ", ";"), i))
 	Case "-skill"    : i = i + 1 : startSkill = Int(Part$(Replace(args, " ", ";"), i))
 	Case "-quit"     : i = i + 1 : quitAfter = Float(Part$(Replace(args, " ", ";"), i))
@@ -90,11 +96,14 @@ Sound_Load()
 Table_Create()
 Effects_Create()
 Ball_Create()
+Coins_Create()
+Shop_Init()
 HUD_Create()
 menuSkill = startSkill
 
 If autoPlay
 	Game_New(startSkill, startLevel, 0, Skill_Lives(startSkill))
+	If startShop Then gameCoins = 20 : Blocks_Clear() : Balls_Clear() : Shop_Open()
 Else
 	SetState(ST_MENU)
 EndIf
@@ -117,6 +126,7 @@ While running
 	Case ST_PLAY      : Play_Update(dt)
 	Case ST_LEVELDONE : LevelDone_Update(dt)
 	Case ST_GAMEOVER  : GameOver_Update(dt)
+	Case ST_SHOP      : Shop_Update(dt)
 	Default           : Menu_Update(dt)
 	End Select
 
@@ -131,6 +141,7 @@ While running
 	Case ST_SCORES    : Scores_Draw()
 	Case ST_CREDITS   : Credits_Draw()
 	Case ST_NAME      : Name_Draw()
+	Case ST_SHOP      : Shop_Draw()
 	End Select
 	If msgTime > 0 And state <> ST_PLAY Then msgTime = msgTime - dt
 

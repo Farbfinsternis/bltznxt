@@ -23,7 +23,8 @@ Dim scoreLevel(2, SCORE_MAX - 1)
 
 ; autosave: the state at the start of the last level reached
 Global saveValid = False
-Global saveSkill, saveLevel, saveScore, saveLives
+Global saveSkill, saveLevel, saveScore, saveLives, saveCoins, saveInvCount
+Dim saveInv$(19)                ; INV_MAX items (extras.bb)
 
 Function AppPath$(file$)
 	Return SystemProperty("appdir") + file
@@ -134,20 +135,43 @@ Function Save_Load()
 	saveLevel = Int(ReadLine(f))
 	saveScore = Int(ReadLine(f))
 	saveLives = Int(ReadLine(f))
+	; coins and inventory (missing in saves of the first test versions)
+	saveCoins = 0 : saveInvCount = 0
+	If Not Eof(f) Then saveCoins = Int(ReadLine(f))
+	If Not Eof(f) Then saveInvCount = Int(ReadLine(f))
+	If saveInvCount > INV_MAX Then saveInvCount = INV_MAX
+	For i = 0 To saveInvCount - 1
+		saveInv(i) = ReadLine(f)
+	Next
 	CloseFile f
 	saveValid = saveLevel >= 1 And saveLives > 0 And saveSkill >= 0 And saveSkill <= 2
 End Function
 
-Function Save_Write(skill, level, score, lives)
+; the inventory is written as it is now (extras.bb)
+Function Save_Write(skill, level, score, lives, coins)
 	f = WriteFile(AppPath(SAVE_FILE))
 	If Not f Then Return
 	WriteLine f, skill
 	WriteLine f, level
 	WriteLine f, score
 	WriteLine f, lives
+	WriteLine f, coins
+	WriteLine f, invCount
+	For i = 0 To invCount - 1
+		WriteLine f, invItem(i)
+		saveInv(i) = invItem(i)
+	Next
 	CloseFile f
 	saveValid = True
 	saveSkill = skill : saveLevel = level : saveScore = score : saveLives = lives
+	saveCoins = coins : saveInvCount = invCount
+End Function
+
+Function Save_RestoreInventory()
+	invCount = saveInvCount : invSel = 0
+	For i = 0 To invCount - 1
+		invItem(i) = saveInv(i)
+	Next
 End Function
 
 Function Save_Clear()

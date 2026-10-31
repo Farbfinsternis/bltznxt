@@ -7,10 +7,10 @@ https://github.com/Farbfinsternis/bltznxt
 
 Version 0.1 (in progress): table, paddle, ball, blocks that take one to
 three hits, bumpers and obstacles, a clock per level, three skill levels,
-high scores and an autosave, the extras of the special blocks and an
-inventory. The five levels of the original are included. Graphics are
-placeholders until the new artwork arrives; the shop, coins and a level
-editor follow.
+high scores and an autosave, the extras of the special blocks, an
+inventory, coins to catch and a shop between the levels. The five levels
+of the original are included. Graphics are placeholders until the new
+artwork arrives; a level editor follows.
 
 
 Building and starting
@@ -46,6 +46,7 @@ Command line
   -quit <s>      quits after s seconds and saves test_quit.bmp
   -ballcam       starts with the ball camera on
   -shots <s>     saves test_001.bmp, test_002.bmp ... every s seconds
+  -shop          starts in the shop with 20 coins, then plays by itself
 
 
 Files
@@ -56,3 +57,13 @@ Files
 
 Settings (bloxnballs.cfg), high scores (scores.dat) and the autosave
 (save.dat) are written next to the executable.
+
+
+Coins and shop
+--------------
+
+Broken blocks sometimes drop a coin that rolls towards you; catch it with
+the paddle. Coins do not count for the score. After each level the shop
+sells items for the inventory: extra ball, atomic ball, multiball, big
+ball, score x2, wide paddle, slow motion and time +15. The autosave keeps
+coins and inventory.

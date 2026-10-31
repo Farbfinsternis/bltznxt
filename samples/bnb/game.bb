@@ -46,10 +46,12 @@ Function Skill_Paddle#(s)
 	Return 1.2
 End Function
 
-Function Game_New(skill, level, score, lives)
-	gameSkill = skill : gameScore = score : gameLives = lives
+; fromSave = continue from the autosave (also brings back its inventory)
+Function Game_New(skill, level, score, lives, coins = 0, fromSave = False)
+	gameSkill = skill : gameScore = score : gameLives = lives : gameCoins = coins
 	gameActive = True
 	Extras_Reset(True)
+	If fromSave Then Save_RestoreInventory()
 	levelCount = Level_Count()
 	Game_StartLevel(level)
 End Function
@@ -62,6 +64,7 @@ Function Game_StartLevel(n)
 	EndIf
 	Blocks_Build()
 	Balls_Clear()
+	Coins_Clear()
 	Effects_Clear()
 	paddleX = 0
 	Extras_Reset(False)
@@ -72,7 +75,7 @@ Function Game_StartLevel(n)
 	levelElapsed = 0
 	launchDelay = 0.8
 	Music_Play(lvMusic)
-	If Not autoPlay Then Save_Write(gameSkill, n, gameScore, gameLives)   ; test runs keep the real save
+	If Not autoPlay Then Save_Write(gameSkill, n, gameScore, gameLives, gameCoins)   ; test runs keep the real save
 	Message(lvName, 2.5)
 	SetState(ST_PLAY)
 End Function
@@ -133,6 +136,7 @@ Function Play_Update(dt#)
 
 	gameScore = gameScore + Balls_Update(dt)
 	Extras_Update(dt)
+	Coins_Update(dt)
 	Blocks_Update(dt)
 	Effects_Update(dt)
 	If msgTime > 0 Then msgTime = msgTime - dt
@@ -175,6 +179,9 @@ End Function
 Function Level_Done()
 	Sfx(sndWin)
 	Balls_Clear()
+	; coins still rolling at the end are collected for the player
+	For c.tCoin = Each tCoin : gameCoins = gameCoins + 1 : Next
+	Coins_Clear()
 	Table_BallcamOff()
 	bonusLevel = 1000
 	bonusTime = Int(timeLeft) * 20
@@ -195,7 +202,7 @@ Function LevelDone_Next()
 	If gameLevel >= levelCount
 		Game_End(True)
 	Else
-		Game_StartLevel(gameLevel + 1)
+		Shop_Open()
 	EndIf
 End Function
 
@@ -204,6 +211,7 @@ Function Game_End(won)
 	gameActive = False
 	If Not autoPlay Then Save_Clear()
 	Balls_Clear()
+	Coins_Clear()
 	Table_BallcamOff()
 	If won
 		Sfx(sndWin)

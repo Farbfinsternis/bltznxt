@@ -169,6 +169,7 @@ Function Block_Hit(b.tBlock, smash = False)
 	FreeEntity b\ent
 	Delete b
 	blocksLeft = blocksLeft - 1
+	Coin_Drop(x, z, kind = KIND_SPECIAL)
 	If kind = KIND_SPECIAL
 		label$ = Extra_Trigger(code, x, z)
 		If label <> "" Then FloatText(x, z + 0.6, label, 140, 220, 255)
@@ -185,6 +186,7 @@ Function Blocks_Explode(x#, z#, r#)
 			If dx * dx + dz * dz <= r * r
 				points = points + 15 * b\maxHits
 				Sparks(10, b\x, 0.5, b\z, 255, 120, 40, 6)
+				Coin_Drop(b\x, b\z, False)
 				FreeEntity b\ent
 				Delete b
 				blocksLeft = blocksLeft - 1

@@ -132,7 +132,7 @@ Function Menu_Draw()
 	Case M_RESUME : Menu_Resume()
 	Case M_CONTINUE
 		Save_Load()
-		If saveValid Then Game_New(saveSkill, saveLevel, saveScore, saveLives)
+		If saveValid Then Game_New(saveSkill, saveLevel, saveScore, saveLives, saveCoins, True)
 	Case M_NEW
 		If menuStep = 0 Then Game_New(menuSkill, 1, 0, Skill_Lives(menuSkill))
 	Case M_SKILL

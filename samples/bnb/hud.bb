@@ -129,7 +129,7 @@ Function HUD_Draw()
 	; bottom row: coins | extra name | balls | extra icon
 	SetFont fontHudSmall
 	by = HY(218)
-	Color 230, 190, 70 : Text HX(545), by, "0", True, True
+	Color 230, 190, 70 : Text HX(545), by, gameCoins, True, True
 	; selected item of the inventory; the icon field shows its place until
 	; the icons arrive, red while an atomic ball is armed
 	If invCount > 0
