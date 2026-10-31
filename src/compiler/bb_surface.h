@@ -103,6 +103,7 @@ inline bool bb_brush_same_(const bb_Brush_& a, const bb_Brush_& b) {
   if (a.alpha != b.alpha || a.shininess != b.shininess) return false;
   if (a.blend != b.blend || a.fx != b.fx) return false;
   if (a.twosided != b.twosided) return false;
+  if (a.twolight != b.twolight) return false;
   for (int k = 0; k < BB_TEX_SLOTS; ++k) {
     if (a.tex.tex[k] != b.tex.tex[k]) return false;
     if (a.tex.tex[k] && a.tex.frame[k] != b.tex.frame[k]) return false;

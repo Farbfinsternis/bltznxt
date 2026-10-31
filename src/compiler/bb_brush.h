@@ -55,6 +55,11 @@ struct bb_Brush_ {
   // wertet den Chunk gar nicht aus, wir schon - deshalb ein eigenes Feld
   // und nicht FX 16.
   bool         twosided  = false;
+  // glTF doubleSided verlangt auch zweiseitiges Licht: die Rueckseite wird
+  // mit umgedrehter Normale beleuchtet. FX 16 tut das nicht (wie im
+  // Original) - eine Rueckseite liegt dort im Dunkeln, wenn das Licht auf
+  // die Vorderseite faellt. Daher ein eigenes Feld (BUG-229).
+  bool         twolight  = false;
   bb_TexSlots_ tex;
 };
 
@@ -69,6 +74,7 @@ inline bb_Brush_ bb_brush_combine_(const bb_Brush_& a, const bb_Brush_& b) {
   if (b.blend) o.blend = b.blend;
   o.fx       |= b.fx;
   o.twosided  = a.twosided || b.twosided;
+  o.twolight  = a.twolight || b.twolight;
   for (int k = 0; k < BB_TEX_SLOTS; ++k) {
     if (b.tex.tex[k]) {
       o.tex.tex[k]   = b.tex.tex[k];

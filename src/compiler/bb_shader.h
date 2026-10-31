@@ -354,6 +354,13 @@ out vec3 v_spec;
 flat out vec3 v_spec_flat;
 out vec3 v_diff;
 flat out vec3 v_diff_flat;
+// Zweiseitiges Licht (glTF doubleSided, BUG-229): dieselben Werte fuer die
+// Rueckseite, mit umgedrehter Normale gerechnet.
+uniform int u_twolight;
+out vec3 v_spec_back;
+flat out vec3 v_spec_back_flat;
+out vec3 v_diff_back;
+flat out vec3 v_diff_back_flat;
 )glsl";
 
 static constexpr const char* BB_GLSL_LIT_VERT_MAIN = R"glsl(
@@ -387,6 +394,8 @@ void main() {
     // Flaechen ist das dasselbe.
     vec3 spec  = vec3(0.0);
     vec3 diffv = vec3(0.0);
+    vec3 specb = vec3(0.0);
+    vec3 diffb = vec3(0.0);
     vec3  N     = normalize(v_normal);
     vec3  V     = normalize(u_view_pos - wp.xyz);
     float power = min(u_shininess * 128.0, 128.0);
@@ -413,16 +422,22 @@ void main() {
                                    : step(co, cd);
             }
             diffv += max(dot(N, L), 0.0) * u_light_color[i] * atten;
+            if (u_twolight != 0) diffb += max(dot(-N, L), 0.0) * u_light_color[i] * atten;
         }
         if (u_shininess > 0.001) {
             vec3 H = normalize(L + V);
             spec += vec3(t * pow(max(dot(N, H), 0.0), power) * atten);
+            if (u_twolight != 0) specb += vec3(t * pow(max(dot(-N, H), 0.0), power) * atten);
         }
     }
     v_spec      = spec;
     v_spec_flat = spec;
     v_diff      = diffv;
     v_diff_flat = diffv;
+    v_spec_back      = specb;
+    v_spec_back_flat = specb;
+    v_diff_back      = diffb;
+    v_diff_back_flat = diffb;
 }
 )glsl";
 
@@ -448,6 +463,11 @@ in vec3       v_spec;        // Glanzlicht je Vertex (BUG-66)
 flat in vec3  v_spec_flat;
 in vec3       v_diff;        // Punkt- und Spotlicht je Vertex (BUG-91)
 flat in vec3  v_diff_flat;
+uniform int   u_twolight;    // zweiseitiges Licht (BUG-229)
+in vec3       v_spec_back;
+flat in vec3  v_spec_back_flat;
+in vec3       v_diff_back;
+flat in vec3  v_diff_back_flat;
 )glsl";
 
 static constexpr const char* BB_GLSL_LIT_FRAG_MAIN = R"glsl(
@@ -474,6 +494,14 @@ void main() {
     // EntityFX 4 (flatshaded): dieselbe Normale fuer das ganze Dreieck.
     vec3 N      = normalize(((u_fx & 4) != 0) ? v_normal_flat : v_normal);
     vec3 result = u_ambient + (((u_fx & 4) != 0) ? v_diff_flat : v_diff);
+    // Zweiseitiges Licht (glTF doubleSided, BUG-229): die Rueckseite mit
+    // umgedrehter Normale; Punkt-, Spot- und Glanzlicht hat der Vertex-Shader
+    // fuer sie schon gerechnet. FX 16 allein dreht nichts um, wie im Original.
+    bool back = (u_twolight != 0) && !gl_FrontFacing;
+    if (back) {
+        N      = -N;
+        result = u_ambient + (((u_fx & 4) != 0) ? v_diff_back_flat : v_diff_back);
+    }
 
     // Richtungslichter: u_light_pos ist die Richtung zum Licht.
     for (int i = 0; i < u_light_count; ++i) {
@@ -502,6 +530,7 @@ void main() {
     // multipliziert: Wuerfel 64,64,64 bei Shininess 1 gab 128 statt 75.
     vec4 lit  = bb_tex_apply(vec4(clamp(result * base.rgb, 0.0, 1.0), base.a));
     vec3 spec = ((u_fx & 4) != 0) ? v_spec_flat : v_spec;
+    if (back) spec = ((u_fx & 4) != 0) ? v_spec_back_flat : v_spec_back;
     frag_color = vec4(bb_fog(clamp(lit.rgb + spec, 0.0, 1.0)), lit.a);
 }
 )glsl";

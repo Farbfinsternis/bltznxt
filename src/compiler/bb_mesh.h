@@ -1461,6 +1461,7 @@ static inline void bb_render_meshes_(bb_Shader_* shader,
         }
       }
       bb_shader_uniform_i(shader, "u_fx", br.fx);
+      bb_shader_uniform_i(shader, "u_twolight", br.twolight ? 1 : 0);   // BUG-229
       float color[4] = { br.r / 255.0f,
                          br.g / 255.0f,
                          br.b / 255.0f,

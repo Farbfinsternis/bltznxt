@@ -27,7 +27,9 @@
 //                                                 die Lightmap aus Blender
 //    texCoord der Textur                          TextureCoords 0 / 1
 //    alphaMode BLEND / MASK                       Textur-Flag 2 / Alphatest
-//    doubleSided                                  FX 16
+//    doubleSided                                  ohne Rueckseitenentfernung,
+//                                                 Rueckseite mit umgedrehter
+//                                                 Normale beleuchtet (BUG-229)
 //    emissiveFactor ohne Textur, KHR_materials_   FX 1
 //    unlit
 //    COLOR_0                                      Vertexfarbe, FX 2
@@ -596,7 +598,10 @@ inline bb_Brush_ bb_gltf_brush_(bb_GltfLoad_& L, int mi, bool vcolors) {
     if (bcf[3].n(1) < cutoff) br.alpha = 0;
     cut = cutoff;
   }
-  if (m["doubleSided"].t()) br.fx |= 16;
+  // doubleSided: Rueckseiten zeichnen UND mit umgedrehter Normale
+  // beleuchten, wie die Spezifikation es verlangt (BUG-229). Bis dahin stand
+  // hier FX 16 - die Rueckseite blieb dunkel.
+  if (m["doubleSided"].t()) { br.twosided = true; br.twolight = true; }
   const bb_Json_& ef = m["emissiveFactor"];
   const bool emits = ef[0].n(0) > 0 || ef[1].n(0) > 0 || ef[2].n(0) > 0;
   if ((emits && !m["emissiveTexture"].has()) || m["extensions"]["KHR_materials_unlit"].has())

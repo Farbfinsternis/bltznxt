@@ -1,0 +1,19 @@
+{
+  "asset": { "version": "2.0", "generator": "BUG-229 test, written by hand" },
+  "scene": 0,
+  "scenes": [ { "nodes": [0] } ],
+  "nodes": [ { "name": "quad", "mesh": 0 } ],
+  "meshes": [ { "primitives": [ { "attributes": { "POSITION": 0, "NORMAL": 1 }, "indices": 2, "material": 0 } ] } ],
+  "materials": [ { "name": "zweiseitig", "doubleSided": true, "pbrMetallicRoughness": { "baseColorFactor": [1, 1, 1, 1] } } ],
+  "buffers": [ { "byteLength": 108, "uri": "data:application/octet-stream;base64,AACAvwAAgL8AAAAAAACAPwAAgL8AAAAAAACAPwAAgD8AAAAAAACAvwAAgD8AAAAAAAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAABAAIAAAACAAMA" } ],
+  "bufferViews": [
+    { "buffer": 0, "byteOffset": 0, "byteLength": 48 },
+    { "buffer": 0, "byteOffset": 48, "byteLength": 48 },
+    { "buffer": 0, "byteOffset": 96, "byteLength": 12 }
+  ],
+  "accessors": [
+    { "bufferView": 0, "componentType": 5126, "count": 4, "type": "VEC3", "min": [-1, -1, 0], "max": [1, 1, 0] },
+    { "bufferView": 1, "componentType": 5126, "count": 4, "type": "VEC3" },
+    { "bufferView": 2, "componentType": 5123, "count": 6, "type": "SCALAR" }
+  ]
+}
