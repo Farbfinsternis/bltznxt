@@ -179,9 +179,7 @@ End Function
 Function Level_Done()
 	Sfx(sndWin)
 	Balls_Clear()
-	; coins still rolling at the end are collected for the player
-	For c.tCoin = Each tCoin : gameCoins = gameCoins + 1 : Next
-	Coins_Clear()
+	Coins_Clear()               ; coins the ball did not pick up are lost
 	Table_BallcamOff()
 	bonusLevel = 1000
 	bonusTime = Int(timeLeft) * 20

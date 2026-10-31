@@ -194,6 +194,8 @@ Antworten einfach darunter schreiben oder im Chat durchgehen.
     unberührt. So gemeint?
     ✅ **Entschieden 31.10.:** Münzen als eigene Währung. Blöcke lassen manchmal Münzen
     fallen, das Paddle muss sie fangen. Score bleibt unberührt.
+    ✅ **Geändert 31.10.:** Münzen bleiben wie die Bonus-Objekte des Originals an Ort
+    und Stelle liegen, der Ball sammelt sie ein. Was am Levelende noch liegt, verfällt.
 26. **Shop-Angebot:** alt Atombombe 30.000, Extraball 40.000, +15 s 20.000,
     breites Paddle 15.000, Zeitlupe 17.000. Gleiche Waren, neue Preise?
     ✅ **Entschieden 31.10.:** Erweitertes Angebot: die alten fünf plus alles, was es als

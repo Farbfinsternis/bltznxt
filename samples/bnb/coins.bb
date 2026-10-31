@@ -1,10 +1,10 @@
-; coins.bb - coins drop from broken blocks and roll towards the player;
-; the paddle has to catch them. They pay for the shop, the score does not
-; change. (Placeholder disc until coin.png arrives.)
+; coins.bb - broken blocks sometimes leave a coin where they stood; like the
+; bonus objects of the original it stays there until a ball runs over it.
+; They pay for the shop, the score does not change. (Placeholder disc until
+; coin.png arrives.)
 
 Const COIN_CHANCE = 30          ; percent for a normal block
 Const COIN_CHANCE_SPECIAL = 60  ; percent for a special block
-Const COIN_SPEED# = 4.5         ; units per second towards the paddle
 Const COIN_R# = 0.28
 
 Type tCoin
@@ -43,19 +43,17 @@ End Function
 
 Function Coins_Update(dt#)
 	For c.tCoin = Each tCoin
-		c\z = c\z - COIN_SPEED * dt
-		c\spin = c\spin + 360 * dt
+		c\spin = c\spin + 180 * dt
 		caught = False
-		If Abs(c\z - PADDLE_Z) < PADDLE_HD + COIN_R
-			If Abs(c\x - paddleX) < paddleHW + COIN_R Then caught = True
-		EndIf
+		For b.tBall = Each tBall
+			dx# = b\x - c\x : dz# = b\z - c\z
+			If dx * dx + dz * dz < (ballR + COIN_R) * (ballR + COIN_R) Then caught = True : Exit
+		Next
 		If caught
 			gameCoins = gameCoins + 1
 			Sfx(sndBonus)
 			Sparks(8, c\x, 0.4, c\z, 255, 210, 80, 3)
 			FloatText(c\x, c\z + 0.5, "+1 coin", 255, 210, 80)
-			FreeEntity c\ent : Delete c
-		ElseIf c\z < -1
 			FreeEntity c\ent : Delete c
 		Else
 			Coin_Place(c)
