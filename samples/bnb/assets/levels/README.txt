@@ -19,20 +19,21 @@ Cell codes
   .        empty
   1 2 3    block that takes 1, 2 or 3 hits
 
-  Special blocks (break with one hit; their extras arrive after 0.1,
-  until then they only give points):
+  Special blocks (break with one hit, then do their extra; timed extras
+  last 10 s, score x2 lasts 20 s):
 
   P Q R    points 50 / 75 / 100
-  M N O    multiball +1 / +2 / +3
+  M N O    multiball +1 / +2 / +3 (new balls fly off the block)
   E        extra ball
-  A        atomic ball
-  S        speed ball
-  B        new blocks
+  A        atomic ball - goes into the inventory; used, the next block
+           the ball hits blows up with everything around it
+  S        speed ball (x1.5)
+  B        new blocks - fills the empty cells in the 5 x 5 cells around
   s        small paddle
   t        tiny ball
-  W        wide paddle
-  L        slow motion
-  G        big ball
+  W        wide paddle (twice for an even wider one)
+  L        slow motion (x0.6)
+  G        big ball - breaks every block with one hit
   X        score x2
   T        time +15 s
   U        time -15 s

@@ -2,13 +2,15 @@
 ; rewritten from scratch as a BLTZNXT sample.
 ;
 ; Version 0.1 (in progress): table, paddle, ball, blocks, HUD, winning and
-; losing, the five original levels. Shop, extras and the level editor
-; follow. Requirements: FRAGENKATALOG.md, engine findings: PROTOKOLL.md.
+; losing, the five original levels, the extras of the special blocks and
+; the inventory. Shop, coins and the level editor follow. Requirements: FRAGENKATALOG.md, engine findings: PROTOKOLL.md.
 ;
 ; Controls:  mouse moves the paddle, left button launches the ball
 ;            Space nudges the table, Tab toggles the ball camera
+;            mouse wheel selects an item, right button (or Ctrl) uses it
 ;            Esc opens the menu (the game waits), F12 saves a screenshot
-;            Gamepad: stick moves, button 1 launches, button 4 nudges
+;            Gamepad: stick moves, button 1 launches, button 4 nudges,
+;            buttons 5 / 6 select an item, button 2 uses it
 ;
 ; Command line (for tests and debugging):
 ;   -debug        F1 clears the level, F2 adds a ball, frame time on screen
@@ -41,6 +43,7 @@ Include "sound.bb"
 Include "effects.bb"
 Include "blocks.bb"
 Include "ball.bb"
+Include "extras.bb"
 Include "hud.bb"
 Include "game.bb"
 Include "menu.bb"

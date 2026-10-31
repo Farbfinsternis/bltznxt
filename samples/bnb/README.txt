@@ -7,9 +7,10 @@ https://github.com/Farbfinsternis/bltznxt
 
 Version 0.1 (in progress): table, paddle, ball, blocks that take one to
 three hits, bumpers and obstacles, a clock per level, three skill levels,
-high scores and an autosave. The five levels of the original are included.
-Graphics are placeholders until the new artwork arrives; the shop, the
-extras and a level editor follow.
+high scores and an autosave, the extras of the special blocks and an
+inventory. The five levels of the original are included. Graphics are
+placeholders until the new artwork arrives; the shop, coins and a level
+editor follow.
 
 
 Building and starting
@@ -27,9 +28,12 @@ Controls
   Mouse          move the paddle, left button launches the ball
   Space          nudge the table
   Tab            ball camera on / off
+  Mouse wheel    select an item of the inventory
+  Right button   use the item (also Ctrl)
   Esc            menu (the game waits, "Resume" continues)
   F12            screenshot
-  Gamepad        stick moves, button 1 launches, button 4 nudges
+  Gamepad        stick moves, button 1 launches, button 4 nudges,
+                 buttons 5 / 6 select an item, button 2 uses it
 
 
 Command line

@@ -2,7 +2,7 @@
 ; (x, z): circle against rectangles and circles, with sub-steps so a fast
 ; ball cannot pass through a block. 3D is only the picture.
 
-Const BALL_R# = 0.3
+Const BALL_R_NORMAL# = 0.3
 Const PADDLE_Z# = 1.6       ; centre line of the paddle
 Const PADDLE_HD# = 0.25     ; half depth
 Const PADDLE_MAX_ANGLE# = 62
@@ -21,6 +21,7 @@ Global paddleEnt
 Global paddleX# = 0, paddleHW# = 1.2
 Global ballSpeed# = 10      ; current speed of all balls
 Global ballTemplate, shadowTemplate
+Global ballR# = BALL_R_NORMAL     ; radius of all balls (tiny ball / big ball change it)
 
 Function Ball_Create()
 	paddleEnt = CreateCube()
@@ -29,14 +30,14 @@ Function Ball_Create()
 	Paddle_SetWidth(1.2)
 
 	ballTemplate = CreateSphere(20)
-	ScaleEntity ballTemplate, BALL_R, BALL_R, BALL_R
+	ScaleEntity ballTemplate, ballR, ballR, ballR
 	EntityColor ballTemplate, 235, 235, 245
 	EntityShininess ballTemplate, 1
 	HideEntity ballTemplate
 
 	; blob shadow: a flat dark disc under the ball
 	shadowTemplate = CreateCylinder(20)
-	ScaleEntity shadowTemplate, BALL_R * 1.1, 0.005, BALL_R * 1.1
+	ScaleEntity shadowTemplate, ballR * 1.1, 0.005, ballR * 1.1
 	EntityColor shadowTemplate, 0, 0, 0
 	EntityAlpha shadowTemplate, 0.45
 	EntityFX shadowTemplate, 1
@@ -54,6 +55,17 @@ Function Paddle_Move(dx#)
 	PositionEntity paddleEnt, paddleX, 0.25, PADDLE_Z
 End Function
 
+; new radius for all balls (tiny ball / big ball)
+Function Ball_SetRadius(r#)
+	ballR = r
+	ScaleEntity ballTemplate, r, r, r
+	ScaleEntity shadowTemplate, r * 1.1, 0.005, r * 1.1
+	For b.tBall = Each tBall
+		ScaleEntity b\ent, r, r, r
+		ScaleEntity b\shadow, r * 1.1, 0.005, r * 1.1
+	Next
+End Function
+
 Function Ball_Add.tBall(x#, z#, vx#, vz#, stuck)
 	b.tBall = New tBall
 	b\x = x : b\z = z : b\vx = vx : b\vz = vz : b\stuck = stuck
@@ -66,11 +78,11 @@ End Function
 
 ; a new ball lying on the paddle
 Function Ball_Serve()
-	Ball_Add(paddleX, PADDLE_Z + PADDLE_HD + BALL_R + 0.02, 0, 0, True)
+	Ball_Add(paddleX, PADDLE_Z + PADDLE_HD + ballR + 0.02, 0, 0, True)
 End Function
 
 Function Ball_Place(b.tBall)
-	PositionEntity b\ent, b\x, BALL_R, b\z
+	PositionEntity b\ent, b\x, ballR, b\z
 	PositionEntity b\shadow, b\x + 0.12, 0.01, b\z - 0.06
 	; roll in the direction of motion
 	TurnEntity b\ent, b\vz * 30 * 0.016, 0, -b\vx * 30 * 0.016
@@ -121,7 +133,7 @@ Function Balls_Update(dt#)
 	For b.tBall = Each tBall
 		If b\stuck
 			b\x = paddleX + b\stuckOffset
-			b\z = PADDLE_Z + PADDLE_HD + BALL_R + 0.02
+			b\z = PADDLE_Z + PADDLE_HD + ballR + 0.02
 		Else
 			; keep the speed of the ball in line with the game speed
 			l# = Sqr(b\vx * b\vx + b\vz * b\vz)
@@ -151,30 +163,30 @@ Function Ball_Step(b.tBall, dt#)
 	b\z = b\z + b\vz * dt
 
 	; side walls and back wall
-	If b\x < -FIELD_HALF + BALL_R
-		b\x = -FIELD_HALF + BALL_R : b\vx = Abs(b\vx) : Ball_Bounce(b, False)
-	ElseIf b\x > FIELD_HALF - BALL_R
-		b\x = FIELD_HALF - BALL_R : b\vx = -Abs(b\vx) : Ball_Bounce(b, False)
+	If b\x < -FIELD_HALF + ballR
+		b\x = -FIELD_HALF + ballR : b\vx = Abs(b\vx) : Ball_Bounce(b, False)
+	ElseIf b\x > FIELD_HALF - ballR
+		b\x = FIELD_HALF - ballR : b\vx = -Abs(b\vx) : Ball_Bounce(b, False)
 	EndIf
-	If b\z > FIELD_BACK - BALL_R
-		b\z = FIELD_BACK - BALL_R : b\vz = -Abs(b\vz) : Ball_Bounce(b, False)
+	If b\z > FIELD_BACK - ballR
+		b\z = FIELD_BACK - ballR : b\vz = -Abs(b\vz) : Ball_Bounce(b, False)
 	EndIf
 
 	; paddle: the hit point decides the new angle
-	If b\vz < 0 And b\z > PADDLE_Z - PADDLE_HD And b\z - BALL_R < PADDLE_Z + PADDLE_HD
-		If b\x > paddleX - paddleHW - BALL_R And b\x < paddleX + paddleHW + BALL_R
+	If b\vz < 0 And b\z > PADDLE_Z - PADDLE_HD And b\z - ballR < PADDLE_Z + PADDLE_HD
+		If b\x > paddleX - paddleHW - ballR And b\x < paddleX + paddleHW + ballR
 			off# = Clamp((b\x - paddleX) / paddleHW, -1, 1)
 			a# = off * PADDLE_MAX_ANGLE
 			b\vx = Sin(a) * ballSpeed : b\vz = Cos(a) * ballSpeed
-			b\z = PADDLE_Z + PADDLE_HD + BALL_R
+			b\z = PADDLE_Z + PADDLE_HD + ballR
 			Sfx(sndPaddle)
-			Sparks(3, b\x, 0.3, b\z - BALL_R, 255, 255, 255, 2)
+			Sparks(3, b\x, 0.3, b\z - ballR, 255, 255, 255, 2)
 		EndIf
 	EndIf
 
 	; blocks: at most one per step
 	For k.tBlock = Each tBlock
-		If Abs(b\x - k\x) < k\hx + BALL_R And Abs(b\z - k\z) < k\hz + BALL_R
+		If Abs(b\x - k\x) < k\hx + ballR And Abs(b\z - k\z) < k\hz + ballR
 			If k\kind = KIND_BUMPER
 				hit = Ball_HitCircle(b, k)
 			Else
@@ -185,7 +197,14 @@ Function Ball_Step(b.tBall, dt#)
 					; bumpers kick the ball off a bit faster for a moment
 					b\x = b\x + b\vx * 0.01 : b\z = b\z + b\vz * 0.01
 				EndIf
-				p = Block_Hit(k)
+				If atomicArmed And (k\kind = KIND_NORMAL Or k\kind = KIND_SPECIAL)
+					; the atomic ball blows up everything around the block it hits
+					atomicArmed = False
+					p = Blocks_Explode(k\x, k\z, cellSize * 2.6)
+				Else
+					p = Block_Hit(k, tBigBall > 0)    ; the big ball breaks blocks with one hit
+				EndIf
+				p = p * Extras_ScoreFactor()
 				If p Then points = points + p : FloatText(b\x, b\z, "+" + p)
 				Exit
 			EndIf
@@ -200,7 +219,7 @@ Function Ball_HitBox(b.tBall, k.tBlock)
 	nz# = Clamp(b\z, k\z - k\hz, k\z + k\hz)
 	dx# = b\x - nx : dz# = b\z - nz
 	d2# = dx * dx + dz * dz
-	If d2 >= BALL_R * BALL_R Then Return False
+	If d2 >= ballR * ballR Then Return False
 	If d2 < 0.000001
 		; centre inside the box: leave on the side of least overlap
 		ox# = k\hx - Abs(b\x - k\x) : oz# = k\hz - Abs(b\z - k\z)
@@ -218,13 +237,13 @@ Function Ball_HitBox(b.tBall, k.tBlock)
 	; flat side or corner: on a side reflect one axis, on a corner the normal
 	If Abs(dx) > 0.9
 		b\vx = Abs(b\vx) * Sgn(dx)
-		b\x = nx + dx * (BALL_R + 0.001)
+		b\x = nx + dx * (ballR + 0.001)
 	ElseIf Abs(dz) > 0.9
 		b\vz = Abs(b\vz) * Sgn(dz)
-		b\z = nz + dz * (BALL_R + 0.001)
+		b\z = nz + dz * (ballR + 0.001)
 	Else
 		Ball_Reflect(b, dx, dz)
-		b\x = nx + dx * (BALL_R + 0.001) : b\z = nz + dz * (BALL_R + 0.001)
+		b\x = nx + dx * (ballR + 0.001) : b\z = nz + dz * (ballR + 0.001)
 	EndIf
 	Ball_FixAngle(b)
 	Return True
@@ -233,7 +252,7 @@ End Function
 ; circle against circle (bumpers, round obstacles)
 Function Ball_HitCircle(b.tBall, k.tBlock)
 	dx# = b\x - k\x : dz# = b\z - k\z
-	r# = k\hx + BALL_R
+	r# = k\hx + ballR
 	d2# = dx * dx + dz * dz
 	If d2 >= r * r Then Return False
 	d# = Sqr(d2)

@@ -130,8 +130,18 @@ Function HUD_Draw()
 	SetFont fontHudSmall
 	by = HY(218)
 	Color 230, 190, 70 : Text HX(545), by, "0", True, True
-	Color 150, 150, 160 : Text HX(1320), by, "-", True, True
-	Text HX(3364), by, "-", True, True
+	; selected item of the inventory; the icon field shows its place until
+	; the icons arrive, red while an atomic ball is armed
+	If invCount > 0
+		Color 230, 235, 245 : Text HX(1320), by, Inv_Current(), True, True
+		Color 160, 165, 175 : Text HX(3364), by, (invSel + 1) + "/" + invCount, True, True
+	Else
+		Color 150, 150, 160 : Text HX(1320), by, "-", True, True
+		Text HX(3364), by, "-", True, True
+	EndIf
+	If atomicArmed
+		Color 255, 90, 60 : Text HX(3364), by, "ARMED", True, True
+	EndIf
 	; slots show the balls in reserve (the one in play is not counted)
 	reserve = gameLives - 1
 	r = HY(44) - HY(0)

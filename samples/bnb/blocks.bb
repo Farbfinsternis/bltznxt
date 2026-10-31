@@ -19,17 +19,18 @@ End Type
 
 Global blocksLeft = 0       ; destructible blocks still standing
 Global cellSize# = 1
+Global gridLeft# = 0         ; x of the left edge of the grid
 
 Function Blocks_Build()
 	Blocks_Clear()
 	cellSize = 2 * FIELD_HALF / lvCols
 	If lvRows * cellSize > 15 Then cellSize = 15.0 / lvRows
-	left# = -lvCols * cellSize / 2
+	gridLeft = -lvCols * cellSize / 2
 	For r = 0 To lvRows - 1
 		For c = 0 To lvCols - 1
 			code$ = Level_Cell(c, r)
 			If code <> "."
-				Block_Create(code, left + (c + 0.5) * cellSize, BLOCK_TOP - (r + 0.5) * cellSize)
+				Block_Create(code, gridLeft + (c + 0.5) * cellSize, BLOCK_TOP - (r + 0.5) * cellSize)
 			EndIf
 		Next
 	Next
@@ -121,8 +122,9 @@ Function Blocks_Update(dt#)
 	Next
 End Function
 
-; the ball hit block b; returns the points earned
-Function Block_Hit(b.tBlock)
+; the ball hit block b; returns the points earned. smash = break it with
+; this hit, however many it would still take (big ball)
+Function Block_Hit(b.tBlock, smash = False)
 	b\flash = 1
 	Select b\kind
 	Case KIND_BUMPER
@@ -139,6 +141,7 @@ Function Block_Hit(b.tBlock)
 	End Select
 
 	b\hits = b\hits - 1
+	If smash Then b\hits = 0
 	If b\hits > 0
 		Sfx(sndBlockHit)
 		Block_Paint(b)
@@ -162,10 +165,65 @@ Function Block_Hit(b.tBlock)
 		Sfx(sndBlock)
 	EndIf
 	Sparks(14, b\x, 0.5, b\z, r, g, bl, 4)
+	x# = b\x : z# = b\z : code$ = b\code : kind = b\kind
 	FreeEntity b\ent
 	Delete b
 	blocksLeft = blocksLeft - 1
+	If kind = KIND_SPECIAL
+		label$ = Extra_Trigger(code, x, z)
+		If label <> "" Then FloatText(x, z + 0.6, label, 140, 220, 255)
+	EndIf
 	Return points
+End Function
+
+; atomic ball: destroys every breakable block within radius r of x, z
+Function Blocks_Explode(x#, z#, r#)
+	points = 0
+	For b.tBlock = Each tBlock
+		If b\kind = KIND_NORMAL Or b\kind = KIND_SPECIAL
+			dx# = b\x - x : dz# = b\z - z
+			If dx * dx + dz * dz <= r * r
+				points = points + 15 * b\maxHits
+				Sparks(10, b\x, 0.5, b\z, 255, 120, 40, 6)
+				FreeEntity b\ent
+				Delete b
+				blocksLeft = blocksLeft - 1
+			EndIf
+		EndIf
+	Next
+	Sfx(sndBomb)
+	Table_Shake(0.4)
+	FloatText(x, z + 0.6, "Boom!", 255, 140, 60)
+	Return points
+End Function
+
+; new blocks: fills the empty cells in the 5 x 5 cells around x, z with
+; one-hit blocks; returns how many
+Function Blocks_Respawn(x#, z#)
+	c0 = Floor((x - gridLeft) / cellSize) : r0 = Floor((BLOCK_TOP - z) / cellSize)
+	n = 0
+	For r = r0 - 2 To r0 + 2
+		For c = c0 - 2 To c0 + 2
+			If c >= 0 And c < lvCols And r >= 0 And r < lvRows
+				cx# = gridLeft + (c + 0.5) * cellSize
+				cz# = BLOCK_TOP - (r + 0.5) * cellSize
+				free = True
+				For b.tBlock = Each tBlock
+					If Abs(b\x - cx) < cellSize * 0.5 And Abs(b\z - cz) < cellSize * 0.5 Then free = False : Exit
+				Next
+				; never on top of a ball
+				For ball.tBall = Each tBall
+					If Abs(ball\x - cx) < cellSize * 0.5 + ballR And Abs(ball\z - cz) < cellSize * 0.5 + ballR Then free = False
+				Next
+				If free
+					Block_Create("1", cx, cz)
+					Sparks(3, cx, 0.5, cz, 120, 200, 255, 2)
+					n = n + 1
+				EndIf
+			EndIf
+		Next
+	Next
+	Return n
 End Function
 
 Function Blocks_Clear()
