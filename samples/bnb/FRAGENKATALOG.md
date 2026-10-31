@@ -15,7 +15,10 @@ Antworten einfach darunter schreiben oder im Chat durchgehen.
 - Modelle als `.glb` aus Blender: Block, Paddle, Ball, Bumper, Hindernisse, Wecker;
   Normal Maps schon mit einbetten (Engine kann sie noch nicht, siehe F39)
 - Icons für jede Shop-Ware
-- `hud.png` überarbeitet: Ecken transparent, 2048 × 162 (siehe F40)
+- ~~`hud.png` überarbeitet: Ecken transparent, 2048 × 162 (siehe F40)~~ ✅ geliefert 31.10.
+- `tableborder.glb` neu exportieren: Lampenschirme ohne doppelte Flächen (60 Dreiecke
+  liegen umgekehrt deckungsgleich übereinander → Z-Fighting bei `doubleSided`), Normal Map
+  einbetten, Textur gern kleiner / als JPG
 - Menügrafik ohne eingebrannten Text
 - Türen neu (Vorlage `türen_zusammen.jpg`)
 - Maskottchen jubelnd (Level geschafft)
