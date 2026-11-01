@@ -12,6 +12,11 @@ and a shop between the levels. Ten levels: the five of the original and
 five new ones. Paddle, ball and some models are still placeholders until
 the new artwork arrives; a level editor follows.
 
+Version 0.1.1: resolution and fullscreen in the options take effect at
+once, also during a game; the menu can be used again after leaving a
+game in fullscreen; the game finds its files when started from another
+folder.
+
 
 Building and starting
 ---------------------
@@ -40,7 +45,8 @@ Controls
 Command line
 ------------
 
-  -debug         F1 clears the level, F2 adds a ball, frame time on screen
+  -debug         F1 clears the level, F2 adds a ball, frame time on screen;
+                 menu input on stderr
   -autoplay      starts a game at once and plays by itself
   -level <n>     first level for -autoplay
   -skill <n>     0 easy, 1 normal, 2 hard
