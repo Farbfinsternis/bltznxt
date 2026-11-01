@@ -111,6 +111,9 @@ inline void bb_gfx_close_window_() {
     SDL_GetWindowSize(bb_window_, &w, &h);
     if (w > 0 && h > 0) { bb_gfx_last_w_ = w; bb_gfx_last_h_ = h; }
   }
+  // Shader-Programme gehoeren zum alten Kontext; ohne das blieb nach einem
+  // zweiten Graphics3D die 3D-Welt unsichtbar (BUG-230).
+  if (bb_gl_ctx_ && bb_gl_ctx_lost_hook_) bb_gl_ctx_lost_hook_();
   if (bb_renderer_) { SDL_DestroyRenderer(bb_renderer_); bb_renderer_ = nullptr; bb_screen_tex_ = nullptr; }
   if (bb_gl_ctx_)   { SDL_GL_DestroyContext(bb_gl_ctx_); bb_gl_ctx_   = nullptr; }
   bb_gl_active_ = false;

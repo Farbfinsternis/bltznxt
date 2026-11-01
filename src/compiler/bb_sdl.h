@@ -341,6 +341,10 @@ inline void (*bb_image_quit_hook_)() = nullptr;
 inline void (*bb_entity_quit_hook_)() = nullptr;
 inline void (*bb_shader_quit_hook_)() = nullptr;
 inline void (*bb_texture_quit_hook_)() = nullptr;
+// Vor dem Zerstoeren des GL-Kontexts bei einem Moduswechsel (Graphics,
+// Graphics3D, EndGraphics): was im Kontext lebt und nicht mit der Welt
+// freigegeben wird, muss hier weg und im neuen Kontext neu entstehen (BUG-230).
+inline void (*bb_gl_ctx_lost_hook_)() = nullptr;
 
 // ---- Lifecycle ----
 

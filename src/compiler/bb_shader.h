@@ -663,5 +663,9 @@ inline void bb_shader_quit_() {
 // Cleanup must run while the GL context is still alive (before bb_gl_quit_hook_).
 extern void (*bb_shader_quit_hook_)();
 inline const bool bb_shader_hook_reg_ = (bb_shader_quit_hook_ = bb_shader_quit_, true);
+// Bei einem Moduswechsel ebenso: RenderWorld uebersetzt sie danach im neuen
+// Kontext (BUG-230).
+extern void (*bb_gl_ctx_lost_hook_)();
+inline const bool bb_shader_ctx_hook_reg_ = (bb_gl_ctx_lost_hook_ = bb_shader_quit_, true);
 
 #endif // BB_SHADER_H
