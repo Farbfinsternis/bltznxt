@@ -274,6 +274,7 @@ inline int bb_MouseX() {
   // bleibt ungelesen und wandert bei MoveMouse mit (BUG-165) - im skalierten
   // Vollbild ist ein Bildschirmpixel nur ein Bruchteil eines Spielpixels.
   bb_mouse_read_x_ = std::floor(bb_mouse_x_);
+  bb_mouse_seen_x_ = true;
   return (int)bb_mouse_read_x_;
 }
 inline int bb_MouseY() {
@@ -282,6 +283,7 @@ inline int bb_MouseY() {
   // bleibt ungelesen und wandert bei MoveMouse mit (BUG-165) - im skalierten
   // Vollbild ist ein Bildschirmpixel nur ein Bruchteil eines Spielpixels.
   bb_mouse_read_y_ = std::floor(bb_mouse_y_);
+  bb_mouse_seen_y_ = true;
   return (int)bb_mouse_read_y_;
 }
 
@@ -381,9 +383,12 @@ inline void bb_MoveMouse(int x, int y) {
   bb_PollEvents();   // aeltere Bewegungen duerfen die neue Lage nicht ueberschreiben
   // Was sich seit dem letzten Lesen bewegt hat, gilt ab der neuen Lage weiter
   // (BUG-165): "MouseXSpeed ... RenderWorld : MoveMouse Mitte : Flip" verlor
-  // sonst jede Bewegung, die waehrend RenderWorld/Flip eintraf.
-  const float ux = bb_mouse_x_ - bb_mouse_read_x_;
-  const float uy = bb_mouse_y_ - bb_mouse_read_y_;
+  // sonst jede Bewegung, die waehrend RenderWorld/Flip eintraf. Nur was seit
+  // dem letzten Lesen bzw. dem letzten MoveMouse dazukam: ungelesen
+  // Uebertragenes zaehlt kein zweites Mal (BUG-232).
+  const float ux = bb_mouse_x_ - bb_mouse_read_x_ - (bb_mouse_seen_x_ ? 0.0f : bb_mouse_off_x_);
+  const float uy = bb_mouse_y_ - bb_mouse_read_y_ - (bb_mouse_seen_y_ ? 0.0f : bb_mouse_off_y_);
+  bb_mouse_seen_x_ = bb_mouse_seen_y_ = false;
   bb_mouse_off_x_ = ux;
   bb_mouse_off_y_ = uy;
   bb_mouse_x_ = (float)x + ux;
@@ -448,7 +453,25 @@ inline void bb_ShowPointer() {
   if (!bb_sdl_initialized_) return;
   SDL_ShowCursor();
   bb_pointer_hidden_ = false;
-  if (bb_window_) SDL_SetWindowMouseGrab(bb_window_, false);
+  if (!bb_window_) return;
+  SDL_SetWindowMouseGrab(bb_window_, false);
+  // Den sichtbaren Zeiger als Lage uebernehmen und den Versatz von MoveMouse
+  // (BUG-165) verwerfen. Bei verstecktem Zeiger liest SDL die Maus relativ;
+  // schnelle Bewegungen liessen den Versatz auf Hunderte Pixel wachsen, und
+  // nach ShowPointer lag MouseX/Y so weit neben dem Zeiger - im Vollbild war
+  // ein Menue nach dem Spiel nicht mehr zu bedienen (BUG-232).
+  SDL_PumpEvents();
+  SDL_FlushEvent(SDL_EVENT_MOUSE_MOTION);
+  float wx = 0.0f, wy = 0.0f;
+  SDL_GetMouseState(&wx, &wy);
+  bb_mouse_off_x_ = bb_mouse_off_y_ = 0.0f;
+  bb_mouse_seen_x_ = bb_mouse_seen_y_ = true;
+  bb_mouse_x_ = bb_present_to_game_x_(wx);
+  bb_mouse_y_ = bb_present_to_game_y_(wy);
+  bb_mouse_read_x_ = std::floor(bb_mouse_x_);
+  bb_mouse_read_y_ = std::floor(bb_mouse_y_);
+  bb_mouse_speed_x_ = (int)bb_mouse_read_x_;
+  bb_mouse_speed_y_ = (int)bb_mouse_read_y_;
 }
 
 // ---- Joystick API ----

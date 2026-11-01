@@ -155,6 +155,11 @@ inline int   bb_mouse_speed_x_ = 0, bb_mouse_speed_y_ = 0;   // MouseXSpeed/YSpe
 // zwischen Cursor und Spiel-Lage, der die ungelesene Bewegung traegt.
 inline float bb_mouse_read_x_ = 0.0f, bb_mouse_read_y_ = 0.0f;
 inline float bb_mouse_off_x_  = 0.0f, bb_mouse_off_y_  = 0.0f;
+// Seit dem letzten MoveMouse gelesen? Wenn nicht, steckt der alte Versatz
+// noch in der Lage und darf nicht noch einmal uebertragen werden - sonst
+// summiert sich bei einer Achse, die das Programm nie liest (Paddle-Spiel
+// mit MouseXSpeed allein), die ganze Bewegung auf (BUG-232).
+inline bool  bb_mouse_seen_x_ = true, bb_mouse_seen_y_ = true;
 
 // ---- Abbildung Spielbild -> Fenster (BUG-159) ----
 //
@@ -224,6 +229,7 @@ inline void bb_present_update_(int gw, int gh, bool stretch = false) {
   bb_mouse_speed_x_ = bb_mouse_speed_y_ = 0;
   bb_mouse_read_x_ = bb_mouse_read_y_ = 0.0f;
   bb_mouse_off_x_ = bb_mouse_off_y_ = 0.0f;
+  bb_mouse_seen_x_ = bb_mouse_seen_y_ = true;
   if (bb_window_) {
     SDL_PumpEvents();
     SDL_FlushEvent(SDL_EVENT_MOUSE_MOTION);
