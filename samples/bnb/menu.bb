@@ -111,6 +111,9 @@ Function Title_Draw()
 	SetFont fontBig
 	Color 0, 0, 0 : Text GraphicsWidth() / 2 + U(4), U(110) + U(4), "BLOX'N'BALLS", True, True
 	Color 240, 190, 60 : Text GraphicsWidth() / 2, U(110), "BLOX'N'BALLS", True, True
+	SetFont fontMid
+	Color 0, 0, 0 : Text GraphicsWidth() / 2 + U(3), U(165) + U(3), "REFORGED", True, True
+	Color 215, 220, 230 : Text GraphicsWidth() / 2, U(165), "REFORGED", True, True
 End Function
 
 ; ---- main picture ------------------------------------------------------------
@@ -233,7 +236,7 @@ Function Scores_Draw()
 	If KeyHit(203) Then scoreView = (scoreView + 2) Mod 3
 	If KeyHit(205) Or MouseHit(2) Then scoreView = (scoreView + 1) Mod 3
 	SetFont fontMid : Color 255, 200, 70
-	Text GraphicsWidth() / 2, U(200), "<  " + skillName(scoreView) + "  >", True, True
+	Text GraphicsWidth() / 2, U(215), "<  " + skillName(scoreView) + "  >", True, True
 	SetFont fontSmall
 	cx = GraphicsWidth() / 2
 	For i = 0 To SCORE_MAX - 1

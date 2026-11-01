@@ -1,4 +1,4 @@
-; Blox'n'Balls - remaster of the Blitz3D game blox-n-balls (2003),
+; Blox'n'Balls Reforged - remaster of the Blitz3D game blox-n-balls (2003),
 ; rewritten from scratch as a BLTZNXT sample.
 ;
 ; Version 0.1 (in progress): table, paddle, ball, blocks, HUD, winning and
@@ -82,7 +82,7 @@ Settings_Load()
 Scores_Load()
 Save_Load()
 
-AppTitle "Blox'n'Balls"
+AppTitle "Blox'n'Balls Reforged"
 If optFullscreen
 	Graphics3D optWidth, optHeight, 0, 1
 Else

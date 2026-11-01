@@ -1,5 +1,5 @@
-Blox'n'Balls
-============
+Blox'n'Balls Reforged
+=====================
 
 A 3D block breaker on a table: remaster of the Blitz3D game blox-n-balls
 (2003), rewritten from scratch as a sample for BLTZNXT:
