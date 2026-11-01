@@ -585,6 +585,11 @@ public:
     // Der Debug-Build bleibt unoptimiert, damit -g brauchbar ist.
     if (debug) cmd += L" -O0 -g";
     else       cmd += L" -O2 -fwrapv -fno-strict-aliasing";
+    // Ein grosses Programm hat mit -g mehr als 32767 Abschnitte in einer
+    // Objektdatei; das alte COFF-Format des MinGW-Assemblers bricht dann mit
+    // "too many sections" ab (Blox'n'Balls, BUG-231). Das grosse Format
+    // kostet nichts und gilt auch fuer Release.
+    cmd += L" -Wa,-mbig-obj";
 
     // Launch g++ directly via CreateProcessW — no shell, no injection risk.
     STARTUPINFOW si = {};
