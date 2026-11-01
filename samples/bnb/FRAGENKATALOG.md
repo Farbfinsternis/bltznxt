@@ -7,6 +7,17 @@ Antworten einfach darunter schreiben oder im Chat durchgehen.
 
 ## Stand 31.10.: alle Blöcke A–H entschieden
 
+**Entschieden 01.11.: Angleichung an das alte Handbuch** (`work/dok/blox-n-balls.pdf`)
+- Multiball: 3/4/5 Bälle insgesamt, Extrabälle grün; der weiße Ball kehrt ohne Abzug
+  aufs Paddle zurück, solange grüne Bälle im Spiel sind.
+- Speedball ×4 – im alten Code ein Schub (`energie=2.0`, −0,008 je Frame), also
+  ×4 → ×1 in 4 s statt dauerhaft (dauerhaft ×4 war im Test unspielbar: 60–76 Einh./s).
+- Paddle halb / doppelt, Score ×2 10 s (alle Zeit-Extras 10 s).
+- Inventar: Pfeil hoch/runter, hinter dem letzten Gegenstand immer ein leerer Platz;
+  neue Gegenstände verstellen die Auswahl nicht.
+- Paddlebewegung beim Aufprall lenkt den Ball (1,2° je Einh./s, höchstens ±20°).
+- Credits nur mit Pseudonym; Musik als „Originalsoundtrack“ ohne Komponistennamen.
+
 **Noch offen**
 - D27: Anordnung der Waren im Shop-Rahmen (entscheide ich, wenn die Icons da sind).
 

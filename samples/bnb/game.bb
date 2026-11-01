@@ -66,7 +66,7 @@ Function Game_StartLevel(n)
 	Balls_Clear()
 	Coins_Clear()
 	Effects_Clear()
-	paddleX = 0
+	paddleX = 0 : paddleVel = 0
 	Extras_Reset(False)
 	Paddle_SetWidth(Skill_Paddle(gameSkill))
 	Ball_Serve()
@@ -90,10 +90,11 @@ Function Play_Update(dt#)
 		Return
 	EndIf
 	If KeyHit(15) Then ballcamOn = Not ballcamOn
-	; inventory: wheel or gamepad shoulders select, right button / Ctrl / button 2 use
+	; inventory: wheel, arrow keys or gamepad shoulders select,
+	; right button / Ctrl / button 2 use
 	wheel = MouseZSpeed()
-	If wheel > 0 Or JoyHit(5) Then Inv_Select(-1)
-	If wheel < 0 Or JoyHit(6) Then Inv_Select(1)
+	If wheel > 0 Or KeyHit(200) Or JoyHit(5) Then Inv_Select(-1)
+	If wheel < 0 Or KeyHit(208) Or JoyHit(6) Then Inv_Select(1)
 	If MouseHit(2) Or KeyHit(29) Or KeyHit(157) Or JoyHit(2) Then Inv_Use()
 	If nudgeCooldown > 0 Then nudgeCooldown = nudgeCooldown - dt
 	If (KeyHit(57) Or JoyHit(4)) And nudgeCooldown <= 0
@@ -108,6 +109,7 @@ Function Play_Update(dt#)
 	EndIf
 
 	; paddle: mouse, gamepad or autopilot
+	oldPaddleX# = paddleX
 	If Not autoPlay
 		mx = MouseXSpeed()
 		MoveMouse GraphicsWidth() / 2, GraphicsHeight() / 2
@@ -115,6 +117,7 @@ Function Play_Update(dt#)
 	EndIf
 	If JoyType() And Abs(JoyX()) > 0.15 Then Paddle_Move(JoyX() * 20 * dt)
 	If autoPlay Then Autopilot(dt)
+	If dt > 0 Then paddleVel = paddleVel * 0.5 + (paddleX - oldPaddleX) / dt * 0.5
 
 	launch = MouseHit(1) Or JoyHit(1)
 	If autoPlay
@@ -165,6 +168,7 @@ Function Play_Update(dt#)
 End Function
 
 Function Ball_Lost()
+	If debugMode Then DebugLog Int(levelElapsed) + "s ball lost, lives " + (gameLives - 1) + " speed " + Int(ballSpeed) + " tSpeed " + Int(tSpeed)
 	gameLives = gameLives - 1
 	Sfx(sndLoseBall)
 	Table_Shake(0.3)
@@ -253,7 +257,7 @@ Function Autopilot(dt#)
 	If target = Null Then target = Ball_Leader()
 	If target = Null Then Return
 	If Rand(60) = 1 Then autoAim = Rnd(-0.7, 0.7) * paddleHW
-	If invCount > 0 And Rand(180) = 1 Then Inv_Use()
+	If invCount > 0 And Rand(180) = 1 Then invSel = 0 : Inv_Use()
 	dx# = target\x - autoAim - paddleX
 	Paddle_Move(Clamp(dx, -25 * dt, 25 * dt))
 End Function

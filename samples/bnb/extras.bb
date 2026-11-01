@@ -1,15 +1,17 @@
 ; extras.bb - what the special blocks do, timed effects and the inventory.
 ;
 ; Most extras act at once (multiball, extra ball, time, new blocks) or for
-; EXTRA_TIME seconds (paddle and ball size, speed, score x2). The atomic
-; ball goes into the inventory: the mouse wheel selects, the right button
-; uses an item. The shop will fill the inventory as well.
+; EXTRA_TIME seconds (paddle and ball size, speed, score x2), with the
+; values of the old manual. The atomic ball goes into the inventory: the
+; mouse wheel or the arrow keys select, the right button uses an item. The
+; shop fills the inventory as well. Behind the last item there is always an
+; empty place, so nothing goes off by mistake.
 
 Const EXTRA_TIME# = 10
-Const DOUBLE_TIME# = 20
+Const SPEED_TIME# = 4       ; the speed ball is a push that dies away, as in the original
 Const INV_MAX = 20
 
-Global tSmallPaddle#, tWidePaddle#, wideCount
+Global tSmallPaddle#, tWidePaddle#
 Global tTinyBall#, tBigBall#, tSlow#, tSpeed#, tDouble#
 Global atomicArmed = False
 Global paddleWanted# = 1.2          ; half width the extras ask for
@@ -19,7 +21,7 @@ Global invCount = 0, invSel = 0
 
 ; full = new game (also empties the inventory), otherwise new level
 Function Extras_Reset(full)
-	tSmallPaddle = 0 : tWidePaddle = 0 : wideCount = 0
+	tSmallPaddle = 0 : tWidePaddle = 0
 	tTinyBall = 0 : tBigBall = 0 : tSlow = 0 : tSpeed = 0 : tDouble = 0
 	atomicArmed = False
 	If full Then invCount = 0 : invSel = 0
@@ -29,14 +31,17 @@ End Function
 ; the ball destroyed special block <code> at x, z; returns the text that
 ; rises from the block
 Function Extra_Trigger$(code$, x#, z#)
+	If debugMode Then DebugLog Int(levelElapsed) + "s extra " + code + " balls " + Balls_Count() + " multi " + Balls_Multi() + " lives " + gameLives
 	Select code
 	Case "M", "N", "O"
-		n = Asc(code) - Asc("M") + 1
+		; 3, 4 or 5 balls in all; at least one new one
+		n = Asc(code) - Asc("M") + 3 - Balls_Count()
+		If n < 1 Then n = 1
 		For i = 1 To n
 			a# = Rnd(-140, 140)
-			Ball_Add(x, z, Sin(a) * ballSpeed, Cos(a) * ballSpeed, False)
+			Ball_Add(x, z, Sin(a) * ballSpeed, Cos(a) * ballSpeed, False, True)
 		Next
-		Sparks(20, x, 0.5, z, 120, 200, 255, 5)
+		Sparks(20, x, 0.5, z, 120, 255, 120, 5)
 		Return "Multiball +" + n
 	Case "E"
 		gameLives = gameLives + 1
@@ -45,15 +50,14 @@ Function Extra_Trigger$(code$, x#, z#)
 		Inv_Add("Atomic ball")
 		Return "Atomic ball"
 	Case "S"
-		tSpeed = EXTRA_TIME : tSlow = 0
+		tSpeed = SPEED_TIME : tSlow = 0
 		Return "Speed ball"
 	Case "B"
 		Return Blocks_Respawn(x, z) + " new blox"
 	Case "s"
-		tSmallPaddle = EXTRA_TIME : tWidePaddle = 0 : wideCount = 0
+		tSmallPaddle = EXTRA_TIME : tWidePaddle = 0
 		Return "Small paddle"
 	Case "W"
-		If wideCount < 2 Then wideCount = wideCount + 1
 		tWidePaddle = EXTRA_TIME : tSmallPaddle = 0
 		Return "Wide paddle"
 	Case "t"
@@ -66,7 +70,7 @@ Function Extra_Trigger$(code$, x#, z#)
 		tSlow = EXTRA_TIME : tSpeed = 0
 		Return "Slow motion"
 	Case "X"
-		tDouble = DOUBLE_TIME
+		tDouble = EXTRA_TIME
 		Return "Score x2"
 	Case "T"
 		timeLeft = timeLeft + 15
@@ -82,7 +86,6 @@ End Function
 Function Extras_Update(dt#)
 	tSmallPaddle = Extras_Tick(tSmallPaddle, dt)
 	tWidePaddle = Extras_Tick(tWidePaddle, dt)
-	If tWidePaddle <= 0 Then wideCount = 0
 	tTinyBall = Extras_Tick(tTinyBall, dt)
 	tBigBall = Extras_Tick(tBigBall, dt)
 	tSlow = Extras_Tick(tSlow, dt)
@@ -91,8 +94,8 @@ Function Extras_Update(dt#)
 
 	; paddle width and ball size follow the running effects
 	w# = Skill_Paddle(gameSkill)
-	If tSmallPaddle > 0 Then w = w * 0.55
-	For i = 1 To wideCount : w = w * 1.5 : Next
+	If tSmallPaddle > 0 Then w = w * 0.5
+	If tWidePaddle > 0 Then w = w * 2
 	If Abs(w - paddleHW) > 0.001
 		; grow and shrink smoothly
 		Paddle_SetWidth(paddleHW + Clamp(w - paddleHW, -4 * dt, 4 * dt))
@@ -113,7 +116,7 @@ End Function
 Function Extras_SpeedFactor#()
 	f# = 1
 	If tSlow > 0 Then f = f * 0.6
-	If tSpeed > 0 Then f = f * 1.5
+	If tSpeed > 0 Then f = f * (1 + 3 * tSpeed / SPEED_TIME)    ; x4 down to x1
 	Return f
 End Function
 
@@ -124,25 +127,27 @@ End Function
 
 ; ---- inventory -------------------------------------------------------------------
 
+; a new item goes to the end; the selection stays where it is (on the
+; empty place it moves along with it)
 Function Inv_Add(name$)
 	If invCount >= INV_MAX Then Return
 	invItem(invCount) = name
-	invSel = invCount
+	If invSel = invCount Then invSel = invSel + 1
 	invCount = invCount + 1
 End Function
 
+; the places are the items plus the empty place at index invCount
 Function Inv_Select(delta)
-	If invCount = 0 Then Return
-	invSel = (invSel + delta + invCount) Mod invCount
+	invSel = (invSel + delta + invCount + 1) Mod (invCount + 1)
 End Function
 
 Function Inv_Current$()
-	If invCount = 0 Then Return ""
+	If invSel >= invCount Then Return ""
 	Return invItem(invSel)
 End Function
 
 Function Inv_Use()
-	If invCount = 0 Then Return
+	If invSel >= invCount Then Return
 	name$ = invItem(invSel)
 	Select name
 	Case "Atomic ball"
@@ -153,7 +158,6 @@ Function Inv_Use()
 	Case "Time +15"
 		timeLeft = timeLeft + 15
 	Case "Wide paddle"
-		If wideCount < 2 Then wideCount = wideCount + 1
 		tWidePaddle = EXTRA_TIME : tSmallPaddle = 0
 	Case "Slow motion"
 		tSlow = EXTRA_TIME : tSpeed = 0
@@ -164,18 +168,17 @@ Function Inv_Use()
 		If src <> Null Then x = src\x : z = src\z
 		For i = 1 To 2
 			a# = Rnd(-60, 60)
-			Ball_Add(x, z, Sin(a) * ballSpeed, Cos(a) * ballSpeed, False)
+			Ball_Add(x, z, Sin(a) * ballSpeed, Cos(a) * ballSpeed, False, True)
 		Next
 	Case "Big ball"
 		tBigBall = EXTRA_TIME : tTinyBall = 0
 	Case "Score x2"
-		tDouble = DOUBLE_TIME
+		tDouble = EXTRA_TIME
 	End Select
 	Sfx(sndBonus)
 	For i = invSel To invCount - 2
 		invItem(i) = invItem(i + 1)
 	Next
 	invCount = invCount - 1
-	If invSel >= invCount Then invSel = 0
 	FloatText(paddleX, PADDLE_Z + 0.8, name, 140, 220, 255)
 End Function

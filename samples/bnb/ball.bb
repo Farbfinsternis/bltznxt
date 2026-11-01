@@ -6,6 +6,8 @@ Const BALL_R_NORMAL# = 0.3
 Const PADDLE_Z# = 1.6       ; centre line of the paddle
 Const PADDLE_HD# = 0.25     ; half depth
 Const PADDLE_MAX_ANGLE# = 62
+Const PADDLE_STEER# = 1.2   ; degrees of extra angle per unit/s of paddle speed
+Const PADDLE_STEER_MAX# = 20
 Const STEP_LEN# = 0.08      ; longest move per sub-step
 
 Type tBall
@@ -15,10 +17,12 @@ Type tBall
 	Field stuck             ; lies on the paddle until launched
 	Field stuckOffset#
 	Field spin#
+	Field multi             ; green extra ball from a multiball block
 End Type
 
 Global paddleEnt
 Global paddleX# = 0, paddleHW# = 1.2
+Global paddleVel#           ; sideways speed of the paddle, units per second
 Global ballSpeed# = 10      ; current speed of all balls
 Global ballTemplate, shadowTemplate
 Global ballR# = BALL_R_NORMAL     ; radius of all balls (tiny ball / big ball change it)
@@ -66,11 +70,13 @@ Function Ball_SetRadius(r#)
 	Next
 End Function
 
-Function Ball_Add.tBall(x#, z#, vx#, vz#, stuck)
+Function Ball_Add.tBall(x#, z#, vx#, vz#, stuck, multi = False)
 	b.tBall = New tBall
 	b\x = x : b\z = z : b\vx = vx : b\vz = vz : b\stuck = stuck
 	b\stuckOffset = x - paddleX
+	b\multi = multi
 	b\ent = CopyEntity(ballTemplate)
+	If multi Then EntityColor b\ent, 90, 230, 90
 	b\shadow = CopyEntity(shadowTemplate)
 	Ball_Place(b)
 	Return b
@@ -91,6 +97,14 @@ End Function
 Function Balls_Count()
 	n = 0
 	For b.tBall = Each tBall : n = n + 1 : Next
+	Return n
+End Function
+
+Function Balls_Multi()
+	n = 0
+	For b.tBall = Each tBall
+		If b\multi Then n = n + 1
+	Next
 	Return n
 End Function
 
@@ -124,8 +138,9 @@ Function Balls_Nudge()
 	Next
 End Function
 
-; moves all balls; returns the points earned. Lost balls are removed
-; (ballsLost counts them).
+; moves all balls; returns the points earned. Lost multiballs are removed;
+; the real ball comes back onto the paddle as long as multiballs are left,
+; otherwise it is removed too (ballsLost counts the removed ones).
 Global ballsLost = 0
 Global ballMaxZ# = 0          ; debug: deepest point a ball reached
 Function Balls_Update(dt#)
@@ -147,7 +162,14 @@ Function Balls_Update(dt#)
 				If b\z < -1.5 Then Exit
 			Next
 		EndIf
-		If b\z < -1.5
+		If b\z < -1.5 And (Not b\multi) And Balls_Multi() > 0
+			b\stuck = True : b\vx = 0 : b\vz = 0
+			b\stuckOffset = 0
+			b\x = paddleX : b\z = PADDLE_Z + PADDLE_HD + ballR + 0.02
+			Sfx(sndLoseBall)
+			If debugMode Then DebugLog Int(levelElapsed) + "s real ball back, multi " + Balls_Multi()
+			Ball_Place(b)
+		ElseIf b\z < -1.5
 			FreeEntity b\ent : FreeEntity b\shadow
 			Delete b
 			ballsLost = ballsLost + 1
@@ -174,11 +196,12 @@ Function Ball_Step(b.tBall, dt#)
 		b\z = FIELD_BACK - ballR : b\vz = -Abs(b\vz) : Ball_Bounce(b, False)
 	EndIf
 
-	; paddle: the hit point decides the new angle
+	; paddle: the hit point decides the new angle, a moving paddle bends it
 	If b\vz < 0 And b\z > PADDLE_Z - PADDLE_HD And b\z - ballR < PADDLE_Z + PADDLE_HD
 		If b\x > paddleX - paddleHW - ballR And b\x < paddleX + paddleHW + ballR
 			off# = Clamp((b\x - paddleX) / paddleHW, -1, 1)
-			a# = off * PADDLE_MAX_ANGLE
+			a# = off * PADDLE_MAX_ANGLE + Clamp(paddleVel * PADDLE_STEER, -PADDLE_STEER_MAX, PADDLE_STEER_MAX)
+			a = Clamp(a, -PADDLE_MAX_ANGLE, PADDLE_MAX_ANGLE)
 			b\vx = Sin(a) * ballSpeed : b\vz = Cos(a) * ballSpeed
 			b\z = PADDLE_Z + PADDLE_HD + ballR
 			Sfx(sndPaddle)

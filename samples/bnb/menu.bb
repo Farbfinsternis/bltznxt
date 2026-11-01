@@ -292,7 +292,9 @@ Function Credits_Draw()
 	cx = GraphicsWidth() / 2 : y = U(220)
 	Text cx, y, "Remaster of blox-n-balls, a Blitz3D game from 2003", True, True : y = y + U(40)
 	Text cx, y, "Rewritten from scratch for BLTZNXT", True, True : y = y + U(40)
-	Text cx, y, "github.com/Farbfinsternis/bltznxt", True, True : y = y + U(40)
+	Text cx, y, "github.com/Farbfinsternis/bltznxt", True, True : y = y + U(60)
+	Text cx, y, "Game, code and graphics: Farbfinsternis", True, True : y = y + U(40)
+	Text cx, y, "Music and sounds: the original soundtrack of blox-n-balls", True, True : y = y + U(40)
 	Text cx, y, "Font: Road Rage, (c) 2010 The Road Rage Project Authors, SIL OFL 1.1", True, True : y = y + U(70)
 	Color 160, 165, 175
 	Text cx, y, "Click or Esc to go back", True, True

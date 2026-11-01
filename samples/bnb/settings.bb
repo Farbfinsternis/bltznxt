@@ -168,7 +168,7 @@ Function Save_Write(skill, level, score, lives, coins)
 End Function
 
 Function Save_RestoreInventory()
-	invCount = saveInvCount : invSel = 0
+	invCount = saveInvCount : invSel = invCount     ; start on the empty place
 	For i = 0 To invCount - 1
 		invItem(i) = saveInv(i)
 	Next
