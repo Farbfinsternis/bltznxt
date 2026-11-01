@@ -10,13 +10,14 @@ BLTZNXT (`Buglist.md`, dort wird er weitergeführt) und hier aus Sicht des Spiel
 Befund, Umweg im Spiel (falls nötig) und Commit der Behebung. So bleibt nachvollziehbar,
 wie die Entwicklung des Remasters die Entwicklung von BLTZNXT beeinflusst hat.
 
-Stand: 2026-10-31, BLTZNXT 0.7.1 (Commit 4417b2e), Windows 11.
+Stand: 2026-11-01, BLTZNXT 0.7.1 (Commit ff8674e), Windows 11.
 
 | # | Art | Thema | Schwere | Bugliste |
 |---|-----|-------|---------|----------|
 | 1 | Ausbau | Keine Normal Maps (glTF-Lader liest nur die Grundfarbe) | mittel – zurückgestellt | WEAK-35 |
 | 2 | Fehler | `ReadFile` auf eine fehlende Datei meldet sich auf stderr | niedrig – **behoben** (`6b4f82a`) | BUG-228 ✅ |
 | 3 | Fehler | glTF `doubleSided` beleuchtet die Rückseite nicht | mittel – **behoben** (`6c9ef83`) | BUG-229 ✅ |
+| 4 | Fehler | Nach einem zweiten `Graphics3D` zeichnet `RenderWorld` nichts | mittel – **behoben** (`ff8674e`) | BUG-230 ✅ |
 
 ---
 
@@ -62,3 +63,24 @@ beleuchten.
 beleuchten“ nur für glTF, der Shader dreht für Rückseiten die Normale um. FX 16 bleibt wie
 im Original (Blitz-Programme sehen unverändert aus). Regressionstest
 `tests/test_bug229_gltf_zweiseitig`, Commit `6c9ef83`.
+
+---
+
+## 4. Nach einem zweiten `Graphics3D` zeichnet `RenderWorld` nichts
+
+**Was:** Nach dem Release von 0.1.0 meldete der Nutzer (01.11.), Auflösung und Vollbild in
+den Optionen bewirkten nichts. Das Spiel übernahm sie erst nach einem Neustart. Beim Umbau
+auf sofortiges Umschalten (neues `Graphics3D`, danach alles neu laden) blieb die 3D-Welt
+weiß, nur Texte und HUD-Zahlen waren zu sehen. BLTZNXT übersetzte die Shader nur einmal;
+nach dem neuen GL-Kontext galten sie weiter als fertig.
+
+**Folge im Spiel:** ohne Fix kein Moduswechsel zur Laufzeit möglich.
+
+**Behoben:** sofort, vor der Weiterarbeit am Spiel: beim Schließen des Fensters gibt die
+Laufzeit die Shader-Programme frei, solange der alte Kontext lebt; `RenderWorld` übersetzt
+sie im neuen Kontext. Regressionstest `tests/test_bug230_graphics3d_zweimal`, Commit
+`ff8674e`.
+
+**Im Spiel:** `Gfx_Change()` in `bloxnballs.bb` öffnet den neuen Modus, lädt alles, was
+zum Grafikmodus gehört, und gibt Blöcken, Bällen und Münzen des laufenden Spiels neue
+Entities (`Blocks_Rebuild`, `Balls_Rebuild`, `Coins_Rebuild`) – der Spielstand bleibt.

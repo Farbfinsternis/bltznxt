@@ -46,7 +46,7 @@ Function Menu_BuildOptions()
 	Menu_Add(M_MOUSE, "Mouse speed:  " + Int(optMouse * 100 + 0.5) + "%")
 	If optMirror Then t$ = "On" Else t = "Off"
 	Menu_Add(M_MIRROR, "Reflections:  " + t)
-	Menu_Add(M_SIZE, "Window:  " + optWidth + " x " + optHeight)
+	Menu_Add(M_SIZE, "Resolution:  " + optWidth + " x " + optHeight)
 	If optFullscreen Then t = "On" Else t = "Off"
 	Menu_Add(M_FULL, "Fullscreen:  " + t)
 	Menu_Add(M_BACK, "Back")
@@ -198,10 +198,10 @@ Function Options_Draw()
 		Case 1600 : If s > 0 Then optWidth = 1920 : optHeight = 1080 Else optWidth = 1280 : optHeight = 720
 		Default : If s > 0 Then optWidth = 1280 : optHeight = 720 Else optWidth = 1600 : optHeight = 900
 		End Select
-		Message("Window size changes after a restart", 3)
+		Gfx_Change()
 	Case M_FULL
 		optFullscreen = Not optFullscreen
-		Message("Fullscreen changes after a restart", 3)
+		Gfx_Change()
 	Case M_BACK
 		If menuStep = 0 Then Options_Leave()
 	End Select

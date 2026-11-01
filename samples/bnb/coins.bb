@@ -61,6 +61,14 @@ Function Coins_Update(dt#)
 	Next
 End Function
 
+; after a new graphics mode: the old entities are gone, the coins stay
+Function Coins_Rebuild()
+	For c.tCoin = Each tCoin
+		c\ent = CopyEntity(coinTemplate)
+		Coin_Place(c)
+	Next
+End Function
+
 Function Coins_Clear()
 	For c.tCoin = Each tCoin
 		FreeEntity c\ent

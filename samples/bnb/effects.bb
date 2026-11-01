@@ -82,6 +82,12 @@ Function Effects_Draw()
 	Next
 End Function
 
+; after a new graphics mode the spark entities are gone already
+Function Effects_Forget()
+	Delete Each tSpark
+	sparkCount = 0
+End Function
+
 Function Effects_Clear()
 	For s.tSpark = Each tSpark
 		FreeEntity s\ent : Delete s

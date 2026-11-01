@@ -90,7 +90,6 @@ Function Block_Create(code$, x#, z#)
 	b.tBlock = New tBlock
 	b\code = code : b\x = x : b\z = z
 	b\hx = cellSize * 0.46 : b\hz = cellSize * 0.46
-	h# = b\hx                   ; blocks are cubes, as in the original
 	Select code
 	Case "1", "2", "3"
 		b\kind = KIND_NORMAL : b\maxHits = Int(code)
@@ -102,43 +101,55 @@ Function Block_Create(code$, x#, z#)
 		b\kind = KIND_SPECIAL : b\maxHits = 1
 	End Select
 	b\hits = b\maxHits
-
-	Select b\kind
-	Case KIND_BUMPER
+	Select code
+	Case "o"
 		b\hx = cellSize * BUMPER_R : b\hz = b\hx
+	Case "|"
+		; round obstacle: bounces like a bumper, without the kick
+		b\hx = cellSize * 0.3 : b\hz = b\hx : b\kind = KIND_BUMPER
+	Case "/"
+		; a bar along the diagonal of the cell, from front left to back right
+		b\ang = 45 : b\hx = cellSize * 0.66 : b\hz = cellSize * 0.13
+	End Select
+	If b\kind = KIND_NORMAL Or b\kind = KIND_SPECIAL Then blocksLeft = blocksLeft + 1
+	Block_Build(b)
+End Function
+
+; the picture of block b (also again after a new graphics mode)
+Function Block_Build(b.tBlock)
+	h# = cellSize * 0.46        ; blocks are cubes, as in the original
+	x# = b\x : z# = b\z
+	Select b\code
+	Case "o"
 		b\ent = CopyEntity(Bumper_Mesh())
 		ShowEntity b\ent
 		s# = b\hx / bumperModelR
 		ScaleEntity b\ent, s, s * BUMPER_STRETCH, s
 		PositionEntity b\ent, x, 0, z
 		EntityShininess b\ent, 0.6
-	Case KIND_WALL
-		If code = "|"
-			b\hx = cellSize * 0.3 : b\hz = b\hx
-			b\ent = CreateCylinder(16)
-		Else
-			b\ent = CreateCube()
-		EndIf
-		If code = "/"
-			; a bar along the diagonal of the cell, from front left to back right
-			b\ang = 45 : b\hx = cellSize * 0.66 : b\hz = cellSize * 0.13
-			RotateEntity b\ent, 0, b\ang, 0          ; positive yaw turns +x towards +z
-		EndIf
+	Case "|", "#", "/"
+		If b\code = "|" Then b\ent = CreateCylinder(16) Else b\ent = CreateCube()
+		If b\ang <> 0 Then RotateEntity b\ent, 0, b\ang, 0     ; positive yaw turns +x towards +z
 		; twice as tall as a block, like blocker*.3ds in the original
 		ScaleEntity b\ent, b\hx, h * 2, b\hz
 		PositionEntity b\ent, x, h * 2, z
 		EntityColor b\ent, 70, 74, 82
 		EntityShininess b\ent, 0.5
-		If code = "|" Then b\kind = KIND_BUMPER : b\code = "|"
 	Default
 		b\ent = CopyEntity(blockTile(Rand(0, BLOCK_TILES - 1)))
 		ShowEntity b\ent
 		ScaleEntity b\ent, b\hx, h, b\hz
 		PositionEntity b\ent, x, h, z
 		EntityShininess b\ent, 0.4
-		blocksLeft = blocksLeft + 1
 	End Select
 	Block_Paint(b)
+End Function
+
+; after a new graphics mode: the old entities are gone, the blocks stay
+Function Blocks_Rebuild()
+	For b.tBlock = Each tBlock
+		Block_Build(b)
+	Next
 End Function
 
 ; the texture shows as it is; damaged blocks get darker, a hit flashes

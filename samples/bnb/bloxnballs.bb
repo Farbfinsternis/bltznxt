@@ -83,27 +83,11 @@ Scores_Load()
 Save_Load()
 
 AppTitle "Blox'n'Balls Reforged"
-If optFullscreen
-	Graphics3D optWidth, optHeight, 0, 1
-Else
-	Graphics3D optWidth, optHeight, 0, 2
-EndIf
-SetBuffer BackBuffer()
+Gfx_Open()
 SeedRnd MilliSecs()
-
-; loading screen while the rest loads
-MainImage_Load()
-Cls : MainImage_Draw() : Flip
-
-Fonts_Load()
+Gfx_Load()
 Sound_Load()
-Table_Create()
-Effects_Create()
-Ball_Create()
-Blocks_Init()
-Coins_Create()
 Shop_Init()
-HUD_Create()
 menuSkill = startSkill
 
 If autoPlay
@@ -170,6 +154,49 @@ Wend
 
 Settings_Save()
 End
+
+; ---- graphics mode -------------------------------------------------------------------
+
+; opens the window (or the screen) in the mode of the options
+Function Gfx_Open()
+	If optFullscreen
+		Graphics3D optWidth, optHeight, 0, 1
+	Else
+		Graphics3D optWidth, optHeight, 0, 2
+	EndIf
+	SetBuffer BackBuffer()
+End Function
+
+; everything that belongs to the graphics mode, with the main picture as
+; loading screen while the rest loads
+Function Gfx_Load()
+	MainImage_Load()
+	Cls : MainImage_Draw() : Flip
+	Fonts_Load()
+	Table_Create()
+	Effects_Create()
+	Ball_Create()
+	Blocks_Init()
+	Coins_Create()
+	HUD_Create()
+End Function
+
+; new window size or fullscreen from the options. Like in Blitz3D,
+; Graphics3D frees every entity, texture, image and font: load them again
+; and give the blocks, balls and coins of the running game new pictures.
+Function Gfx_Change()
+	hw# = paddleHW
+	tableMirror = 0 : bumperMesh = 0 : hudCam = 0
+	Effects_Forget()
+	Gfx_Open()
+	Gfx_Load()
+	Paddle_SetWidth(hw)
+	Blocks_Rebuild()
+	Balls_Rebuild()
+	Coins_Rebuild()
+	HUD_Show(state = ST_PLAY)
+	ShowPointer
+End Function
 
 ; ---- states --------------------------------------------------------------------------
 

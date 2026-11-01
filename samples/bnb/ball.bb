@@ -75,11 +75,22 @@ Function Ball_Add.tBall(x#, z#, vx#, vz#, stuck, multi = False)
 	b\x = x : b\z = z : b\vx = vx : b\vz = vz : b\stuck = stuck
 	b\stuckOffset = x - paddleX
 	b\multi = multi
+	Ball_Build(b)
+	Return b
+End Function
+
+; the picture of ball b (also again after a new graphics mode)
+Function Ball_Build(b.tBall)
 	b\ent = CopyEntity(ballTemplate)
-	If multi Then EntityColor b\ent, 90, 230, 90
+	If b\multi Then EntityColor b\ent, 90, 230, 90
 	b\shadow = CopyEntity(shadowTemplate)
 	Ball_Place(b)
-	Return b
+End Function
+
+Function Balls_Rebuild()
+	For b.tBall = Each tBall
+		Ball_Build(b)
+	Next
 End Function
 
 ; a new ball lying on the paddle
