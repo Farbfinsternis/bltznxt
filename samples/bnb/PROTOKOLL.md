@@ -123,5 +123,5 @@ Sekunde wie bei einer echten Maus lösten ihn aus (vorher y = −1598 bei echtem
 **Im Spiel:** `-debug` schreibt im Menü bei jeder Änderung von Maus, Taste, Auswahl oder
 Zustand eine Zeile auf stderr (`Menu_DebugLog`).
 
-**Offen:** ob BLTZNXT ein angehaltenes randloses Vollbild wie das Original minimieren soll,
-damit die Pause nicht wie ein Hänger aussieht.
+**Entschieden (01.11.):** Ohne Fokus pausiert das Programm, wird aber nicht minimiert
+(Nutzer). BLTZNXT legt das bei SDL ausdrücklich fest.

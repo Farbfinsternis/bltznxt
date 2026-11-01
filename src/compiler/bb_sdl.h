@@ -358,6 +358,9 @@ inline void (*bb_gl_ctx_lost_hook_)() = nullptr;
 // Text-mode programs never trigger this, so they pay zero SDL overhead.
 inline void bb_sdl_ensure_() {
   if (bb_sdl_initialized_) return;
+  // Ohne Fokus haelt ein Vollbildprogramm an (BUG-208), bleibt aber sichtbar
+  // stehen und wird nicht minimiert - Entscheidung des Nutzers 2026-11-01.
+  SDL_SetHint(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS, "0");
   if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_JOYSTICK | SDL_INIT_GAMEPAD)) {
     std::cerr << "[runtime] SDL_Init failed: " << SDL_GetError() << "\n";
     return;
