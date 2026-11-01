@@ -10,7 +10,7 @@ BLTZNXT (`Buglist.md`, dort wird er weitergeführt) und hier aus Sicht des Spiel
 Befund, Umweg im Spiel (falls nötig) und Commit der Behebung. So bleibt nachvollziehbar,
 wie die Entwicklung des Remasters die Entwicklung von BLTZNXT beeinflusst hat.
 
-Stand: 2026-11-01, BLTZNXT 0.7.1 (Commit ff8674e), Windows 11.
+Stand: 2026-11-01, BLTZNXT 0.7.1 (Commit a602132), Windows 11.
 
 | # | Art | Thema | Schwere | Bugliste |
 |---|-----|-------|---------|----------|
@@ -18,6 +18,8 @@ Stand: 2026-11-01, BLTZNXT 0.7.1 (Commit ff8674e), Windows 11.
 | 2 | Fehler | `ReadFile` auf eine fehlende Datei meldet sich auf stderr | niedrig – **behoben** (`6b4f82a`) | BUG-228 ✅ |
 | 3 | Fehler | glTF `doubleSided` beleuchtet die Rückseite nicht | mittel – **behoben** (`6c9ef83`) | BUG-229 ✅ |
 | 4 | Fehler | Nach einem zweiten `Graphics3D` zeichnet `RenderWorld` nichts | mittel – **behoben** (`ff8674e`) | BUG-230 ✅ |
+| 5 | Fehler | Debug-Build (`blitzcc -d`) bricht mit „too many sections“ ab | niedrig – **behoben** (`ace9716`) | BUG-231 ✅ |
+| 6 | Fehler | Nach `ShowPointer` liegt die Mausposition neben dem Zeiger | mittel – **behoben** (`a602132`) | BUG-232 ✅ |
 
 ---
 
@@ -84,3 +86,42 @@ sie im neuen Kontext. Regressionstest `tests/test_bug230_graphics3d_zweimal`, Co
 **Im Spiel:** `Gfx_Change()` in `bloxnballs.bb` öffnet den neuen Modus, lädt alles, was
 zum Grafikmodus gehört, und gibt Blöcken, Bällen und Münzen des laufenden Spiels neue
 Entities (`Blocks_Rebuild`, `Balls_Rebuild`, `Coins_Rebuild`) – der Spielstand bleibt.
+
+---
+
+## 5. Debug-Build bricht mit „too many sections“ ab
+
+**Was:** Für die Suche nach dem Fehler aus Punkt 6 sollte das Spiel mit Debug-Infos
+übersetzt werden (`blitzcc -d`), um sich mit `gdb` an den laufenden Prozess zu hängen. Der
+MinGW-Assembler brach ab: mehr als 32767 Abschnitte in einer Objektdatei.
+
+**Behoben:** sofort: `blitzcc` übergibt `-Wa,-mbig-obj`. Commit `ace9716`.
+
+---
+
+## 6. Nach `ShowPointer` liegt die Mausposition neben dem Zeiger
+
+**Was:** Der Nutzer meldete nach dem Release (01.11.): Im Vollbild ließ sich das Menü nach
+Esc aus dem laufenden Spiel nicht mehr bedienen, der Zeiger war zu sehen und beweglich. Ein
+zweiter Versuch sah wie ein Absturz aus; Windows meldete „reagiert nicht“. Mit `gdb` am
+hängenden Prozess stellte sich das als Pause bei Fokusverlust heraus (Vollbild wie im
+Original, BUG-208) – das Fenster hatte den Fokus an die Claude-App verloren, aus der der
+Nutzer das Spiel gestartet hatte, und blieb sichtbar stehen. Das Menüprotokoll mit `-debug`
+zeigte den eigentlichen Fehler: nach Esc meldete das Spiel Mauspositionen mit negativem y,
+der Klick traf über dem Menü ins Leere.
+
+**Ursache in BLTZNXT:** Das Spiel liest im Spiel nur `MouseXSpeed` und holt die Maus mit
+`MoveMouse` je Bild zur Mitte. Der Versatz, den `MoveMouse` für ungelesene Bewegung
+weiterträgt (BUG-165), summierte sich auf der nie gelesenen Y-Achse auf. Simulierte
+Mausbewegungen mit 10 Schritten je Sekunde zeigten nichts; erst ~1000 Bewegungen je
+Sekunde wie bei einer echten Maus lösten ihn aus (vorher y = −1598 bei echtem Zeiger 403).
+
+**Behoben:** sofort: nur Bewegung seit dem letzten Lesen bzw. `MoveMouse` wird übertragen,
+`ShowPointer` übernimmt die Lage des sichtbaren Zeigers. Werkzeug zum Nachstellen
+`build/bug232_20261101/`, Commit `a602132`.
+
+**Im Spiel:** `-debug` schreibt im Menü bei jeder Änderung von Maus, Taste, Auswahl oder
+Zustand eine Zeile auf stderr (`Menu_DebugLog`).
+
+**Offen:** ob BLTZNXT ein angehaltenes randloses Vollbild wie das Original minimieren soll,
+damit die Pause nicht wie ein Hänger aussieht.

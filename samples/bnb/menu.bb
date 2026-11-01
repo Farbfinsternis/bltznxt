@@ -64,6 +64,7 @@ Function Menu_Run(y0, x0 = 0)
 	; the mouse selects the row under it, but only when it moves
 	; (so keys and gamepad are not overruled by a resting pointer)
 	my = MouseY()
+	If debugMode Then Menu_DebugLog(my)
 	If my <> menuLastMouseY
 		menuLastMouseY = my
 		For i = 0 To menuCount - 1
@@ -105,6 +106,14 @@ Function Menu_Run(y0, x0 = 0)
 	If menuStep <> 0 Then activated = menuId(menuSel)
 	If activated Then Sfx(sndPaddle)
 	Return activated
+End Function
+
+; -debug: one line on stderr whenever mouse, button, selection or state
+; change, to follow menu input on other machines
+Global menuDebugLast$ = ""
+Function Menu_DebugLog(my)
+	t$ = "menu: mouse " + MouseX() + "," + my + " button " + MouseDown(1) + " sel " + menuSel + " state " + state + " mode " + GraphicsWidth() + "x" + GraphicsHeight() + " full " + optFullscreen
+	If t <> menuDebugLast Then menuDebugLast = t : DebugLog MilliSecs() + " " + t
 End Function
 
 Function Title_Draw()
