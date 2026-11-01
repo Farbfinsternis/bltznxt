@@ -78,6 +78,10 @@ startSkill = Int(Clamp(startSkill, 0, 2))
 
 ; ---- start -------------------------------------------------------------------------
 
+; assets/ lies next to the executable: work from there, whatever folder
+; the game was started from (shortcut, other working directory)
+ChangeDir SystemProperty("appdir")
+
 Settings_Load()
 Scores_Load()
 Save_Load()
