@@ -1,10 +1,12 @@
 ; BLTZCRFT - Abbauen ueber die Zeit
 ;
 ; Wie in Minecraft mit blosser Hand: die linke Maustaste halten, bis der Block
-; bricht. Wie lange das dauert, steht als Haerte bei der Blockart
-; (bl_haerte, Sekunden); Grundgestein bricht nie. Wer den Blick auf einen
-; anderen Block richtet oder loslaesst, faengt von vorn an. Haelt man weiter,
-; geht es nach einer kurzen Pause mit dem naechsten Block weiter.
+; bricht. Die Dauer kommt aus der Haerte der Blockart (bl_haerte) und wie in
+; Minecraft: 1,5 x Haerte Sekunden, wo die Hand genuegt (Erde 0,75 s, Holz
+; 3 s), sonst 5 x Haerte (Stein 7,5 s, dann ohne Ertrag); Grundgestein bricht
+; nie. Wer den Blick auf einen anderen Block richtet oder loslaesst, faengt
+; von vorn an. Haelt man weiter, geht es nach einer Pause von 5 Takten
+; (0,25 s) mit dem naechsten Block weiter.
 ;
 ; Den Fortschritt zeigen Risse auf dem Block, zehn Stufen. Die Risstexturen
 ; malt das Programm selbst: ein Muster aus verzweigten Linien, die vom
@@ -13,7 +15,7 @@
 ; bleibt der Block sichtbar.
 
 Const AB_STUFEN = 10
-Const AB_PAUSE_ZEIT# = 0.2  ; Sekunden zwischen zwei Bloecken beim Halten
+Const AB_PAUSE_ZEIT# = 0.25 ; Sekunden zwischen zwei Bloecken beim Halten
 
 Global ab_x, ab_y, ab_z, ab_aktiv
 Global ab_anteil#           ; 0..1
@@ -34,11 +36,18 @@ Function Abbau_Halten(x, y, z, b, dt#)
 		ab_x = x : ab_y = y : ab_z = z : ab_aktiv = True
 		ab_anteil = 0
 	EndIf
-	If bl_haerte(b) <= 0 Then Return False
-	ab_anteil = ab_anteil + dt / bl_haerte(b)
-	If ab_anteil < 0.9999 Then Return False   ; 6 x 0.1/0.6 ist knapp unter 1
+	dauer# = Abbau_Dauer(b)
+	If dauer <= 0 Then Return False
+	ab_anteil = ab_anteil + dt / dauer
+	If ab_anteil < 0.9999 Then Return False   ; 15 x 0.5/7.5 ist knapp unter 1
 	ab_aktiv = False : ab_anteil = 0 : ab_pause = AB_PAUSE_ZEIT
 	Return True
+End Function
+
+; Sekunden, bis Block b mit der Hand bricht; 0 = nie.
+Function Abbau_Dauer#(b)
+	If bl_hand(b) Then Return bl_haerte(b) * 1.5
+	Return bl_haerte(b) * 5
 End Function
 
 ; Losgelassen oder ins Leere geschaut: von vorn.

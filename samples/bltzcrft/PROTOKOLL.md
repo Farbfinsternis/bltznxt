@@ -287,6 +287,14 @@ Damit sie nicht noch einmal verdächtigt werden:
   Konstanten in himmel.bb (`HM_RAFFER` neben `Global hm_raffer`) ergaben
   gleich `Duplicate variable name` mit Datei und Zeile.
 
+- **Hand, Bruchstücke, Abbau wie in Minecraft (2026-11-11):** ohne Fund.
+  Hand und gehaltener Block hängen an der Kamera, mit `EntityOrder -1`
+  gezeichnet (konvexe Quader, also auch ohne Z-Puffer richtig); 160
+  Bruchstücke als kleine Würfel mit `EntityColor`, Farben per
+  `ReadPixelFast` aus den Blocktexturen. Wieder traf eine Konstante eine
+  gleichnamige Variable (`HD_SCHLAG` / `hd_schlag`) – BLTZNXT meldet es
+  richtig.
+
 ## Umwege im Spielcode
 
 - Kollision des Spielers direkt gegen das Blockraster statt `Collisions`/`EntityType`: kein

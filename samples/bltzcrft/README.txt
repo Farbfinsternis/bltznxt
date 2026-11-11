@@ -11,6 +11,12 @@ Schnee, ein Ozean mit Stränden, Seen, kleine Tümpel, Höhlengänge und tiefe
 Höhlenhallen, Kohle und Eisen im Stein, Wälder. Man läuft in der Ego-Sicht
 hindurch, kann schwimmen und fliegen. Abgebaute Blöcke landen im Inventar
 (36 Plätze, Stapel bis 64) und lassen sich wieder setzen.
+
+Abbauen geht wie in Minecraft mit bloßen Händen: Die Hand schlägt auf den
+Block ein, Bruchstücke springen ab, Risse wachsen, bis er bricht. Erde und
+Sand dauern 0,75 s, Holz 3 s. Stein, Kohle, Eisen und Sandstein brechen mit
+der Hand nur langsam (Stein 7,5 s) und hinterlassen nichts - dafür braucht es
+später eine Spitzhacke. Laub zerfällt ohne Schere.
 Gespeichert wird noch nichts.
 
 Ein Tag dauert 20 Minuten: die Sonne zieht über den Himmel, abends färbt er
@@ -34,6 +40,7 @@ Im Ordner übersetzen und starten:
   bltzcrft.exe -zeit 18.5   (beginnt um 18:30 statt um 7 Uhr)
   bltzcrft.exe -zeit 18 -foto 90 10   (schaut nach Westen, speichert nach
                             8 s foto_<uhrzeit>.bmp und beendet sich)
+  bltzcrft.exe -foto 0 50 -abbau   (baut dazu ab 4 s selbst ab)
 
 Voraussetzungen: Windows 64 Bit, eine Grafikkarte mit OpenGL 3.3.
 
@@ -68,7 +75,8 @@ Strg                  rennen
 Leertaste             springen, im Wasser schwimmen
 F                     fliegen ein/aus (Leertaste hoch, Umschalt runter)
 linke Maustaste       halten: Block abbauen (Risse zeigen den Fortschritt,
-                      Stein dauert länger als Erde, Grundgestein bricht nie)
+                      Erde 0,75 s, Holz 3 s, Stein 7,5 s ohne Ertrag,
+                      Grundgestein bricht nie)
 rechte Maustaste      Block aus der Schnellleiste setzen
 1 - 9 / Mausrad       Platz der Schnellleiste wählen
 E                     Inventar öffnen/schließen; darin: Linksklick Stapel
@@ -95,6 +103,8 @@ inventar.bb     Inventar: Stapel, Klicks, zur Laufzeit gemalte Blocksymbole
 abbau.bb        Abbauen über die Zeit, zur Laufzeit gemalte Risse
 mehrspieler.bb  Mehrspieler: Beitritt, Figuren, Blöcke, Chat (Net-Befehle)
 himmel.bb       Tag und Nacht: Himmelskuppel, Sonne, Mond, Sterne, Wolken
+hand.bb         die eigene Hand (oder der gewählte Block) und ihr Schlag
+partikel.bb     Bruchstücke beim Abbauen
 
 daten/logo.png  das Logo für Titel- und Ladebild
 

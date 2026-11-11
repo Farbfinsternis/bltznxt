@@ -11,7 +11,9 @@
 ;             Maus schauen   W A S D / Pfeile laufen   Leertaste springen,
 ;             schwimmen      Strg rennen     F fliegen (Leertaste hoch,
 ;             Umschalt runter)
-;             linke Maustaste halten: abbauen  rechte Maustaste Block setzen
+;             linke Maustaste halten: abbauen (wie in Minecraft mit der
+;             Hand: Erde und Holz geben einen Block, Stein und Erze nichts)
+;             rechte Maustaste Block setzen
 ;             1 - 9 / Mausrad Platz der Schnellleiste waehlen
 ;             E Inventar (Linksklick nehmen/ablegen, Rechtsklick halber
 ;             Stapel/ein Stueck, Umschalt+Klick zwischen Leiste und Vorrat)
@@ -34,6 +36,8 @@
 ; Mit -foto <gier> <neig> schaut das Programm ohne Titelbild in diese
 ; Richtung, speichert nach 8 s foto_<uhrzeit>.bmp und beendet sich - zum
 ; Pruefen des Himmels zusammen mit -zeit (bltzcrft.exe -zeit 18 -foto 90 10).
+; Mit -abbau dazu haelt es ab 4 s die linke Maustaste und speichert schon
+; bei 4,5 s ein Bild (foto_<uhrzeit>_a.bmp) - Hand, Risse, Bruchstuecke.
 ; Mit -test <s> prueft das Programm den Mehrspieler ohne Maus und Tastatur:
 ; wer beitritt, schickt nach 3 s eine Chatzeile und setzt einen Stein
 ; zwischen sich und den Host; kurz vor Schluss speichert jeder ein Bild
@@ -56,6 +60,8 @@ Include "laden.bb"
 Include "inventar.bb"
 Include "abbau.bb"
 Include "himmel.bb"
+Include "hand.bb"
+Include "partikel.bb"
 Include "mehrspieler.bb"
 
 AppTitle "BLTZCRFT"
@@ -80,6 +86,7 @@ Repeat
 	Case "-join" : i = i + 1 : join = Wort(args, i) : mehr = True
 	Case "-test" : i = i + 1 : test_s = Int(Wort(args, i)) : mehr = True
 	Case "-zeit" : i = i + 1 : startzeit = Float(Wort(args, i))
+	Case "-abbau" : foto_abbau = True
 	Case "-foto" : foto = True : foto_gier# = Float(Wort(args, i + 1)) : foto_neig# = Float(Wort(args, i + 2)) : i = i + 2
 	Default
 		If Left(arg, 1) <> "-" Then saat = Int(arg)
@@ -111,6 +118,9 @@ Next
 
 Spieler_Neu(sx + 0.5, HOEHE, sz + 0.5)
 Himmel_Laden(startzeit)
+Partikel_Laden()
+Hand_Laden()
+If rundflug Then Hand_Zeigen(False)
 Spieler_Abstellen(sx, sz)
 
 anzeige = True
@@ -238,6 +248,8 @@ While Not ende
 		EndIf
 	EndIf
 
+	; -foto -abbau: ab 4 s die linke Maustaste wie gehalten
+	foto_halten = foto_abbau And foto_start > 0 And MilliSecs() - foto_start > 4000
 	vor# = 0 : seit# = 0 : hoch = False : runter = False : rennen = False
 	If gefangen And (Not chat_offen)
 		Spieler_Schauen(-MouseXSpeed() * MAUS_EMPF, MouseYSpeed() * MAUS_EMPF)
@@ -301,17 +313,23 @@ While Not ende
 	If Blick_Strahl()
 		ShowEntity rahmen
 		PositionEntity rahmen, ziel_x + 0.5, ziel_y + 0.5, ziel_z + 0.5
-		If gefangen And (Not chat_offen)
+		If (gefangen Or foto_halten) And (Not chat_offen)
 			; Abbauen: halten, bis der Block bricht (abbau.bb)
 			MouseHit(1)
-			If MouseDown(1)
+			If MouseDown(1) Or foto_halten
+				Hand_Schlagen()
 				b = Welt_Block(ziel_x, ziel_y, ziel_z)
+				If ab_pause <= 0 Then Partikel_Schlag(ziel_x, ziel_y, ziel_z, ziel_vx - ziel_x, ziel_vy - ziel_y, ziel_vz - ziel_z, b, bild_dt)
 				If Abbau_Halten(ziel_x, ziel_y, ziel_z, b, bild_dt)
 					If Welt_Aendern(ziel_x, ziel_y, ziel_z, B_LUFT)
 						Mp_Block(ziel_x, ziel_y, ziel_z, B_LUFT)
+						Partikel_Bruch(ziel_x, ziel_y, ziel_z, b)
 						; ist das Inventar voll, geht der Block verloren
 						If Inventar_Hinzu(Block_Ertrag(b), 1) > 0
 							meldung = "Inventar voll" : meldung_bis = MilliSecs() + 1500
+						ElseIf Not bl_hand(b)
+							meldung = "Mit blosser Hand bleibt von " + bl_name(b) + " nichts uebrig - dafuer braucht es eine Spitzhacke"
+							meldung_bis = MilliSecs() + 3000
 						EndIf
 					EndIf
 				EndIf
@@ -325,6 +343,7 @@ While Not ende
 					meldung_bis = MilliSecs() + 2500
 				ElseIf Platz_Frei(ziel_vx, ziel_vy, ziel_vz)
 					If Welt_Aendern(ziel_vx, ziel_vy, ziel_vz, b)
+						Hand_Schlagen()
 						Mp_Block(ziel_vx, ziel_vy, ziel_vz, b)
 						Inventar_Nehmen(inv_gewaehlt)
 					EndIf
@@ -337,8 +356,12 @@ While Not ende
 		HideEntity rahmen
 		Abbau_Loslassen()
 		MouseHit(1) : MouseHit(2)
+		; ins Leere schlagen geht auch
+		If gefangen And (Not chat_offen) And MouseDown(1) Then Hand_Schlagen()
 	EndIf
 	Abbau_Zeigen()
+	Hand_Takt(bild_dt)
+	Partikel_Takt(bild_dt)
 	Mp_Takt(bild_dt)
 	If test_s > 0
 		If test_start = 0 Then test_start = MilliSecs()
@@ -407,6 +430,10 @@ While Not ende
 	EndIf
 	If foto
 		If foto_start = 0 Then foto_start = MilliSecs()
+		If foto_abbau And (Not foto_a) And MilliSecs() - foto_start > 4500
+			foto_a = True
+			SaveBuffer BackBuffer(), "foto_" + Replace(Himmel_Uhr(), ":", "") + "_a.bmp"
+		EndIf
 		If MilliSecs() - foto_start > 8000
 			uhr$ = Replace(Himmel_Uhr(), ":", "")
 			SaveBuffer BackBuffer(), "foto_" + uhr + ".bmp"
@@ -468,7 +495,7 @@ Data "W A S D / Pfeile", "laufen"
 Data "Leertaste", "springen, im Wasser schwimmen"
 Data "Strg", "rennen"
 Data "F", "fliegen ein/aus (Leertaste hoch, Umschalt runter)"
-Data "Linke Maustaste", "halten: Block abbauen, er kommt ins Inventar"
+Data "Linke Maustaste", "halten: abbauen (Stein, Erze: ohne Ertrag)"
 Data "Rechte Maustaste", "Block aus der Schnellleiste setzen"
 Data "1 - 9 / Mausrad", "Platz der Schnellleiste waehlen"
 Data "E", "Inventar oeffnen/schliessen"

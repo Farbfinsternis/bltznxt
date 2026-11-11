@@ -1,4 +1,4 @@
-ertrag gras Erde, stein Stein, wasser Luft, grund Luft
+ertrag gras Erde, stein Luft, wasser Luft, grund Luft
 stapeln Steinx64 Erdex3 Steinx7 - - 
 gewaehlt Stein
 nach 3x nehmen Steinx64 - Steinx7 - -  gewaehlt Luft
@@ -14,6 +14,6 @@ links tauscht - Sandx64 Sandx10 - Sandx8 Sandx2 hand Kiesx10
 schliessen Kiesx10 Sandx64 Sandx10 - Sandx8 Sandx2 hand leer
 schieben in vorrat Kiesx10 - Sandx10 | Sandx64 - 
 schieben zurueck Kiesx10 - Sandx64 | - - 
-symbole 11 fuer 14 blockarten, groesse 40x40
+symbole 10 fuer 14 blockarten, groesse 40x40
 symbol stamm: deckel 1 links 1 rechts 1 ecken frei 1
 gezeichnet ecke 0000FF mitte nicht blau 1

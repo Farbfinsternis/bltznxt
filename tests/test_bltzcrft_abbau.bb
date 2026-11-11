@@ -1,9 +1,12 @@
 ; BLTZCRFT - Abbauen ueber die Zeit und die zur Laufzeit gemalten Risse.
 ;
-; Halten in Schritten von 0.1 s: Erde (0.6 s) bricht im sechsten Schritt,
-; Stein (2.0 s) im zwanzigsten; ein anderer Block faengt von vorn an,
-; Grundgestein bricht nie (und zeigt keine Risse), nach einem Bruch kommt
-; eine Pause von 0.2 s, in der der naechste Block noch nicht anfaengt.
+; Dauer wie in Minecraft mit der Hand: 1,5 x Haerte, wo die Hand genuegt,
+; sonst 5 x Haerte. Halten in Schritten von 0.1 s: Erde (0.75 s) bricht im
+; achten Schritt, Holz (3 s) im dreissigsten; Stein (7.5 s) in Schritten von
+; 0.5 s im fuenfzehnten. Ein anderer Block faengt von vorn an, Grundgestein
+; bricht nie (und zeigt keine Risse), nach einem Bruch kommt eine Pause von
+; 0.25 s, in der der naechste Block noch nicht anfaengt. Was die Hand nicht
+; abbauen kann, hinterlaesst nichts.
 ;
 ; Die Risstexturen sind maskiert (Flag 4): wo kein Riss ist, steht Alpha 0.
 ; Vor einem roten Wuerfel muss dort Rot durchscheinen, auf einem Riss nicht
@@ -11,23 +14,28 @@
 
 Include "../samples/bltzcrft/bloecke.bb"
 Include "../samples/bltzcrft/abbau.bb"
+Include "../samples/bltzcrft/inventar.bb"
 
 Graphics3D 320, 240, 0, 2
 SetBuffer BackBuffer()
 Bloecke_Arten()
 
-Function Halten$(x, b, schritte)
+Function Halten$(x, b, schritte, dt# = 0.1)
 	s$ = ""
 	For i = 1 To schritte
-		If Abbau_Halten(x, 0, 0, b, 0.1) Then s = s + "|" + i + " " Else s = s + Abbau_Stufe() + " "
+		If Abbau_Halten(x, 0, 0, b, dt) Then s = s + "|" + i + " " Else s = s + Abbau_Stufe() + " "
 	Next
 	Return s
 End Function
 
-Print "erde   " + Halten(1, B_ERDE, 7)
+Print "erde   " + Halten(1, B_ERDE, 9)
 Abbau_Loslassen()
-Print "stein  " + Halten(2, B_STEIN, 21)
+Print "holz   " + Halten(2, B_STAMM, 31)
 Abbau_Loslassen()
+Print "stein  " + Halten(2, B_STEIN, 16, 0.5)
+Abbau_Loslassen()
+Print "dauer kohle " + Abbau_Dauer(B_KOHLE) + ", sand " + Abbau_Dauer(B_SAND) + ", laub " + Abbau_Dauer(B_LAUB)
+Print "ertrag erde " + bl_name(Block_Ertrag(B_ERDE)) + ", stamm " + bl_name(Block_Ertrag(B_STAMM)) + ", stein " + bl_name(Block_Ertrag(B_STEIN)) + ", kohle " + bl_name(Block_Ertrag(B_KOHLE)) + ", laub " + bl_name(Block_Ertrag(B_LAUB)) + ", schnee " + bl_name(Block_Ertrag(B_SCHNEE))
 Halten(3, B_STEIN, 10)
 Print "anderer block faengt neu an: " + Halten(4, B_STEIN, 1)
 Abbau_Loslassen()
@@ -35,7 +43,7 @@ Print "loslassen setzt zurueck, stufe " + Abbau_Stufe()
 Print "grund  " + Halten(5, B_GRUND, 30)
 Abbau_Loslassen()
 Print "laub bricht: " + Halten(6, B_LAUB, 3)
-Print "pause nach dem bruch: " + Halten(7, B_LAUB, 6)
+Print "pause nach dem bruch: " + Halten(7, B_LAUB, 7)
 
 ; Risse
 Abbau_Laden()

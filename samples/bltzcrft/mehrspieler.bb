@@ -192,7 +192,12 @@ Function Bloecke_Lesen(d$)
 		Else
 			e$ = d : d = ""
 		EndIf
-		Welt_Aendern(Int(Wort(e, 1)), Int(Wort(e, 2)), Int(Wort(e, 3)), Int(Wort(e, 4)))
+		x = Int(Wort(e, 1)) : y = Int(Wort(e, 2)) : z = Int(Wort(e, 3)) : b = Int(Wort(e, 4))
+		alt = Welt_Block(x, y, z)
+		; baut ein anderer in der Naehe einen Block ab, fliegen auch hier die
+		; Stuecke (nicht fuer die lange Liste beim Beitritt, die ist weit weg)
+		Welt_Aendern(x, y, z, b)
+		If b = B_LUFT And Abs(x - sp_x) < 32 And Abs(z - sp_z) < 32 Then Partikel_Bruch(x, y, z, alt)
 	Wend
 End Function
 

@@ -38,13 +38,25 @@ Function Inventar_Leeren()
 	inv_gewaehlt = 0
 End Function
 
-; Was ein abgebauter Block hinterlaesst. Gras verliert seine Grasnarbe.
+; Was ein mit der Hand abgebauter Block hinterlaesst - wie in Minecraft:
+; Gras und Schnee verlieren ihre Decke, Laub zerfaellt ohne Schere, und wo
+; die Hand nicht genuegt (Stein, Erze, Sandstein), bleibt nichts.
 Function Block_Ertrag(b)
+	If Not bl_hand(b) Then Return B_LUFT
 	Select b
-	Case B_GRAS : Return B_ERDE
-	Case B_LUFT, B_WASSER, B_GRUND : Return B_LUFT
+	Case B_GRAS, B_SCHNEE : Return B_ERDE
+	Case B_LAUB : Return B_LUFT
 	End Select
 	Return b
+End Function
+
+; Kann diese Blockart im Inventar liegen? Auch was die Hand nicht abbaut -
+; spaeter mit Werkzeug kommt es dorthin.
+Function Block_Haltbar(b)
+	Select b
+	Case B_LUFT, B_WASSER, B_GRUND, B_GRAS, B_SCHNEE : Return False
+	End Select
+	Return True
 End Function
 
 ; Legt n Bloecke ab: erst auf angefangene Stapel, dann auf freie Plaetze -
@@ -205,7 +217,7 @@ End Function
 ; Nach Bloecke_Laden: ein Symbol je Blockart, die man halten kann.
 Function Inventar_Symbole()
 	For b = 1 To B_ANZAHL - 1
-		If Block_Ertrag(b) = b Then inv_symbol(b) = Symbol_Malen(b)
+		If Block_Haltbar(b) Then inv_symbol(b) = Symbol_Malen(b)
 	Next
 End Function
 
