@@ -8,9 +8,10 @@
 ; Ein Programm hostet, die anderen treten bei. Eine Nachricht an alle
 ; (Empfaenger 0) reicht der Host an die anderen weiter. Nachrichten:
 ;
-;   1 Hallo    Host an den Neuen, zuverlaessig: "saat x y z" - die Saat der
-;              Welt und wo der Host steht (in Hundertstel Bloecken). Gleich
-;              danach die bisherigen Aenderungen als 3.
+;   1 Hallo    Host an den Neuen, zuverlaessig: "saat x y z ms tag" - die
+;              Saat der Welt, wo der Host steht (in Hundertstel Bloecken)
+;              und seine Tageszeit (himmel.bb). Gleich danach die
+;              bisherigen Aenderungen als 3.
 ;   2 Stand    an alle, unzuverlaessig, 15-mal je Sekunde:
 ;              "x y z gier neig", Position in Hundertstel Bloecken
 ;   3 Bloecke  zuverlaessig: "x y z b" je Block, mehrere durch ";" getrennt
@@ -31,6 +32,7 @@ Global mp_an = False        ; im Mehrspieler
 Global mp_ich               ; eigene Spieler-ID
 Global mp_name$
 Global mp_saat, mp_hx#, mp_hy#, mp_hz#, mp_hallo
+Global mp_zeit = -1, mp_tag    ; Tageszeit des Hosts, -1 wenn keine kam
 Global mp_gesendet
 
 Global chat_offen = False
@@ -122,6 +124,7 @@ Function Mp_Empfangen()
 			mp_hx = Int(Wort(d, 2)) / 100.0
 			mp_hy = Int(Wort(d, 3)) / 100.0
 			mp_hz = Int(Wort(d, 4)) / 100.0
+			If Wort(d, 5) <> "" Then mp_zeit = Int(Wort(d, 5)) : mp_tag = Int(Wort(d, 6))
 			mp_hallo = True
 		Case 2
 			m.Mitspieler = Mp_Finden(von)
@@ -167,7 +170,7 @@ End Function
 
 ; Der Host versorgt einen Neuen: Saat, eigene Position, alle Aenderungen.
 Function Mp_Willkommen(id)
-	SendNetMsg 1, mp_saat + " " + Int(sp_x * 100) + " " + Int(sp_y * 100) + " " + Int(sp_z * 100), mp_ich, id
+	SendNetMsg 1, mp_saat + " " + Int(sp_x * 100) + " " + Int(sp_y * 100) + " " + Int(sp_z * 100) + " " + Int(hm_ms) + " " + hm_tag, mp_ich, id
 	d$ = "" : n = 0
 	For a.Aenderung = Each Aenderung
 		If n > 0 Then d = d + ";"
@@ -257,7 +260,7 @@ End Function
 
 ; Quader mit Mitte (x, y, z) und Kantenlaengen b, h, t. Licht gibt es in der
 ; Welt keines; die Helligkeit je Seite steckt wie bei den Bloecken in den
-; Vertexfarben (oben hell, unten dunkel).
+; Vertexfarben (oben hell, unten dunkel), die Tageszeit im Umgebungslicht.
 Function Kloetzchen(eltern, x#, y#, z#, b#, h#, t#, r, g, b2)
 	w = CreateCube(eltern)
 	ScaleMesh w, b / 2, h / 2, t / 2
@@ -271,7 +274,7 @@ Function Kloetzchen(eltern, x#, y#, z#, b#, h#, t#, r, g, b2)
 		If Abs(nx) > 0.5 Then hell = 0.65
 		VertexColor s, v, r * hell, g * hell, b2 * hell
 	Next
-	EntityFX w, 1 + 2
+	EntityFX w, 2
 	Return w
 End Function
 

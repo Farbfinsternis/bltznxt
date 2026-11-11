@@ -26,6 +26,9 @@ Global sp_vx#, sp_vy#, sp_vz#
 Global sp_gier#, sp_neig#
 Global sp_boden, sp_wasser, sp_kopf_nass, sp_fliegen, sp_wand
 Global sp_kamera, sp_nass, sp_nebel_fern#
+; Farbe des Himmels am Horizont und Helligkeit 0..1 - himmel.bb stellt sie
+; nach der Tageszeit; ohne himmel.bb (Werkzeuge) bleibt es Mittag.
+Global sp_himmel_r = 150, sp_himmel_g = 196, sp_himmel_b = 255, sp_hell# = 1
 
 ; Ergebnis des Blickstrahls
 Global ziel_treffer, ziel_x, ziel_y, ziel_z, ziel_vx, ziel_vy, ziel_vz
@@ -51,17 +54,22 @@ Function Spieler_Sicht()
 End Function
 
 ; Ueber Wasser: Dunst in Himmelsfarbe ab der halben Sichtweite.
-; Unter Wasser: dunkles Blau, nach wenigen Metern undurchsichtig.
+; Unter Wasser: dunkles Blau, nach wenigen Metern undurchsichtig - nachts
+; dunkler. Die Farben gelten jedes Bild neu, sie folgen der Tageszeit.
 Function Spieler_Nebel(nass)
+	If nass
+		r = 20 * sp_hell : g = 45 * sp_hell : b = 110 * sp_hell
+		CameraClsColor sp_kamera, r, g, b
+		CameraFogColor sp_kamera, r, g, b
+	Else
+		CameraClsColor sp_kamera, sp_himmel_r, sp_himmel_g, sp_himmel_b
+		CameraFogColor sp_kamera, sp_himmel_r, sp_himmel_g, sp_himmel_b
+	EndIf
 	If nass = sp_nass Then Return
 	sp_nass = nass
 	If nass
-		CameraClsColor sp_kamera, 20, 45, 110
-		CameraFogColor sp_kamera, 20, 45, 110
 		CameraFogRange sp_kamera, 2, 24
 	Else
-		CameraClsColor sp_kamera, 150, 196, 255
-		CameraFogColor sp_kamera, 150, 196, 255
 		CameraFogRange sp_kamera, sp_nebel_fern * 0.6, sp_nebel_fern
 	EndIf
 End Function

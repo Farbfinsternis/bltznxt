@@ -90,7 +90,7 @@ Function Netz_Laden()
 
 	wasser_pinsel = CreateBrush()
 	BrushTexture wasser_pinsel, tx_bild(T_WASSER)
-	BrushFX wasser_pinsel, 1 + 2 + 16
+	BrushFX wasser_pinsel, 2 + 16
 	BrushAlpha wasser_pinsel, 0.72
 End Function
 

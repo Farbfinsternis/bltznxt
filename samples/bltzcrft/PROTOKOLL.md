@@ -277,6 +277,16 @@ Damit sie nicht noch einmal verdächtigt werden:
 - `If a And Not b` lehnt BLTZNXT ab (`(Not b)` verlangt) – das ist die Regel des
   Originals, kein Fehler.
 
+- **Tag und Nacht (2026-11-11):** ohne Fund. Die Blöcke laufen jetzt mit
+  `EntityFX 2` statt `1 + 2` (Vertexfarben, aber nicht voll hell); ohne
+  Lichtquelle ist ihre Farbe Vertexfarbe mal `AmbientLight`, genau wie im
+  Original – ein Befehl macht die ganze Welt hell oder dunkel. Kuppel, Sonne,
+  Mond und Sterne mit `EntityOrder` > 0, additives Blenden, Vertexalpha und
+  zur Laufzeit gesetzte Vertexfarben und Texturkoordinaten verhielten sich
+  alle wie erwartet. Punkt 8 meldet BLTZNXT inzwischen richtig: drei
+  Konstanten in himmel.bb (`HM_RAFFER` neben `Global hm_raffer`) ergaben
+  gleich `Duplicate variable name` mit Datei und Zeile.
+
 ## Umwege im Spielcode
 
 - Kollision des Spielers direkt gegen das Blockraster statt `Collisions`/`EntityType`: kein

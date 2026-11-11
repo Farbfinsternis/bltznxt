@@ -15,7 +15,10 @@
 ;             1 - 9 / Mausrad Platz der Schnellleiste waehlen
 ;             E Inventar (Linksklick nehmen/ablegen, Rechtsklick halber
 ;             Stapel/ein Stueck, Umschalt+Klick zwischen Leiste und Vorrat)
-;             F1 Hilfe  F3 Anzeige   T Chat (im Mehrspieler)
+;             F1 Hilfe  F3 Anzeige   F4 Zeitraffer   T Chat (im Mehrspieler)
+;
+; Ein Tag dauert 20 Minuten, mit Sonne, Mond, Sternen und ziehenden Wolken
+; (himmel.bb). Das Spiel beginnt um 7 Uhr; -zeit 21.5 beginnt um 21:30.
 ;
 ; Mehrspieler: im Titelbild M druecken. Das Programm sucht im LAN ein
 ; laufendes BLTZCRFT, tritt bei und bekommt dessen Welt - sonst hostet es
@@ -28,6 +31,9 @@
 ; Mit -rundflug fliegt das Programm 20 s von selbst geradeaus, misst die
 ; Bildzeiten, gibt sie aus (auch in rundflug.txt) und beendet sich
 ; (bltzcrft.exe 2026 -rundflug).
+; Mit -foto <gier> <neig> schaut das Programm ohne Titelbild in diese
+; Richtung, speichert nach 8 s foto_<uhrzeit>.bmp und beendet sich - zum
+; Pruefen des Himmels zusammen mit -zeit (bltzcrft.exe -zeit 18 -foto 90 10).
 ; Mit -test <s> prueft das Programm den Mehrspieler ohne Maus und Tastatur:
 ; wer beitritt, schickt nach 3 s eine Chatzeile und setzt einen Stein
 ; zwischen sich und den Host; kurz vor Schluss speichert jeder ein Bild
@@ -49,6 +55,7 @@ Include "spieler.bb"
 Include "laden.bb"
 Include "inventar.bb"
 Include "abbau.bb"
+Include "himmel.bb"
 Include "mehrspieler.bb"
 
 AppTitle "BLTZCRFT"
@@ -60,6 +67,7 @@ saat = 2026
 rundflug = False : mehr = False
 name$ = "Spieler" + Rand(10, 99)
 join$ = ""
+startzeit# = 7
 args$ = Trim(CommandLine())
 i = 1
 Repeat
@@ -71,6 +79,8 @@ Repeat
 	Case "-name" : i = i + 1 : name = Wort(args, i)
 	Case "-join" : i = i + 1 : join = Wort(args, i) : mehr = True
 	Case "-test" : i = i + 1 : test_s = Int(Wort(args, i)) : mehr = True
+	Case "-zeit" : i = i + 1 : startzeit = Float(Wort(args, i))
+	Case "-foto" : foto = True : foto_gier# = Float(Wort(args, i + 1)) : foto_neig# = Float(Wort(args, i + 2)) : i = i + 2
 	Default
 		If Left(arg, 1) <> "-" Then saat = Int(arg)
 	End Select
@@ -100,6 +110,7 @@ For r = 0 To 2000 Step 16
 Next
 
 Spieler_Neu(sx + 0.5, HOEHE, sz + 0.5)
+Himmel_Laden(startzeit)
 Spieler_Abstellen(sx, sz)
 
 anzeige = True
@@ -109,7 +120,8 @@ sprung_merken = False
 ; Titelbild stehen lassen, bis man klickt - der Klick faengt die Maus.
 ; Esc beendet schon hier.
 ende = False
-If Not (rundflug Or mehr)
+If foto Then sp_gier = foto_gier : sp_neig = foto_neig
+If Not (rundflug Or mehr Or foto)
 	FlushKeys : FlushMouse
 	Repeat
 		Laden_Bild("Klick: allein spielen - M: Mehrspieler im LAN - im Spiel zeigt F1 die Steuerung - Esc beendet", 1)
@@ -134,6 +146,8 @@ If mehr And (Not ende)
 			saat = mp_saat
 			Welt_Neu(saat)
 		EndIf
+		; dieselbe Tageszeit wie beim Host
+		If mp_zeit >= 0 Then hm_ms = mp_zeit : hm_tag = mp_tag
 		; vier Bloecke neben den Host stellen
 		Laden_Bild("Lade die Welt des Hosts ...", 1)
 		Spieler_Abstellen(Floor(mp_hx) + 4, Floor(mp_hz))
@@ -170,6 +184,16 @@ HideEntity rahmen
 While Not ende
 	If KeyHit(61) Then anzeige = Not anzeige
 	If KeyHit(59) Then hilfe = Not hilfe : hinweis_bis = 0
+	If KeyHit(62)
+		; Zeitraffer nur allein - sonst liefe die Zeit bei jedem anders
+		If mp_an
+			meldung = "Zeitraffer gibt es nur allein" : meldung_bis = MilliSecs() + 2000
+		Else
+			hm_raffer = Not hm_raffer
+			If hm_raffer Then meldung = "Zeitraffer: ein Tag in 20 Sekunden (F4 aus)" Else meldung = "Zeitraffer aus"
+			meldung_bis = MilliSecs() + 2000
+		EndIf
+	EndIf
 	If hilfe
 		; Esc schliesst erst die Hilfe (Blitz wertet beide Seiten von And aus -
 		; ein "hilfe And KeyHit(1)" verschluckte Esc auch ohne Hilfe)
@@ -271,6 +295,7 @@ While Not ende
 		rest = rest - TAKT
 	Wend
 	Spieler_Kamera(rest / TAKT)
+	Himmel_Takt(bild_dt)
 
 	; Abbauen und Setzen
 	If Blick_Strahl()
@@ -343,7 +368,7 @@ While Not ende
 	Color 255, 255, 255
 	If anzeige
 		Text 10, 10, "BLTZCRFT   Saat " + saat + "   " + fps + " fps   (F3 Anzeige, Tab Maus frei)"
-		Text 10, 28, "x " + Int(Floor(sp_x)) + "  y " + Int(Floor(sp_y)) + "  z " + Int(Floor(sp_z)) + "   Chunk " + (Int(Floor(sp_x)) Sar 4) + ", " + (Int(Floor(sp_z)) Sar 4)
+		Text 10, 28, "x " + Int(Floor(sp_x)) + "  y " + Int(Floor(sp_y)) + "  z " + Int(Floor(sp_z)) + "   Chunk " + (Int(Floor(sp_x)) Sar 4) + ", " + (Int(Floor(sp_z)) Sar 4) + "   Tag " + (hm_tag + 1) + ", " + Himmel_Uhr()
 		m$ = ""
 		If sp_fliegen Then m = m + "fliegen  "
 		If sp_wasser Then m = m + "schwimmen  "
@@ -379,6 +404,14 @@ While Not ende
 		Rect GraphicsWidth() / 2 - 1, GraphicsHeight() / 2 - 8, 3, 17
 	ElseIf Not rundflug
 		Text GraphicsWidth() / 2, GraphicsHeight() / 2, "Klick ins Fenster zum Spielen - Tab gibt die Maus frei, Esc beendet", True, True
+	EndIf
+	If foto
+		If foto_start = 0 Then foto_start = MilliSecs()
+		If MilliSecs() - foto_start > 8000
+			uhr$ = Replace(Himmel_Uhr(), ":", "")
+			SaveBuffer BackBuffer(), "foto_" + uhr + ".bmp"
+			ende = True
+		EndIf
 	EndIf
 	Flip
 Wend
@@ -429,7 +462,7 @@ Function Hilfe_Zeichnen()
 End Function
 
 .hilfe_daten
-Data 15
+Data 16
 Data "Maus", "umsehen"
 Data "W A S D / Pfeile", "laufen"
 Data "Leertaste", "springen, im Wasser schwimmen"
@@ -442,7 +475,8 @@ Data "E", "Inventar oeffnen/schliessen"
 Data "  im Inventar", "Links: Stapel nehmen/ablegen, Rechts: halber Stapel"
 Data "", "bzw. ein Stueck, Umschalt+Links: Leiste <-> Vorrat"
 Data "Tab", "Maus freigeben (Klick ins Fenster faengt sie wieder)"
-Data "F3", "Anzeige mit Position und Leistung"
+Data "F3", "Anzeige mit Position, Uhrzeit und Leistung"
+Data "F4", "Zeitraffer ein/aus (ein Tag in 20 Sekunden)"
 Data "T", "Chat im Mehrspieler (Enter schickt, Esc verwirft)"
 Data "Esc", "beenden"
 

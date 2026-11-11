@@ -76,8 +76,12 @@ Function Bloecke_Laden()
 		tx_bild(t) = Tex_Aus_Raster()
 		tx_pinsel(t) = CreateBrush()
 		BrushTexture tx_pinsel(t), tx_bild(t)
-		BrushFX tx_pinsel(t), 1 + 2         ; volle Helligkeit, Vertexfarben
+		; Vertexfarben ohne volle Helligkeit: es gibt keine Lichtquelle, also
+		; ist die Farbe Vertexfarbe mal Umgebungslicht - damit macht
+		; himmel.bb die ganze Welt mit einem Befehl hell oder dunkel.
+		BrushFX tx_pinsel(t), 2
 	Next
+	AmbientLight 255, 255, 255
 End Function
 
 ; Nur die Eigenschaften, ohne Texturen - braucht keine Grafik.

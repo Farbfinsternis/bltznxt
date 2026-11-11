@@ -13,6 +13,10 @@ hindurch, kann schwimmen und fliegen. Abgebaute Blöcke landen im Inventar
 (36 Plätze, Stapel bis 64) und lassen sich wieder setzen.
 Gespeichert wird noch nichts.
 
+Ein Tag dauert 20 Minuten: die Sonne zieht über den Himmel, abends färbt er
+sich rot und die Welt wird dunkel, nachts stehen Mond (mit Phasen) und
+Sterne am Himmel, und eine Wolkendecke zieht langsam nach Osten.
+
 Mehrspieler im LAN: Mitspieler laufen als Klötzchenfigur mit Namen durch
 dieselbe Welt, abgebaute und gesetzte Blöcke sehen alle, dazu ein Chat.
 Sonst wirkt niemand auf den anderen.
@@ -27,6 +31,9 @@ Im Ordner übersetzen und starten:
   bltzcrft.exe              (Saat 2026)
   bltzcrft.exe 1234         (eine andere Welt)
   bltzcrft.exe 2026 -rundflug   (20 s Flug von selbst, misst die Bildzeiten)
+  bltzcrft.exe -zeit 18.5   (beginnt um 18:30 statt um 7 Uhr)
+  bltzcrft.exe -zeit 18 -foto 90 10   (schaut nach Westen, speichert nach
+                            8 s foto_<uhrzeit>.bmp und beendet sich)
 
 Voraussetzungen: Windows 64 Bit, eine Grafikkarte mit OpenGL 3.3.
 
@@ -68,7 +75,8 @@ E                     Inventar öffnen/schließen; darin: Linksklick Stapel
                       nehmen/ablegen/tauschen, Rechtsklick halber Stapel
                       bzw. ein Stück, Umschalt+Klick zwischen Leiste und Vorrat
 F1                    Hilfe: alle Tasten im Spiel
-F3                    Anzeige ein/aus
+F3                    Anzeige ein/aus (mit Uhrzeit)
+F4                    Zeitraffer: ein Tag in 20 Sekunden (nur allein)
 T                     Chat im Mehrspieler (Enter schickt, Esc verwirft)
 Esc                  beenden (bei offenem Inventar oder Hilfe: schließen)
 
@@ -86,6 +94,7 @@ spieler.bb      Bewegung und Kollision gegen das Blockraster, Blickstrahl
 inventar.bb     Inventar: Stapel, Klicks, zur Laufzeit gemalte Blocksymbole
 abbau.bb        Abbauen über die Zeit, zur Laufzeit gemalte Risse
 mehrspieler.bb  Mehrspieler: Beitritt, Figuren, Blöcke, Chat (Net-Befehle)
+himmel.bb       Tag und Nacht: Himmelskuppel, Sonne, Mond, Sterne, Wolken
 
 daten/logo.png  das Logo für Titel- und Ladebild
 
