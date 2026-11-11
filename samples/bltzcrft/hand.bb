@@ -6,6 +6,9 @@
 ; beim Setzen einmal; beim Laufen wippt sie, beim Wechsel des Blocks taucht
 ; sie kurz ab.
 ;
+; Haelt man eine Fackel, leuchtet sie auch: unsichtbar steht eine Fackel am
+; Auge (Handlicht), deren Licht sich wie das einer gesetzten ausbreitet.
+;
 ; Arm und Block haben EntityOrder -1: sie werden zuletzt und ohne Z-Puffer
 ; gezeichnet und stecken so nie in einer Wand, vor der man steht. Weil beide
 ; Quader konvex sind und die Rueckseiten wegfallen, stimmt ihre Zeichnung
@@ -23,6 +26,10 @@ Global hd_block = -1            ; der gerade gezeigte Block, B_LUFT = Arm
 Global hd_schlag# = -1          ; 0..1 waehrend eines Schlags, sonst -1
 Global hd_wechsel#              ; 1 nach einem Wechsel, faellt auf 0
 Global hd_phase#, hd_wippen#
+Global hd_licht# = 1            ; Himmelslicht am Auge, so hell ist die Hand
+Global hd_fackel.Fackel = Null  ; das Licht der Fackel in der Hand
+Global hd_fackel_zeit           ; wann es zuletzt mitgewandert ist
+Const HD_FACKEL_MS = 120        ; hoechstens so oft (jedes Mal bauen Chunks neu)
 Dim hd_bloecke(B_ANZAHL - 1)    ; je Blockart ein Mesh, erst bei Bedarf gebaut
 
 Function Hand_Laden()
@@ -32,6 +39,8 @@ Function Hand_Laden()
 	PositionEntity hd_arm, 0.04, -0.06, -0.04
 	RotateEntity hd_arm, -12, 18, -8
 	EntityOrder hd_arm, -1
+	Licht_Merken(hd_arm, hd_arm)
+	HideEntity hd_arm               ; Hand_Takt zeigt Arm oder Block
 End Function
 
 Function Hand_Zeigen(an)
@@ -49,7 +58,7 @@ End Function
 ; die Seiten unterschiedlich hell wie in der Welt.
 Function Hand_Block(b)
 	If hd_bloecke(b) Then Return hd_bloecke(b)
-	If bl_pflanze(b) Then Return Hand_Pflanze(b)
+	If bl_pflanze(b) Or bl_fackel(b) Then Return Hand_Pflanze(b)
 	m = CreateMesh(hd_halter)
 	Restore hd_wuerfel
 	For f = 0 To 5
@@ -59,6 +68,7 @@ Function Hand_Block(b)
 			Read x#, y#, z#, u#, v#
 			i = AddVertex(s, x * 0.5, y * 0.5, z * 0.5, u, v)
 			VertexColor s, i, 255 * hell, 255 * hell, 255 * hell
+			VertexTexCoords s, i, 0, 0.5, 0, 1  ; kein Fackellicht (Lichtrampe links)
 		Next
 		AddTriangle s, 0, 1, 2
 		AddTriangle s, 0, 2, 3
@@ -69,6 +79,7 @@ Function Hand_Block(b)
 	EntityOrder m, -1
 	HideEntity m
 	hd_bloecke(b) = m
+	Licht_Merken(m, m)
 	Return m
 End Function
 
@@ -83,6 +94,7 @@ Function Hand_Pflanze(b)
 	AddVertex s, -0.5, -0.5, 0, 0, 1
 	For i = 0 To 3
 		VertexColor s, i, 255, 255, 255
+		VertexTexCoords s, i, 0, 0.5, 0, 1  ; kein Fackellicht (Lichtrampe links)
 	Next
 	AddTriangle s, 0, 1, 2
 	AddTriangle s, 0, 2, 3
@@ -92,6 +104,7 @@ Function Hand_Pflanze(b)
 	EntityOrder m, -1
 	HideEntity m
 	hd_bloecke(b) = m
+	Licht_Merken(m, m)
 	Return m
 End Function
 
@@ -105,7 +118,46 @@ Data 1, 0.8,   1, 1, 1, 0, 0,   -1, 1, 1, 1, 0,   -1, -1, 1, 1, 1,   1, -1, 1, 0
 Data 1, 0.65,  -1, 1, 1, 0, 0,   -1, 1, -1, 1, 0,   -1, -1, -1, 1, 1,   -1, -1, 1, 0, 1
 Data 1, 0.65,  1, 1, -1, 0, 0,   1, 1, 1, 1, 0,   1, -1, 1, 1, 1,   1, -1, -1, 0, 1
 
+; Das Licht der Fackel in der Hand: an der Zelle des Auges, wandert mit,
+; sobald das Auge in eine andere Zelle kommt (hoechstens alle
+; HD_FACKEL_MS). Alter und neuer Lichtbereich bauen neu.
+Function Handlicht(an, x#, y#, z#)
+	bx = Floor(x) : by = Floor(y) : bz = Floor(z)
+	If an
+		If hd_fackel = Null
+			hd_fackel = New Fackel
+			hd_fackel\hand = True
+			hd_fackel\licht = CreateBank(FK_VOLUMEN)
+			hd_fackel\x = bx : hd_fackel\y = -1000 : hd_fackel\z = bz
+			hd_fackel_zeit = 0
+		EndIf
+		If (bx <> hd_fackel\x Or by <> hd_fackel\y Or bz <> hd_fackel\z) And MilliSecs() - hd_fackel_zeit >= HD_FACKEL_MS
+			hd_fackel_zeit = MilliSecs()
+			Fackel_Chunks_Veralten(hd_fackel\x, hd_fackel\z)
+			hd_fackel\x = bx : hd_fackel\y = by : hd_fackel\z = bz
+			Fackel_Leuchten(hd_fackel)
+			Fackel_Chunks_Veralten(bx, bz)
+		EndIf
+	ElseIf hd_fackel <> Null
+		Fackel_Chunks_Veralten(hd_fackel\x, hd_fackel\z)
+		FreeBank hd_fackel\licht
+		Delete hd_fackel
+		hd_fackel = Null
+	EndIf
+End Function
+
 Function Hand_Takt(dt#)
+	; Fackel in der Hand: leuchtet nur, wo es dunkel genug ist, dass man es
+	; sieht - am hellen Tag im Freien spart das den Neubau. Zwei Schwellen,
+	; damit es an der Grenze nicht flackert. Auch mit versteckter Hand
+	; (Rundflug), damit die Messung den Neubau enthaelt.
+	kx# = EntityX(sp_kamera) : ky# = EntityY(sp_kamera) : kz# = EntityZ(sp_kamera)
+	an = False
+	If Inventar_Gewaehlt() = B_FACKEL
+		hell# = Himmel_Bei(kx, ky, kz) * nz_umgebung
+		If hell < 0.55 Or (hd_fackel <> Null And hell < 0.65) Then an = True
+	EndIf
+	Handlicht(an, kx, ky, kz)
 	If Not hd_zeigen Then Return
 
 	; was gerade gewaehlt ist
@@ -120,6 +172,14 @@ Function Hand_Takt(dt#)
 		EndIf
 		If hd_block >= 0 Then hd_wechsel = 1
 		hd_block = b
+		hd_licht = -1               ; die neue Hand gleich abdunkeln
+	EndIf
+
+	; in einer Hoehle ist auch die Hand dunkel
+	l# = Licht_Bei(kx, ky, kz)
+	If Abs(l - hd_licht) > 0.01
+		hd_licht = l
+		If hd_block = B_LUFT Then Licht_Setzen(hd_arm, l) Else Licht_Setzen(hd_bloecke(hd_block), l)
 	EndIf
 	hd_wechsel = hd_wechsel - dt * 4
 	If hd_wechsel < 0 Then hd_wechsel = 0

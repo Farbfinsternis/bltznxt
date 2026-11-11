@@ -309,6 +309,16 @@ Damit sie nicht noch einmal verdächtigt werden:
   `werkzeug/schnitt.bb`, 216 Chunks in gut 200 ms); der Rundflug hält 60
   Bilder je Sekunde, das längste Bild 23 ms.
 
+- **Fackeln, Licht aus einer zweiten Texturlage (2026-11-11):** ohne Fund.
+  Die Blöcke tragen wie eine Lichtkarte im Original zwei Lagen: eine
+  Lichtrampe mit `TextureBlend 3` auf Koordinatensatz 1 (`TextureCoords`),
+  dahinter die Blocktextur – (Vertexfarbe × Umgebungslicht + Fackellicht) ×
+  Textur, alles wie erwartet. Bei Pflanzen schneidet nur die erste Lage aus
+  (wie im Original), dort liegt darum eine weiße Maske vorn. Eine Falle im
+  eigenen Code: `AddVertex` belegt beide Koordinatensätze mit u, v (wie das
+  Original) – solange der zweite nicht ausdrücklich gesetzt war, lief die
+  Lichtrampe quer über jede Fläche und hellte Höhlendecken auf.
+
 ## Umwege im Spielcode
 
 - Kollision des Spielers direkt gegen das Blockraster statt `Collisions`/`EntityType`: kein

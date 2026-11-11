@@ -15,8 +15,19 @@ Unter dem Meeresspiegel (Höhe 112) liegen über 100 Blöcke Gestein voller
 Höhlen, wie in Minecraft aus 3D-Rauschen: winzige Kriechgänge, Gänge von
 eng bis breit, die an der Oberfläche als Eingänge enden, Käsehöhlen und in
 manchen Gegenden riesige Gewölbe, Hunderte Blöcke weit und Dutzende hoch,
-die sich über Kilometer ziehen. Tief in einer Höhle verliert sich die Ferne
-im Dunkeln. Man läuft in der Ego-Sicht
+die sich über Kilometer ziehen. Höhlen sind dunkel wie in Minecraft ohne
+Fackel - schon gut zehn Blöcke unter dem Gestein ahnt man nur noch Umrisse,
+hell ist es nur, wo durch eine Öffnung Licht von oben fällt. Auch die Hand,
+Bruchstücke und Mitspieler werden dort dunkel.
+
+Dagegen helfen Fackeln: 64 Stück liegen zum Start in der Schnellleiste (bis
+es eine Werkbank gibt). Mit der rechten Maustaste steht eine Fackel aufrecht
+auf dem Boden oder schräg an einer Wand, nie an der Decke. Ihr Licht breitet
+sich wie in Minecraft aus - um Ecken herum, nicht durch Gestein, nach etwa
+zehn Blöcken ist es verglüht - und scheint nachts so hell wie am Tag. Baut
+man den Block ab, an dem sie hängt, fällt sie herunter ins Inventar. Auch
+in der Hand leuchtet eine Fackel und wandert mit - im Dunkeln, am hellen Tag
+im Freien spart sie sich das. Man läuft in der Ego-Sicht
 hindurch, kann schwimmen und fliegen. Abgebaute Blöcke landen im Inventar
 (36 Plätze, Stapel bis 64) und lassen sich wieder setzen.
 
@@ -53,6 +64,9 @@ Im Ordner übersetzen und starten:
   bltzcrft.exe -zeit 18 -foto 90 10   (schaut nach Westen, speichert nach
                             8 s foto_<uhrzeit>.bmp und beendet sich)
   bltzcrft.exe -foto 0 50 -abbau   (baut dazu ab 4 s selbst ab)
+  bltzcrft.exe -pos -2900 60 1500  (beginnt an dieser Stelle, hier in einem
+                            großen Gewölbe; mit -foto ... -fackeln stellt es
+                            ringsum Fackeln auf)
 
 Voraussetzungen: Windows 64 Bit, eine Grafikkarte mit OpenGL 3.3.
 
@@ -89,7 +103,8 @@ F                     fliegen ein/aus (Leertaste hoch, Umschalt runter)
 linke Maustaste       halten: Block abbauen (Risse zeigen den Fortschritt,
                       Erde 0,75 s, Holz 3 s, Stein 7,5 s ohne Ertrag,
                       Grundgestein bricht nie)
-rechte Maustaste      Block aus der Schnellleiste setzen
+rechte Maustaste      Block aus der Schnellleiste setzen, Fackeln an Boden
+                      oder Wand
 1 - 9 / Mausrad       Platz der Schnellleiste wählen
 E                     Inventar öffnen/schließen; darin: Linksklick Stapel
                       nehmen/ablegen/tauschen, Rechtsklick halber Stapel

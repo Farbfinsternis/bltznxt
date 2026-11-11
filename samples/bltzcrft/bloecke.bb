@@ -6,7 +6,16 @@
 ; Dazu wie in Minecraft die Haerte und ob die blosse Hand genuegt (abbau.bb).
 ; Pflanzen (Gras, Blumen, Schilf) sind weder deckend noch fest; sie stehen
 ; als zwei gekreuzte Flaechen in ihrer Zelle (netz.bb), ihre Texturen haben
-; durchsichtige Stellen (Maske).
+; durchsichtige Stellen (Maske). Fackeln ebenso, am Boden aufrecht oder
+; schraeg an einer Wand; sie leuchten (welt.bb, netz.bb).
+;
+; Jede Blocktextur liegt im Pinsel hinter einer zweiten Lage, der Lichtrampe:
+; einem waagerechten Verlauf von Schwarz zu warmem Weiss, additiv
+; (TextureBlend 3) und ueber den zweiten Satz Texturkoordinaten. Die
+; Vertexfarbe traegt das Himmelslicht, das die Tageszeit ueber das
+; Umgebungslicht dimmt; die zweite Koordinate sagt, wie viel Fackellicht
+; dazukommt - unabhaengig von der Tageszeit. Erst die Summe wird mit der
+; Blocktextur multipliziert, wie bei einer Lichtkarte im Original.
 ;
 ; Die Texturen malt das Programm selbst: 16 x 16 Bildpunkte Pixelkunst,
 ; achtfach vergroessert, damit die lineare Filterung die Kanten kaum
@@ -33,7 +42,12 @@ Const B_LOEWENZAHN = 16
 Const B_MOHN = 17
 Const B_KORNBLUME = 18
 Const B_SCHILF = 19
-Const B_ANZAHL = 20
+Const B_FACKEL = 20             ; am Boden
+Const B_FACKEL_XP = 21          ; an der Wand: die Wand liegt bei +x
+Const B_FACKEL_XM = 22          ; ... bei -x
+Const B_FACKEL_ZP = 23          ; ... bei +z
+Const B_FACKEL_ZM = 24          ; ... bei -z
+Const B_ANZAHL = 25
 
 Const T_STEIN = 0
 Const T_ERDE = 1
@@ -57,7 +71,8 @@ Const T_LOEWENZAHN = 18
 Const T_MOHN = 19
 Const T_KORNBLUME = 20
 Const T_SCHILF = 21
-Const T_ANZAHL = 22
+Const T_FACKEL = 22
+Const T_ANZAHL = 23
 Const T_ERSTE_PFLANZE = 17      ; ab hier Pflanzentexturen (mit Maske)
 
 Const TEX_ZOOM = 8          ; Bildpunkte je Texel
@@ -69,6 +84,11 @@ Dim bl_name$(B_ANZAHL - 1)
 Dim bl_haerte#(B_ANZAHL - 1)    ; Haerte wie in Minecraft, 0 = sofort, -1 = nie
 Dim bl_hand(B_ANZAHL - 1)       ; mit blosser Hand abbaubar (sonst kein Ertrag)
 Dim bl_pflanze(B_ANZAHL - 1)    ; Kreuz aus zwei Flaechen statt Wuerfel
+Dim bl_fackel(B_ANZAHL - 1)     ; 0 keine, 1 am Boden, 2 an einer Wand
+Dim fk_wx(B_ANZAHL - 1)         ; Richtung zur Wand einer Wandfackel
+Dim fk_wz(B_ANZAHL - 1)
+
+Global licht_tex                ; die Lichtrampe (zweite Texturlage)
 
 Dim tx_pinsel(T_ANZAHL - 1)     ; ein Brush je Textur
 Dim tx_bild(T_ANZAHL - 1)
@@ -83,6 +103,23 @@ Function Block_Art(nr, name$, oben, seite, unten, deckend, fest, haerte#, hand)
 	bl_haerte(nr) = haerte
 	bl_hand(nr) = hand
 	bl_pflanze(nr) = False
+	bl_fackel(nr) = 0
+End Function
+
+; Fackel: leuchtet, bricht sofort, haengt am Boden (art 1) oder an der Wand
+; in Richtung wx, wz (art 2).
+Function Fackel_Art(nr, name$, art, wx, wz)
+	Block_Art(nr, name, T_FACKEL, T_FACKEL, T_FACKEL, False, False, 0, True)
+	bl_fackel(nr) = art
+	fk_wx(nr) = wx : fk_wz(nr) = wz
+End Function
+
+; Die Wandfackel, deren Wand in Richtung wx, wz liegt.
+Function Fackel_An_Wand(wx, wz)
+	For b = B_FACKEL_XP To B_FACKEL_ZM
+		If fk_wx(b) = wx And fk_wz(b) = wz Then Return b
+	Next
+	Return B_FACKEL
 End Function
 
 ; Pflanze: eine Textur, nicht deckend, nicht fest, bricht sofort.
@@ -96,17 +133,33 @@ Function Bloecke_Laden()
 
 	; Die Texturen haengen nicht an der Saat der Welt.
 	SeedRnd 4711
+	licht_tex = Licht_Rampe()
 	For t = 0 To T_ANZAHL - 1
 		Tex_Malen(t)
 		pflanze = (t >= T_ERSTE_PFLANZE)
 		tx_bild(t) = Tex_Aus_Raster(pflanze)
 		tx_pinsel(t) = CreateBrush()
-		BrushTexture tx_pinsel(t), tx_bild(t)
 		; Vertexfarben ohne volle Helligkeit: es gibt keine Lichtquelle, also
 		; ist die Farbe Vertexfarbe mal Umgebungslicht - damit macht
 		; himmel.bb die ganze Welt mit einem Befehl hell oder dunkel.
-		; Pflanzen sieht man von beiden Seiten.
-		If pflanze Then BrushFX tx_pinsel(t), 2 + 16 Else BrushFX tx_pinsel(t), 2
+		If t = T_FACKEL
+			; die Fackel leuchtet selbst: volle Helligkeit, beide Seiten
+			BrushTexture tx_pinsel(t), tx_bild(t)
+			BrushFX tx_pinsel(t), 1 + 16
+		ElseIf pflanze
+			; Pflanzen von beiden Seiten. Ausgeschnitten wird nur nach der
+			; ersten Lage (wie im Original) - dort liegt darum eine weisse
+			; Maske mit dem Alpha der Pflanze, die die Farbe nicht aendert.
+			; Danach wie bei den Bloecken: Fackellicht dazu, mal Textur.
+			BrushTexture tx_pinsel(t), Tex_Maske(tx_bild(t)), 0, 0
+			BrushTexture tx_pinsel(t), licht_tex, 0, 1
+			BrushTexture tx_pinsel(t), tx_bild(t), 0, 2
+			BrushFX tx_pinsel(t), 2 + 16
+		Else
+			BrushTexture tx_pinsel(t), licht_tex, 0, 0
+			BrushTexture tx_pinsel(t), tx_bild(t), 0, 1
+			BrushFX tx_pinsel(t), 2
+		EndIf
 	Next
 	AmbientLight 255, 255, 255
 End Function
@@ -138,6 +191,11 @@ Function Bloecke_Arten()
 	Pflanzen_Art(B_MOHN, "Mohn", T_MOHN)
 	Pflanzen_Art(B_KORNBLUME, "Kornblume", T_KORNBLUME)
 	Pflanzen_Art(B_SCHILF, "Schilf", T_SCHILF)
+	Fackel_Art(B_FACKEL, "Fackel", 1, 0, 0)
+	Fackel_Art(B_FACKEL_XP, "Fackel", 2, 1, 0)
+	Fackel_Art(B_FACKEL_XM, "Fackel", 2, -1, 0)
+	Fackel_Art(B_FACKEL_ZP, "Fackel", 2, 0, 1)
+	Fackel_Art(B_FACKEL_ZM, "Fackel", 2, 0, -1)
 End Function
 
 ; Kann Pflanze p auf Block unten stehen? Blumen und Gras wachsen auf Gras
@@ -303,6 +361,17 @@ Function Tex_Malen(t)
 		Tx_Blume(196, 34, 30, 3, 40, 24, 20)
 	Case T_KORNBLUME
 		Tx_Blume(70, 100, 220, 3, 230, 230, 240)
+	Case T_FACKEL
+		; ein Stab aus Holz, oben die Flamme
+		Tx_Leer()
+		For y = 6 To 15
+			Tx_Punkt(7, y, 122, 88, 52, 6) : Tx_Punkt(8, y, 100, 70, 40, 6)
+		Next
+		Tx_Punkt(7, 5, 255, 246, 190, 0) : Tx_Punkt(8, 5, 255, 226, 130, 0)
+		Tx_Punkt(7, 4, 255, 210, 90, 0) : Tx_Punkt(8, 4, 255, 236, 150, 0)
+		Tx_Punkt(7, 3, 255, 160, 40, 0) : Tx_Punkt(8, 3, 250, 130, 30, 0)
+		Tx_Punkt(6, 5, 236, 120, 30, 0) : Tx_Punkt(9, 5, 236, 120, 30, 0)
+		Tx_Punkt(7, 2, 230, 100, 20, 0)
 	Case T_SCHILF
 		; drei Rohre mit dunkleren Knoten, oben und unten offen - uebereinander
 		; gestapelt laufen sie durch
@@ -322,6 +391,40 @@ Function Tex_Malen(t)
 			Tx_Punkt(x + 2, y, 120, 176, 80, 8) : Tx_Punkt(x + 3, y - 1, 120, 176, 80, 8)
 		Next
 	End Select
+End Function
+
+; Die Lichtrampe: links Schwarz, rechts das warme Licht einer Fackel. Die
+; zweite Texturkoordinate eines Vertex waehlt die Stelle (netz.bb).
+Function Licht_Rampe()
+	tex = CreateTexture(256, 4, 1 + 16 + 32)
+	TextureBlend tex, 3
+	TextureCoords tex, 1
+	puffer = TextureBuffer(tex)
+	LockBuffer puffer
+	For x = 0 To 255
+		For y = 0 To 3
+			WritePixelFast x, y, Rgb(x, x * 0.86, x * 0.64), puffer
+		Next
+	Next
+	UnlockBuffer puffer
+	Return tex
+End Function
+
+; Weisse Kopie einer maskierten Textur: Alpha bleibt, Farbe wird Weiss.
+Function Tex_Maske(quelle)
+	g = TextureWidth(quelle)
+	tex = CreateTexture(g, g, 1 + 4 + 8)
+	LockBuffer TextureBuffer(quelle)
+	LockBuffer TextureBuffer(tex)
+	For y = 0 To g - 1
+		For x = 0 To g - 1
+			c = ReadPixelFast(x, y, TextureBuffer(quelle))
+			WritePixelFast x, y, (c And $FF000000) Or $FFFFFF, TextureBuffer(tex)
+		Next
+	Next
+	UnlockBuffer TextureBuffer(tex)
+	UnlockBuffer TextureBuffer(quelle)
+	Return tex
 End Function
 
 ; Alles durchsichtig (Alpha 0) - Grund fuer Pflanzen.

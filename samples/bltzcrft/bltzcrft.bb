@@ -13,7 +13,8 @@
 ;             Umschalt runter)
 ;             linke Maustaste halten: abbauen (wie in Minecraft mit der
 ;             Hand: Erde und Holz geben einen Block, Stein und Erze nichts)
-;             rechte Maustaste Block setzen
+;             rechte Maustaste Block setzen (Fackeln an Boden oder Wand,
+;             64 Stueck zum Start)
 ;             1 - 9 / Mausrad Platz der Schnellleiste waehlen
 ;             E Inventar (Linksklick nehmen/ablegen, Rechtsklick halber
 ;             Stapel/ein Stueck, Umschalt+Klick zwischen Leiste und Vorrat)
@@ -36,6 +37,9 @@
 ; Mit -foto <gier> <neig> schaut das Programm ohne Titelbild in diese
 ; Richtung, speichert nach 8 s foto_<uhrzeit>.bmp und beendet sich - zum
 ; Pruefen des Himmels zusammen mit -zeit (bltzcrft.exe -zeit 18 -foto 90 10).
+; Mit -fackeln stellt es dazu ringsum Fackeln auf, sobald man steht.
+; Mit -pos x y z beginnt das Spiel an dieser Stelle statt am Strand - etwa
+; in einem Gewoelbe (bltzcrft.exe -pos -2900 60 1500).
 ; Mit -abbau dazu haelt es ab 4 s die linke Maustaste und speichert schon
 ; bei 4,5 s ein Bild (foto_<uhrzeit>_a.bmp) - Hand, Risse, Bruchstuecke.
 ; Mit -test <s> prueft das Programm den Mehrspieler ohne Maus und Tastatur:
@@ -87,6 +91,10 @@ Repeat
 	Case "-test" : i = i + 1 : test_s = Int(Wort(args, i)) : mehr = True
 	Case "-zeit" : i = i + 1 : startzeit = Float(Wort(args, i))
 	Case "-abbau" : foto_abbau = True
+	Case "-fackeln" : foto_fackeln = True
+	Case "-pos"
+		pos_x# = Float(Wort(args, i + 1)) : pos_y# = Float(Wort(args, i + 2)) : pos_z# = Float(Wort(args, i + 3))
+		pos_da = True : i = i + 3
 	Case "-foto" : foto = True : foto_gier# = Float(Wort(args, i + 1)) : foto_neig# = Float(Wort(args, i + 2)) : i = i + 2
 	Default
 		If Left(arg, 1) <> "-" Then saat = Int(arg)
@@ -97,6 +105,8 @@ Forever
 Bloecke_Laden()
 Inventar_Symbole()
 Inventar_Leeren()
+; Fackeln zum Start - bis es eine Werkbank gibt
+Inventar_Hinzu(B_FACKEL, 64)
 Abbau_Laden()
 Netz_Laden()
 Welt_Saat(saat)
@@ -122,6 +132,10 @@ Partikel_Laden()
 Hand_Laden()
 If rundflug Then Hand_Zeigen(False)
 Spieler_Abstellen(sx, sz)
+If pos_da
+	Laden_Umgebung(Floor(pos_x), Floor(pos_z), 3)
+	Spieler_Setzen(pos_x, pos_y, pos_z)
+EndIf
 
 anzeige = True
 gefangen = False
@@ -330,7 +344,26 @@ While Not ende
 					; hohes Gras macht Platz, wie in Minecraft
 					ort_x = ziel_vx : ort_y = ziel_vy : ort_z = ziel_vz
 					If Welt_Block(ziel_x, ziel_y, ziel_z) = B_HOHESGRAS Then ort_x = ziel_x : ort_y = ziel_y : ort_z = ziel_z
-					If bl_pflanze(b)
+					If b = B_FACKEL
+						; am Boden aufrecht, an einer Wand schraeg, nie an der Decke -
+						; und nur an einem festen Block
+						If ort_x = ziel_x And ort_y = ziel_y And ort_z = ziel_z
+							ny = 1                  ; anstelle von hohem Gras
+							halt = bl_fest(Welt_Block(ort_x, ort_y - 1, ort_z))
+						Else
+							nx = ziel_vx - ziel_x : ny = ziel_vy - ziel_y : nz = ziel_vz - ziel_z
+							halt = bl_fest(Welt_Block(ziel_x, ziel_y, ziel_z))
+						EndIf
+						frei = Welt_Block(ort_x, ort_y, ort_z)
+						If ny < 0
+							meldung = "An der Decke haelt keine Fackel" : meldung_bis = MilliSecs() + 2000
+							ort_y = -1
+						ElseIf (Not halt) Or (frei <> B_LUFT And frei <> B_HOHESGRAS)
+							ort_y = -1
+						ElseIf ny = 0
+							b = Fackel_An_Wand(-nx, -nz)
+						EndIf
+					ElseIf bl_pflanze(b)
 						If Not Pflanze_Haelt(b, Welt_Block(ort_x, ort_y - 1, ort_z))
 							If b = B_SCHILF Then meldung = "Schilf waechst nur auf Gras, Erde, Sand oder Schilf" Else meldung = bl_name(b) + " waechst nur auf Gras oder Erde"
 							meldung_bis = MilliSecs() + 2500
@@ -428,6 +461,21 @@ While Not ende
 	EndIf
 	If foto
 		If foto_start = 0 Then foto_start = MilliSecs()
+		If foto_fackeln And (Not foto_fackeln_da) And MilliSecs() - foto_start > 500 And sp_boden
+			; ringsum auf den Boden, alle fuenf Bloecke
+			foto_fackeln_da = True
+			For fz = -10 To 10 Step 5
+				For fx = -10 To 10 Step 5
+					tx = Floor(sp_x) + fx : tz = Floor(sp_z) + fz
+					For ty = Floor(sp_y) + 6 To Floor(sp_y) - 12 Step -1
+						If Welt_Block(tx, ty, tz) = B_LUFT And bl_fest(Welt_Block(tx, ty - 1, tz))
+							Welt_Aendern(tx, ty, tz, B_FACKEL)
+							Exit
+						EndIf
+					Next
+				Next
+			Next
+		EndIf
 		If foto_abbau And (Not foto_a) And MilliSecs() - foto_start > 4500
 			foto_a = True
 			SaveBuffer BackBuffer(), "foto_" + Replace(Himmel_Uhr(), ":", "") + "_a.bmp"
@@ -494,7 +542,7 @@ Data "Leertaste", "springen, im Wasser schwimmen"
 Data "Strg", "rennen"
 Data "F", "fliegen ein/aus (Leertaste hoch, Umschalt runter)"
 Data "Linke Maustaste", "halten: abbauen (Stein, Erze: ohne Ertrag)"
-Data "Rechte Maustaste", "Block aus der Schnellleiste setzen"
+Data "Rechte Maustaste", "setzen - Fackeln an Boden oder Wand"
 Data "1 - 9 / Mausrad", "Platz der Schnellleiste waehlen"
 Data "E", "Inventar oeffnen/schliessen"
 Data "  im Inventar", "Links: Stapel nehmen/ablegen, Rechts: halber Stapel"
@@ -517,20 +565,25 @@ Function Spieler_Abstellen(x, z)
 End Function
 
 ; Den Block bei x,y,z abbauen: Bruchstuecke, Ertrag ins Inventar, an alle
-; schicken. Pflanzen darauf verlieren ihren Halt und brechen mit - auch ein
-; ganzer Schilfhalm, wenn man ihn unten abbaut.
+; schicken. Was an ihm hing, bricht mit.
 Function Block_Abbauen(x, y, z)
-	Repeat
-		b = Welt_Block(x, y, z)
-		If Not Welt_Aendern(x, y, z, B_LUFT) Then Return
-		Mp_Block(x, y, z, B_LUFT)
-		Partikel_Bruch(x, y, z, b)
-		; ist das Inventar voll, geht der Block verloren
-		If Inventar_Hinzu(Block_Ertrag(b), 1) > 0
-			meldung = "Inventar voll" : meldung_bis = MilliSecs() + 1500
-		EndIf
-		y = y + 1
-	Until Not bl_pflanze(Welt_Block(x, y, z))
+	b = Welt_Block(x, y, z)
+	If Not Welt_Aendern(x, y, z, B_LUFT) Then Return
+	Mp_Block(x, y, z, B_LUFT)
+	Partikel_Bruch(x, y, z, b)
+	; ist das Inventar voll, geht der Block verloren
+	If Inventar_Hinzu(Block_Ertrag(b), 1) > 0
+		meldung = "Inventar voll" : meldung_bis = MilliSecs() + 1500
+	EndIf
+	; was an diesem Block hing, verliert den Halt: Wandfackeln daneben,
+	; Pflanzen und Fackeln darauf (ein Schilfhalm bricht so ganz)
+	For k = 0 To 3
+		dx = (k = 0) - (k = 1) : dz = (k = 2) - (k = 3)
+		n = Welt_Block(x + dx, y, z + dz)
+		If bl_fackel(n) = 2 And fk_wx(n) = -dx And fk_wz(n) = -dz Then Block_Abbauen(x + dx, y, z + dz)
+	Next
+	n = Welt_Block(x, y + 1, z)
+	If bl_pflanze(n) Or bl_fackel(n) = 1 Then Block_Abbauen(x, y + 1, z)
 End Function
 
 ; Maus fangen: Zeiger weg und in die Mitte, aufgelaufene Bewegung und Klicks

@@ -3,7 +3,7 @@
 ; Die Chunks werden erzeugt und dann von Hand ueberschrieben: ein Boden aus
 ; Stein (oberster Block y = 9), eine Wand bei x = 12, eine einen Block hohe
 ; Stufe (x 2..5, z 6..9) und ein Becken mit Wasser (x -10..-6, z -10..-6,
-; Wasser y 6..9). Gesteuert wird mit kuenstlicher Eingabe, 60 Takte je
+; Wasser y 6..9). Am Ende das Licht einer Fackel. Gesteuert wird mit kuenstlicher Eingabe, 60 Takte je
 ; Sekunde. Gemeldet werden die Fuesse in Zentimetern.
 
 Const SICHT = 2
@@ -108,4 +108,15 @@ sp_neig = 0 : sp_gier = -90
 Spieler_Setzen(9.5, 10, 0.5)
 Spieler_Kamera(1)
 Print "8 wand:    treffer " + Blick_Strahl() + " block " + ziel_x + "," + ziel_y + "," + ziel_z + " davor " + ziel_vx + "," + ziel_vy + "," + ziel_vz
+
+; Fackellicht (welt.bb): Stufe 14 an der Fackel, je Schritt eine weniger,
+; um die Wand bei x = 12 herum (vier hoch, ueber sie hinweg), ein neuer Block
+; lenkt es um, ohne Fackel kein Licht.
+Welt_Aendern(10, 10, 0, B_FACKEL)
+s$ = "9 fackel:  an ihr " + Fackel_Stufe(10, 10, 0) + ", 3 weiter " + Fackel_Stufe(10, 10, 3) + ", hinter der wand " + Fackel_Stufe(13, 10, 0) + ", im boden " + Fackel_Stufe(10, 9, 0)
+s = s + ", vor dem block " + Fackel_Stufe(10, 10, 2)
+Welt_Aendern(10, 10, 1, B_STEIN)
+Print s + ", dahinter " + Fackel_Stufe(10, 10, 2)
+Welt_Aendern(10, 10, 0, B_LUFT)
+Print "9 weg:     " + Fackel_Stufe(10, 10, 2) + " fackeln " + (First Fackel <> Null)
 End

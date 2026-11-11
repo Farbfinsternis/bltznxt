@@ -42,6 +42,7 @@ End Function
 ; Gras und Schnee verlieren ihre Decke, Laub zerfaellt ohne Schere, und wo
 ; die Hand nicht genuegt (Stein, Erze, Sandstein), bleibt nichts.
 Function Block_Ertrag(b)
+	If bl_fackel(b) Then Return B_FACKEL
 	If Not bl_hand(b) Then Return B_LUFT
 	Select b
 	Case B_GRAS, B_SCHNEE : Return B_ERDE
@@ -55,6 +56,7 @@ End Function
 Function Block_Haltbar(b)
 	Select b
 	Case B_LUFT, B_WASSER, B_GRUND, B_GRAS, B_SCHNEE, B_HOHESGRAS : Return False
+	Case B_FACKEL_XP, B_FACKEL_XM, B_FACKEL_ZP, B_FACKEL_ZM : Return False
 	End Select
 	Return True
 End Function
@@ -179,7 +181,7 @@ End Function
 ; die Seiten, unterschiedlich hell wie im Sonnenlicht. Fuer jeden Bildpunkt
 ; wird zurueckgerechnet, auf welcher Seite und welchem Texel er liegt.
 Function Symbol_Malen(b)
-	If bl_pflanze(b) Then Return Symbol_Flach(b)
+	If bl_pflanze(b) Or bl_fackel(b) Then Return Symbol_Flach(b)
 	n = SYMBOL_GROESSE
 	h# = n / 2.0 : q# = n / 4.0
 	img = CreateImage(n, n)

@@ -263,7 +263,7 @@ Function Blick_Strahl()
 	t# = 0
 	While t <= SP_REICHWEITE
 		b = Welt_Block(x, y, z)
-		If bl_fest(b) Or bl_pflanze(b)
+		If bl_fest(b) Or bl_pflanze(b) Or bl_fackel(b)
 			ziel_treffer = True
 			ziel_x = x : ziel_y = y : ziel_z = z
 			ziel_vx = vx : ziel_vy = vy : ziel_vz = vz

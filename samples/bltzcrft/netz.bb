@@ -9,9 +9,12 @@
 ;   - je Richtung eine feste Helligkeit (oben hell, unten dunkel),
 ;   - Umgebungsschatten an jeder Ecke aus den drei Nachbarzellen davor,
 ;   - Himmelslicht: liegt ueber der Zelle vor der Flaeche ein deckender
-;     Block, wird es dunkler, je tiefer sie darunter liegt - Hoehlen und
-;     der Boden unter Baeumen. Gemittelt ueber die vier Zellen an der Ecke,
-;     damit Schattenkanten weich auslaufen.
+;     Block, wird es dunkler, je tiefer sie darunter liegt - unter Baeumen
+;     etwas, gut zehn Bloecke unter Gestein fast schwarz: Hoehlen sind
+;     dunkel wie in Minecraft ohne Fackel (Licht_Tiefe). Gemittelt ueber
+;     die vier Zellen an der Ecke, damit Schattenkanten weich auslaufen.
+; Was nicht im Chunk-Mesh steckt (Hand, Bruchstuecke, Mitspieler), dunkelt
+; Licht_Bei mit derselben Regel am eigenen Ort ab.
 ; Pflanzen stehen als zwei gekreuzte Flaechen diagonal in ihrer Zelle, wie
 ; in Minecraft; Gras steht je Zelle etwas versetzt und unterschiedlich hoch,
 ; damit eine Wiese nicht wie ein Raster aussieht. Sie haben nur das
@@ -42,16 +45,20 @@ Dim ao_stufe#(3)
 Dim nb_bank(2, 2)           ; Banks des Chunks und seiner Nachbarn
 Dim nz_b(NZ_Y * (HOEHE + 2)) ; Bloecke des Chunks samt Rand
 Dim nz_d(NZ_Y * (HOEHE + 2)) ; dasselbe: deckend ja/nein
+Dim nz_l(NZ_Y * (HOEHE + 2)) ; dasselbe: Lichtstufe der Fackeln
 Dim nz_hm(NZ_Y - 1)         ; oberster deckender Block je Saeule (-1 keiner)
 Dim nz_fl(T_ANZAHL - 1)     ; Surface je Textur im entstehenden Mesh
 
 Dim ecke_ao(3)
 Dim ecke_hell#(3)
+Dim ecke_fk#(3)             ; Fackellicht je Ecke (zweite Texturkoordinate)
 
 Global wasser_pinsel
 Global nz_aktuell           ; Mesh, an dem gerade gebaut wird
 Global nz_bloecke = 0       ; Statistik: gebaute Flaechen beim letzten Chunk
 Global nz_wx0, nz_wz0       ; Weltlage des Chunks, fuer den Versatz der Pflanzen
+Global nz_licht_da          ; leuchtet eine Fackel in den Chunk?
+Global nz_umgebung# = 1.0   ; Umgebungslicht 0..1 (himmel.bb), fuer Licht_Bei
 
 Function Netz_Laden()
 	Restore flaechen_daten
@@ -110,11 +117,77 @@ Data -1, 0, 0, 0.65, 0, 1, 1,  0, 1, 0,  0, 0, 0,  0, 0, 1
 
 ; Himmelslicht der Zelle mit diesem Feldindex
 Function Himmel#(i)
-	d = nz_hm(i Mod NZ_Y) - (i / NZ_Y - 1)
+	Return Licht_Tiefe(nz_hm(i Mod NZ_Y) - (i / NZ_Y - 1))
+End Function
+
+; Himmelslicht einer Zelle, die d Bloecke unter dem obersten deckenden Block
+; ihrer Saeule liegt (d < 0: offener Himmel). Unter einem Baum (d bis 6)
+; bleibt es hell genug, ab 14 Bloecken unter Gestein ist es fast schwarz -
+; ein Rest bleibt, damit man ohne Fackel wenigstens Umrisse ahnt.
+Function Licht_Tiefe#(d)
 	If d < 0 Then Return 1.0
-	h# = 0.8 - d * 0.05
-	If h < 0.34 Then h = 0.34
+	h# = 0.8 - d * 0.055
+	If h < 0.04 Then h = 0.04
 	Return h
+End Function
+
+; Nur das Himmelslicht am Punkt x, y, z (0..1), ohne Tageszeit.
+Function Himmel_Bei#(x#, y#, z#)
+	bx = Floor(x) : by = Floor(y) : bz = Floor(z)
+	For yy = HOEHE - 1 To by + 1 Step -1
+		If bl_deckend(Welt_Block(bx, yy, bz)) Then Return Licht_Tiefe(yy - by)
+	Next
+	Return 1.0
+End Function
+
+; Licht am Punkt x, y, z der Welt, fuer Dinge ausserhalb der Chunks, als
+; Faktor fuer Vertex- oder Entityfarben (die das Umgebungslicht noch
+; dimmt): Himmelslicht, dazu das Fackellicht - durch das Umgebungslicht
+; geteilt, damit eine Fackel nachts so hell scheint wie am Tag.
+Function Licht_Bei#(x#, y#, z#)
+	l# = Himmel_Bei(x, y, z)
+	l = l + Fackel_Hell(Fackel_Stufe(Floor(x), Floor(y), Floor(z))) / nz_umgebung
+	If l > 1 Then l = 1
+	Return l
+End Function
+
+; ---- Abdunkeln von Meshes ausserhalb der Chunks ---------------------------
+; Hand und Figuren tragen ihre Helligkeit wie die Bloecke in den
+; Vertexfarben. Zum Abdunkeln merkt sich Licht_Merken die urspruenglichen
+; Farben je Vertex; Licht_Setzen schreibt sie mal einem Faktor zurueck. Eine
+; Gruppe ist ein Entity samt allen Kindern (eine Figur).
+
+Type LichtFarbe
+	Field gruppe, s, v
+	Field r#, g#, b#
+End Type
+
+Function Licht_Merken(e, gruppe)
+	If EntityClass(e) = "Mesh"
+		For n = 1 To CountSurfaces(e)
+			s = GetSurface(e, n)
+			For v = 0 To CountVertices(s) - 1
+				lf.LichtFarbe = New LichtFarbe
+				lf\gruppe = gruppe : lf\s = s : lf\v = v
+				lf\r = VertexRed(s, v) : lf\g = VertexGreen(s, v) : lf\b = VertexBlue(s, v)
+			Next
+		Next
+	EndIf
+	For n = 1 To CountChildren(e)
+		Licht_Merken(GetChild(e, n), gruppe)
+	Next
+End Function
+
+Function Licht_Setzen(gruppe, f#)
+	For lf.LichtFarbe = Each LichtFarbe
+		If lf\gruppe = gruppe Then VertexColor lf\s, lf\v, lf\r * f, lf\g * f, lf\b * f
+	Next
+End Function
+
+Function Licht_Vergessen(gruppe)
+	For lf.LichtFarbe = Each LichtFarbe
+		If lf\gruppe = gruppe Then Delete lf
+	Next
 End Function
 
 Function Chunk_Baubar(c.Chunk)
@@ -159,6 +232,8 @@ Function Chunk_Bauen(c.Chunk)
 		Next
 	Next
 
+	Fackeln_Eintragen(c, hmax)
+
 	If c\netz Then FreeEntity c\netz
 	If c\wasser Then FreeEntity c\wasser
 	c\netz = CreateMesh()
@@ -187,6 +262,8 @@ Function Chunk_Bauen(c.Chunk)
 							EndIf
 						EndIf
 					Next
+				ElseIf bl_fackel(b)
+					Fackel_Kreuz(b, x, y, z)
 				ElseIf bl_pflanze(b)
 					Pflanzen_Kreuz(b, x, y, z, i)
 				ElseIf b <> B_LUFT
@@ -239,6 +316,15 @@ Function Block_Flaeche(b, x, y, z, i, f)
 		If Not s2 Then summe = summe + Himmel(i2) : n = n + 1
 		If (Not ec) And (Not (s1 And s2)) Then summe = summe + Himmel(i3) : n = n + 1
 		ecke_hell(k) = licht * ao_stufe(ao) * summe / n
+
+		; Fackellicht genauso gemittelt, mit Richtung und Umgebungsschatten
+		If nz_licht_da
+			lsum# = nz_l(i + fl_ni(f)) : ln = 1
+			If Not s1 Then lsum = lsum + nz_l(i1) : ln = ln + 1
+			If Not s2 Then lsum = lsum + nz_l(i2) : ln = ln + 1
+			If (Not ec) And (Not (s1 And s2)) Then lsum = lsum + nz_l(i3) : ln = ln + 1
+			ecke_fk(k) = Fackel_Hell(lsum / ln) * fl_licht(f) * ao_stufe(ao)
+		EndIf
 	Next
 
 	e = f * 4
@@ -250,6 +336,14 @@ Function Block_Flaeche(b, x, y, z, i, f)
 	VertexColor s, v1, ecke_hell(1), ecke_hell(1), ecke_hell(1)
 	VertexColor s, v2, ecke_hell(2), ecke_hell(2), ecke_hell(2)
 	VertexColor s, v3, ecke_hell(3), ecke_hell(3), ecke_hell(3)
+	; Der zweite Satz Texturkoordinaten waehlt das Fackellicht auf der
+	; Lichtrampe. AddVertex belegt ihn wie das Original mit u, v - ohne diese
+	; Zeilen liefe die Rampe quer ueber jede Flaeche.
+	If Not nz_licht_da Then ecke_fk(0) = 0 : ecke_fk(1) = 0 : ecke_fk(2) = 0 : ecke_fk(3) = 0
+	VertexTexCoords s, v0, ecke_fk(0), 0.5, 0, 1
+	VertexTexCoords s, v1, ecke_fk(1), 0.5, 0, 1
+	VertexTexCoords s, v2, ecke_fk(2), 0.5, 0, 1
+	VertexTexCoords s, v3, ecke_fk(3), 0.5, 0, 1
 	; Die Diagonale so legen, dass der Schatten nicht schief verlaeuft.
 	If ecke_ao(0) + ecke_ao(2) < ecke_ao(1) + ecke_ao(3)
 		AddTriangle s, v0, v1, v3
@@ -269,6 +363,8 @@ Function Pflanzen_Kreuz(b, x, y, z, i)
 	EndIf
 	nz_bloecke = nz_bloecke + 2
 	hell# = Himmel(i) * 0.9 * 255
+	fk# = 0
+	If nz_licht_da Then fk = Fackel_Hell(nz_l(i)) * 0.9
 	; Versatz aus der Weltlage, nicht aus Rnd - beim Neubau gleich. Gemischt
 	; wird mit der Permutationstabelle des Rauschens, ohne Ueberlauf.
 	ox# = 0 : oz# = 0 : unten# = 0
@@ -292,9 +388,88 @@ Function Pflanzen_Kreuz(b, x, y, z, i)
 		v3 = AddVertex(s, x0, y - unten, z0, 0, 1)
 		For v = v0 To v3
 			VertexColor s, v, hell, hell, hell
+			VertexTexCoords s, v, fk, 0.5, 0, 1     ; Fackellicht, s. Block_Flaeche
 		Next
 		AddTriangle s, v0, v1, v2
 		AddTriangle s, v0, v2, v3
+	Next
+End Function
+
+; Fackel: dasselbe Kreuz, schmal genug fuer einen Stab. An der Wand steht
+; der Fuss an der Wand und etwas hoeher, die Spitze neigt sich in den Raum.
+Function Fackel_Kreuz(b, x, y, z)
+	t = T_FACKEL
+	s = nz_fl(t)
+	If s = 0
+		s = CreateSurface(nz_aktuell, tx_pinsel(t))
+		nz_fl(t) = s
+	EndIf
+	nz_bloecke = nz_bloecke + 2
+	wx# = fk_wx(b) : wz# = fk_wz(b)
+	wand = (bl_fackel(b) = 2)
+	oben# = y + 1 + 0.15 * wand : unten# = y + 0.15 * wand
+	a# = 0.2 : e# = 0.8
+	For k = 0 To 1
+		If k = 0
+			x0# = x + a : z0# = z + a : x1# = x + e : z1# = z + e
+		Else
+			x0 = x + a : z0 = z + e : x1 = x + e : z1 = z + a
+		EndIf
+		; oben, dann unten; an der Wand steht der Fuss an der Wand (0,4 vom
+		; Mittelpunkt), die Spitze nur 0,12 - die Fackel neigt sich weg
+		v0 = AddVertex(s, x0 + wx * 0.12, oben, z0 + wz * 0.12, 0, 0)
+		v1 = AddVertex(s, x1 + wx * 0.12, oben, z1 + wz * 0.12, 1, 0)
+		v2 = AddVertex(s, x1 + wx * 0.4, unten, z1 + wz * 0.4, 1, 1)
+		v3 = AddVertex(s, x0 + wx * 0.4, unten, z0 + wz * 0.4, 0, 1)
+		For v = v0 To v3
+			VertexColor s, v, 255, 255, 255
+		Next
+		AddTriangle s, v0, v1, v2
+		AddTriangle s, v0, v2, v3
+	Next
+End Function
+
+; Lichtstufe 0..14 als Helligkeit 0..1, wie die Kurve in Minecraft: nahe der
+; Fackel hell, nach wenigen Bloecken schon schwach. Mit der mittleren
+; Helligkeitseinstellung von Minecraft (Gamma 0,5) - die dunkelste liess
+; einen Fackelschein kaum zwei Bloecke weit reichen.
+Function Fackel_Hell#(l#)
+	x# = l / 15.0
+	f# = x / (4 - 3 * x)
+	g# = 1 - f
+	Return (f + 1 - g * g * g * g) * 0.5
+End Function
+
+; Beim Bauen: die Lichtbanks der Fackeln, die in den Chunk samt Rand
+; reichen, ins Feld nz_l eintragen (die hellste Fackel zaehlt).
+Function Fackeln_Eintragen(c.Chunk, hmax)
+	nz_licht_da = False
+	x0 = c\cx * CH - 1 : z0 = c\cz * CH - 1     ; Weltlage der Feldzelle X = 0, Z = 0
+	For f.Fackel = Each Fackel
+		If f\x + FK_R >= x0 And f\x - FK_R <= x0 + 17 And f\z + FK_R >= z0 And f\z - FK_R <= z0 + 17
+			If Not nz_licht_da
+				For i = 0 To NZ_Y * (hmax + 4) - 1
+					nz_l(i) = 0
+				Next
+				nz_licht_da = True
+			EndIf
+			xa = f\x - FK_R : If xa < x0 Then xa = x0
+			xb = f\x + FK_R : If xb > x0 + 17 Then xb = x0 + 17
+			za = f\z - FK_R : If za < z0 Then za = z0
+			zb = f\z + FK_R : If zb > z0 + 17 Then zb = z0 + 17
+			ya = f\y - FK_R : If ya < 0 Then ya = 0
+			yb = f\y + FK_R : If yb > hmax + 2 Then yb = hmax + 2
+			For wy = ya To yb
+				For wz = za To zb
+					o = (wz - f\z + FK_R) * FK_N + (wy - f\y + FK_R) * FK_N * FK_N - f\x + FK_R
+					i = (wz - z0) * NZ_Z + (wy + 1) * NZ_Y - x0
+					For wx = xa To xb
+						v = PeekByte(f\licht, o + wx)
+						If v > nz_l(i + wx) Then nz_l(i + wx) = v
+					Next
+				Next
+			Next
+		EndIf
 	Next
 End Function
 

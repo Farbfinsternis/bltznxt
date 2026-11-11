@@ -362,6 +362,7 @@ Function Himmel_Takt(dt#)
 	ar# = Misch(72, 255, tag) : ag# = Misch(78, 255, tag) : ab# = Misch(112, 255, tag)
 	ag = ag * (1 - glut * 0.08) : ab = ab * (1 - glut * 0.16)
 	AmbientLight ar, ag, ab
+	nz_umgebung = ar / 255.0       ; fuer Licht_Bei (netz.bb)
 
 	; Kuppel: vom Horizont zum Zenit, zur Sonne hin gluehend
 	For v = 0 To (HM_RINGE + 1) * HM_SEGMENTE - 1

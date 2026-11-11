@@ -126,6 +126,7 @@ End Type
 
 Function Welt_Aendern(x, y, z, b)
 	If y < 1 Or y >= HOEHE Then Return False
+	alt = Welt_Block(x, y, z)
 	gefunden = False
 	For a.Aenderung = Each Aenderung
 		If a\x = x And a\y = y And a\z = z Then a\b = b : gefunden = True : Exit
@@ -135,7 +136,131 @@ Function Welt_Aendern(x, y, z, b)
 		a\x = x : a\y = y : a\z = z : a\b = b
 	EndIf
 	Welt_Setzen(x, y, z, b)
+	Fackeln_Aendern(x, y, z, alt, b)
 	Return True
+End Function
+
+; ---- Fackeln ---------------------------------------------------------------
+;
+; Licht wie in Minecraft: eine Fackel hat Stufe 14, jeder Schritt zur
+; Nachbarzelle kostet eine Stufe; deckende Bloecke halten es auf, um Ecken
+; kommt es herum. Je Fackel liegt das Ergebnis in einer Bank fuer den
+; Wuerfel von 29 Zellen Kantenlaenge um sie herum (Ausbreitung in die
+; Breite). Neu gerechnet wird nur, wenn sich in diesem Wuerfel ein Block
+; zwischen deckend und offen aendert oder ein Chunk darin neu geladen wird;
+; dann werden die betroffenen Chunks neu gebaut (netz.bb traegt die Banks
+; beim Bauen ein). Ein nicht geladener Chunk zaehlt wie Stein - es scheint
+; nichts hinein, bis er da ist.
+
+Const FK_R = 14                 ; Lichtstufe der Fackel = Reichweite
+Const FK_N = 29                 ; Kantenlaenge des Wuerfels
+Const FK_VOLUMEN = 24389        ; 29 * 29 * 29
+
+Type Fackel
+	Field x, y, z
+	Field licht                 ; Bank: Lichtstufe je Zelle, x + z*29 + y*841
+	Field hand                  ; die Fackel in der Hand (hand.bb), kein Block
+End Type
+
+Dim fk_q(FK_VOLUMEN - 1)
+
+Function Fackeln_Aendern(x, y, z, alt, neu)
+	If bl_fackel(alt)
+		For f.Fackel = Each Fackel
+			If f\x = x And f\y = y And f\z = z And (Not f\hand)
+				FreeBank f\licht
+				Delete f
+				Fackel_Chunks_Veralten(x, z)
+				Exit
+			EndIf
+		Next
+	EndIf
+	If bl_fackel(neu)
+		f.Fackel = New Fackel
+		f\x = x : f\y = y : f\z = z
+		f\licht = CreateBank(FK_VOLUMEN)
+		Fackel_Leuchten(f)
+		Fackel_Chunks_Veralten(x, z)
+	ElseIf bl_deckend(alt) <> bl_deckend(neu)
+		For f.Fackel = Each Fackel
+			If Abs(f\x - x) <= FK_R And Abs(f\y - y) <= FK_R And Abs(f\z - z) <= FK_R
+				Fackel_Leuchten(f)
+				Fackel_Chunks_Veralten(f\x, f\z)
+			EndIf
+		Next
+	EndIf
+End Function
+
+; Ein Chunk ist neu da: Fackeln, deren Licht hineinreicht, neu rechnen.
+Function Fackeln_Chunk_Neu(c.Chunk)
+	x0 = c\cx * CH : z0 = c\cz * CH
+	For f.Fackel = Each Fackel
+		If f\x + FK_R >= x0 And f\x - FK_R < x0 + CH And f\z + FK_R >= z0 And f\z - FK_R < z0 + CH
+			Fackel_Leuchten(f)
+			Fackel_Chunks_Veralten(f\x, f\z)
+		EndIf
+	Next
+End Function
+
+Function Fackel_Chunks_Veralten(x, z)
+	For cz = (z - FK_R - 1) Sar 4 To (z + FK_R + 1) Sar 4
+		For cx = (x - FK_R - 1) Sar 4 To (x + FK_R + 1) Sar 4
+			c.Chunk = Chunk_Holen(cx, cz)
+			If c <> Null Then c\veraltet = True
+		Next
+	Next
+End Function
+
+; Ausbreitung in die Breite: jede Zelle kommt einmal in die Schlange, mit
+; der hoechsten Stufe, die sie erreicht.
+Function Fackel_Leuchten(f.Fackel)
+	bank = f\licht
+	For i = 0 To FK_VOLUMEN - 1
+		PokeByte bank, i, 0
+	Next
+	mitte = FK_R + FK_R * FK_N + FK_R * FK_N * FK_N
+	PokeByte bank, mitte, FK_R
+	fk_q(0) = mitte : kopf = 0 : ende = 1
+	While kopf < ende
+		i = fk_q(kopf) : kopf = kopf + 1
+		l = PeekByte(bank, i) - 1
+		If l > 0
+			lx = i Mod FK_N : lz = (i / FK_N) Mod FK_N : ly = i / (FK_N * FK_N)
+			For k = 0 To 5
+				nx = lx : ny = ly : nz = lz
+				Select k
+				Case 0 : nx = lx + 1
+				Case 1 : nx = lx - 1
+				Case 2 : ny = ly + 1
+				Case 3 : ny = ly - 1
+				Case 4 : nz = lz + 1
+				Case 5 : nz = lz - 1
+				End Select
+				If nx >= 0 And nx < FK_N And ny >= 0 And ny < FK_N And nz >= 0 And nz < FK_N
+					j = nx + nz * FK_N + ny * FK_N * FK_N
+					If PeekByte(bank, j) < l
+						If Not bl_deckend(Welt_Block(f\x + nx - FK_R, f\y + ny - FK_R, f\z + nz - FK_R))
+							PokeByte bank, j, l
+							fk_q(ende) = j : ende = ende + 1
+						EndIf
+					EndIf
+				EndIf
+			Next
+		EndIf
+	Wend
+End Function
+
+; Lichtstufe der Fackeln an einer Weltzelle (0..14).
+Function Fackel_Stufe(x, y, z)
+	m = 0
+	For f.Fackel = Each Fackel
+		dx = x - f\x : dy = y - f\y : dz = z - f\z
+		If Abs(dx) <= FK_R And Abs(dy) <= FK_R And Abs(dz) <= FK_R
+			v = PeekByte(f\licht, (dx + FK_R) + (dz + FK_R) * FK_N + (dy + FK_R) * FK_N * FK_N)
+			If v > m Then m = v
+		EndIf
+	Next
+	Return m
 End Function
 
 ; Gleich nach dem Erzeugen: die Nachbarn sind dann noch nicht gebaut, ein
@@ -174,6 +299,7 @@ Function Chunk_Neu.Chunk(cx, cz)
 	welt_chunks = welt_chunks + 1
 	Chunk_Erzeugen(c)
 	Aenderungen_Anwenden(c)
+	Fackeln_Chunk_Neu(c)
 	Return c
 End Function
 

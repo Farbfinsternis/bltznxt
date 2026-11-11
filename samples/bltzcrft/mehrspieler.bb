@@ -45,6 +45,7 @@ Type Mitspieler
 	Field zx#, zy#, zz#, zgier#, zneig#     ; zuletzt empfangen
 	Field schritt#
 	Field neu                               ; noch keine Position bekommen
+	Field licht#                            ; Himmelslicht am Ort der Figur
 End Type
 
 Type ChatZeile
@@ -90,7 +91,7 @@ Function Mp_Beenden()
 	If mp_an Then StopNetGame
 	mp_an = False
 	For m.Mitspieler = Each Mitspieler
-		FreeEntity m\figur
+		Licht_Vergessen(m\figur) : FreeEntity m\figur
 		Delete m
 	Next
 End Function
@@ -155,7 +156,7 @@ Function Mp_Empfangen()
 			m.Mitspieler = Mp_Finden(von)
 			If m <> Null
 				Chat_Zeile(m\name + " ist gegangen", 255, 220, 120)
-				FreeEntity m\figur
+				Licht_Vergessen(m\figur) : FreeEntity m\figur
 				Delete m
 			EndIf
 		Case 102
@@ -252,6 +253,8 @@ Function Mp_Neu(id)
 	Kloetzchen(m\kopf, 0, 0.36, 0, 0.42, 0.1, 0.42, 90, 60, 40)          ; Haar
 	Kloetzchen(m\kopf, -0.09, 0.22, 0.2, 0.07, 0.07, 0.02, 30, 30, 50)   ; Augen, vorn ist +z
 	Kloetzchen(m\kopf, 0.09, 0.22, 0.2, 0.07, 0.07, 0.02, 30, 30, 50)
+	Licht_Merken(m\figur, m\figur)
+	m\licht = 1
 	HideEntity m\figur
 End Function
 
@@ -303,6 +306,9 @@ Function Figur_Takt(m.Mitspieler, dt#)
 	If dt > 0 And weg / dt < 1.0 Then w = w * weg / dt
 	PositionEntity m\figur, m\x, m\y, m\z
 	RotateEntity m\figur, 0, m\gier, 0
+	; in einer Hoehle ist auch die Figur dunkel
+	l# = Licht_Bei(m\x, m\y + 1.6, m\z)
+	If Abs(l - m\licht) > 0.01 Then m\licht = l : Licht_Setzen(m\figur, l)
 	RotateEntity m\kopf, m\neig, 0, 0
 	RotateEntity m\bein_l, w, 0, 0
 	RotateEntity m\bein_r, -w, 0, 0

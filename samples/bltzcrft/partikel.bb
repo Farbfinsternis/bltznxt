@@ -52,7 +52,8 @@ Function Partikel_Neu(x#, y#, z#, vx#, vy#, vz#, b)
 	pt_leben(i) = Rnd(0.5, 1.1)
 	pt_gr(i) = Rnd(0.022, 0.042)
 	c = pt_probe(bl_tex(b, 1), Rand(0, PT_PROBEN - 1))
-	EntityColor pt_e(i), (c Shr 16) And 255, (c Shr 8) And 255, c And 255
+	l# = Licht_Bei(x, y, z)             ; in einer Hoehle dunkel
+	EntityColor pt_e(i), ((c Shr 16) And 255) * l, ((c Shr 8) And 255) * l, (c And 255) * l
 	ScaleEntity pt_e(i), pt_gr(i), pt_gr(i), pt_gr(i)
 	PositionEntity pt_e(i), x, y, z
 	ShowEntity pt_e(i)
