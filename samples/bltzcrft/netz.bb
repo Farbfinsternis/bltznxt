@@ -12,6 +12,10 @@
 ;     Block, wird es dunkler, je tiefer sie darunter liegt - Hoehlen und
 ;     der Boden unter Baeumen. Gemittelt ueber die vier Zellen an der Ecke,
 ;     damit Schattenkanten weich auslaufen.
+; Pflanzen stehen als zwei gekreuzte Flaechen diagonal in ihrer Zelle, wie
+; in Minecraft; Gras steht je Zelle etwas versetzt und unterschiedlich hoch,
+; damit eine Wiese nicht wie ein Raster aussieht. Sie haben nur das
+; Himmelslicht ihrer Zelle, keinen Umgebungsschatten.
 ; Ein Chunk wird erst gebaut, wenn alle acht Nachbarn geladen sind - an den
 ; Raendern braucht er deren Bloecke.
 ;
@@ -36,8 +40,8 @@ Dim fl_v#(3)
 Dim ao_stufe#(3)
 
 Dim nb_bank(2, 2)           ; Banks des Chunks und seiner Nachbarn
-Dim nz_b(NZ_Y * 130)        ; Bloecke des Chunks samt Rand
-Dim nz_d(NZ_Y * 130)        ; dasselbe: deckend ja/nein
+Dim nz_b(NZ_Y * (HOEHE + 2)) ; Bloecke des Chunks samt Rand
+Dim nz_d(NZ_Y * (HOEHE + 2)) ; dasselbe: deckend ja/nein
 Dim nz_hm(NZ_Y - 1)         ; oberster deckender Block je Saeule (-1 keiner)
 Dim nz_fl(T_ANZAHL - 1)     ; Surface je Textur im entstehenden Mesh
 
@@ -47,6 +51,7 @@ Dim ecke_hell#(3)
 Global wasser_pinsel
 Global nz_aktuell           ; Mesh, an dem gerade gebaut wird
 Global nz_bloecke = 0       ; Statistik: gebaute Flaechen beim letzten Chunk
+Global nz_wx0, nz_wz0       ; Weltlage des Chunks, fuer den Versatz der Pflanzen
 
 Function Netz_Laden()
 	Restore flaechen_daten
@@ -162,6 +167,7 @@ Function Chunk_Bauen(c.Chunk)
 	ws = 0
 	For t = 0 To T_ANZAHL - 1 : nz_fl(t) = 0 : Next
 	nz_bloecke = 0
+	nz_wx0 = c\cx * CH : nz_wz0 = c\cz * CH
 
 	For y = 0 To c\hmax
 		For z = 0 To 15
@@ -181,6 +187,8 @@ Function Chunk_Bauen(c.Chunk)
 							EndIf
 						EndIf
 					Next
+				ElseIf bl_pflanze(b)
+					Pflanzen_Kreuz(b, x, y, z, i)
 				ElseIf b <> B_LUFT
 					If Not nz_d(i + NZ_Y) Then Block_Flaeche(b, x, y, z, i, 0)
 					If Not nz_d(i - NZ_Y) Then Block_Flaeche(b, x, y, z, i, 1)
@@ -250,6 +258,44 @@ Function Block_Flaeche(b, x, y, z, i, f)
 		AddTriangle s, v0, v1, v2
 		AddTriangle s, v0, v2, v3
 	EndIf
+End Function
+
+Function Pflanzen_Kreuz(b, x, y, z, i)
+	t = bl_tex(b, 0)
+	s = nz_fl(t)
+	If s = 0
+		s = CreateSurface(nz_aktuell, tx_pinsel(t))
+		nz_fl(t) = s
+	EndIf
+	nz_bloecke = nz_bloecke + 2
+	hell# = Himmel(i) * 0.9 * 255
+	; Versatz aus der Weltlage, nicht aus Rnd - beim Neubau gleich. Gemischt
+	; wird mit der Permutationstabelle des Rauschens, ohne Ueberlauf.
+	ox# = 0 : oz# = 0 : unten# = 0
+	If b = B_HOHESGRAS
+		h1 = rs_p(((nz_wx0 + x) And 255) + rs_p((nz_wz0 + z) And 255))
+		h2 = rs_p(h1 + 37) : h3 = rs_p(h2 + 91)
+		ox = (h1 / 255.0 - 0.5) * 0.4
+		oz = (h2 / 255.0 - 0.5) * 0.4
+		unten = h3 / 255.0 * 0.25
+	EndIf
+	a# = 0.15 : e# = 0.85
+	For k = 0 To 1
+		If k = 0
+			x0# = x + a + ox : z0# = z + a + oz : x1# = x + e + ox : z1# = z + e + oz
+		Else
+			x0 = x + a + ox : z0 = z + e + oz : x1 = x + e + ox : z1 = z + a + oz
+		EndIf
+		v0 = AddVertex(s, x0, y + 1 - unten, z0, 0, 0)
+		v1 = AddVertex(s, x1, y + 1 - unten, z1, 1, 0)
+		v2 = AddVertex(s, x1, y - unten, z1, 1, 1)
+		v3 = AddVertex(s, x0, y - unten, z0, 0, 1)
+		For v = v0 To v3
+			VertexColor s, v, hell, hell, hell
+		Next
+		AddTriangle s, v0, v1, v2
+		AddTriangle s, v0, v2, v3
+	Next
 End Function
 
 Function Wasser_Flaeche(s, x, y, z, i, f)

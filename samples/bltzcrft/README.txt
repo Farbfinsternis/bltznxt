@@ -5,10 +5,18 @@ Eine Welt aus Blöcken im Stil von Minecraft - geschrieben als ganz
 gewöhnliches Blitz3D-Programm und übersetzt mit BLTZNXT, einem modernen
 Nachbau von Blitz3D: https://github.com/Farbfinsternis/bltznxt
 
-Erste Fassung: Die Welt entsteht aus einer Saat in Chunks zu 16 x 128 x 16
+Erste Fassung: Die Welt entsteht aus einer Saat in Chunks zu 16 x 256 x 16
 Blöcken und wird um den Spieler herum nachgeladen - Hügel, Gebirge mit
-Schnee, ein Ozean mit Stränden, Seen, kleine Tümpel, Höhlengänge und tiefe
-Höhlenhallen, Kohle und Eisen im Stein, Wälder. Man läuft in der Ego-Sicht
+Schnee, ein Ozean mit Stränden, Seen, kleine Tümpel, Kohle und Eisen im
+Stein, Wälder, Wiesen mit hohem Gras und
+Blumen (Löwenzahn, Mohn, Kornblume), Schilf am Ufer.
+
+Unter dem Meeresspiegel (Höhe 112) liegen über 100 Blöcke Gestein voller
+Höhlen, wie in Minecraft aus 3D-Rauschen: winzige Kriechgänge, Gänge von
+eng bis breit, die an der Oberfläche als Eingänge enden, Käsehöhlen und in
+manchen Gegenden riesige Gewölbe, Hunderte Blöcke weit und Dutzende hoch,
+die sich über Kilometer ziehen. Tief in einer Höhle verliert sich die Ferne
+im Dunkeln. Man läuft in der Ego-Sicht
 hindurch, kann schwimmen und fliegen. Abgebaute Blöcke landen im Inventar
 (36 Plätze, Stapel bis 64) und lassen sich wieder setzen.
 
@@ -16,7 +24,11 @@ Abbauen geht wie in Minecraft mit bloßen Händen: Die Hand schlägt auf den
 Block ein, Bruchstücke springen ab, Risse wachsen, bis er bricht. Erde und
 Sand dauern 0,75 s, Holz 3 s. Stein, Kohle, Eisen und Sandstein brechen mit
 der Hand nur langsam (Stein 7,5 s) und hinterlassen nichts - dafür braucht es
-später eine Spitzhacke. Laub zerfällt ohne Schere.
+später eine Spitzhacke. Laub zerfällt ohne Schere. Pflanzen brechen sofort;
+Blumen und Schilf kommen ins Inventar und lassen sich wieder pflanzen
+(Blumen auf Gras oder Erde, Schilf auch auf Sand), hohes Gras gibt nichts
+und macht einem gesetzten Block Platz. Baut man den Boden unter einer
+Pflanze ab, bricht sie mit.
 Gespeichert wird noch nichts.
 
 Ein Tag dauert 20 Minuten: die Sonne zieht über den Himmel, abends färbt er
@@ -94,9 +106,10 @@ Aufbau
 
 bltzcrft.bb     Hauptprogramm: Fenster, Eingabe, Hauptschleife
 rauschen.bb     Perlin-Rauschen 2D/3D, fraktal
-bloecke.bb      Blockarten und ihre selbst gemalten Texturen
+bloecke.bb      Blockarten (auch Pflanzen) und ihre selbst gemalten Texturen
 welt.bb         Chunks, Zugriff, Erzeugung der Welt, Liste der Änderungen
-netz.bb         Meshes aus den Blöcken: sichtbare Flächen, Schatten, Wasser
+netz.bb         Meshes aus den Blöcken: sichtbare Flächen, Schatten, Wasser,
+                Pflanzen als gekreuzte Flächen
 laden.bb        Nachladen und Vergessen von Chunks um den Spieler
 spieler.bb      Bewegung und Kollision gegen das Blockraster, Blickstrahl
 inventar.bb     Inventar: Stapel, Klicks, zur Laufzeit gemalte Blocksymbole
@@ -110,6 +123,8 @@ daten/logo.png  das Logo für Titel- und Ladebild
 
 werkzeug/karte.bb   Draufsicht der Welt als Bild (zum Abstimmen des Geländes)
 werkzeug/foto.bb    ein Bild von einer festen Stelle, misst Erzeugen und Bauen
+werkzeug/schnitt.bb Schnitte durch die Welt als Bild, ohne Fenster (zum
+                    Abstimmen der Höhlen): schnitt.exe saat x z
 werkzeug/video.bb   Kameraflug für das Werbevideo, Bild für Bild als BMP
 werkzeug/video_schnitt.py  setzt die Bilder in Blender zum MP4 zusammen,
                     mit Logo-Einblendung

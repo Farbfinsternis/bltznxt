@@ -29,6 +29,9 @@ Global sp_kamera, sp_nass, sp_nebel_fern#
 ; Farbe des Himmels am Horizont und Helligkeit 0..1 - himmel.bb stellt sie
 ; nach der Tageszeit; ohne himmel.bb (Werkzeuge) bleibt es Mittag.
 Global sp_himmel_r = 150, sp_himmel_g = 196, sp_himmel_b = 255, sp_hell# = 1
+; 0 unter freiem Himmel .. 1 tief in einer Hoehle: dort wird der Dunst dunkel
+Global sp_hoehle#
+Global sp_hoehle_sofort = True  ; nach dem Versetzen gleich den richtigen Wert
 
 ; Ergebnis des Blickstrahls
 Global ziel_treffer, ziel_x, ziel_y, ziel_z, ziel_vx, ziel_vy, ziel_vz
@@ -55,16 +58,17 @@ End Function
 
 ; Ueber Wasser: Dunst in Himmelsfarbe ab der halben Sichtweite.
 ; Unter Wasser: dunkles Blau, nach wenigen Metern undurchsichtig - nachts
-; dunkler. Die Farben gelten jedes Bild neu, sie folgen der Tageszeit.
+; dunkler. In einer Hoehle verliert sich die Ferne im Dunkeln statt im
+; Himmelblau. Die Farben gelten jedes Bild neu, sie folgen der Tageszeit.
 Function Spieler_Nebel(nass)
+	d# = 1 - sp_hoehle
 	If nass
-		r = 20 * sp_hell : g = 45 * sp_hell : b = 110 * sp_hell
-		CameraClsColor sp_kamera, r, g, b
-		CameraFogColor sp_kamera, r, g, b
+		r = 20 * sp_hell * d : g = 45 * sp_hell * d : b = 110 * sp_hell * d
 	Else
-		CameraClsColor sp_kamera, sp_himmel_r, sp_himmel_g, sp_himmel_b
-		CameraFogColor sp_kamera, sp_himmel_r, sp_himmel_g, sp_himmel_b
+		r = sp_himmel_r * d + 6 * sp_hoehle : g = sp_himmel_g * d + 6 * sp_hoehle : b = sp_himmel_b * d + 9 * sp_hoehle
 	EndIf
+	CameraClsColor sp_kamera, r, g, b
+	CameraFogColor sp_kamera, r, g, b
 	If nass = sp_nass Then Return
 	sp_nass = nass
 	If nass
@@ -78,6 +82,7 @@ Function Spieler_Setzen(x#, y#, z#)
 	sp_x = x : sp_y = y : sp_z = z
 	sp_ax = x : sp_ay = y : sp_az = z
 	sp_vx = 0 : sp_vy = 0 : sp_vz = 0
+	sp_hoehle_sofort = True
 End Function
 
 Function Spieler_Schauen(dg#, dn#)
@@ -209,7 +214,29 @@ Function Spieler_Kamera(anteil#)
 	z# = sp_az + (sp_z - sp_az) * anteil
 	PositionEntity sp_kamera, x, y + SP_AUGE, z
 	RotateEntity sp_kamera, sp_neig, sp_gier, 0
+	Spieler_Hoehle(x, y + SP_AUGE, z)
 	Spieler_Nebel(Welt_Block(Floor(x), Floor(y + SP_AUGE), Floor(z)) = B_WASSER)
+End Function
+
+; Steckt das Auge in einer Hoehle? Mehr als drei Bloecke unter dem Gelaende
+; und ein deckender Block darueber - unter einem Baum oder einem Dach ist
+; man deshalb nicht in einer Hoehle. Der Wert folgt weich, damit der Dunst
+; am Eingang nicht umspringt.
+Function Spieler_Hoehle(x#, y#, z#)
+	ziel# = 0
+	gelaende = Gelaende_Hoehe(x, z)
+	tief# = gelaende - y
+	If tief > 3
+		bx = Floor(x) : bz = Floor(z)
+		For by = Floor(y) + 1 To gelaende
+			If bl_deckend(Welt_Block(bx, by, bz))
+				ziel = Klemmen((tief - 3) / 10.0, 0, 1)
+				Exit
+			EndIf
+		Next
+	EndIf
+	If sp_hoehle_sofort Then sp_hoehle = ziel : sp_hoehle_sofort = False
+	sp_hoehle = sp_hoehle + (ziel - sp_hoehle) * 0.04
 End Function
 
 ; Blickstrahl durch das Blockgitter (Amanatides & Woo). Setzt ziel_* auf den
@@ -235,7 +262,8 @@ Function Blick_Strahl()
 	vx = x : vy = y : vz = z
 	t# = 0
 	While t <= SP_REICHWEITE
-		If bl_fest(Welt_Block(x, y, z))
+		b = Welt_Block(x, y, z)
+		If bl_fest(b) Or bl_pflanze(b)
 			ziel_treffer = True
 			ziel_x = x : ziel_y = y : ziel_z = z
 			ziel_vx = vx : ziel_vy = vy : ziel_vz = vz

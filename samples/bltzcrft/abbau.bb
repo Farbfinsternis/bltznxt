@@ -37,15 +37,16 @@ Function Abbau_Halten(x, y, z, b, dt#)
 		ab_anteil = 0
 	EndIf
 	dauer# = Abbau_Dauer(b)
-	If dauer <= 0 Then Return False
-	ab_anteil = ab_anteil + dt / dauer
+	If dauer < 0 Then Return False
+	If dauer > 0 Then ab_anteil = ab_anteil + dt / dauer Else ab_anteil = 1
 	If ab_anteil < 0.9999 Then Return False   ; 15 x 0.5/7.5 ist knapp unter 1
 	ab_aktiv = False : ab_anteil = 0 : ab_pause = AB_PAUSE_ZEIT
 	Return True
 End Function
 
-; Sekunden, bis Block b mit der Hand bricht; 0 = nie.
+; Sekunden, bis Block b mit der Hand bricht; 0 = sofort, -1 = nie.
 Function Abbau_Dauer#(b)
+	If bl_haerte(b) < 0 Then Return -1
 	If bl_hand(b) Then Return bl_haerte(b) * 1.5
 	Return bl_haerte(b) * 5
 End Function

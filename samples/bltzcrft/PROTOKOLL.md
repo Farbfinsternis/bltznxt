@@ -295,6 +295,20 @@ Damit sie nicht noch einmal verdächtigt werden:
   gleichnamige Variable (`HD_SCHLAG` / `hd_schlag`) – BLTZNXT meldet es
   richtig.
 
+- **Gras, Blumen, Schilf (2026-11-11):** ohne Fund. Pflanzen stehen als
+  zwei gekreuzte Flächen im Chunk-Mesh, mit maskierten Texturen (Flag 4,
+  samt Mipmaps) und beidseitigem Pinsel (`BrushFX 2 + 16`) – Alphatest und
+  Rückseiten wie erwartet, und die Flächen werden nicht sortiert, weil
+  Maske kein Blenden ist. Eine Variable `zz` im Hauptprogramm stieß auf ein
+  späteres `For zz.ChatZeile = Each` – BLTZNXT meldet das klar mit Zeile
+  (eigener Fehler im Spielcode).
+
+- **Welt auf 256 Blöcke Höhe, Höhlen aus 3D-Rauschen (2026-11-11):** ohne
+  Fund. Doppelt so große Banks (64 KB je Chunk), sechs 3D-Rauschfelder statt
+  drei. Ein Chunk entsteht trotzdem in rund 1 ms (gemessen mit dem neuen
+  `werkzeug/schnitt.bb`, 216 Chunks in gut 200 ms); der Rundflug hält 60
+  Bilder je Sekunde, das längste Bild 23 ms.
+
 ## Umwege im Spielcode
 
 - Kollision des Spielers direkt gegen das Blockraster statt `Collisions`/`EntityType`: kein

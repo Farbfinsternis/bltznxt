@@ -49,6 +49,7 @@ End Function
 ; die Seiten unterschiedlich hell wie in der Welt.
 Function Hand_Block(b)
 	If hd_bloecke(b) Then Return hd_bloecke(b)
+	If bl_pflanze(b) Then Return Hand_Pflanze(b)
 	m = CreateMesh(hd_halter)
 	Restore hd_wuerfel
 	For f = 0 To 5
@@ -65,6 +66,29 @@ Function Hand_Block(b)
 	ScaleEntity m, 0.22, 0.22, 0.22
 	PositionEntity m, 0.03, 0.0, 0.14
 	RotateEntity m, 0, 45, 0
+	EntityOrder m, -1
+	HideEntity m
+	hd_bloecke(b) = m
+	Return m
+End Function
+
+; Eine Pflanze in der Hand: flach, leicht schraeg, beidseitig (der Pinsel
+; der Pflanzentextur zeichnet beide Seiten).
+Function Hand_Pflanze(b)
+	m = CreateMesh(hd_halter)
+	s = CreateSurface(m, tx_pinsel(bl_tex(b, 1)))
+	AddVertex s, -0.5, 0.5, 0, 0, 0
+	AddVertex s, 0.5, 0.5, 0, 1, 0
+	AddVertex s, 0.5, -0.5, 0, 1, 1
+	AddVertex s, -0.5, -0.5, 0, 0, 1
+	For i = 0 To 3
+		VertexColor s, i, 255, 255, 255
+	Next
+	AddTriangle s, 0, 1, 2
+	AddTriangle s, 0, 2, 3
+	ScaleEntity m, 0.34, 0.34, 0.34
+	PositionEntity m, 0.0, 0.06, 0.14
+	RotateEntity m, 0, -25, 0
 	EntityOrder m, -1
 	HideEntity m
 	hd_bloecke(b) = m

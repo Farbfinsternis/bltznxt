@@ -45,7 +45,7 @@ Function Block_Ertrag(b)
 	If Not bl_hand(b) Then Return B_LUFT
 	Select b
 	Case B_GRAS, B_SCHNEE : Return B_ERDE
-	Case B_LAUB : Return B_LUFT
+	Case B_LAUB, B_HOHESGRAS : Return B_LUFT
 	End Select
 	Return b
 End Function
@@ -54,7 +54,7 @@ End Function
 ; spaeter mit Werkzeug kommt es dorthin.
 Function Block_Haltbar(b)
 	Select b
-	Case B_LUFT, B_WASSER, B_GRUND, B_GRAS, B_SCHNEE : Return False
+	Case B_LUFT, B_WASSER, B_GRUND, B_GRAS, B_SCHNEE, B_HOHESGRAS : Return False
 	End Select
 	Return True
 End Function
@@ -179,6 +179,7 @@ End Function
 ; die Seiten, unterschiedlich hell wie im Sonnenlicht. Fuer jeden Bildpunkt
 ; wird zurueckgerechnet, auf welcher Seite und welchem Texel er liegt.
 Function Symbol_Malen(b)
+	If bl_pflanze(b) Then Return Symbol_Flach(b)
 	n = SYMBOL_GROESSE
 	h# = n / 2.0 : q# = n / 4.0
 	img = CreateImage(n, n)
@@ -211,6 +212,28 @@ Function Symbol_Malen(b)
 	UnlockBuffer puffer
 	UnlockBuffer TextureBuffer(tx_bild(t_oben))
 	If t_seite <> t_oben Then UnlockBuffer TextureBuffer(tx_bild(t_seite))
+	Return img
+End Function
+
+; Pflanzen: die Textur flach, wie in Minecraft; durchsichtig bleibt
+; durchsichtig.
+Function Symbol_Flach(b)
+	n = SYMBOL_GROESSE
+	img = CreateImage(n, n)
+	puffer = ImageBuffer(img)
+	t = bl_tex(b, 1)
+	LockBuffer TextureBuffer(tx_bild(t))
+	LockBuffer puffer
+	For py = 0 To n - 1
+		For px = 0 To n - 1
+			u# = (px + 0.5) / n : v# = (py + 0.5) / n
+			c = ReadPixelFast(Int(u * 16) * TEX_ZOOM + TEX_ZOOM / 2, Int(v * 16) * TEX_ZOOM + TEX_ZOOM / 2, TextureBuffer(tx_bild(t)))
+			If (c Shr 24) And 255 Then farbe = Symbol_Texel(t, u, v, 256) Else farbe = 0
+			WritePixelFast px, py, farbe, puffer
+		Next
+	Next
+	UnlockBuffer puffer
+	UnlockBuffer TextureBuffer(tx_bild(t))
 	Return img
 End Function
 

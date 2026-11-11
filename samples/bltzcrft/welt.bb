@@ -1,6 +1,6 @@
 ; BLTZCRFT - Welt
 ;
-; Die Welt besteht aus Chunks zu 16 x 128 x 16 Bloecken, jeder Block ein Byte
+; Die Welt besteht aus Chunks zu 16 x 256 x 16 Bloecken, jeder Block ein Byte
 ; in einer Bank. Die geladenen Chunks liegen in einem Ring aus 32 x 32
 ; Plaetzen: Chunk (cx, cz) gehoert auf Platz (cx And 31, cz And 31). Weil die
 ; Sichtweite kleiner ist als der Ring, teilen sich nie zwei geladene Chunks
@@ -11,8 +11,9 @@
 ;   1. Gelaende: Hoehe je Saeule aus Rauschen - Kontinente und Ozean, Huegel,
 ;      Gebirge, Senken fuer Seen. Unter der Oberflaeche Erde bzw. Sand, darunter
 ;      Stein, ganz unten Grundgestein. Bis zum Meeresspiegel steht Wasser.
-;   2. Hoehlen: zwei 3D-Rauschfelder, wo beide nahe null sind, liegt ein
-;      Gang ("Spaghetti"); tief unten zusaetzlich grosse Hallen.
+;   2. Hoehlen aus 3D-Rauschen, wie in Minecraft seit 1.18: Kaesehoehlen
+;      bis zu kilometerweiten Gewoelben, Spaghetti-Gaenge von eng bis
+;      breit (die Eingaenge) und winzige Nudel-Gaenge (Hoehlen_Graben).
 ;   3. Erze: Kohle und Eisen in Klumpen, nur im Stein.
 ;   4. Tuempel: manche Chunks bekommen auf flachem Land eine Mulde mit Wasser.
 ;   5. Baeume auf Gras.
@@ -20,10 +21,11 @@
 ; beim Erzeugen seine Nachbarn.
 
 Const CH = 16               ; Kantenlaenge eines Chunks
-Const HOEHE = 128           ; Hoehe der Welt
-Const CH_BYTES = 32768      ; 16 * 16 * 128
+Const HOEHE = 256           ; Hoehe der Welt
+Const CH_BYTES = 65536      ; 16 * 16 * 256
 Const RING = 32
-Const MEER = 48             ; der oberste Wasserblock des Ozeans
+Const MEER = 112            ; der oberste Wasserblock des Ozeans - darunter
+                            ; ueber 100 Bloecke Gestein fuer die Hoehlen
 
 Type Chunk
 	Field cx, cz
@@ -43,12 +45,21 @@ Global welt_chunks = 0      ; geladene Chunks
 Dim gen_h(17, 17)
 Dim gen_oben(15, 15)        ; Oberflaechenblock der Saeule
 ; Hoehlenrauschen auf einem groben Gitter (alle 4 Bloecke), dazwischen linear
-Dim gen_c1#(4, 4, 32)
-Dim gen_c2#(4, 4, 32)
-Dim gen_c3#(4, 4, 32)
-Dim gen_s1#(32)              ; dasselbe, fuer eine Saeule in der Ebene interpoliert
-Dim gen_s2#(32)
-Dim gen_s3#(32)
+Const GEN_J = 65             ; Gitterpunkte in der Hoehe (256 / 4 + 1)
+Dim gen_c1#(4, 4, GEN_J)     ; Kaese
+Dim gen_c2#(4, 4, GEN_J)     ; Spaghetti, zwei Felder
+Dim gen_c3#(4, 4, GEN_J)
+Dim gen_c4#(4, 4, GEN_J)     ; Spaghetti-Dicke
+Dim gen_c5#(4, 4, GEN_J)     ; Nudeln, zwei Felder
+Dim gen_c6#(4, 4, GEN_J)
+Dim gen_s1#(GEN_J)           ; dasselbe, fuer eine Saeule in der Ebene interpoliert
+Dim gen_s2#(GEN_J)
+Dim gen_s3#(GEN_J)
+Dim gen_s4#(GEN_J)
+Dim gen_s5#(GEN_J)
+Dim gen_s6#(GEN_J)
+Dim gen_gew#(4, 4)           ; Gewoelbe-Gebiet je Gitterspalte (2D)
+Dim gen_nud#(4, 4)           ; Nudel-Gebiet je Gitterspalte (2D)
 
 Function Welt_Saat(saat)
 	welt_saat = saat
@@ -218,7 +229,7 @@ Function Gelaende_Hoehe(x#, z#)
 End Function
 
 Function Schneegrenze(x#, z#)
-	Return 92 + Int(Rauschen2(x / 40.0, z / 40.0, 300) * 8)
+	Return MEER + 44 + Int(Rauschen2(x / 40.0, z / 40.0, 300) * 8)
 End Function
 
 ; Oberflaechenblock einer Saeule; steil = groesster Hoehenunterschied zum
@@ -239,7 +250,7 @@ Function Oberflaeche(x#, z#, h, steil)
 		If steil >= 3 Then Return B_STEIN
 		Return B_SCHNEE
 	EndIf
-	If h > 104 Then Return B_STEIN
+	If h > MEER + 56 Then Return B_STEIN
 	Return B_GRAS
 End Function
 
@@ -310,9 +321,30 @@ Function Chunk_Erzeugen(c.Chunk)
 	Erze_Setzen(bank)
 	Tuempel_Graben(bank)
 	hmax = Baeume_Pflanzen(bank, x0, z0, hmax)
+	hmax = Pflanzen_Saeen(bank, x0, z0, hmax)
 	c\hmax = hmax
 End Function
 
+; Hoehlen wie in Minecraft seit 1.18, drei Arten aus 3D-Rauschen:
+;  - Kaesehoehlen: wo ein grobes, in der Hoehe gestrecktes Rauschen ueber
+;    einer Schwelle liegt, ist Luft. Die Schwelle senkt ein 2D-Rauschen mit
+;    einer Wellenlaenge von ueber einem Kilometer: in diesen Gebieten werden
+;    aus einzelnen Blasen zusammenhaengende Gewoelbe, Hunderte Bloecke weit
+;    und Dutzende hoch, mit Pfeilern dazwischen. Nahe der Oberflaeche und
+;    ueber dem Grundgestein bleibt es geschlossen, damit Decke und Boden
+;    entstehen.
+;  - Spaghetti: zwei 3D-Rauschfelder, wo beide nahe null sind, laeuft ein
+;    Gang. Sein Querschnitt schwankt mit einem dritten Rauschen von einem
+;    engen Schlupf bis zu einem breiten Tunnel. Sie duerfen bis an die
+;    Oberflaeche - das sind die Hoehleneingaenge.
+;  - Nudeln: dasselbe mit hoeherer Frequenz und winzigem Querschnitt, nur in
+;    manchen Gebieten - verwinkelte Kriechgaenge.
+; Neben und unter Wasser bleibt eine Decke von fuenf Bloecken, sonst liefe
+; eine Hoehle voll - Wasser fliesst hier nicht.
+;
+; Das Rauschen liegt auf einem groben Gitter (alle 4 Bloecke); je Saeule wird
+; einmal in der Ebene interpoliert, je Block nur noch in der Hoehe. Das
+; zweite Feld eines Gangs wird nur befragt, wenn das erste nahe null liegt.
 Function Hoehlen_Graben(c.Chunk, x0, z0)
 	bank = c\daten
 	; grobes Gitter, nur so hoch wie das Gelaende reicht
@@ -322,15 +354,24 @@ Function Hoehlen_Graben(c.Chunk, x0, z0)
 			If gen_h(i, k) Shr 2 > jmax Then jmax = gen_h(i, k) Shr 2
 		Next
 	Next
-	If jmax > 31 Then jmax = 31
+	If jmax > GEN_J - 2 Then jmax = GEN_J - 2
 	For i = 0 To 4
 		For k = 0 To 4
 			wx# = x0 + i * 4 : wz# = z0 + k * 4
+			gen_gew(i, k) = Fbm2(wx / 1100.0, wz / 1100.0, 2, 520)
+			gen_nud(i, k) = Rauschen2(wx / 220.0, wz / 220.0, 610)
 			For j = 0 To jmax + 1
 				wy# = j * 4
-				gen_c1(i, k, j) = Rauschen3(wx / 30.0, wy / 20.0, wz / 30.0)
-				gen_c2(i, k, j) = Rauschen3(wx / 30.0 + 61.3, wy / 20.0 + 17.9, wz / 30.0 + 33.1)
-				If j <= 10 Then gen_c3(i, k, j) = Rauschen3(wx / 64.0 + 120.5, wy / 32.0, wz / 64.0 + 77.7)
+				gen_c1(i, k, j) = Rauschen3(wx / 90.0, wy / 48.0, wz / 90.0) * 0.7 + Rauschen3(wx / 34.0 + 7.7, wy / 22.0, wz / 34.0) * 0.3
+				gen_c2(i, k, j) = Rauschen3(wx / 52.0, wy / 36.0, wz / 52.0 + 11.3)
+				gen_c3(i, k, j) = Rauschen3(wx / 52.0 + 61.3, wy / 36.0 + 17.9, wz / 52.0 + 33.1)
+				gen_c4(i, k, j) = Rauschen3(wx / 140.0 + 200.1, wy / 70.0, wz / 140.0 + 5.5)
+				If gen_nud(i, k) > -0.05
+					gen_c5(i, k, j) = Rauschen3(wx / 22.0 + 300.7, wy / 16.0, wz / 22.0 + 2.2)
+					gen_c6(i, k, j) = Rauschen3(wx / 22.0 + 41.9, wy / 16.0 + 80.3, wz / 22.0 + 9.1)
+				Else
+					gen_c5(i, k, j) = 1 : gen_c6(i, k, j) = 1
+				EndIf
 			Next
 		Next
 	Next
@@ -340,8 +381,6 @@ Function Hoehlen_Graben(c.Chunk, x0, z0)
 		For x = 0 To 15
 			i = x Shr 2 : fx# = (x And 3) / 4.0
 			h = gen_h(x + 1, z + 1)
-			; Neben und unter Wasser bleibt eine Decke von fuenf Bloecken, sonst
-			; liefe ein Gang voll - Wasser fliesst hier nicht.
 			bis = h
 			tief = h
 			For dz = 0 To 2
@@ -351,33 +390,54 @@ Function Hoehlen_Graben(c.Chunk, x0, z0)
 			Next
 			If tief <= MEER + 1 And tief - 5 < bis Then bis = tief - 5
 
+			; Gewoelbe: wie stark die Schwelle der Kaesehoehlen hier sinkt
+			a# = gen_gew(i, k) + (gen_gew(i + 1, k) - gen_gew(i, k)) * fx
+			b# = gen_gew(i, k + 1) + (gen_gew(i + 1, k + 1) - gen_gew(i, k + 1)) * fx
+			gewoelbe# = Klemmen((a + (b - a) * fz - 0.02) * 1.6, 0, 0.3)
+
 			; In der Ebene einmal je Saeule interpolieren, in der Hoehe je Block
 			For j = 0 To (bis Shr 2) + 1
-				a# = gen_c1(i, k, j) + (gen_c1(i + 1, k, j) - gen_c1(i, k, j)) * fx
-				b# = gen_c1(i, k + 1, j) + (gen_c1(i + 1, k + 1, j) - gen_c1(i, k + 1, j)) * fx
-				gen_s1(j) = a + (b - a) * fz
-				a = gen_c2(i, k, j) + (gen_c2(i + 1, k, j) - gen_c2(i, k, j)) * fx
-				b = gen_c2(i, k + 1, j) + (gen_c2(i + 1, k + 1, j) - gen_c2(i, k + 1, j)) * fx
-				gen_s2(j) = a + (b - a) * fz
-				If j <= 10
-					a = gen_c3(i, k, j) + (gen_c3(i + 1, k, j) - gen_c3(i, k, j)) * fx
-					b = gen_c3(i, k + 1, j) + (gen_c3(i + 1, k + 1, j) - gen_c3(i, k + 1, j)) * fx
-					gen_s3(j) = a + (b - a) * fz
-				EndIf
+				gen_s1(j) = Hl_Ebene(1, i, k, j, fx, fz)
+				gen_s2(j) = Hl_Ebene(2, i, k, j, fx, fz)
+				gen_s3(j) = Hl_Ebene(3, i, k, j, fx, fz)
+				gen_s4(j) = Hl_Ebene(4, i, k, j, fx, fz)
+				gen_s5(j) = Hl_Ebene(5, i, k, j, fx, fz)
+				gen_s6(j) = Hl_Ebene(6, i, k, j, fx, fz)
 			Next
 
-			For y = 1 To bis
+			For y = 5 To bis
 				j = y Shr 2 : fy# = (y And 3) / 4.0
 				frei = False
-				n1# = gen_s1(j) + (gen_s1(j + 1) - gen_s1(j)) * fy
-				If Abs(n1) < 0.06
-					n2# = gen_s2(j) + (gen_s2(j + 1) - gen_s2(j)) * fy
-					frei = (n1 * n1 + n2 * n2 < 0.0035)
+				unter = h - y           ; Bloecke unter der Oberflaeche
+
+				; Kaese: Schwelle oben und ganz unten hoeher
+				schwelle# = 0.34 - gewoelbe
+				If unter < 18 Then schwelle = schwelle + (18 - unter) * 0.035
+				If y < 22 Then schwelle = schwelle + (22 - y) * 0.03
+				If schwelle < 0.5
+					n# = gen_s1(j) + (gen_s1(j + 1) - gen_s1(j)) * fy
+					frei = (n > schwelle)
 				EndIf
-				If (Not frei) And y < 36
-					n3# = gen_s3(j) + (gen_s3(j + 1) - gen_s3(j)) * fy
-					frei = (n3 > 0.36 - (36 - y) * 0.004)
+
+				; Spaghetti: Querschnitt aus dem Dicke-Rauschen
+				If Not frei
+					n1# = gen_s2(j) + (gen_s2(j + 1) - gen_s2(j)) * fy
+					r# = Klemmen(0.06 + (gen_s4(j) + (gen_s4(j + 1) - gen_s4(j)) * fy) * 0.16, 0.032, 0.11)
+					If Abs(n1) < r
+						n2# = gen_s3(j) + (gen_s3(j + 1) - gen_s3(j)) * fy
+						frei = (n1 * n1 + n2 * n2 < r * r)
+					EndIf
 				EndIf
+
+				; Nudeln: nicht bis an die Oberflaeche
+				If (Not frei) And unter > 4
+					n1 = gen_s5(j) + (gen_s5(j + 1) - gen_s5(j)) * fy
+					If Abs(n1) < 0.028
+						n2 = gen_s6(j) + (gen_s6(j + 1) - gen_s6(j)) * fy
+						frei = (n1 * n1 + n2 * n2 < 0.028 * 0.028)
+					EndIf
+				EndIf
+
 				If frei
 					o = Ofs(x, y, z)
 					If PeekByte(bank, o) <> B_WASSER Then PokeByte bank, o, B_LUFT
@@ -387,12 +447,30 @@ Function Hoehlen_Graben(c.Chunk, x0, z0)
 	Next
 End Function
 
+; Ein Rauschfeld der Hoehlen in der Ebene interpoliert (Gitterzelle i, k,
+; Hoehe j, Anteil fx, fz).
+Function Hl_Ebene#(feld, i, k, j, fx#, fz#)
+	Select feld
+	Case 1 : a00# = gen_c1(i, k, j) : a10# = gen_c1(i + 1, k, j) : a01# = gen_c1(i, k + 1, j) : a11# = gen_c1(i + 1, k + 1, j)
+	Case 2 : a00 = gen_c2(i, k, j) : a10 = gen_c2(i + 1, k, j) : a01 = gen_c2(i, k + 1, j) : a11 = gen_c2(i + 1, k + 1, j)
+	Case 3 : a00 = gen_c3(i, k, j) : a10 = gen_c3(i + 1, k, j) : a01 = gen_c3(i, k + 1, j) : a11 = gen_c3(i + 1, k + 1, j)
+	Case 4 : a00 = gen_c4(i, k, j) : a10 = gen_c4(i + 1, k, j) : a01 = gen_c4(i, k + 1, j) : a11 = gen_c4(i + 1, k + 1, j)
+	Case 5 : a00 = gen_c5(i, k, j) : a10 = gen_c5(i + 1, k, j) : a01 = gen_c5(i, k + 1, j) : a11 = gen_c5(i + 1, k + 1, j)
+	Case 6 : a00 = gen_c6(i, k, j) : a10 = gen_c6(i + 1, k, j) : a01 = gen_c6(i, k + 1, j) : a11 = gen_c6(i + 1, k + 1, j)
+	End Select
+	a# = a00 + (a10 - a00) * fx
+	b# = a01 + (a11 - a01) * fx
+	Return a + (b - a) * fz
+End Function
+
+; Kohle bis ins Gebirge, Eisen bis knapp ueber den Meeresspiegel - so dicht
+; wie vor der Verdopplung der Welthoehe, nur ueber mehr Gestein verteilt.
 Function Erze_Setzen(bank)
-	For n = 1 To 18
-		Erz_Klumpen(bank, B_KOHLE, Rand(5, 90), Rand(4, 9))
+	For n = 1 To 32
+		Erz_Klumpen(bank, B_KOHLE, Rand(5, MEER + 42), Rand(4, 9))
 	Next
-	For n = 1 To 9
-		Erz_Klumpen(bank, B_EISEN, Rand(5, 50), Rand(3, 6))
+	For n = 1 To 22
+		Erz_Klumpen(bank, B_EISEN, Rand(5, MEER + 2), Rand(3, 6))
 	Next
 End Function
 
@@ -488,6 +566,66 @@ Function Baeume_Pflanzen(bank, x0, z0, hmax)
 					If PeekByte(bank, Ofs(x, h, z)) = B_GRAS And PeekByte(bank, Ofs(x, h + 1, z)) = B_LUFT
 						t = Baum(bank, x, h + 1, z)
 						If t > hmax Then hmax = t
+					EndIf
+				EndIf
+			EndIf
+		Next
+	Next
+	Return hmax
+End Function
+
+; Gras, Blumen und Schilf. Hohes Gras waechst in Flecken auf den Wiesen,
+; Blumen in kleinen Beeten aus einer Art (dazu ab und zu eine einzelne).
+; Schilf steht wie Zuckerrohr in Minecraft auf Gras, Erde oder Sand direkt
+; neben Wasser, ein bis drei Bloecke hoch. Die Saeulen am Rand des Chunks
+; bleiben dafuer frei, ihre Nachbarn liegen in einem anderen Chunk.
+Function Pflanzen_Saeen(bank, x0, z0, hmax)
+	For z = 0 To 15
+		For x = 0 To 15
+			; die Oberflaeche suchen: Baeume stehen hoeher, Tuempel tiefer
+			y = gen_h(x + 1, z + 1) + 1
+			If y < HOEHE - 3
+				If PeekByte(bank, Ofs(x, y, z)) = B_LUFT
+					While y > 1 And PeekByte(bank, Ofs(x, y - 1, z)) = B_LUFT
+						y = y - 1
+					Wend
+					boden = PeekByte(bank, Ofs(x, y - 1, z))
+					wx = x0 + x : wz = z0 + z
+					If (boden = B_GRAS Or boden = B_ERDE Or boden = B_SAND) And x > 0 And x < 15 And z > 0 And z < 15
+						u = y - 1
+						If PeekByte(bank, Ofs(x + 1, u, z)) = B_WASSER Or PeekByte(bank, Ofs(x - 1, u, z)) = B_WASSER Or PeekByte(bank, Ofs(x, u, z + 1)) = B_WASSER Or PeekByte(bank, Ofs(x, u, z - 1)) = B_WASSER
+							If Rnd(0, 1) < 0.3
+								hoch = Rand(1, 3)
+								For k = 0 To hoch - 1
+									PokeByte bank, Ofs(x, y + k, z), B_SCHILF
+								Next
+								If y + hoch > hmax Then hmax = y + hoch
+								boden = B_LUFT        ; hier waechst sonst nichts mehr
+							EndIf
+						EndIf
+					EndIf
+					If boden = B_GRAS
+						p = B_LUFT
+						beet# = Fbm2(wx / 50.0, wz / 50.0, 2, 410)
+						If beet > 0.28 And Rnd(0, 1) < 0.18
+							art# = Rauschen2(wx / 90.0, wz / 90.0, 470)
+							If art < -0.3
+								p = B_MOHN
+							ElseIf art > 0.3
+								p = B_KORNBLUME
+							Else
+								p = B_LOEWENZAHN
+							EndIf
+						ElseIf Rnd(0, 1) < 0.004
+							p = B_LOEWENZAHN + Rand(0, 2)
+						Else
+							wiese# = Fbm2(wx / 36.0, wz / 36.0, 2, 330)
+							If Rnd(0, 1) < Klemmen(0.14 + wiese * 0.6, 0.02, 0.5) Then p = B_HOHESGRAS
+						EndIf
+						If p <> B_LUFT
+							PokeByte bank, Ofs(x, y, z), p
+							If y > hmax Then hmax = y
+						EndIf
 					EndIf
 				EndIf
 			EndIf

@@ -183,14 +183,6 @@ bild_dt# = 0
 hinweis_bis = MilliSecs() + 180000
 hilfe = False
 
-; dunkler Rahmen um den anvisierten Block
-rahmen = CreateCube()
-ScaleEntity rahmen, 0.505, 0.505, 0.505
-EntityColor rahmen, 0, 0, 0
-EntityAlpha rahmen, 0.25
-EntityFX rahmen, 1
-HideEntity rahmen
-
 While Not ende
 	If KeyHit(61) Then anzeige = Not anzeige
 	If KeyHit(59) Then hilfe = Not hilfe : hinweis_bis = 0
@@ -309,10 +301,9 @@ While Not ende
 	Spieler_Kamera(rest / TAKT)
 	Himmel_Takt(bild_dt)
 
-	; Abbauen und Setzen
+	; Abbauen und Setzen. Der anvisierte Block wird nicht hervorgehoben -
+	; welchen man trifft, zeigen das Fadenkreuz und beim Abbauen die Risse.
 	If Blick_Strahl()
-		ShowEntity rahmen
-		PositionEntity rahmen, ziel_x + 0.5, ziel_y + 0.5, ziel_z + 0.5
 		If (gefangen Or foto_halten) And (Not chat_offen)
 			; Abbauen: halten, bis der Block bricht (abbau.bb)
 			MouseHit(1)
@@ -321,16 +312,10 @@ While Not ende
 				b = Welt_Block(ziel_x, ziel_y, ziel_z)
 				If ab_pause <= 0 Then Partikel_Schlag(ziel_x, ziel_y, ziel_z, ziel_vx - ziel_x, ziel_vy - ziel_y, ziel_vz - ziel_z, b, bild_dt)
 				If Abbau_Halten(ziel_x, ziel_y, ziel_z, b, bild_dt)
-					If Welt_Aendern(ziel_x, ziel_y, ziel_z, B_LUFT)
-						Mp_Block(ziel_x, ziel_y, ziel_z, B_LUFT)
-						Partikel_Bruch(ziel_x, ziel_y, ziel_z, b)
-						; ist das Inventar voll, geht der Block verloren
-						If Inventar_Hinzu(Block_Ertrag(b), 1) > 0
-							meldung = "Inventar voll" : meldung_bis = MilliSecs() + 1500
-						ElseIf Not bl_hand(b)
-							meldung = "Mit blosser Hand bleibt von " + bl_name(b) + " nichts uebrig - dafuer braucht es eine Spitzhacke"
-							meldung_bis = MilliSecs() + 3000
-						EndIf
+					Block_Abbauen(ziel_x, ziel_y, ziel_z)
+					If (Not bl_hand(b)) And meldung <> "Inventar voll"
+						meldung = "Mit blosser Hand bleibt von " + bl_name(b) + " nichts uebrig - dafuer braucht es eine Spitzhacke"
+						meldung_bis = MilliSecs() + 3000
 					EndIf
 				EndIf
 			Else
@@ -341,11 +326,25 @@ While Not ende
 				If b = B_LUFT
 					meldung = "Dieser Platz ist leer - erst Bloecke abbauen (linke Maustaste halten)"
 					meldung_bis = MilliSecs() + 2500
-				ElseIf Platz_Frei(ziel_vx, ziel_vy, ziel_vz)
-					If Welt_Aendern(ziel_vx, ziel_vy, ziel_vz, b)
-						Hand_Schlagen()
-						Mp_Block(ziel_vx, ziel_vy, ziel_vz, b)
-						Inventar_Nehmen(inv_gewaehlt)
+				Else
+					; hohes Gras macht Platz, wie in Minecraft
+					ort_x = ziel_vx : ort_y = ziel_vy : ort_z = ziel_vz
+					If Welt_Block(ziel_x, ziel_y, ziel_z) = B_HOHESGRAS Then ort_x = ziel_x : ort_y = ziel_y : ort_z = ziel_z
+					If bl_pflanze(b)
+						If Not Pflanze_Haelt(b, Welt_Block(ort_x, ort_y - 1, ort_z))
+							If b = B_SCHILF Then meldung = "Schilf waechst nur auf Gras, Erde, Sand oder Schilf" Else meldung = bl_name(b) + " waechst nur auf Gras oder Erde"
+							meldung_bis = MilliSecs() + 2500
+							ort_y = -1
+						EndIf
+					ElseIf Not Platz_Frei(ort_x, ort_y, ort_z)
+						ort_y = -1
+					EndIf
+					If ort_y >= 0
+						If Welt_Aendern(ort_x, ort_y, ort_z, b)
+							Hand_Schlagen()
+							Mp_Block(ort_x, ort_y, ort_z, b)
+							Inventar_Nehmen(inv_gewaehlt)
+						EndIf
 					EndIf
 				EndIf
 			EndIf
@@ -353,7 +352,6 @@ While Not ende
 			Abbau_Loslassen()
 		EndIf
 	Else
-		HideEntity rahmen
 		Abbau_Loslassen()
 		MouseHit(1) : MouseHit(2)
 		; ins Leere schlagen geht auch
@@ -516,6 +514,23 @@ Function Spieler_Abstellen(x, z)
 		y = y - 1
 	Wend
 	Spieler_Setzen(x + 0.5, y + 1, z + 0.5)
+End Function
+
+; Den Block bei x,y,z abbauen: Bruchstuecke, Ertrag ins Inventar, an alle
+; schicken. Pflanzen darauf verlieren ihren Halt und brechen mit - auch ein
+; ganzer Schilfhalm, wenn man ihn unten abbaut.
+Function Block_Abbauen(x, y, z)
+	Repeat
+		b = Welt_Block(x, y, z)
+		If Not Welt_Aendern(x, y, z, B_LUFT) Then Return
+		Mp_Block(x, y, z, B_LUFT)
+		Partikel_Bruch(x, y, z, b)
+		; ist das Inventar voll, geht der Block verloren
+		If Inventar_Hinzu(Block_Ertrag(b), 1) > 0
+			meldung = "Inventar voll" : meldung_bis = MilliSecs() + 1500
+		EndIf
+		y = y + 1
+	Until Not bl_pflanze(Welt_Block(x, y, z))
 End Function
 
 ; Maus fangen: Zeiger weg und in die Mitte, aufgelaufene Bewegung und Klicks

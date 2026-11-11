@@ -1,21 +1,26 @@
-summe 0,0: 7733177
-summe 2,-2: 16005690
+summe 0,0: 2797154
+summe 2,-2: 16547442
 wiederholbar: 1
 bloecke:
-  Luft 1389064
-  Stein 842908
-  Erde 32741
-  Gras 13182
-  Sand 17308
-  Wasser 5166
+  Luft 2647515
+  Stein 1931666
+  Erde 32727
+  Gras 13177
+  Sand 17197
+  Wasser 4718
   Kies 0
-  Stamm 235
-  Laub 2235
-  Grundgestein 35981
+  Stamm 212
+  Laub 2038
+  Grundgestein 38489
   Schnee 0
-  Ton 55
-  Kohle 3705
-  Eisen 2331
-  Sandstein 14385
-verstoesse: grund 0 schwebt 0 leck 0 bedeckt 0 stamm 0 ueber_meer 0
+  Ton 8
+  Kohle 8807
+  Eisen 5745
+  Sandstein 13903
+  Hohes Gras 2026
+  Loewenzahn 176
+  Mohn 30
+  Kornblume 120
+  Schilf 38
+verstoesse: grund 0 schwebt 0 leck 0 bedeckt 0 stamm 0 ueber_meer 0 pflanze 0
 ozean vorhanden: 1   tuempel vorhanden: 1

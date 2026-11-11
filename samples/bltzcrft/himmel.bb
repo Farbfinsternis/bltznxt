@@ -22,9 +22,10 @@
 ; die langsam nach Osten zieht. Sie reicht weiter als die Kamera sieht; damit
 ; sie trotzdem ganz ins Bild passt, wird sie um die Kamera herum verkleinert
 ; und naeher gerueckt (eine Streckung mit der Kamera als Zentrum aendert das
-; Bild nicht, nur die Tiefe). Weil alle Bloecke unter der Decke liegen,
+; Bild nicht, nur die Tiefe). Weil das Gelaende unter der Decke endet,
 ; reicht die Zeichenreihenfolge: von unten liegt die Welt davor (Order 1),
-; von oben dahinter (Order -1).
+; von oben dahinter (Order -1). Nur ein selbst gebauter Turm ueber die Decke
+; hinaus (die Welt reicht bis 255) stuende von unten hinter den Wolken.
 
 Const TAG_MS = 1200000          ; ein Tag: 20 Minuten
 Const RAFFER_FAKTOR = 60            ; F4: Zeitraffer, ein Tag in 20 s
@@ -32,7 +33,7 @@ Const HM_RINGE = 12             ; Ringe der Kuppel (13 Hoehen, s. Data)
 Const HM_SEGMENTE = 24          ; Segmente rundherum
 Const KUPPEL_RADIUS# = 30.0         ; Radius der Kuppel
 Const STERNE_ANZAHL = 400
-Const WOLKEN_Y# = 140.0         ; Hoehe der Wolkendecke (die Welt endet bei 128)
+Const WOLKEN_Y# = 204.0         ; Hoehe der Wolkendecke, ueber jedem Gebirge
 Const WOLKEN_ZELLE = 12         ; Bloecke je Wolkenzelle
 Const WOLKEN_MUSTER = 64        ; Zellen je Kante, dann wiederholt es sich
 Const WOLKEN_PX = 8             ; Bildpunkte je Zelle in der Textur
@@ -395,8 +396,9 @@ Function Himmel_Takt(dt#)
 	wr = Misch(wr, 250, glut * 0.6) : wg = Misch(wg, 165, glut * 0.5) : wb = Misch(wb, 140, glut * 0.45)
 	EntityColor hm_wolken, wr, wg, wb
 
-	; unter Wasser sieht man den Himmel nicht
-	If sp_nass
+	; unter Wasser und tief in einer Hoehle sieht man den Himmel nicht -
+	; durch ein grosses Gewoelbe schiene er sonst hinter dem Dunst durch
+	If sp_nass Or sp_hoehle > 0.6
 		HideEntity hm_himmel
 		HideEntity hm_wolken
 		Return

@@ -9,6 +9,8 @@
 ;   - neben Wasser liegt keine Luft (es liefe aus - Wasser fliesst nicht),
 ;   - auf Gras und Schnee liegt kein fester Block ausser Laub,
 ;   - ein Stamm steht auf Erde oder Stamm,
+;   - eine Pflanze steht auf passendem Boden (Pflanze_Haelt), Schilf unten
+;     direkt neben Wasser,
 ;   - eine Wasseroberflaeche liegt auf Meereshoehe (Ozean, Seen) oder
 ;     mindestens drei Bloecke darueber (Tuempel).
 
@@ -25,7 +27,7 @@ Function Summe(c.Chunk)
 End Function
 
 Dim anzahl(B_ANZAHL - 1)
-Global v_grund, v_schwebt, v_leck, v_bedeckt, v_stamm, v_ueber_meer, v_tuempel, v_ozean
+Global v_grund, v_schwebt, v_leck, v_bedeckt, v_stamm, v_ueber_meer, v_tuempel, v_ozean, v_pflanze
 
 ; Gebiet um Chunk (mx, mz) erzeugen und pruefen; die aeusseren Chunks sind
 ; nur Nachbarn, damit die Pruefung am Rand nicht ins Leere greift.
@@ -61,6 +63,13 @@ Function Gebiet(mx, mz)
 				Case B_STAMM
 					u = Welt_Block(x, y - 1, z)
 					If u <> B_ERDE And u <> B_STAMM Then v_stamm = v_stamm + 1
+				Case B_HOHESGRAS, B_LOEWENZAHN, B_MOHN, B_KORNBLUME, B_SCHILF
+					u = Welt_Block(x, y - 1, z)
+					If Not Pflanze_Haelt(b, u) Then v_pflanze = v_pflanze + 1
+					If b = B_SCHILF And u <> B_SCHILF
+						n = (Welt_Block(x + 1, y - 1, z) = B_WASSER) + (Welt_Block(x - 1, y - 1, z) = B_WASSER) + (Welt_Block(x, y - 1, z + 1) = B_WASSER) + (Welt_Block(x, y - 1, z - 1) = B_WASSER)
+						If n = 0 Then v_pflanze = v_pflanze + 1
+					EndIf
 				End Select
 			Next
 		Next
@@ -85,6 +94,6 @@ Print "bloecke:"
 For b = 0 To B_ANZAHL - 1
 	Print "  " + bl_name(b) + " " + anzahl(b)
 Next
-Print "verstoesse: grund " + v_grund + " schwebt " + v_schwebt + " leck " + v_leck + " bedeckt " + v_bedeckt + " stamm " + v_stamm + " ueber_meer " + v_ueber_meer
+Print "verstoesse: grund " + v_grund + " schwebt " + v_schwebt + " leck " + v_leck + " bedeckt " + v_bedeckt + " stamm " + v_stamm + " ueber_meer " + v_ueber_meer + " pflanze " + v_pflanze
 Print "ozean vorhanden: " + (v_ozean > 1000) + "   tuempel vorhanden: " + (v_tuempel > 0)
 End
