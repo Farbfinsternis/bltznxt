@@ -177,6 +177,44 @@ Function Inventar_Schieben(i)
 	If n = 0 Then inv_ding(i) = B_LUFT : inv_haltbar(i) = 0
 End Function
 
+; Wie viele Stueck von Ding d liegen im Inventar?
+Function Inventar_Zaehlen(d)
+	n = 0
+	For i = 0 To INV_PLAETZE - 1
+		If inv_ding(i) = d Then n = n + inv_anzahl(i)
+	Next
+	Return n
+End Function
+
+; Nimmt n Stueck von Ding d heraus, vom Ende des Vorrats her, damit die
+; Schnellleiste moeglichst bleibt. Gibt zurueck, wie viele fehlten.
+Function Inventar_Entfernen(d, n)
+	For i = INV_PLAETZE - 1 To 0 Step -1
+		If n = 0 Then Return 0
+		If inv_ding(i) = d And inv_anzahl(i) > 0
+			k = inv_anzahl(i)
+			If k > n Then k = n
+			inv_anzahl(i) = inv_anzahl(i) - k : n = n - k
+			If inv_anzahl(i) = 0 Then inv_ding(i) = B_LUFT : inv_haltbar(i) = 0
+		EndIf
+	Next
+	Return n
+End Function
+
+; Passen n neue Stueck von Ding d noch hinein?
+Function Inventar_Passt(d, n)
+	s = dg_stapel(d) : h = dg_haltbar(d)
+	For i = 0 To INV_PLAETZE - 1
+		If inv_anzahl(i) = 0
+			n = n - s
+		ElseIf inv_ding(i) = d And inv_haltbar(i) = h
+			n = n - (s - inv_anzahl(i))
+		EndIf
+		If n <= 0 Then Return True
+	Next
+	Return n <= 0
+End Function
+
 ; Das Werkzeug auf Platz i nutzt sich um einen Punkt ab. True, wenn es
 ; dabei kaputtgeht; Dinge ohne Haltbarkeit und schon kaputte bleiben, wie
 ; sie sind.

@@ -1,0 +1,24 @@
+rezepte 7, frei -
+nur ast: frei -meldung -
+ast und brocken: frei Steinaxt Steinspitzhacke Steinschaufel meldung Neue Rezepte: Steinaxt, Steinspitzhacke, Steinschaufel (E)
+nochmal pruefen: meldung -
+moeglich axt 1 schaufel 2
+axt: 1 -> ast 3 brocken 1 axt 0 schaufel 0, schlange 1: Steinaxt
+hacke: 0 meldung Dafuer fehlen Zutaten
+schaufel: 1 -> ast 1 brocken 0 axt 0 schaufel 0, schlange 2: Steinaxt Steinschaufel
+nach 3.9 s: fertig 0 anteil 98% ast 1 brocken 0 axt 0 schaufel 0
+nach 4.1 s: fertig 1 ast 1 brocken 0 axt 1 schaufel 0, schlange 1: Steinschaufel
+neue axt auf platz 1, haltbarkeit 100/100
+schaufel fertig: ast 1 brocken 0 axt 1 schaufel 1, schlange 0:
+nicht frei: 0, leere schlange takt 0
+alle schaufeln: 8, schlange 8, ast 25 brocken 12 axt 1 schaufel 1
+voll: 0 meldung Die Warteschlange ist voll
+abbrechen vorn: 1 fortschritt 0.0, schlange 7, ast 27 brocken 13 axt 1 schaufel 1
+abbrechen ungueltig: 0 0
+alle abgebrochen: ast 41 brocken 20 axt 1 schaufel 1
+voll: fertig 0 meldung Inventar voll - Steinschaufel wartet, schlange 1
+noch voll (ein platz halb): fertig 0, schlange 1
+platz frei: fertig 1, schaufel 1, schlange 0
+stamm und kohle: frei Ast Bretter Steinaxt Steinspitzhacke Steinschaufel Fackel meldung Neue Rezepte: Ast, Bretter, Fackel (E)
+bretter 4, stamm 0
+entfernen: rest 2, passt 64 sand 1, passt 36*64+1 0

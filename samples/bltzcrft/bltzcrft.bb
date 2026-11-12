@@ -46,7 +46,8 @@
 ; bei 4,5 s ein Bild (foto_<uhrzeit>_a.bmp) - Hand, Risse, Bruchstuecke.
 ; Mit -werkzeuge liegen dazu Aeste, Steinbrocken und drei Steinwerkzeuge
 ; (neu, abgenutzt, kaputt) im Inventar, -wahl <n> waehlt Platz n der
-; Schnellleiste, -inventar oeffnet das Inventar fuer das Bild.
+; Schnellleiste, -inventar oeffnet das Inventar fuer das Bild, -herstellen
+; reiht dazu drei Steinaexte in die Warteschlange.
 ; Mit -test <s> prueft das Programm den Mehrspieler ohne Maus und Tastatur:
 ; wer beitritt, schickt nach 3 s eine Chatzeile und setzt einen Stein
 ; zwischen sich und den Host; kurz vor Schluss speichert jeder ein Bild
@@ -60,6 +61,9 @@ Const SICHT = 12            ; Sichtweite in Chunks
 Const MAUS_EMPF# = 0.15     ; Grad je Pixel
 Const BAU_ZEIT = 7          ; Millisekunden je Bild fuer Erzeugen und Bauen
 
+; Meldung unten im Bild - global, damit auch Funktionen sie setzen koennen
+Global meldung$, meldung_bis
+
 Include "rauschen.bb"
 Include "bloecke.bb"
 Include "dinge.bb"
@@ -68,6 +72,7 @@ Include "netz.bb"
 Include "spieler.bb"
 Include "laden.bb"
 Include "inventar.bb"
+Include "rezepte.bb"
 Include "abbau.bb"
 Include "himmel.bb"
 Include "hand.bb"
@@ -100,6 +105,7 @@ Repeat
 	Case "-fackeln" : foto_fackeln = True
 	Case "-werkzeuge" : foto_werkzeuge = True
 	Case "-inventar" : foto_inventar = True
+	Case "-herstellen" : foto_herstellen = True
 	Case "-wahl" : i = i + 1 : foto_wahl = Int(Wort(args, i))
 	Case "-pos"
 		pos_x# = Float(Wort(args, i + 1)) : pos_y# = Float(Wort(args, i + 2)) : pos_z# = Float(Wort(args, i + 3))
@@ -115,6 +121,7 @@ Bloecke_Laden()
 Dinge_Arten()
 Inventar_Symbole()
 Inventar_Leeren()
+Rezepte_Laden()
 ; Fackeln zum Start - bis es eine Werkbank gibt
 Inventar_Hinzu(B_FACKEL, 64)
 If foto_werkzeuge
@@ -242,10 +249,22 @@ While Not ende
 		Else
 			umschalt = KeyDown(42) Or KeyDown(54)
 			p = Platz_Unter(MouseX(), MouseY())
-			If MouseHit(1) And p >= 0
-				If umschalt Then Inventar_Schieben(p) Else Inventar_Links(p)
+			klick1 = MouseHit(1) : klick2 = MouseHit(2)
+			If klick1
+				If p >= 0
+					If umschalt Then Inventar_Schieben(p) Else Inventar_Links(p)
+				Else
+					; rechts die Rezepte (rezepte.bb): Klick stellt einmal her,
+					; Umschalt+Klick so oft, wie Zutaten und Warteschlange reichen
+					r = Rezept_Unter(MouseX(), MouseY())
+					If r >= 0
+						If umschalt Then Rezept_Herstellen(r, RZ_SCHLANGE) Else Rezept_Herstellen(r, 1)
+					EndIf
+				EndIf
 			EndIf
-			If MouseHit(2) And p >= 0 Then Inventar_Rechts(p)
+			If klick2
+				If p >= 0 Then Inventar_Rechts(p) Else Auftrag_Abbrechen(Auftrag_Unter(MouseX(), MouseY()))
+			EndIf
 		EndIf
 	ElseIf chat_offen
 		; Esc und Enter schliessen den Chat (mehrspieler.bb); danach die Maus
@@ -424,6 +443,10 @@ While Not ende
 	Abbau_Zeigen()
 	Hand_Takt(bild_dt)
 	Partikel_Takt(bild_dt)
+	; Herstellen laeuft weiter, auch bei geschlossenem Inventar
+	Rezepte_Pruefen()
+	Rezepte_Takt(bild_dt)
+	If rz_meldung <> "" Then meldung = rz_meldung : meldung_bis = MilliSecs() + 3000 : rz_meldung = ""
 	Mp_Takt(bild_dt)
 	If test_s > 0
 		If test_start = 0 Then test_start = MilliSecs()
@@ -473,6 +496,7 @@ While Not ende
 		SaveBuffer BackBuffer(), "test_" + mp_name + ".bmp"
 	EndIf
 	If Not rundflug Then Leiste_Zeichnen()
+	If Not (rundflug Or inv_offen) Then Rezepte_Leiste_Zeichnen()
 	If MilliSecs() < hinweis_bis And (Not (inv_offen Or hilfe Or rundflug))
 		Text_Schatten(GraphicsWidth() / 2, GraphicsHeight() - INV_FELD - 40, "Linke Maustaste halten: abbauen    Rechte Maustaste: setzen    E: Inventar    F1: Hilfe", 220, 220, 220)
 	EndIf
@@ -484,6 +508,7 @@ While Not ende
 		Hilfe_Zeichnen()
 	ElseIf inv_offen
 		Inventar_Zeichnen()
+		Rezepte_Zeichnen()
 	ElseIf gefangen
 		Rect GraphicsWidth() / 2 - 8, GraphicsHeight() / 2 - 1, 17, 3
 		Rect GraphicsWidth() / 2 - 1, GraphicsHeight() / 2 - 8, 3, 17
@@ -494,6 +519,7 @@ While Not ende
 		If foto_start = 0
 			foto_start = MilliSecs()
 			If foto_inventar Then inv_offen = True
+			If foto_herstellen Then Rezepte_Pruefen() : Rezept_Herstellen(3, 3) : rz_fortschritt = 2.5
 		EndIf
 		If foto_fackeln And (Not foto_fackeln_da) And MilliSecs() - foto_start > 500 And sp_boden
 			; ringsum auf den Boden, alle fuenf Bloecke
@@ -569,7 +595,7 @@ Function Hilfe_Zeichnen()
 End Function
 
 .hilfe_daten
-Data 16
+Data 17
 Data "Maus", "umsehen"
 Data "W A S D / Pfeile", "laufen"
 Data "Leertaste", "springen, im Wasser schwimmen"
@@ -581,6 +607,7 @@ Data "1 - 9 / Mausrad", "Platz der Schnellleiste waehlen"
 Data "E", "Inventar oeffnen/schliessen"
 Data "  im Inventar", "Links: Stapel nehmen/ablegen, Rechts: halber Stapel"
 Data "", "bzw. ein Stueck, Umschalt+Links: Leiste <-> Vorrat"
+Data "  Rezepte rechts", "Klick: herstellen, Umschalt: alle, Rechts: abbrechen"
 Data "Tab", "Maus freigeben (Klick ins Fenster faengt sie wieder)"
 Data "F3", "Anzeige mit Position, Uhrzeit und Leistung"
 Data "F4", "Zeitraffer ein/aus (ein Tag in 20 Sekunden)"

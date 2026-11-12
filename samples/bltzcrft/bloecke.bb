@@ -48,7 +48,8 @@ Const B_FACKEL_XM = 22          ; ... bei -x
 Const B_FACKEL_ZP = 23          ; ... bei +z
 Const B_FACKEL_ZM = 24          ; ... bei -z
 Const B_STEINE = 25             ; lose Steine am Boden (wie eine Pflanze)
-Const B_ANZAHL = 26
+Const B_BRETTER = 26
+Const B_ANZAHL = 27
 
 Const T_STEIN = 0
 Const T_ERDE = 1
@@ -67,21 +68,22 @@ Const T_TON = 13
 Const T_KOHLE = 14
 Const T_EISEN = 15
 Const T_SANDSTEIN = 16
-Const T_HOHESGRAS = 17
-Const T_LOEWENZAHN = 18
-Const T_MOHN = 19
-Const T_KORNBLUME = 20
-Const T_SCHILF = 21
-Const T_FACKEL = 22
+Const T_BRETTER = 17
+Const T_HOHESGRAS = 18
+Const T_LOEWENZAHN = 19
+Const T_MOHN = 20
+Const T_KORNBLUME = 21
+Const T_SCHILF = 22
+Const T_FACKEL = 23
 ; ab hier die Gegenstaende (flach, Ding_Tex_Malen)
-Const T_AST = 23
-Const T_BROCKEN = 24
-Const T_STEINAXT = 25
-Const T_STEINHACKE = 26
-Const T_STEINSCHAUFEL = 27
-Const T_KOHLESTUECK = 28
-Const T_ANZAHL = 29
-Const T_ERSTE_PFLANZE = 17      ; ab hier Pflanzentexturen (mit Maske)
+Const T_AST = 24
+Const T_BROCKEN = 25
+Const T_STEINAXT = 26
+Const T_STEINHACKE = 27
+Const T_STEINSCHAUFEL = 28
+Const T_KOHLESTUECK = 29
+Const T_ANZAHL = 30
+Const T_ERSTE_PFLANZE = 18      ; ab hier Pflanzentexturen (mit Maske)
 
 Const TEX_ZOOM = 8          ; Bildpunkte je Texel
 
@@ -205,6 +207,7 @@ Function Bloecke_Arten()
 	Block_Art(B_KOHLE, "Kohleerz", T_KOHLE, T_KOHLE, T_KOHLE, True, True, 3.0, False)
 	Block_Art(B_EISEN, "Eisenerz", T_EISEN, T_EISEN, T_EISEN, True, True, 3.0, False)
 	Block_Art(B_SANDSTEIN, "Sandstein", T_SANDSTEIN, T_SANDSTEIN, T_SANDSTEIN, True, True, 0.8, False)
+	Block_Art(B_BRETTER, "Bretter", T_BRETTER, T_BRETTER, T_BRETTER, True, True, 2.0, True)
 	Pflanzen_Art(B_HOHESGRAS, "Hohes Gras", T_HOHESGRAS)
 	Pflanzen_Art(B_LOEWENZAHN, "Loewenzahn", T_LOEWENZAHN)
 	Pflanzen_Art(B_MOHN, "Mohn", T_MOHN)
@@ -220,11 +223,11 @@ Function Bloecke_Arten()
 	; Werkzeuge wie in Minecraft: die Spitzhacke fuer Gestein und Erze (erst
 	; sie bringt dort Ertrag, Eisenerz verlangt Stufe 2), die Axt fuer Holz,
 	; die Schaufel fuer lockeren Boden.
-	For b = B_STEIN To B_SANDSTEIN
+	For b = B_STEIN To B_ANZAHL - 1
 		Select b
 		Case B_STEIN, B_KOHLE, B_SANDSTEIN : Block_Werkzeug(b, W_HACKE, 1)
 		Case B_EISEN : Block_Werkzeug(b, W_HACKE, 2)
-		Case B_STAMM : Block_Werkzeug(b, W_AXT, 0)
+		Case B_STAMM, B_BRETTER : Block_Werkzeug(b, W_AXT, 0)
 		Case B_ERDE, B_GRAS, B_SAND, B_KIES, B_SCHNEE, B_TON : Block_Werkzeug(b, W_SCHAUFEL, 0)
 		End Select
 	Next
@@ -382,6 +385,21 @@ Function Tex_Malen(t)
 			If (y Mod 5) = 4 Then s = -18
 			For x = 0 To 15
 				Tx_Punkt(x, y, 216 + s, 200 + s, 150 + s, 6)
+			Next
+		Next
+	Case T_BRETTER
+		; vier waagerechte Bretter mit dunklen Fugen, die Stoesse versetzt
+		For y = 0 To 15
+			reihe = y / 4
+			If (y Mod 4) = 0 Then s = Rand(-10, 10)
+			For x = 0 To 15
+				If (y Mod 4) = 3
+					Tx_Punkt(x, y, 118, 86, 50, 4)
+				ElseIf x = ((reihe * 7 + 3) Mod 16)
+					Tx_Punkt(x, y, 128, 94, 56, 4)
+				Else
+					Tx_Punkt(x, y, 182 + s, 142 + s, 90 + s, 6)
+				EndIf
 			Next
 		Next
 	Case T_HOHESGRAS

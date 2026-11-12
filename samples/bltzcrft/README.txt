@@ -41,11 +41,21 @@ Punkt von 100; kaputt wirken sie wie die bloße Hand. Mit der Steinspitzhacke
 geben Stein und Sandstein ihren Block und Kohleerz Kohle, Eisenerz verlangt
 eine bessere Spitzhacke. Laub gibt ab und zu einen Ast, Kies einen
 Steinbrocken, und lose Steine an Stränden und auf Wiesen geben Steinbrocken -
-daraus entstehen später die ersten Werkzeuge (CRAFTING.md). Pflanzen brechen sofort;
+daraus entstehen die ersten Werkzeuge. Pflanzen brechen sofort;
 Blumen und Schilf kommen ins Inventar und lassen sich wieder pflanzen
 (Blumen auf Gras oder Erde, Schilf auch auf Sand), hohes Gras gibt nichts
 und macht einem gesetzten Block Platz. Baut man den Boden unter einer
 Pflanze ab, bricht sie mit.
+
+Herstellen geht ohne Rezeptgitter, wie in Survival-Spielen (CRAFTING.md): Im
+Inventar (E) steht rechts eine Liste der bekannten Rezepte. Ein Rezept wird
+bekannt, sobald man jede seiner Zutaten einmal aufgehoben hat - Ast und
+Steinbrocken zusammen ergeben die Steinwerkzeuge, ein Stamm Äste und Bretter,
+Ast und Kohle Fackeln. Ein Klick zieht die Zutaten ab, nach ein paar Sekunden
+liegt das Ergebnis im Inventar; bis zu acht Aufträge warten in einer Reihe
+und laufen auch bei geschlossenem Inventar weiter (Balken neben der
+Schnellleiste).
+
 Gespeichert wird noch nichts.
 
 Ein Tag dauert 20 Minuten: die Sonne zieht über den Himmel, abends färbt er
@@ -74,7 +84,8 @@ Im Ordner übersetzen und starten:
                             großen Gewölbe; mit -foto ... -fackeln stellt es
                             ringsum Fackeln auf)
   bltzcrft.exe -werkzeuge -wahl 5 -foto 0 10   (mit Ästen, Brocken und
-                            Steinwerkzeugen; -inventar öffnet das Inventar)
+                            Steinwerkzeugen; -inventar öffnet das Inventar,
+                            -herstellen stellt dazu drei Steinäxte her)
 
 Voraussetzungen: Windows 64 Bit, eine Grafikkarte mit OpenGL 3.3.
 
@@ -117,6 +128,8 @@ rechte Maustaste      Block aus der Schnellleiste setzen, Fackeln an Boden
 E                     Inventar öffnen/schließen; darin: Linksklick Stapel
                       nehmen/ablegen/tauschen, Rechtsklick halber Stapel
                       bzw. ein Stück, Umschalt+Klick zwischen Leiste und Vorrat
+                      rechts die Rezepte: Klick stellt her, Umschalt+Klick so
+                      oft wie möglich, Rechtsklick auf einen Auftrag bricht ab
 F1                    Hilfe: alle Tasten im Spiel
 F3                    Anzeige ein/aus (mit Uhrzeit)
 F4                    Zeitraffer: ein Tag in 20 Sekunden (nur allein)
@@ -137,6 +150,7 @@ laden.bb        Nachladen und Vergessen von Chunks um den Spieler
 spieler.bb      Bewegung und Kollision gegen das Blockraster, Blickstrahl
 inventar.bb     Inventar: Stapel, Klicks, Haltbarkeit, zur Laufzeit gemalte Symbole
 dinge.bb        Gegenstände (Ast, Steinbrocken, Kohle, Werkzeuge) und ihre Wirkung
+rezepte.bb      Rezepte, Freischalten beim Aufheben, Herstellen über die Zeit
 abbau.bb        Abbauen über die Zeit, zur Laufzeit gemalte Risse
 mehrspieler.bb  Mehrspieler: Beitritt, Figuren, Blöcke, Chat (Net-Befehle)
 himmel.bb       Tag und Nacht: Himmelskuppel, Sonne, Mond, Sterne, Wolken
