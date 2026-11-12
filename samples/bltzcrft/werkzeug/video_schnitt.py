@@ -7,7 +7,7 @@
 #
 #   blender -b --factory-startup --python video_schnitt.py -- BILDER LOGO ZIEL
 #     BILDER  Ordner mit f0000.bmp, f0001.bmp, ...
-#     LOGO    PNG mit Alphakanal
+#     LOGO    PNG mit Alphakanal - oder "-" ohne Logo
 #     ZIEL    MP4-Datei
 #
 # Geschrieben fuer Blender 5.1 (Sequencer-API "strips"); aeltere Fassungen mit
@@ -59,20 +59,21 @@ flug.blend_alpha = 0.0
 flug.keyframe_insert("blend_alpha", frame=n)
 
 # Logo
-lg = strips.new_image("Logo", logo, channel=2, frame_start=sek(LOGO_EIN[0]))
-lg.frame_final_duration = sek(LOGO_AUS[1]) - sek(LOGO_EIN[0]) + 1
-lg.blend_type = "ALPHA_OVER"
-breite = bpy.data.images.load(logo).size[0]
-s = 1920 * LOGO_BREITE / breite
-try:
-    lg.fit_method = "ORIGINAL"
-except Exception:
-    pass
-lg.transform.scale_x = lg.transform.scale_y = s
-for frame, a in ((sek(LOGO_EIN[0]), 0.0), (sek(LOGO_EIN[1]), 1.0),
-                 (sek(LOGO_AUS[0]), 1.0), (sek(LOGO_AUS[1]), 0.0)):
-    lg.blend_alpha = a
-    lg.keyframe_insert("blend_alpha", frame=frame)
+if logo != "-":
+    lg = strips.new_image("Logo", logo, channel=2, frame_start=sek(LOGO_EIN[0]))
+    lg.frame_final_duration = sek(LOGO_AUS[1]) - sek(LOGO_EIN[0]) + 1
+    lg.blend_type = "ALPHA_OVER"
+    breite = bpy.data.images.load(logo).size[0]
+    s = 1920 * LOGO_BREITE / breite
+    try:
+        lg.fit_method = "ORIGINAL"
+    except Exception:
+        pass
+    lg.transform.scale_x = lg.transform.scale_y = s
+    for frame, a in ((sek(LOGO_EIN[0]), 0.0), (sek(LOGO_EIN[1]), 1.0),
+                     (sek(LOGO_AUS[0]), 1.0), (sek(LOGO_AUS[1]), 0.0)):
+        lg.blend_alpha = a
+        lg.keyframe_insert("blend_alpha", frame=frame)
 
 # Ausgabe: H.264 im MP4
 ims = r.image_settings

@@ -26,6 +26,8 @@ Global sp_vx#, sp_vy#, sp_vz#
 Global sp_gier#, sp_neig#
 Global sp_boden, sp_wasser, sp_kopf_nass, sp_fliegen, sp_wand
 Global sp_kamera, sp_nass, sp_nebel_fern#
+; Kinofahrt (kino.bb): Blick-Versatz zur Laufrichtung, Steigen im Flug statt hoch/runter
+Global sp_blick#, sp_kino, sp_kino_vy#
 ; Farbe des Himmels am Horizont und Helligkeit 0..1 - himmel.bb stellt sie
 ; nach der Tageszeit; ohne himmel.bb (Werkzeuge) bleibt es Mittag.
 Global sp_himmel_r = 150, sp_himmel_g = 196, sp_himmel_b = 255, sp_hell# = 1
@@ -143,6 +145,7 @@ Function Spieler_Takt(vor#, seit#, hoch, runter, rennen)
 		zy# = 0
 		If hoch Then zy = tempo
 		If runter Then zy = -tempo
+		If sp_kino Then zy = sp_kino_vy
 		sp_vy = sp_vy + (zy - sp_vy) * folgen
 	ElseIf sp_wasser
 		tempo = SP_LAUF * 0.55
@@ -213,7 +216,7 @@ Function Spieler_Kamera(anteil#)
 	y# = sp_ay + (sp_y - sp_ay) * anteil
 	z# = sp_az + (sp_z - sp_az) * anteil
 	PositionEntity sp_kamera, x, y + SP_AUGE, z
-	RotateEntity sp_kamera, sp_neig, sp_gier, 0
+	RotateEntity sp_kamera, sp_neig, sp_gier + sp_blick, 0
 	Spieler_Hoehle(x, y + SP_AUGE, z)
 	Spieler_Nebel(Welt_Block(Floor(x), Floor(y + SP_AUGE), Floor(z)) = B_WASSER)
 End Function

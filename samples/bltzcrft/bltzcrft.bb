@@ -54,6 +54,8 @@
 ; zwischen sich und den Host; kurz vor Schluss speichert jeder ein Bild
 ; (test_<name>.bmp), am Ende schreibt er Chat und Aenderungen nach
 ; test_<name>.txt (bltzcrft.exe -test 12 -name Host).
+; Mit -video <ordner> faehrt es eine Kinofahrt ab und speichert jedes Bild
+; (1920x1080, 30 je Sekunde) als BMP in den Ordner - Ablauf in kino.bb.
 ;
 ; Protokoll der Stellen, an denen BLTZNXT die Arbeit erschwert hat:
 ; PROTOKOLL.md in diesem Ordner.
@@ -79,10 +81,7 @@ Include "himmel.bb"
 Include "hand.bb"
 Include "partikel.bb"
 Include "mehrspieler.bb"
-
-AppTitle "BLTZCRFT"
-Graphics3D 1280, 720, 0, 2
-SetBuffer BackBuffer()
+Include "kino.bb"
 
 SeedRnd MilliSecs()
 saat = 2026
@@ -112,12 +111,17 @@ Repeat
 	Case "-pos"
 		pos_x# = Float(Wort(args, i + 1)) : pos_y# = Float(Wort(args, i + 2)) : pos_z# = Float(Wort(args, i + 3))
 		pos_da = True : i = i + 3
+	Case "-video" : i = i + 1 : kn_ordner = Wort(args, i) : kn_an = True
 	Case "-foto" : foto = True : foto_gier# = Float(Wort(args, i + 1)) : foto_neig# = Float(Wort(args, i + 2)) : i = i + 2
 	Default
 		If Left(arg, 1) <> "-" Then saat = Int(arg)
 	End Select
 	i = i + 1
 Forever
+
+AppTitle "BLTZCRFT"
+If kn_an Then Graphics3D 1920, 1080, 0, 2 Else Graphics3D 1280, 720, 0, 2
+SetBuffer BackBuffer()
 
 Bloecke_Laden()
 Dinge_Arten()
@@ -161,14 +165,16 @@ Spieler_Neu(sx + 0.5, HOEHE, sz + 0.5)
 Himmel_Laden(startzeit)
 Partikel_Laden()
 Hand_Laden()
-If rundflug Then Hand_Zeigen(False)
+If rundflug Or kn_an Then Hand_Zeigen(False)
 Spieler_Abstellen(sx, sz)
 If pos_da
 	Laden_Umgebung(Floor(pos_x), Floor(pos_z), 3)
 	Spieler_Setzen(pos_x, pos_y, pos_z)
 EndIf
 
-anzeige = True
+anzeige = Not kn_an
+sp_kino = kn_an
+If kn_an Then CreateDir kn_ordner
 gefangen = False
 sprung_merken = False
 
@@ -176,7 +182,7 @@ sprung_merken = False
 ; Esc beendet schon hier.
 ende = False
 If foto Then sp_gier = foto_gier : sp_neig = foto_neig
-If Not (rundflug Or mehr Or foto)
+If Not (rundflug Or mehr Or foto Or kn_an)
 	FlushKeys : FlushMouse
 	Repeat
 		Laden_Bild("Klick: allein spielen - M: Mehrspieler im LAN - im Spiel zeigt F1 die Steuerung - Esc beendet", 1)
@@ -277,7 +283,7 @@ While Not ende
 	Else
 		If KeyHit(1) Then ende = True
 		If KeyHit(20) And mp_an Then Chat_Oeffnen()
-		If KeyHit(18) And (Not rundflug)
+		If KeyHit(18) And (Not (rundflug Or kn_an))
 			inv_offen = True
 			gefangen = False
 			ShowPointer
@@ -287,7 +293,7 @@ While Not ende
 				gefangen = False
 				ShowPointer
 			EndIf
-		ElseIf Not rundflug
+		ElseIf Not (rundflug Or kn_an)
 			If MouseHit(1)
 				gefangen = True
 				Maus_Fangen()
@@ -344,17 +350,30 @@ While Not ende
 		EndIf
 	EndIf
 
-	jetzt = MilliSecs()
-	bild_dt = (jetzt - zeit) / 1000.0
-	rest = rest + bild_dt
-	zeit = jetzt
-	If rest > 0.25 Then rest = 0.25
-	While rest >= TAKT
-		Spieler_Takt(vor, seit, hoch, runter, rennen)
-		rest = rest - TAKT
-	Wend
-	Spieler_Kamera(rest / TAKT)
-	Himmel_Takt(bild_dt)
+	If kn_an
+		; Kinofahrt (kino.bb): fester Takt, die Uhr folgt der Aufnahmezeit
+		bild_dt = 1.0 / KN_BPS
+		Kino_Takt(bild_dt)
+		vor = kn_vor : seit = 0 : hoch = kn_hoch : runter = False : rennen = kn_rennen
+		For k = 1 To 60 / KN_BPS
+			Spieler_Takt(vor, seit, hoch, runter, rennen)
+		Next
+		Spieler_Kamera(1)
+		hm_ms = KN_UHR * TAG_MS / 24.0 + kn_t * 1000
+		Himmel_Takt(0)
+	Else
+		jetzt = MilliSecs()
+		bild_dt = (jetzt - zeit) / 1000.0
+		rest = rest + bild_dt
+		zeit = jetzt
+		If rest > 0.25 Then rest = 0.25
+		While rest >= TAKT
+			Spieler_Takt(vor, seit, hoch, runter, rennen)
+			rest = rest - TAKT
+		Wend
+		Spieler_Kamera(rest / TAKT)
+		Himmel_Takt(bild_dt)
+	EndIf
 
 	; Abbauen und Setzen. Der anvisierte Block wird nicht hervorgehoben -
 	; welchen man trifft, zeigen das Fadenkreuz und beim Abbauen die Risse.
@@ -478,7 +497,11 @@ While Not ende
 
 	; Chunks erzeugen, bauen und vergessen - so viel, wie in die Zeit passt
 	t0 = MilliSecs()
-	Laden_Takt(Floor(sp_x) Sar 4, Floor(sp_z) Sar 4, BAU_ZEIT)
+	If kn_an
+		Laden_Takt(Floor(sp_x) Sar 4, Floor(sp_z) Sar 4, 100000)
+	Else
+		Laden_Takt(Floor(sp_x) Sar 4, Floor(sp_z) Sar 4, BAU_ZEIT)
+	EndIf
 	bau_ms = MilliSecs() - t0
 
 	RenderWorld
@@ -509,9 +532,9 @@ While Not ende
 		test_bild = True
 		SaveBuffer BackBuffer(), "test_" + mp_name + ".bmp"
 	EndIf
-	If Not rundflug Then Leiste_Zeichnen()
-	If Not (rundflug Or inv_offen) Then Rezepte_Leiste_Zeichnen()
-	If MilliSecs() < hinweis_bis And (Not (inv_offen Or hilfe Or rundflug))
+	If Not (rundflug Or kn_an) Then Leiste_Zeichnen()
+	If Not (rundflug Or kn_an Or inv_offen) Then Rezepte_Leiste_Zeichnen()
+	If MilliSecs() < hinweis_bis And (Not (inv_offen Or hilfe Or rundflug Or kn_an))
 		Text_Schatten(GraphicsWidth() / 2, GraphicsHeight() - INV_FELD - 40, "Linke Maustaste halten: abbauen    Rechte Maustaste: setzen    E: Inventar und Herstellen    F1: Hilfe", 220, 220, 220)
 	EndIf
 	If MilliSecs() < meldung_bis
@@ -526,7 +549,7 @@ While Not ende
 	ElseIf gefangen
 		Rect GraphicsWidth() / 2 - 8, GraphicsHeight() / 2 - 1, 17, 3
 		Rect GraphicsWidth() / 2 - 1, GraphicsHeight() / 2 - 8, 3, 17
-	ElseIf Not rundflug
+	ElseIf Not (rundflug Or kn_an)
 		Text GraphicsWidth() / 2, GraphicsHeight() / 2, "Klick ins Fenster zum Spielen - Tab gibt die Maus frei, Esc beendet", True, True
 	EndIf
 	If foto
@@ -573,7 +596,13 @@ While Not ende
 			ende = True
 		EndIf
 	EndIf
-	Flip
+	If kn_an
+		Kino_Bild()
+		If kn_t >= KN_ENDE Then ende = True
+		Flip 0
+	Else
+		Flip
+	EndIf
 Wend
 If test_s > 0
 	datei = WriteFile("test_" + mp_name + ".txt")
