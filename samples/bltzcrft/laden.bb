@@ -25,7 +25,8 @@ Function Laden_Umgebung(wx, wz, r)
 	Next
 End Function
 
-; Ladebild: das Logo auf Himmelblau, darunter Text und Balken. Fehlt
+; Ladebild: das Logo auf Himmelblau, darunter Text und Balken. daten/logo.png
+; entsteht mit werkzeug/logo.ps1 aus daten/BLTZCRFT-Logo.png (720 x 480). Fehlt
 ; daten/logo.png, bleibt es bei Text und Balken.
 Function Laden_Bild(was$, anteil#)
 	If ld_logo = 0 Then ld_logo = LoadImage("daten/logo.png") : If ld_logo = 0 Then ld_logo = -1

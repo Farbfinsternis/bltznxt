@@ -172,13 +172,16 @@ himmel.bb       Tag und Nacht: Himmelskuppel, Sonne, Mond, Sterne, Wolken
 hand.bb         die eigene Hand (oder der gewählte Block) und ihr Schlag
 partikel.bb     Bruchstücke beim Abbauen
 
-daten/logo.png  das Logo für Titel- und Ladebild
+daten/logo.png  das Logo für Titel- und Ladebild (720 x 480, aus der Vorlage
+                erzeugt mit werkzeug/logo.ps1)
+daten/BLTZCRFT-Logo.png  das Logo in voller Größe (Vorlage, nicht im Paket)
 
 werkzeug/karte.bb   Draufsicht der Welt als Bild (zum Abstimmen des Geländes)
 werkzeug/foto.bb    ein Bild von einer festen Stelle, misst Erzeugen und Bauen
 werkzeug/schnitt.bb Schnitte durch die Welt als Bild, ohne Fenster (zum
                     Abstimmen der Höhlen): schnitt.exe saat x z
 werkzeug/video.bb   Kameraflug für das Werbevideo, Bild für Bild als BMP
+werkzeug/logo.ps1  verkleinert die Logo-Vorlage für das Spiel, mit Alphakanal
 werkzeug/video_schnitt.py  setzt die Bilder in Blender zum MP4 zusammen,
                     mit Logo-Einblendung
 
@@ -192,7 +195,8 @@ Herkunft
 --------
 
 Texturen und Welt erzeugt das Programm selbst. Einzige Datei ist das Logo
-(daten/logo.png), es erscheint im Titel- und Ladebild.
+(daten/logo.png, verkleinert aus daten/BLTZCRFT-Logo.png), es erscheint im
+Titel- und Ladebild.
 
 Verwendete Bibliotheken:
   SDL3, SDL3_ttf     zlib-Lizenz, www.libsdl.org
