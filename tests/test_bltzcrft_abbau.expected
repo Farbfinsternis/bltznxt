@@ -4,13 +4,14 @@ stein  1 2 3 3 4 5 5 6 7 7 8 9 9 10 |15 0
 dauer kohle 15.0, sand 0.75, laub 0.3
 ertrag erde Erde, stamm Stamm, stein Luft, kohle Luft, schnee Erde
 dauer stein hand 7.5, hacke 0.5625, kaputte hacke 7.5, axt 7.5
-dauer stamm axt 0.75, erde schaufel 0.1875, eisen hacke 3.75, laub axt 0.3
-ertrag mit hacke: stein Stein, kohle Kohle, sandstein Sandstein, eisen Luft, stein kaputt Luft, stein axt Luft
+dauer stamm axt 0.75, erde schaufel 0.1875, eisen hacke 1.125, laub axt 0.3
+ertrag mit hacke: stein Stein, kohle Kohle, sandstein Sandstein, eisen Eisenerz, stein kaputt Luft, stein axt Luft
 stein mit hacke: 2 4 6 8 9 |6 0 
 hinweis hand: Mit blosser Hand bleibt von Stein nichts uebrig - dafuer braucht es eine Spitzhacke
 hinweis ast: Ohne Spitzhacke bleibt von Kohleerz nichts uebrig
 hinweis kaputt: Steinspitzhacke ist kaputt - so bleibt von Stein nichts uebrig
-hinweis eisen: Fuer Eisenerz reicht eine Steinspitzhacke nicht
+hinweis eisen mit steinhacke: []
+eisen: stein mit eisenhacke 0.375, stamm mit eisenaxt 0.5, ertrag eisenerz Eisenerz, haltbar 250, stufe 2
 hinweis erde: []
 abnutzen: 0/1 1/0 0/0, ast 0 5, leer 0
 anderer block faengt neu an: 1 

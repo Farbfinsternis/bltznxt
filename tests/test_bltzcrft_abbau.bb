@@ -41,7 +41,8 @@ Print "dauer kohle " + Abbau_Dauer(B_KOHLE) + ", sand " + Abbau_Dauer(B_SAND) + 
 Print "ertrag erde " + dg_name(Block_Ertrag(B_ERDE)) + ", stamm " + dg_name(Block_Ertrag(B_STAMM)) + ", stein " + dg_name(Block_Ertrag(B_STEIN)) + ", kohle " + dg_name(Block_Ertrag(B_KOHLE)) + ", schnee " + dg_name(Block_Ertrag(B_SCHNEE))
 
 ; Werkzeuge: Tempo 4 auf passenden Bloecken, Ertrag bei Stein und Kohle erst
-; mit der Spitzhacke, Eisenerz verlangt Stufe 2 - kaputt wirkt wie die Hand
+; mit der Spitzhacke (Eisenerz schon mit der steinernen) - kaputt wirkt wie
+; die Hand; Eisenwerkzeuge 6-mal so schnell, Haltbarkeit 250
 H = STEIN_HALTBAR
 Print "dauer stein hand " + Abbau_Dauer(B_STEIN) + ", hacke " + Abbau_Dauer(B_STEIN, G_STEINHACKE, H) + ", kaputte hacke " + Abbau_Dauer(B_STEIN, G_STEINHACKE, 0) + ", axt " + Abbau_Dauer(B_STEIN, G_STEINAXT, H)
 Print "dauer stamm axt " + Abbau_Dauer(B_STAMM, G_STEINAXT, H) + ", erde schaufel " + Abbau_Dauer(B_ERDE, G_STEINSCHAUFEL, H) + ", eisen hacke " + Abbau_Dauer(B_EISEN, G_STEINHACKE, H) + ", laub axt " + Abbau_Dauer(B_LAUB, G_STEINAXT, H)
@@ -51,7 +52,8 @@ Abbau_Loslassen()
 Print "hinweis hand: " + Ertrag_Hinweis(B_STEIN, B_LUFT, 0)
 Print "hinweis ast: " + Ertrag_Hinweis(B_KOHLE, G_AST, 0)
 Print "hinweis kaputt: " + Ertrag_Hinweis(B_STEIN, G_STEINHACKE, 0)
-Print "hinweis eisen: " + Ertrag_Hinweis(B_EISEN, G_STEINHACKE, H)
+Print "hinweis eisen mit steinhacke: [" + Ertrag_Hinweis(B_EISEN, G_STEINHACKE, H) + "]"
+Print "eisen: stein mit eisenhacke " + Abbau_Dauer(B_STEIN, G_EISENHACKE, EISEN_HALTBAR) + ", stamm mit eisenaxt " + Abbau_Dauer(B_STAMM, G_EISENAXT, EISEN_HALTBAR) + ", ertrag eisenerz " + dg_name(Block_Ertrag(B_EISEN, G_EISENHACKE, EISEN_HALTBAR)) + ", haltbar " + dg_haltbar(G_EISENHACKE) + ", stufe " + dg_stufe(G_EISENHACKE)
 Print "hinweis erde: [" + Ertrag_Hinweis(B_ERDE, B_LUFT, 0) + "]"
 
 ; Verschleiss: ein Punkt je Aufruf, bei 0 kaputt, danach bleibt es so

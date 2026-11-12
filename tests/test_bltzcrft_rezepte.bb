@@ -112,14 +112,14 @@ Rezepte_Pruefen()
 Print "werkbank frei " + rz_frei(Nr(B_WERKBANK)) + ", steinziegel frei " + rz_frei(Nr(B_STEINZIEGEL)) + " meldung " + Meldung()
 Rezept_Herstellen(Nr(B_WERKBANK)) : Rezepte_Takt(5)
 Print "werkbank " + Inventar_Zaehlen(B_WERKBANK) + ", bretter " + Inventar_Zaehlen(B_BRETTER)
-rz_werkbank_nah = False
+rz_nah(RZ_WERKBANK) = False
 Print "ziegel ohne werkbank: " + Rezept_Herstellen(Nr(B_STEINZIEGEL)) + " meldung " + Meldung()
-rz_werkbank_nah = True
+rz_nah(RZ_WERKBANK) = True
 Print "ziegel an der werkbank: " + Rezept_Herstellen(Nr(B_STEINZIEGEL)) + ", stein " + Inventar_Zaehlen(B_STEIN)
 Rezepte_Takt(2)
-rz_werkbank_nah = False
+rz_nah(RZ_WERKBANK) = False
 Print "weggegangen: fertig " + Rezepte_Takt(5) + " laeuft " + Auftrag_Laeuft() + " fortschritt " + rz_fortschritt
-rz_werkbank_nah = True
+rz_nah(RZ_WERKBANK) = True
 Print "zurueck: fertig " + Rezepte_Takt(2) + ", ziegel " + Inventar_Zaehlen(B_STEINZIEGEL)
 
 ; Reparieren: halbe Zutaten (mindestens 1), das Werkzeug geht mit und
@@ -131,9 +131,9 @@ r = Nr(G_STEINAXT)
 Zeilen_Bauen()
 Print "zeilen " + zl_anzahl + ", letzte ist reparatur " + (zl_art(zl_anzahl - 1) = ZL_REPARATUR) + ", titel davor " + (zl_art(zl_anzahl - 2) = ZL_TITEL Or zl_art(zl_anzahl - 2) = ZL_REZEPT)
 Print "kosten axt: ast " + Reparatur_Menge(r, 0) + " brocken " + Reparatur_Menge(r, 1) + ", schaufel brocken " + Reparatur_Menge(Nr(G_STEINSCHAUFEL), 1)
-rz_werkbank_nah = False
+rz_nah(RZ_WERKBANK) = False
 Print "ohne werkbank: " + Reparieren(0) + " meldung " + Meldung()
-rz_werkbank_nah = True
+rz_nah(RZ_WERKBANK) = True
 Print "reparieren: " + Reparieren(0) + " -> axt " + Inventar_Zaehlen(G_STEINAXT) + ", " + Vorrat() + ", schlange " + Schlange()
 Rezepte_Takt(2.9)
 Print "nach 2.9 s: axt " + Inventar_Zaehlen(G_STEINAXT)
@@ -146,4 +146,33 @@ Inventar_Leeren()
 Inventar_Hinzu(G_STEINHACKE, 1, 12) : Inventar_Hinzu(G_AST, 1) : Inventar_Hinzu(G_BROCKEN, 1)
 Print "hacke reparieren: " + Reparieren(0) + ", " + Vorrat()
 Print "abbrechen: " + Auftrag_Abbrechen(0) + ", " + Vorrat() + ", " + Ding_Titel(inv_ding(0), inv_haltbar(0))
+
+; Schmelzofen: an der Werkbank aus Stein, dort Eisenbarren aus Eisenerz und
+; Kohle, daraus an der Werkbank Eisenwerkzeuge; Reparatur 1 Ast + 1 Barren
+Inventar_Leeren()
+Inventar_Hinzu(B_STEIN, 8) : Inventar_Hinzu(B_EISEN, 3) : Inventar_Hinzu(G_KOHLE, 3) : Inventar_Hinzu(G_AST, 2)
+Rezepte_Pruefen()
+Print "frei ofen " + rz_frei(Nr(B_OFEN)) + ", barren " + rz_frei(Nr(G_EISENBARREN)) + ", eisenhacke " + rz_frei(Nr(G_EISENHACKE)) + " meldung " + Meldung()
+rz_nah(RZ_WERKBANK) = True : rz_nah(RZ_OFEN) = False
+Print "ofen bauen: " + Rezept_Herstellen(Nr(B_OFEN)) + ", stein " + Inventar_Zaehlen(B_STEIN)
+Rezepte_Takt(6)
+Print "ofen " + Inventar_Zaehlen(B_OFEN) + ", barren ohne ofen: " + Rezept_Herstellen(Nr(G_EISENBARREN)) + " meldung " + Meldung()
+rz_nah(RZ_OFEN) = True
+Print "barren am ofen: " + Rezept_Herstellen(Nr(G_EISENBARREN), RZ_SCHLANGE) + ", erz " + Inventar_Zaehlen(B_EISEN) + " kohle " + Inventar_Zaehlen(G_KOHLE)
+Zeilen_Bauen()
+s$ = ""
+For z = 0 To zl_anzahl - 1
+	If zl_art(z) = ZL_TITEL Then s = s + "[" + Station_Titel(zl_wert(z)) + "] "
+Next
+Print "abschnitte: " + s
+rz_nah(RZ_OFEN) = False
+Print "ofen weg: laeuft " + Auftrag_Laeuft() + ", fertig " + Rezepte_Takt(10)
+rz_nah(RZ_OFEN) = True
+Rezepte_Takt(6) : Rezepte_Takt(6) : Rezepte_Takt(6)
+Rezepte_Pruefen()
+Print "barren " + Inventar_Zaehlen(G_EISENBARREN) + ", eisenhacke frei " + rz_frei(Nr(G_EISENHACKE)) + " meldung " + Meldung()
+Print "eisenhacke: " + Rezept_Herstellen(Nr(G_EISENHACKE))
+Rezepte_Takt(6)
+p = 0 : While inv_ding(p) <> G_EISENHACKE And p < INV_PLAETZE - 1 : p = p + 1 : Wend
+Print Ding_Titel(inv_ding(p), inv_haltbar(p)) + ", kosten reparatur ast " + Reparatur_Menge(Nr(G_EISENHACKE), 0) + " barren " + Reparatur_Menge(Nr(G_EISENHACKE), 1)
 End

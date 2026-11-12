@@ -39,8 +39,9 @@ mit der Hand nur langsam (Stein 7,5 s) und hinterlassen nichts - dafür braucht
 es eine Spitzhacke. Steinwerkzeuge (Spitzhacke, Axt, Schaufel) bauen ihre
 Blöcke viermal so schnell ab und nutzen sich dabei ab, je Block um einen
 Punkt von 100; kaputt wirken sie wie die bloße Hand. Mit der Steinspitzhacke
-geben Stein und Sandstein ihren Block und Kohleerz Kohle, Eisenerz verlangt
-eine bessere Spitzhacke. Laub gibt ab und zu einen Ast, Kies einen
+geben Stein, Sandstein und Eisenerz ihren Block und Kohleerz Kohle; Werkzeuge
+aus Eisen sind sechsmal so schnell und halten 250 Blöcke. Laub gibt ab und
+zu einen Ast, Kies einen
 Steinbrocken, und lose Steine an Stränden und auf Wiesen geben Steinbrocken -
 daraus entstehen die ersten Werkzeuge. Pflanzen brechen sofort;
 Blumen und Schilf kommen ins Inventar und lassen sich wieder pflanzen
@@ -63,6 +64,12 @@ Steinziegel aus Stein), und abgenutzte oder kaputte Werkzeuge lassen sich
 dort reparieren: gegen die Hälfte ihrer Zutaten, mindestens eine je Art.
 Rechtsklick auf die Werkbank öffnet das Inventar, mit Umschalt setzt man wie
 sonst einen Block daran. Werkbank-Aufträge halten an, wenn man weggeht.
+
+Aus acht Stein entsteht an der Werkbank ein Schmelzofen, eine zweite Station
+nach denselben Regeln. Darin wird aus einem Eisenerz und einer Kohle ein
+Eisenbarren; aus Ästen und Eisenbarren baut die Werkbank Eisenspitzhacke,
+Eisenaxt und Eisenschaufel. Repariert wird auch Eisen an der Werkbank (eine
+Eisenspitzhacke kostet einen Ast und einen Eisenbarren).
 
 Gespeichert wird noch nichts.
 

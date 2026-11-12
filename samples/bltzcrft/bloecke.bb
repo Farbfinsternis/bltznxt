@@ -51,7 +51,8 @@ Const B_STEINE = 25             ; lose Steine am Boden (wie eine Pflanze)
 Const B_BRETTER = 26
 Const B_WERKBANK = 27
 Const B_STEINZIEGEL = 28
-Const B_ANZAHL = 29
+Const B_OFEN = 29
+Const B_ANZAHL = 30
 
 Const T_STEIN = 0
 Const T_ERDE = 1
@@ -74,21 +75,27 @@ Const T_BRETTER = 17
 Const T_WERKBANK_OBEN = 18
 Const T_WERKBANK_SEITE = 19
 Const T_STEINZIEGEL = 20
-Const T_HOHESGRAS = 21
-Const T_LOEWENZAHN = 22
-Const T_MOHN = 23
-Const T_KORNBLUME = 24
-Const T_SCHILF = 25
-Const T_FACKEL = 26
+Const T_OFEN_SEITE = 21
+Const T_OFEN_OBEN = 22
+Const T_HOHESGRAS = 23
+Const T_LOEWENZAHN = 24
+Const T_MOHN = 25
+Const T_KORNBLUME = 26
+Const T_SCHILF = 27
+Const T_FACKEL = 28
 ; ab hier die Gegenstaende (flach, Ding_Tex_Malen)
-Const T_AST = 27
-Const T_BROCKEN = 28
-Const T_STEINAXT = 29
-Const T_STEINHACKE = 30
-Const T_STEINSCHAUFEL = 31
-Const T_KOHLESTUECK = 32
-Const T_ANZAHL = 33
-Const T_ERSTE_PFLANZE = 21      ; ab hier Pflanzentexturen (mit Maske)
+Const T_AST = 29
+Const T_BROCKEN = 30
+Const T_STEINAXT = 31
+Const T_STEINHACKE = 32
+Const T_STEINSCHAUFEL = 33
+Const T_KOHLESTUECK = 34
+Const T_EISENBARREN = 35
+Const T_EISENAXT = 36
+Const T_EISENHACKE = 37
+Const T_EISENSCHAUFEL = 38
+Const T_ANZAHL = 39
+Const T_ERSTE_PFLANZE = 23      ; ab hier Pflanzentexturen (mit Maske)
 
 Const TEX_ZOOM = 8          ; Bildpunkte je Texel
 
@@ -215,6 +222,7 @@ Function Bloecke_Arten()
 	Block_Art(B_BRETTER, "Bretter", T_BRETTER, T_BRETTER, T_BRETTER, True, True, 2.0, True)
 	Block_Art(B_WERKBANK, "Werkbank", T_WERKBANK_OBEN, T_WERKBANK_SEITE, T_BRETTER, True, True, 2.5, True)
 	Block_Art(B_STEINZIEGEL, "Steinziegel", T_STEINZIEGEL, T_STEINZIEGEL, T_STEINZIEGEL, True, True, 1.5, False)
+	Block_Art(B_OFEN, "Schmelzofen", T_OFEN_OBEN, T_OFEN_SEITE, T_STEIN, True, True, 3.5, False)
 	Pflanzen_Art(B_HOHESGRAS, "Hohes Gras", T_HOHESGRAS)
 	Pflanzen_Art(B_LOEWENZAHN, "Loewenzahn", T_LOEWENZAHN)
 	Pflanzen_Art(B_MOHN, "Mohn", T_MOHN)
@@ -228,12 +236,11 @@ Function Bloecke_Arten()
 	Fackel_Art(B_FACKEL_ZM, "Fackel", 2, 0, -1)
 
 	; Werkzeuge wie in Minecraft: die Spitzhacke fuer Gestein und Erze (erst
-	; sie bringt dort Ertrag, Eisenerz verlangt Stufe 2), die Axt fuer Holz,
-	; die Schaufel fuer lockeren Boden.
+	; sie bringt dort Ertrag, schon die Steinspitzhacke auch bei Eisenerz),
+	; die Axt fuer Holz, die Schaufel fuer lockeren Boden.
 	For b = B_STEIN To B_ANZAHL - 1
 		Select b
-		Case B_STEIN, B_KOHLE, B_SANDSTEIN, B_STEINZIEGEL : Block_Werkzeug(b, W_HACKE, 1)
-		Case B_EISEN : Block_Werkzeug(b, W_HACKE, 2)
+		Case B_STEIN, B_KOHLE, B_EISEN, B_SANDSTEIN, B_STEINZIEGEL, B_OFEN : Block_Werkzeug(b, W_HACKE, 1)
 		Case B_STAMM, B_BRETTER, B_WERKBANK : Block_Werkzeug(b, W_AXT, 0)
 		Case B_ERDE, B_GRAS, B_SAND, B_KIES, B_SCHNEE, B_TON : Block_Werkzeug(b, W_SCHAUFEL, 0)
 		End Select
@@ -453,6 +460,30 @@ Function Tex_Malen(t)
 				EndIf
 			Next
 		Next
+	Case T_OFEN_SEITE
+		; Steinziegel mit einer Feueroeffnung, unten darin Glut
+		Tex_Malen(T_STEINZIEGEL)
+		For y = 7 To 14
+			For x = 3 To 12
+				If y = 7 Or x = 3 Or x = 12 Or y = 14
+					Tx_Punkt(x, y, 70, 70, 72, 4)
+				ElseIf y >= 12
+					If Rand(0, 2) = 0 Then Tx_Punkt(x, y, 255, 214, 90, 10) Else Tx_Punkt(x, y, 236, 110, 30, 14)
+				ElseIf y = 11
+					If Rand(0, 1) = 0 Then Tx_Punkt(x, y, 200, 70, 20, 10) Else Tx_Punkt(x, y, 24, 20, 20, 4)
+				Else
+					Tx_Punkt(x, y, 24, 20, 20, 4)
+				EndIf
+			Next
+		Next
+	Case T_OFEN_OBEN
+		; Steinziegel, in der Mitte der Abzug
+		Tex_Malen(T_STEINZIEGEL)
+		For y = 5 To 10
+			For x = 5 To 10
+				If y = 5 Or x = 5 Or y = 10 Or x = 10 Then Tx_Punkt(x, y, 70, 70, 72, 4) Else Tx_Punkt(x, y, 30, 26, 26, 4)
+			Next
+		Next
 	Case T_HOHESGRAS
 		; Halme verschiedener Hoehe, von unten nach oben heller, leicht schief
 		Tx_Leer()
@@ -619,7 +650,7 @@ Dim tx_kopfmaske(15, 15)
 ; a entlang des Stiels (nach rechts oben), q quer dazu (nach rechts unten).
 ; art: W_AXT, W_HACKE oder W_SCHAUFEL. Der Rand wird dunkel, damit der
 ; graue Stein auch vor grauem Grund lesbar bleibt.
-Function Tx_Kopf(art, cx#, cy#)
+Function Tx_Kopf(art, cx#, cy#, eisen = False)
 	For y = 0 To 15
 		For x = 0 To 15
 			dx# = x + 0.5 - cx : dy# = y + 0.5 - cy
@@ -649,11 +680,11 @@ Function Tx_Kopf(art, cx#, cy#)
 					rand = True
 				EndIf
 				If rand
-					Tx_Punkt(x, y, 70, 70, 68, 6)
+					If eisen Then Tx_Punkt(x, y, 92, 94, 104, 5) Else Tx_Punkt(x, y, 70, 70, 68, 6)
 				Else
 					dx# = x + 0.5 - cx : dy# = y + 0.5 - cy
 					licht = Int(-(dx + dy) * 6)
-					Tx_Punkt(x, y, 156 + licht, 156 + licht, 150 + licht, 10)
+					If eisen Then Tx_Punkt(x, y, 206 + licht, 208 + licht, 214 + licht, 6) Else Tx_Punkt(x, y, 156 + licht, 156 + licht, 150 + licht, 10)
 				EndIf
 			EndIf
 		Next
@@ -686,6 +717,28 @@ Function Ding_Tex_Malen(t)
 		Tx_Kiesel(6.0, 10.0, 3.4, 52)
 		Tx_Kiesel(10.8, 8.0, 3.0, 44)
 		Tx_Punkt(5, 8, 120, 120, 128, 0) : Tx_Punkt(10, 6, 110, 110, 120, 0)
+	Case T_EISENBARREN
+		; ein Barren schraeg von oben: helle Oberseite, dunklere Vorderseite
+		For y = 5 To 11
+			For x = 1 To 14
+				If y <= 7
+					; Oberseite als Parallelogramm, nach rechts versetzt
+					If x >= 4 + (7 - y) And x <= 11 + (7 - y) Then Tx_Punkt(x, y, 226, 228, 234, 5)
+				ElseIf x >= 3 And x <= 12
+					If y = 11 Or x = 3 Or x = 12 Then Tx_Punkt(x, y, 110, 112, 120, 4) Else Tx_Punkt(x, y, 178, 180, 188, 6)
+				EndIf
+			Next
+		Next
+		For x = 13 To 14 : Tx_Punkt(x, 9 - (x - 13), 140, 142, 150, 4) : Tx_Punkt(x, 10 - (x - 13), 140, 142, 150, 4) : Next
+	Case T_EISENAXT
+		Tx_Stiel(1, 15, 11, 5)
+		Tx_Kopf(W_AXT, 10.0, 5.0, True)
+	Case T_EISENHACKE
+		Tx_Stiel(1, 15, 11, 5)
+		Tx_Kopf(W_HACKE, 10.5, 5.5, True)
+	Case T_EISENSCHAUFEL
+		Tx_Stiel(1, 15, 8, 8)
+		Tx_Kopf(W_SCHAUFEL, 10.0, 6.0, True)
 	End Select
 End Function
 

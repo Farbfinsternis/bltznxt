@@ -21,9 +21,14 @@ Const G_STEINAXT = 66
 Const G_STEINHACKE = 67
 Const G_STEINSCHAUFEL = 68
 Const G_KOHLE = 69
-Const D_ANZAHL = 70
+Const G_EISENBARREN = 70
+Const G_EISENAXT = 71
+Const G_EISENHACKE = 72
+Const G_EISENSCHAUFEL = 73
+Const D_ANZAHL = 74
 
 Const STEIN_HALTBAR = 100       ; Haltbarkeit der Steinwerkzeuge
+Const EISEN_HALTBAR = 250       ; ... der Eisenwerkzeuge (wie in Minecraft)
 
 Dim dg_name$(D_ANZAHL - 1)
 Dim dg_tex(D_ANZAHL - 1)        ; flache Textur, -1 = Block (eigenes Symbol)
@@ -54,6 +59,10 @@ Function Dinge_Arten()
 	Ding_Art(G_STEINHACKE, "Steinspitzhacke", T_STEINHACKE, 1, STEIN_HALTBAR, W_HACKE, 1)
 	Ding_Art(G_STEINSCHAUFEL, "Steinschaufel", T_STEINSCHAUFEL, 1, STEIN_HALTBAR, W_SCHAUFEL, 1)
 	Ding_Art(G_KOHLE, "Kohle", T_KOHLESTUECK, 64, 0, W_KEINS, 0)
+	Ding_Art(G_EISENBARREN, "Eisenbarren", T_EISENBARREN, 64, 0, W_KEINS, 0)
+	Ding_Art(G_EISENAXT, "Eisenaxt", T_EISENAXT, 1, EISEN_HALTBAR, W_AXT, 2)
+	Ding_Art(G_EISENHACKE, "Eisenspitzhacke", T_EISENHACKE, 1, EISEN_HALTBAR, W_HACKE, 2)
+	Ding_Art(G_EISENSCHAUFEL, "Eisenschaufel", T_EISENSCHAUFEL, 1, EISEN_HALTBAR, W_SCHAUFEL, 2)
 End Function
 
 Function Ist_Block(d)

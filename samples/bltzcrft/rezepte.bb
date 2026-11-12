@@ -13,18 +13,20 @@
 ; seiner Zutaten schon einmal aufgehoben hat (dg_gesehen, dinge.bb) - ein
 ; Ast allein genuegt fuer die Steinaxt nicht, Ast und Steinbrocken schon.
 ;
-; Werkbank: Rezepte mit rz_station = RZ_WERKBANK lassen sich nur bestellen,
-; wenn eine Werkbank in der Naehe steht (rz_werkbank_nah, setzt das Spiel),
+; Stationen (Werkbank, Schmelzofen): Rezepte mit rz_station <> RZ_HAND lassen
+; sich nur bestellen, wenn die Station in der Naehe steht (rz_nah, setzt das Spiel),
 ; und ihr Auftrag laeuft nur dort - geht man weg, haelt der Balken an. An
 ; der Werkbank lassen sich ausserdem abgenutzte und kaputte Werkzeuge
 ; reparieren: gegen die Haelfte ihrer Zutaten (abgerundet, mindestens 1 je
 ; Art) bekommen sie die volle Haltbarkeit zurueck.
 
-Const RZ_MAX = 16
+Const RZ_MAX = 32
 Const RZ_ZUTATEN = 4
 Const RZ_SCHLANGE = 8
 Const RZ_HAND = 0
 Const RZ_WERKBANK = 1
+Const RZ_OFEN = 2
+Const RZ_STATIONEN = 3
 Const RZ_REPARATUR_ZEIT# = 3.0
 
 Dim rz_ergebnis(RZ_MAX - 1), rz_menge(RZ_MAX - 1), rz_zeit#(RZ_MAX - 1)
@@ -38,7 +40,7 @@ Dim rz_auftrag(RZ_SCHLANGE - 1), rz_auftrag_rep(RZ_SCHLANGE - 1), rz_auftrag_h(R
 Global rz_auftraege
 Global rz_fortschritt#              ; Sekunden am vordersten Auftrag
 Global rz_meldung$                  ; fuer die Meldung im Bild (bltzcrft.bb)
-Global rz_werkbank_nah              ; steht man an einer Werkbank?
+Dim rz_nah(RZ_STATIONEN - 1)        ; steht man an dieser Station? (setzt das Spiel)
 
 ; Ein Rezept: Ergebnis und Menge, Sekunden, Station, bis zu vier Zutaten.
 Function Rezept(ergebnis, menge, zeit#, station, z1, m1, z2 = 0, m2 = 0, z3 = 0, m3 = 0, z4 = 0, m4 = 0)
@@ -64,7 +66,13 @@ Function Rezepte_Laden()
 	Rezept(B_FACKEL, 4, 2, RZ_HAND, G_AST, 1, G_KOHLE, 1)
 	Rezept(B_WERKBANK, 1, 5, RZ_HAND, B_BRETTER, 4, G_BROCKEN, 2)
 	Rezept(B_STEINZIEGEL, 4, 4, RZ_WERKBANK, B_STEIN, 4)
-	rz_auftraege = 0 : rz_fortschritt = 0 : rz_meldung = "" : rz_werkbank_nah = False
+	Rezept(B_OFEN, 1, 6, RZ_WERKBANK, B_STEIN, 8)
+	Rezept(G_EISENHACKE, 1, 6, RZ_WERKBANK, G_AST, 2, G_EISENBARREN, 3)
+	Rezept(G_EISENAXT, 1, 6, RZ_WERKBANK, G_AST, 2, G_EISENBARREN, 3)
+	Rezept(G_EISENSCHAUFEL, 1, 5, RZ_WERKBANK, G_AST, 2, G_EISENBARREN, 1)
+	Rezept(G_EISENBARREN, 1, 6, RZ_OFEN, B_EISEN, 1, G_KOHLE, 1)
+	rz_auftraege = 0 : rz_fortschritt = 0 : rz_meldung = ""
+	For s = 0 To RZ_STATIONEN - 1 : rz_nah(s) = False : Next
 End Function
 
 ; Neu frei gewordene Rezepte eintragen und melden. Jedes Bild aufrufen - es
@@ -126,9 +134,31 @@ Function Rezept_Moeglich(r, rep = False)
 	Return n
 End Function
 
+; "an einer Werkbank" usw. - fuer Meldungen
+Function Station_Name$(station)
+	Select station
+	Case RZ_WERKBANK : Return "einer Werkbank"
+	Case RZ_OFEN : Return "einem Schmelzofen"
+	End Select
+	Return ""
+End Function
+
+Function Station_Titel$(station)
+	Select station
+	Case RZ_WERKBANK : Return "An der Werkbank"
+	Case RZ_OFEN : Return "Am Schmelzofen"
+	End Select
+	Return ""
+End Function
+
+Function Station_Fehlt$(station)
+	If station = RZ_OFEN Then Return " (keiner in der Naehe)"
+	Return " (keine in der Naehe)"
+End Function
+
 Function Station_Da(station)
 	If station = RZ_HAND Then Return True
-	Return rz_werkbank_nah
+	Return rz_nah(station)
 End Function
 
 ; Bis zu n Auftraege fuer Rezept r anlegen: so viele, wie Zutaten und
@@ -137,7 +167,7 @@ Function Rezept_Herstellen(r, n = 1)
 	If r < 0 Or r >= rz_anzahl Then Return 0
 	If Not rz_frei(r) Then Return 0
 	If Not Station_Da(rz_station(r))
-		rz_meldung = dg_name(rz_ergebnis(r)) + " gibt es nur an einer Werkbank"
+		rz_meldung = dg_name(rz_ergebnis(r)) + " gibt es nur an " + Station_Name(rz_station(r))
 		Return 0
 	EndIf
 	k = Rezept_Moeglich(r)
@@ -169,7 +199,7 @@ End Function
 ; samt Kosten und kommt nach RZ_REPARATUR_ZEIT heil zurueck.
 Function Reparieren(i)
 	If Not Reparierbar(i) Then Return False
-	If Not rz_werkbank_nah
+	If Not rz_nah(RZ_WERKBANK)
 		rz_meldung = "Reparieren geht nur an einer Werkbank"
 		Return False
 	EndIf
@@ -273,9 +303,9 @@ End Function
 
 ; ---- Die Liste: Zeilen ------------------------------------------------------
 ;
-; Erst die Handarbeit, dann - sobald es dort etwas gibt - der Abschnitt
-; "An der Werkbank" mit ihren Rezepten und je einer Zeile pro reparierbarem
-; Werkzeug im Inventar.
+; Erst die Handarbeit, dann - sobald es dort etwas gibt - je Station ein
+; Abschnitt: "An der Werkbank" mit ihren Rezepten und je einer Zeile pro
+; reparierbarem Werkzeug im Inventar, "Am Schmelzofen".
 
 Const ZL_REZEPT = 0
 Const ZL_TITEL = 1
@@ -296,17 +326,23 @@ Function Zeilen_Bauen()
 	For r = 0 To rz_anzahl - 1
 		If rz_frei(r) And rz_station(r) = RZ_HAND Then Zeile_Neu(ZL_REZEPT, r)
 	Next
-	titel = zl_anzahl
-	For r = 0 To rz_anzahl - 1
-		If rz_frei(r) And rz_station(r) = RZ_WERKBANK
-			If zl_anzahl = titel Then Zeile_Neu(ZL_TITEL, 0)
-			Zeile_Neu(ZL_REZEPT, r)
-		EndIf
-	Next
-	For i = 0 To INV_PLAETZE - 1
-		If Reparierbar(i)
-			If zl_anzahl = titel Then Zeile_Neu(ZL_TITEL, 0)
-			Zeile_Neu(ZL_REPARATUR, i)
+	; je Station ein Abschnitt, sobald es dort etwas gibt; die Reparaturen
+	; gehoeren zur Werkbank
+	For s = RZ_WERKBANK To RZ_STATIONEN - 1
+		titel = zl_anzahl
+		For r = 0 To rz_anzahl - 1
+			If rz_frei(r) And rz_station(r) = s
+				If zl_anzahl = titel Then Zeile_Neu(ZL_TITEL, s)
+				Zeile_Neu(ZL_REZEPT, r)
+			EndIf
+		Next
+		If s = RZ_WERKBANK
+			For i = 0 To INV_PLAETZE - 1
+				If Reparierbar(i)
+					If zl_anzahl = titel Then Zeile_Neu(ZL_TITEL, s)
+					Zeile_Neu(ZL_REPARATUR, i)
+				EndIf
+			Next
 		EndIf
 	Next
 End Function
@@ -428,9 +464,10 @@ Function Rezepte_Zeichnen()
 	For z = 0 To zl_anzahl - 1
 		Select zl_art(z)
 		Case ZL_TITEL
-			If rz_werkbank_nah Then Color 255, 220, 120 Else Color 150, 150, 150
-			t$ = "An der Werkbank"
-			If Not rz_werkbank_nah Then t = t + " (keine in der Naehe)"
+			s = zl_wert(z)
+			If rz_nah(s) Then Color 255, 220, 120 Else Color 150, 150, 150
+			t$ = Station_Titel(s)
+			If Not rz_nah(s) Then t = t + Station_Fehlt(s)
 			Text x + 14, zy + 7, t
 			Color 90, 90, 90 : Line x + 14, zy + 22, x + RZ_BREITE - 14, zy + 22
 		Case ZL_REZEPT, ZL_REPARATUR
@@ -439,7 +476,7 @@ Function Rezepte_Zeichnen()
 				i = zl_wert(z) : r = Rezept_Fuer(inv_ding(i)) : e = inv_ding(i)
 				titel$ = dg_name(e) + " reparieren"    ; der Zustand steht am Symbol
 				zeit# = RZ_REPARATUR_ZEIT
-				geht = rz_werkbank_nah And Rezept_Moeglich(r, True) > 0
+				geht = rz_nah(RZ_WERKBANK) And Rezept_Moeglich(r, True) > 0
 			Else
 				r = zl_wert(z) : e = rz_ergebnis(r)
 				titel$ = dg_name(e)
@@ -489,14 +526,14 @@ Function Rezepte_Zeichnen()
 		Balken_Zeichnen(x + 12, sy + SYMBOL_GROESSE + 6, RZ_BREITE - 24, Rezepte_Anteil(), laeuft)
 		t$ = dg_name(rz_ergebnis(r))
 		If rz_auftrag_rep(0) Then t = "Reparatur " + t
-		If laeuft Then t = t + " - noch " + Zahl(Auftrag_Zeit(0) - rz_fortschritt) + " s" Else t = t + " - wartet auf eine Werkbank"
+		If laeuft Then t = t + " - noch " + Zahl(Auftrag_Zeit(0) - rz_fortschritt) + " s" Else t = t + " - wartet auf " + Station_Name(Auftrag_Station(0))
 		Color 200, 200, 200
 		Text x + 14, sy + SYMBOL_GROESSE + 14, t
 	EndIf
 End Function
 
 ; Bei geschlossenem Inventar: der laufende Auftrag rechts neben der
-; Schnellleiste, mit Balken (gelb, wenn er auf eine Werkbank wartet).
+; Schnellleiste, mit Balken (gelb, wenn er auf seine Station wartet).
 Function Rezepte_Leiste_Zeichnen()
 	If rz_auftraege = 0 Then Return
 	x = (GraphicsWidth() + INV_LEISTE * INV_FELD) / 2 + 14

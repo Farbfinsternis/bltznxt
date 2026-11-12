@@ -169,3 +169,59 @@ Jeder Schritt ist für sich spielbar und wird einzeln committet.
   muss nicht gleichzeitig im Inventar liegen. Falls doch gemeint: kurz sagen.
 - **Laufen Aufträge bei geschlossenem Inventar weiter?** Hier: ja (wie Conan). Die
   Alternative wäre, dass man im Menü warten muss.
+
+---
+
+# Meilenstein 2 – Schmelzofen und Eisen
+
+Stand: 2026-11-12. Gebaut (Schritte 1-4).
+
+## Entscheidung (Nutzer, 12.11.)
+
+**Brennstoff ist eine Zutat:** Jeder Eisenbarren kostet 1 Eisenerz und 1 Kohle,
+wie ein gewöhnliches Rezept – nur eben am Schmelzofen. Kein eigener
+Brennstoffvorrat, kein eigenes Ofenfenster.
+
+## Korrektur aus Meilenstein 1
+
+Eisenerz verlangte bisher Stufe 2 (Eisenspitzhacke). Dann käme man nie an das
+erste Eisen. Wie in Minecraft genügt jetzt die **Steinspitzhacke**: Eisenerz
+gibt mit ihr den Block Eisenerz. Stufe 2 bleibt für spätere Erze frei.
+
+## Der Weg
+
+Steinspitzhacke → Stein und Kohle und Eisenerz abbauen → an der Werkbank einen
+Schmelzofen aus Stein → am Ofen Eisenbarren aus Eisenerz und Kohle → an der
+Werkbank Eisenwerkzeuge.
+
+## Neues
+
+| Was | Art | Rezept | Wo | Zeit |
+|---|---|---|---|---|
+| Schmelzofen | Block (Station) | 8 Stein | Werkbank | 6 s |
+| Eisenbarren | Gegenstand | 1 Eisenerz, 1 Kohle | Schmelzofen | 6 s |
+| Eisenspitzhacke | Werkzeug | 2 Äste, 3 Eisenbarren | Werkbank | 6 s |
+| Eisenaxt | Werkzeug | 2 Äste, 3 Eisenbarren | Werkbank | 6 s |
+| Eisenschaufel | Werkzeug | 2 Äste, 1 Eisenbarren | Werkbank | 5 s |
+
+- **Eisenwerkzeuge:** Stufe 2, sechsmal so schnell wie die Hand (Stein: viermal),
+  Haltbarkeit 250 (Stein: 100) – Werte wie in Minecraft.
+- **Reparieren** wie gehabt an der Werkbank, gegen die Hälfte der Zutaten:
+  eine Eisenspitzhacke kostet 1 Ast und 1 Eisenbarren.
+- **Schmelzofen:** wie die Werkbank eine Station. Seine Rezepte stehen in der
+  Liste unter „Am Schmelzofen“ und laufen nur, solange man höchstens 4 Blöcke
+  entfernt steht. Rechtsklick auf den Ofen öffnet das Inventar. Er baut sich
+  mit der Spitzhacke ab und gibt sich dabei selbst zurück.
+- **Aussehen:** Steinziegel-artiger Block, an den Seiten eine Feueröffnung,
+  oben eine Abzugsöffnung.
+
+## Schritte
+
+1. ✅ Eisenerz mit der Steinspitzhacke abbaubar.
+2. ✅ Eisenbarren und Eisenwerkzeuge als Gegenstände (Bilder, Werte).
+3. ✅ Schmelzofen-Block, Stationen verallgemeinert (Werkbank, Ofen), Abschnitt
+   „Am Schmelzofen“, Rechtsklick, Rezepte.
+4. ✅ Tests, Hilfe, README, Fotolauf.
+
+Später, nicht in diesem Meilenstein: Truhe, Tür, Leiter; ein Ofen, der beim
+Schmelzen leuchtet; Glas aus Sand.
