@@ -41,16 +41,18 @@ Function Inventar_Leeren()
 	inv_gewaehlt = 0
 End Function
 
-; Was ein mit der Hand abgebauter Block hinterlaesst - wie in Minecraft:
-; Gras und Schnee verlieren ihre Decke, und wo die Hand nicht genuegt
-; (Stein, Erze, Sandstein), bleibt nichts. Laub gibt ab und zu einen Ast,
-; Kies ab und zu einen Steinbrocken statt seiner selbst, lose Steine immer
-; Brocken (wie viele: Block_Ertrag_Anzahl).
-Function Block_Ertrag(b)
+; Was ein abgebauter Block hinterlaesst, wenn man dabei Ding d mit der
+; Haltbarkeit h haelt - wie in Minecraft: Gras und Schnee verlieren ihre
+; Decke, und wo weder Hand noch Werkzeug genuegen (Stein, Erze, Sandstein
+; ohne Spitzhacke), bleibt nichts (Kann_Ernten, dinge.bb). Kohleerz gibt
+; Kohle, Laub ab und zu einen Ast, Kies ab und zu einen Steinbrocken statt
+; seiner selbst, lose Steine immer Brocken (wie viele: Block_Ertrag_Anzahl).
+Function Block_Ertrag(b, d = 0, h = 0)
 	If bl_fackel(b) Then Return B_FACKEL
-	If Not bl_hand(b) Then Return B_LUFT
+	If Not Kann_Ernten(b, d, h) Then Return B_LUFT
 	Select b
 	Case B_GRAS, B_SCHNEE : Return B_ERDE
+	Case B_KOHLE : Return G_KOHLE
 	Case B_HOHESGRAS : Return B_LUFT
 	Case B_LAUB
 		If Rnd(0, 1) < 0.3 Then Return G_AST
@@ -173,6 +175,15 @@ Function Inventar_Schieben(i)
 	Next
 	inv_anzahl(i) = n
 	If n = 0 Then inv_ding(i) = B_LUFT : inv_haltbar(i) = 0
+End Function
+
+; Das Werkzeug auf Platz i nutzt sich um einen Punkt ab. True, wenn es
+; dabei kaputtgeht; Dinge ohne Haltbarkeit und schon kaputte bleiben, wie
+; sie sind.
+Function Werkzeug_Abnutzen(i)
+	If inv_anzahl(i) = 0 Or dg_haltbar(inv_ding(i)) = 0 Or inv_haltbar(i) <= 0 Then Return False
+	inv_haltbar(i) = inv_haltbar(i) - 1
+	Return inv_haltbar(i) = 0
 End Function
 
 ; Beim Schliessen kommt der Stapel aus der Hand zurueck ins Inventar.

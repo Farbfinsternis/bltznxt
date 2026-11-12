@@ -12,7 +12,8 @@
 ;             schwimmen      Strg rennen     F fliegen (Leertaste hoch,
 ;             Umschalt runter)
 ;             linke Maustaste halten: abbauen (wie in Minecraft mit der
-;             Hand: Erde und Holz geben einen Block, Stein und Erze nichts;
+;             Hand: Erde und Holz geben einen Block, Stein und Erze erst mit
+;             der Spitzhacke; Axt und Schaufel sind schneller;
 ;             Laub ab und zu einen Ast, lose Steine Steinbrocken)
 ;             rechte Maustaste Block setzen (Fackeln an Boden oder Wand,
 ;             64 Stueck zum Start)
@@ -343,11 +344,20 @@ While Not ende
 				Hand_Schlagen()
 				b = Welt_Block(ziel_x, ziel_y, ziel_z)
 				If ab_pause <= 0 Then Partikel_Schlag(ziel_x, ziel_y, ziel_z, ziel_vx - ziel_x, ziel_vy - ziel_y, ziel_vz - ziel_z, b, bild_dt)
-				If Abbau_Halten(ziel_x, ziel_y, ziel_z, b, bild_dt)
-					Block_Abbauen(ziel_x, ziel_y, ziel_z)
-					If (Not bl_hand(b)) And meldung <> "Inventar voll"
-						meldung = "Mit blosser Hand bleibt von " + bl_name(b) + " nichts uebrig - dafuer braucht es eine Spitzhacke"
-						meldung_bis = MilliSecs() + 3000
+				; mit dem, was gerade in der Hand liegt (Werkzeug: dinge.bb)
+				hd = Inventar_Gewaehlt() : hh = inv_haltbar(inv_gewaehlt)
+				If Abbau_Halten(ziel_x, ziel_y, ziel_z, b, bild_dt, hd, hh)
+					Block_Abbauen(ziel_x, ziel_y, ziel_z, hd, hh)
+					warum$ = Ertrag_Hinweis(b, hd, hh)
+					If warum <> "" And meldung <> "Inventar voll"
+						meldung = warum : meldung_bis = MilliSecs() + 3000
+					EndIf
+					; jeder Block mit Haerte kostet das Werkzeug einen Punkt
+					If bl_haerte(b) > 0
+						If Werkzeug_Abnutzen(inv_gewaehlt)
+							meldung = dg_name(hd) + " ist kaputt - an der Werkbank reparieren"
+							meldung_bis = MilliSecs() + 3500
+						EndIf
 					EndIf
 				EndIf
 			Else
@@ -565,7 +575,7 @@ Data "W A S D / Pfeile", "laufen"
 Data "Leertaste", "springen, im Wasser schwimmen"
 Data "Strg", "rennen"
 Data "F", "fliegen ein/aus (Leertaste hoch, Umschalt runter)"
-Data "Linke Maustaste", "halten: abbauen (Stein, Erze: ohne Ertrag)"
+Data "Linke Maustaste", "halten: abbauen (Stein, Erze nur mit Spitzhacke)"
 Data "Rechte Maustaste", "setzen - Fackeln an Boden oder Wand"
 Data "1 - 9 / Mausrad", "Platz der Schnellleiste waehlen"
 Data "E", "Inventar oeffnen/schliessen"
@@ -590,13 +600,13 @@ End Function
 
 ; Den Block bei x,y,z abbauen: Bruchstuecke, Ertrag ins Inventar, an alle
 ; schicken. Was an ihm hing, bricht mit.
-Function Block_Abbauen(x, y, z)
+Function Block_Abbauen(x, y, z, d = 0, h = 0)
 	b = Welt_Block(x, y, z)
 	If Not Welt_Aendern(x, y, z, B_LUFT) Then Return
 	Mp_Block(x, y, z, B_LUFT)
 	Partikel_Bruch(x, y, z, b)
 	; ist das Inventar voll, geht der Block verloren
-	If Inventar_Hinzu(Block_Ertrag(b), Block_Ertrag_Anzahl(b)) > 0
+	If Inventar_Hinzu(Block_Ertrag(b, d, h), Block_Ertrag_Anzahl(b)) > 0
 		meldung = "Inventar voll" : meldung_bis = MilliSecs() + 1500
 	EndIf
 	; was an diesem Block hing, verliert den Halt: Wandfackeln daneben,

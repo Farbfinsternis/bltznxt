@@ -20,13 +20,8 @@ Const G_BROCKEN = 65
 Const G_STEINAXT = 66
 Const G_STEINHACKE = 67
 Const G_STEINSCHAUFEL = 68
-Const D_ANZAHL = 69
-
-; Werkzeugarten
-Const W_KEINS = 0
-Const W_HACKE = 1
-Const W_AXT = 2
-Const W_SCHAUFEL = 3
+Const G_KOHLE = 69
+Const D_ANZAHL = 70
 
 Const STEIN_HALTBAR = 100       ; Haltbarkeit der Steinwerkzeuge
 
@@ -58,6 +53,7 @@ Function Dinge_Arten()
 	Ding_Art(G_STEINAXT, "Steinaxt", T_STEINAXT, 1, STEIN_HALTBAR, W_AXT, 1)
 	Ding_Art(G_STEINHACKE, "Steinspitzhacke", T_STEINHACKE, 1, STEIN_HALTBAR, W_HACKE, 1)
 	Ding_Art(G_STEINSCHAUFEL, "Steinschaufel", T_STEINSCHAUFEL, 1, STEIN_HALTBAR, W_SCHAUFEL, 1)
+	Ding_Art(G_KOHLE, "Kohle", T_KOHLESTUECK, 64, 0, W_KEINS, 0)
 End Function
 
 Function Ist_Block(d)
@@ -79,4 +75,54 @@ Function Ding_Titel$(d, h)
 	If dg_haltbar(d) = 0 Then Return dg_name(d)
 	If h <= 0 Then Return dg_name(d) + " (kaputt)"
 	Return dg_name(d) + " (" + h + "/" + dg_haltbar(d) + ")"
+End Function
+
+; ---- Werkzeuge beim Abbauen ------------------------------------------------
+;
+; Wie in Minecraft: Ein Werkzeug wirkt auf einen Block, wenn seine Art zum
+; Block passt (bl_werkzeug) und es nicht kaputt ist. Dann bricht der Block
+; schneller (Steinstufe 4-mal so schnell). Ertrag gibt es, wo die Hand
+; genuegt (bl_stufe 0) oder ein wirkendes Werkzeug mindestens die verlangte
+; Stufe hat. d ist das gehaltene Ding, h seine Haltbarkeit.
+
+Function Werkzeug_Wirkt(b, d, h)
+	If h <= 0 Or dg_werkzeug(d) = W_KEINS Then Return False
+	Return dg_werkzeug(d) = bl_werkzeug(b)
+End Function
+
+Function Kann_Ernten(b, d, h)
+	If bl_stufe(b) = 0 Then Return True
+	If Not Werkzeug_Wirkt(b, d, h) Then Return False
+	Return dg_stufe(d) >= bl_stufe(b)
+End Function
+
+; Wie viel schneller als die Hand.
+Function Werkzeug_Tempo#(b, d, h)
+	If Not Werkzeug_Wirkt(b, d, h) Then Return 1
+	Select dg_stufe(d)
+	Case 1 : Return 4
+	Case 2 : Return 6
+	End Select
+	Return 1
+End Function
+
+Function Werkzeug_Name$(w)
+	Select w
+	Case W_HACKE : Return "Spitzhacke"
+	Case W_AXT : Return "Axt"
+	Case W_SCHAUFEL : Return "Schaufel"
+	End Select
+	Return ""
+End Function
+
+; Warum von Block b nichts uebrig blieb - "" wenn doch.
+Function Ertrag_Hinweis$(b, d, h)
+	If Kann_Ernten(b, d, h) Then Return ""
+	w = bl_werkzeug(b)
+	If dg_werkzeug(d) = w And w <> W_KEINS
+		If h <= 0 Then Return dg_name(d) + " ist kaputt - so bleibt von " + bl_name(b) + " nichts uebrig"
+		Return "Fuer " + bl_name(b) + " reicht eine " + dg_name(d) + " nicht"
+	EndIf
+	If d = B_LUFT Then Return "Mit blosser Hand bleibt von " + bl_name(b) + " nichts uebrig - dafuer braucht es eine " + Werkzeug_Name(w)
+	Return "Ohne " + Werkzeug_Name(w) + " bleibt von " + bl_name(b) + " nichts uebrig"
 End Function

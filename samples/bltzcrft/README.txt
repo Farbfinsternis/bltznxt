@@ -33,9 +33,15 @@ hindurch, kann schwimmen und fliegen. Abgebaute Blöcke landen im Inventar
 
 Abbauen geht wie in Minecraft mit bloßen Händen: Die Hand schlägt auf den
 Block ein, Bruchstücke springen ab, Risse wachsen, bis er bricht. Erde und
-Sand dauern 0,75 s, Holz 3 s. Stein, Kohle, Eisen und Sandstein brechen mit
-der Hand nur langsam (Stein 7,5 s) und hinterlassen nichts - dafür braucht es
-später eine Spitzhacke. Laub zerfällt ohne Schere. Pflanzen brechen sofort;
+Sand dauern 0,75 s, Holz 3 s. Stein, Kohleerz, Eisenerz und Sandstein brechen
+mit der Hand nur langsam (Stein 7,5 s) und hinterlassen nichts - dafür braucht
+es eine Spitzhacke. Steinwerkzeuge (Spitzhacke, Axt, Schaufel) bauen ihre
+Blöcke viermal so schnell ab und nutzen sich dabei ab, je Block um einen
+Punkt von 100; kaputt wirken sie wie die bloße Hand. Mit der Steinspitzhacke
+geben Stein und Sandstein ihren Block und Kohleerz Kohle, Eisenerz verlangt
+eine bessere Spitzhacke. Laub gibt ab und zu einen Ast, Kies einen
+Steinbrocken, und lose Steine an Stränden und auf Wiesen geben Steinbrocken -
+daraus entstehen später die ersten Werkzeuge (CRAFTING.md). Pflanzen brechen sofort;
 Blumen und Schilf kommen ins Inventar und lassen sich wieder pflanzen
 (Blumen auf Gras oder Erde, Schilf auch auf Sand), hohes Gras gibt nichts
 und macht einem gesetzten Block Platz. Baut man den Boden unter einer
@@ -67,6 +73,8 @@ Im Ordner übersetzen und starten:
   bltzcrft.exe -pos -2900 60 1500  (beginnt an dieser Stelle, hier in einem
                             großen Gewölbe; mit -foto ... -fackeln stellt es
                             ringsum Fackeln auf)
+  bltzcrft.exe -werkzeuge -wahl 5 -foto 0 10   (mit Ästen, Brocken und
+                            Steinwerkzeugen; -inventar öffnet das Inventar)
 
 Voraussetzungen: Windows 64 Bit, eine Grafikkarte mit OpenGL 3.3.
 
@@ -127,7 +135,8 @@ netz.bb         Meshes aus den Blöcken: sichtbare Flächen, Schatten, Wasser,
                 Pflanzen als gekreuzte Flächen
 laden.bb        Nachladen und Vergessen von Chunks um den Spieler
 spieler.bb      Bewegung und Kollision gegen das Blockraster, Blickstrahl
-inventar.bb     Inventar: Stapel, Klicks, zur Laufzeit gemalte Blocksymbole
+inventar.bb     Inventar: Stapel, Klicks, Haltbarkeit, zur Laufzeit gemalte Symbole
+dinge.bb        Gegenstände (Ast, Steinbrocken, Kohle, Werkzeuge) und ihre Wirkung
 abbau.bb        Abbauen über die Zeit, zur Laufzeit gemalte Risse
 mehrspieler.bb  Mehrspieler: Beitritt, Figuren, Blöcke, Chat (Net-Befehle)
 himmel.bb       Tag und Nacht: Himmelskuppel, Sonne, Mond, Sterne, Wolken

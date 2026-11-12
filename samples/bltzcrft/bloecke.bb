@@ -79,10 +79,17 @@ Const T_BROCKEN = 24
 Const T_STEINAXT = 25
 Const T_STEINHACKE = 26
 Const T_STEINSCHAUFEL = 27
-Const T_ANZAHL = 28
+Const T_KOHLESTUECK = 28
+Const T_ANZAHL = 29
 Const T_ERSTE_PFLANZE = 17      ; ab hier Pflanzentexturen (mit Maske)
 
 Const TEX_ZOOM = 8          ; Bildpunkte je Texel
+
+; Werkzeugarten (dinge.bb)
+Const W_KEINS = 0
+Const W_HACKE = 1
+Const W_AXT = 2
+Const W_SCHAUFEL = 3
 
 Dim bl_tex(B_ANZAHL - 1, 2)     ; 0 oben, 1 Seite, 2 unten
 Dim bl_deckend(B_ANZAHL - 1)
@@ -90,6 +97,8 @@ Dim bl_fest(B_ANZAHL - 1)
 Dim bl_name$(B_ANZAHL - 1)
 Dim bl_haerte#(B_ANZAHL - 1)    ; Haerte wie in Minecraft, 0 = sofort, -1 = nie
 Dim bl_hand(B_ANZAHL - 1)       ; mit blosser Hand abbaubar (sonst kein Ertrag)
+Dim bl_werkzeug(B_ANZAHL - 1)   ; welches Werkzeug ihn schneller abbaut (W_...)
+Dim bl_stufe(B_ANZAHL - 1)      ; Werkzeugstufe fuer Ertrag: 0 Hand, 1 Stein, 2 Eisen
 Dim bl_pflanze(B_ANZAHL - 1)    ; Kreuz aus zwei Flaechen statt Wuerfel
 Dim bl_fackel(B_ANZAHL - 1)     ; 0 keine, 1 am Boden, 2 an einer Wand
 Dim fk_wx(B_ANZAHL - 1)         ; Richtung zur Wand einer Wandfackel
@@ -109,6 +118,8 @@ Function Block_Art(nr, name$, oben, seite, unten, deckend, fest, haerte#, hand)
 	bl_fest(nr) = fest
 	bl_haerte(nr) = haerte
 	bl_hand(nr) = hand
+	bl_werkzeug(nr) = W_KEINS
+	If hand Then bl_stufe(nr) = 0 Else bl_stufe(nr) = 1
 	bl_pflanze(nr) = False
 	bl_fackel(nr) = 0
 End Function
@@ -174,7 +185,8 @@ End Function
 ; Nur die Eigenschaften, ohne Texturen - braucht keine Grafik.
 ; Haerte und Hand wie in Minecraft (Java Edition): mit der Hand dauert ein
 ; Block 1,5 x Haerte Sekunden, wenn die Hand genuegt, sonst 5 x Haerte -
-; und dann bleibt nichts uebrig. Stein bricht nach 7,5 s zu nichts.
+; und dann bleibt nichts uebrig. Stein bricht nach 7,5 s zu nichts. Das
+; passende Werkzeug teilt die Zeit (abbau.bb).
 ; Pflanzen haben Haerte 0 und brechen sofort; Luft, Wasser und Grundgestein
 ; nie (-1).
 Function Bloecke_Arten()
@@ -190,8 +202,8 @@ Function Bloecke_Arten()
 	Block_Art(B_GRUND, "Grundgestein", T_GRUND, T_GRUND, T_GRUND, True, True, -1, False)
 	Block_Art(B_SCHNEE, "Schnee", T_SCHNEE, T_SCHNEE_SEITE, T_ERDE, True, True, 0.6, True)
 	Block_Art(B_TON, "Ton", T_TON, T_TON, T_TON, True, True, 0.6, True)
-	Block_Art(B_KOHLE, "Kohle", T_KOHLE, T_KOHLE, T_KOHLE, True, True, 3.0, False)
-	Block_Art(B_EISEN, "Eisen", T_EISEN, T_EISEN, T_EISEN, True, True, 3.0, False)
+	Block_Art(B_KOHLE, "Kohleerz", T_KOHLE, T_KOHLE, T_KOHLE, True, True, 3.0, False)
+	Block_Art(B_EISEN, "Eisenerz", T_EISEN, T_EISEN, T_EISEN, True, True, 3.0, False)
 	Block_Art(B_SANDSTEIN, "Sandstein", T_SANDSTEIN, T_SANDSTEIN, T_SANDSTEIN, True, True, 0.8, False)
 	Pflanzen_Art(B_HOHESGRAS, "Hohes Gras", T_HOHESGRAS)
 	Pflanzen_Art(B_LOEWENZAHN, "Loewenzahn", T_LOEWENZAHN)
@@ -204,6 +216,23 @@ Function Bloecke_Arten()
 	Fackel_Art(B_FACKEL_XM, "Fackel", 2, -1, 0)
 	Fackel_Art(B_FACKEL_ZP, "Fackel", 2, 0, 1)
 	Fackel_Art(B_FACKEL_ZM, "Fackel", 2, 0, -1)
+
+	; Werkzeuge wie in Minecraft: die Spitzhacke fuer Gestein und Erze (erst
+	; sie bringt dort Ertrag, Eisenerz verlangt Stufe 2), die Axt fuer Holz,
+	; die Schaufel fuer lockeren Boden.
+	For b = B_STEIN To B_SANDSTEIN
+		Select b
+		Case B_STEIN, B_KOHLE, B_SANDSTEIN : Block_Werkzeug(b, W_HACKE, 1)
+		Case B_EISEN : Block_Werkzeug(b, W_HACKE, 2)
+		Case B_STAMM : Block_Werkzeug(b, W_AXT, 0)
+		Case B_ERDE, B_GRAS, B_SAND, B_KIES, B_SCHNEE, B_TON : Block_Werkzeug(b, W_SCHAUFEL, 0)
+		End Select
+	Next
+End Function
+
+Function Block_Werkzeug(b, w, stufe)
+	bl_werkzeug(b) = w
+	bl_stufe(b) = stufe
 End Function
 
 ; Kann Pflanze p auf Block unten stehen? Blumen und Gras wachsen auf Gras
@@ -584,6 +613,10 @@ Function Ding_Tex_Malen(t)
 	Case T_STEINSCHAUFEL
 		Tx_Stiel(1, 15, 8, 8)
 		Tx_Kopf(W_SCHAUFEL, 10.0, 6.0)
+	Case T_KOHLESTUECK
+		Tx_Kiesel(6.0, 10.0, 3.4, 52)
+		Tx_Kiesel(10.8, 8.0, 3.0, 44)
+		Tx_Punkt(5, 8, 120, 120, 128, 0) : Tx_Punkt(10, 6, 110, 110, 120, 0)
 	End Select
 End Function
 

@@ -4,7 +4,9 @@
 ; bricht. Die Dauer kommt aus der Haerte der Blockart (bl_haerte) und wie in
 ; Minecraft: 1,5 x Haerte Sekunden, wo die Hand genuegt (Erde 0,75 s, Holz
 ; 3 s), sonst 5 x Haerte (Stein 7,5 s, dann ohne Ertrag); Grundgestein bricht
-; nie. Wer den Blick auf einen anderen Block richtet oder loslaesst, faengt
+; nie. Das passende Werkzeug (dinge.bb) teilt die Zeit: Stein mit der
+; Steinspitzhacke 0,56 s, Holz mit der Steinaxt 0,75 s.
+; Wer den Blick auf einen anderen Block richtet oder loslaesst, faengt
 ; von vorn an. Haelt man weiter, geht es nach einer Pause von 5 Takten
 ; (0,25 s) mit dem naechsten Block weiter.
 ;
@@ -25,9 +27,9 @@ Dim ab_tex(AB_STUFEN)
 
 ; ---- Ablauf (ohne Grafik) ------------------------------------------------
 
-; Einen Bildtakt lang auf Block b bei x,y,z halten. Gibt True zurueck, wenn
-; er in diesem Takt bricht.
-Function Abbau_Halten(x, y, z, b, dt#)
+; Einen Bildtakt lang auf Block b bei x,y,z halten, in der Hand Ding d mit
+; Haltbarkeit h. Gibt True zurueck, wenn er in diesem Takt bricht.
+Function Abbau_Halten(x, y, z, b, dt#, d = 0, h = 0)
 	If ab_pause > 0
 		ab_pause = ab_pause - dt
 		Return False
@@ -36,7 +38,7 @@ Function Abbau_Halten(x, y, z, b, dt#)
 		ab_x = x : ab_y = y : ab_z = z : ab_aktiv = True
 		ab_anteil = 0
 	EndIf
-	dauer# = Abbau_Dauer(b)
+	dauer# = Abbau_Dauer(b, d, h)
 	If dauer < 0 Then Return False
 	If dauer > 0 Then ab_anteil = ab_anteil + dt / dauer Else ab_anteil = 1
 	If ab_anteil < 0.9999 Then Return False   ; 15 x 0.5/7.5 ist knapp unter 1
@@ -44,11 +46,14 @@ Function Abbau_Halten(x, y, z, b, dt#)
 	Return True
 End Function
 
-; Sekunden, bis Block b mit der Hand bricht; 0 = sofort, -1 = nie.
-Function Abbau_Dauer#(b)
+; Sekunden, bis Block b bricht, wenn man Ding d mit Haltbarkeit h haelt;
+; 0 = sofort, -1 = nie. Wie in Minecraft: 1,5 x Haerte, wenn es Ertrag
+; gibt, sonst 5 x Haerte - geteilt durch das Tempo des Werkzeugs, sofern es
+; auf den Block wirkt (auch ohne Ertrag: Eisenerz mit Steinspitzhacke).
+Function Abbau_Dauer#(b, d = 0, h = 0)
 	If bl_haerte(b) < 0 Then Return -1
-	If bl_hand(b) Then Return bl_haerte(b) * 1.5
-	Return bl_haerte(b) * 5
+	If Kann_Ernten(b, d, h) Then t# = bl_haerte(b) * 1.5 Else t# = bl_haerte(b) * 5
+	Return t / Werkzeug_Tempo(b, d, h)
 End Function
 
 ; Losgelassen oder ins Leere geschaut: von vorn.
