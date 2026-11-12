@@ -13,12 +13,14 @@
 ; (BUG-192: bis dahin pruefte BLTZNXT die Farbe statt des Alphakanals).
 
 Include "../samples/bltzcrft/bloecke.bb"
+Include "../samples/bltzcrft/dinge.bb"
 Include "../samples/bltzcrft/abbau.bb"
 Include "../samples/bltzcrft/inventar.bb"
 
 Graphics3D 320, 240, 0, 2
 SetBuffer BackBuffer()
 Bloecke_Arten()
+Dinge_Arten()
 
 Function Halten$(x, b, schritte, dt# = 0.1)
 	s$ = ""

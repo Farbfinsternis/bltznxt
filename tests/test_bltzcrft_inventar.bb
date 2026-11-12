@@ -8,6 +8,7 @@
 ; Ecken frei bleiben (Maskenfarbe Schwarz).
 
 Include "../samples/bltzcrft/bloecke.bb"
+Include "../samples/bltzcrft/dinge.bb"
 Include "../samples/bltzcrft/inventar.bb"
 
 Graphics3D 320, 240, 0, 2
@@ -16,16 +17,17 @@ SetBuffer BackBuffer()
 Function Zeile$(von, bis)
 	s$ = ""
 	For i = von To bis
-		If inv_anzahl(i) > 0 Then s = s + bl_name(inv_block(i)) + "x" + inv_anzahl(i) + " " Else s = s + "- "
+		If inv_anzahl(i) > 0 Then s = s + dg_name(inv_ding(i)) + "x" + inv_anzahl(i) + " " Else s = s + "- "
 	Next
 	Return s
 End Function
 Function Hand$()
 	If inv_hand_anzahl = 0 Then Return "leer"
-	Return bl_name(inv_hand_block) + "x" + inv_hand_anzahl
+	Return dg_name(inv_hand_ding) + "x" + inv_hand_anzahl
 End Function
 
 Bloecke_Laden()
+Dinge_Arten()
 Inventar_Leeren()
 
 Print "ertrag gras " + bl_name(Block_Ertrag(B_GRAS)) + ", stein " + bl_name(Block_Ertrag(B_STEIN)) + ", wasser " + bl_name(Block_Ertrag(B_WASSER)) + ", grund " + bl_name(Block_Ertrag(B_GRUND))
@@ -75,6 +77,39 @@ Print "schieben in vorrat " + Zeile(0, 2) + "| " + Zeile(9, 10)
 Inventar_Schieben(9)
 Print "schieben zurueck " + Zeile(0, 2) + "| " + Zeile(9, 10)
 
+; Gegenstaende: Ertrag aus Laub, Kies und losen Steinen
+SeedRnd 1
+aeste = 0 : brocken = 0 : kies = 0 : steine_min = 9 : steine_max = 0
+For k = 1 To 1000
+	If Block_Ertrag(B_LAUB) = G_AST Then aeste = aeste + 1
+	e = Block_Ertrag(B_KIES)
+	If e = G_BROCKEN Then brocken = brocken + 1
+	If e = B_KIES Then kies = kies + 1
+	a = Block_Ertrag_Anzahl(B_STEINE)
+	If a < steine_min Then steine_min = a
+	If a > steine_max Then steine_max = a
+Next
+Print "ertrag laub ast um 30%: " + (aeste > 250 And aeste < 350) + ", kies brocken um 25%: " + (brocken > 200 And brocken < 300) + " sonst kies: " + (brocken + kies = 1000)
+Print "ertrag steine " + dg_name(Block_Ertrag(B_STEINE)) + " " + steine_min + "-" + steine_max + ", setzbar ast " + Ist_Block(G_AST) + " stein " + Ist_Block(B_STEIN)
+
+; Werkzeuge stapeln nicht, die Haltbarkeit wandert mit
+Inventar_Leeren()
+Print "gesehen vorher axt " + dg_gesehen(G_STEINAXT)
+Inventar_Hinzu(G_STEINAXT, 1)
+Inventar_Hinzu(G_STEINAXT, 1, 37)
+Inventar_Hinzu(G_AST, 3)
+Inventar_Hinzu(G_AST, 2)
+Print "werkzeuge " + Zeile(0, 3) + "| " + Ding_Titel(inv_ding(0), inv_haltbar(0)) + ", " + Ding_Titel(inv_ding(1), inv_haltbar(1))
+Inventar_Links(1)
+Inventar_Links(0)
+Print "tauschen " + Ding_Titel(inv_ding(0), inv_haltbar(0)) + ", hand " + Ding_Titel(inv_hand_ding, inv_hand_haltbar)
+Inventar_Schliessen()
+Print "schliessen " + Zeile(0, 3) + "| platz 1 " + Ding_Titel(inv_ding(1), inv_haltbar(1))
+Inventar_Hinzu(G_STEINSCHAUFEL, 1, 0)
+Inventar_Schieben(3)
+Print "kaputt geschoben " + Zeile(0, 3) + "| " + Zeile(9, 9) + "| " + Ding_Titel(inv_ding(9), inv_haltbar(9))
+Print "gesehen axt " + dg_gesehen(G_STEINAXT) + " ast " + dg_gesehen(G_AST) + " hacke " + dg_gesehen(G_STEINHACKE)
+
 ; Symbole
 Inventar_Symbole()
 n = 0
@@ -82,6 +117,11 @@ For b = 1 To B_ANZAHL - 1
 	If inv_symbol(b) Then n = n + 1
 Next
 Print "symbole " + n + " fuer " + (B_ANZAHL - 1) + " blockarten, groesse " + ImageWidth(inv_symbol(B_STEIN)) + "x" + ImageHeight(inv_symbol(B_STEIN))
+n = 0
+For d = G_ERSTER To D_ANZAHL - 1
+	If inv_symbol(d) Then n = n + 1
+Next
+Print "symbole gegenstaende " + n + " von " + (D_ANZAHL - G_ERSTER)
 
 Function Texel(t, tx, ty)
 	LockBuffer TextureBuffer(tx_bild(t))

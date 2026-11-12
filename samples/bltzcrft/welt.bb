@@ -700,7 +700,7 @@ Function Baeume_Pflanzen(bank, x0, z0, hmax)
 	Return hmax
 End Function
 
-; Gras, Blumen und Schilf. Hohes Gras waechst in Flecken auf den Wiesen,
+; Gras, Blumen, Schilf und lose Steine. Hohes Gras waechst in Flecken auf den Wiesen,
 ; Blumen in kleinen Beeten aus einer Art (dazu ab und zu eine einzelne).
 ; Schilf steht wie Zuckerrohr in Minecraft auf Gras, Erde oder Sand direkt
 ; neben Wasser, ein bis drei Bloecke hoch. Die Saeulen am Rand des Chunks
@@ -728,6 +728,16 @@ Function Pflanzen_Saeen(bank, x0, z0, hmax)
 								If y + hoch > hmax Then hmax = y + hoch
 								boden = B_LUFT        ; hier waechst sonst nichts mehr
 							EndIf
+						EndIf
+					EndIf
+					; lose Steine: selten auf Wiesen, haeufiger an Straenden und auf
+					; Kies - die ersten Steinbrocken fuer Werkzeuge (CRAFTING.md)
+					If boden = B_GRAS Or boden = B_SAND Or boden = B_KIES
+						If boden = B_GRAS Then chance# = 0.006 Else chance# = 0.03
+						If Rnd(0, 1) < chance
+							PokeByte bank, Ofs(x, y, z), B_STEINE
+							If y > hmax Then hmax = y
+							boden = B_LUFT
 						EndIf
 					EndIf
 					If boden = B_GRAS

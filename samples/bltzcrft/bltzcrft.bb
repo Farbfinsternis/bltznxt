@@ -12,7 +12,8 @@
 ;             schwimmen      Strg rennen     F fliegen (Leertaste hoch,
 ;             Umschalt runter)
 ;             linke Maustaste halten: abbauen (wie in Minecraft mit der
-;             Hand: Erde und Holz geben einen Block, Stein und Erze nichts)
+;             Hand: Erde und Holz geben einen Block, Stein und Erze nichts;
+;             Laub ab und zu einen Ast, lose Steine Steinbrocken)
 ;             rechte Maustaste Block setzen (Fackeln an Boden oder Wand,
 ;             64 Stueck zum Start)
 ;             1 - 9 / Mausrad Platz der Schnellleiste waehlen
@@ -42,6 +43,9 @@
 ; in einem Gewoelbe (bltzcrft.exe -pos -2900 60 1500).
 ; Mit -abbau dazu haelt es ab 4 s die linke Maustaste und speichert schon
 ; bei 4,5 s ein Bild (foto_<uhrzeit>_a.bmp) - Hand, Risse, Bruchstuecke.
+; Mit -werkzeuge liegen dazu Aeste, Steinbrocken und drei Steinwerkzeuge
+; (neu, abgenutzt, kaputt) im Inventar, -wahl <n> waehlt Platz n der
+; Schnellleiste, -inventar oeffnet das Inventar fuer das Bild.
 ; Mit -test <s> prueft das Programm den Mehrspieler ohne Maus und Tastatur:
 ; wer beitritt, schickt nach 3 s eine Chatzeile und setzt einen Stein
 ; zwischen sich und den Host; kurz vor Schluss speichert jeder ein Bild
@@ -57,6 +61,7 @@ Const BAU_ZEIT = 7          ; Millisekunden je Bild fuer Erzeugen und Bauen
 
 Include "rauschen.bb"
 Include "bloecke.bb"
+Include "dinge.bb"
 Include "welt.bb"
 Include "netz.bb"
 Include "spieler.bb"
@@ -92,6 +97,9 @@ Repeat
 	Case "-zeit" : i = i + 1 : startzeit = Float(Wort(args, i))
 	Case "-abbau" : foto_abbau = True
 	Case "-fackeln" : foto_fackeln = True
+	Case "-werkzeuge" : foto_werkzeuge = True
+	Case "-inventar" : foto_inventar = True
+	Case "-wahl" : i = i + 1 : foto_wahl = Int(Wort(args, i))
 	Case "-pos"
 		pos_x# = Float(Wort(args, i + 1)) : pos_y# = Float(Wort(args, i + 2)) : pos_z# = Float(Wort(args, i + 3))
 		pos_da = True : i = i + 3
@@ -103,10 +111,20 @@ Repeat
 Forever
 
 Bloecke_Laden()
+Dinge_Arten()
 Inventar_Symbole()
 Inventar_Leeren()
 ; Fackeln zum Start - bis es eine Werkbank gibt
 Inventar_Hinzu(B_FACKEL, 64)
+If foto_werkzeuge
+	; zum Pruefen: Gegenstaende und Werkzeuge in drei Zustaenden
+	Inventar_Hinzu(G_AST, 12)
+	Inventar_Hinzu(G_BROCKEN, 9)
+	Inventar_Hinzu(G_STEINAXT, 1)
+	Inventar_Hinzu(G_STEINHACKE, 1, 37)
+	Inventar_Hinzu(G_STEINSCHAUFEL, 1, 0)
+EndIf
+If foto_wahl > 0 And foto_wahl <= INV_LEISTE Then inv_gewaehlt = foto_wahl - 1
 Abbau_Laden()
 Netz_Laden()
 Welt_Saat(saat)
@@ -340,6 +358,9 @@ While Not ende
 				If b = B_LUFT
 					meldung = "Dieser Platz ist leer - erst Bloecke abbauen (linke Maustaste halten)"
 					meldung_bis = MilliSecs() + 2500
+				ElseIf Not Ist_Block(b)
+					meldung = dg_name(b) + " laesst sich nicht setzen"
+					meldung_bis = MilliSecs() + 2000
 				Else
 					; hohes Gras macht Platz, wie in Minecraft
 					ort_x = ziel_vx : ort_y = ziel_vy : ort_z = ziel_vz
@@ -460,7 +481,10 @@ While Not ende
 		Text GraphicsWidth() / 2, GraphicsHeight() / 2, "Klick ins Fenster zum Spielen - Tab gibt die Maus frei, Esc beendet", True, True
 	EndIf
 	If foto
-		If foto_start = 0 Then foto_start = MilliSecs()
+		If foto_start = 0
+			foto_start = MilliSecs()
+			If foto_inventar Then inv_offen = True
+		EndIf
 		If foto_fackeln And (Not foto_fackeln_da) And MilliSecs() - foto_start > 500 And sp_boden
 			; ringsum auf den Boden, alle fuenf Bloecke
 			foto_fackeln_da = True
@@ -572,7 +596,7 @@ Function Block_Abbauen(x, y, z)
 	Mp_Block(x, y, z, B_LUFT)
 	Partikel_Bruch(x, y, z, b)
 	; ist das Inventar voll, geht der Block verloren
-	If Inventar_Hinzu(Block_Ertrag(b), 1) > 0
+	If Inventar_Hinzu(Block_Ertrag(b), Block_Ertrag_Anzahl(b)) > 0
 		meldung = "Inventar voll" : meldung_bis = MilliSecs() + 1500
 	EndIf
 	; was an diesem Block hing, verliert den Halt: Wandfackeln daneben,

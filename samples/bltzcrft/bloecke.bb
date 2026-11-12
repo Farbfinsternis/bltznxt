@@ -47,7 +47,8 @@ Const B_FACKEL_XP = 21          ; an der Wand: die Wand liegt bei +x
 Const B_FACKEL_XM = 22          ; ... bei -x
 Const B_FACKEL_ZP = 23          ; ... bei +z
 Const B_FACKEL_ZM = 24          ; ... bei -z
-Const B_ANZAHL = 25
+Const B_STEINE = 25             ; lose Steine am Boden (wie eine Pflanze)
+Const B_ANZAHL = 26
 
 Const T_STEIN = 0
 Const T_ERDE = 1
@@ -72,7 +73,13 @@ Const T_MOHN = 19
 Const T_KORNBLUME = 20
 Const T_SCHILF = 21
 Const T_FACKEL = 22
-Const T_ANZAHL = 23
+; ab hier die Gegenstaende (flach, Ding_Tex_Malen)
+Const T_AST = 23
+Const T_BROCKEN = 24
+Const T_STEINAXT = 25
+Const T_STEINHACKE = 26
+Const T_STEINSCHAUFEL = 27
+Const T_ANZAHL = 28
 Const T_ERSTE_PFLANZE = 17      ; ab hier Pflanzentexturen (mit Maske)
 
 Const TEX_ZOOM = 8          ; Bildpunkte je Texel
@@ -191,6 +198,7 @@ Function Bloecke_Arten()
 	Pflanzen_Art(B_MOHN, "Mohn", T_MOHN)
 	Pflanzen_Art(B_KORNBLUME, "Kornblume", T_KORNBLUME)
 	Pflanzen_Art(B_SCHILF, "Schilf", T_SCHILF)
+	Pflanzen_Art(B_STEINE, "Steine", T_STEIN)   ; netz.bb baut kleine Klumpen
 	Fackel_Art(B_FACKEL, "Fackel", 1, 0, 0)
 	Fackel_Art(B_FACKEL_XP, "Fackel", 2, 1, 0)
 	Fackel_Art(B_FACKEL_XM, "Fackel", 2, -1, 0)
@@ -199,8 +207,10 @@ Function Bloecke_Arten()
 End Function
 
 ; Kann Pflanze p auf Block unten stehen? Blumen und Gras wachsen auf Gras
-; und Erde, Schilf auch auf Sand und auf Schilf.
+; und Erde, Schilf auch auf Sand und auf Schilf, lose Steine auf allem
+; Festen ausser Laub.
 Function Pflanze_Haelt(p, unten)
+	If p = B_STEINE Then Return bl_fest(unten) And unten <> B_LAUB
 	If unten = B_GRAS Or unten = B_ERDE Then Return True
 	If p = B_SCHILF And (unten = B_SAND Or unten = B_SCHILF) Then Return True
 	Return False
@@ -390,6 +400,8 @@ Function Tex_Malen(t)
 			y = Rand(3, 11)
 			Tx_Punkt(x + 2, y, 120, 176, 80, 8) : Tx_Punkt(x + 3, y - 1, 120, 176, 80, 8)
 		Next
+	Default
+		Ding_Tex_Malen(t)
 	End Select
 End Function
 
@@ -469,4 +481,114 @@ Function Tex_Aus_Raster(maske = False)
 	Next
 	UnlockBuffer puffer
 	Return tex
+End Function
+
+; ---- Texturen der Gegenstaende (Pixelkunst 16 x 16, durchsichtig) --------
+
+Function Tx_Linie(x0, y0, x1, y1, r, g, b, streu)
+	n = Abs(x1 - x0) : If Abs(y1 - y0) > n Then n = Abs(y1 - y0)
+	For k = 0 To n
+		If n = 0 Then f# = 0 Else f# = Float(k) / n
+		Tx_Punkt(Floor(x0 + (x1 - x0) * f + 0.5), Floor(y0 + (y1 - y0) * f + 0.5), r, g, b, streu)   ; Int rundet in Blitz
+	Next
+End Function
+
+; Ein runder Steinklumpen, oben links heller, unten rechts dunkler.
+Function Tx_Kiesel(cx#, cy#, rad#, grau)
+	For y = 0 To 15
+		For x = 0 To 15
+			dx# = x + 0.5 - cx : dy# = y + 0.5 - cy
+			If dx * dx + dy * dy <= rad * rad
+				licht = Int(-(dx + dy) * 9)
+				If dx * dx + dy * dy > (rad - 1) * (rad - 1) And dx + dy > 0 Then licht = licht - 22
+				Tx_Punkt(x, y, grau + licht, grau + licht, grau + licht - 4, 7)
+			EndIf
+		Next
+	Next
+End Function
+
+; Stiel von links unten nach rechts oben: drei Bildpunkte breit, oben hell,
+; unten dunkel fuer etwas Rundung.
+Function Tx_Stiel(x0, y0, x1, y1)
+	Tx_Linie(x0, y0 - 1, x1, y1 - 1, 176, 128, 74, 6)
+	Tx_Linie(x0, y0, x1, y1, 148, 104, 58, 6)
+	Tx_Linie(x0 + 1, y0, x1 + 1, y1, 104, 70, 38, 5)
+End Function
+
+Dim tx_kopfmaske(15, 15)
+
+; Werkzeugkopf aus Stein um (cx, cy). Koordinaten im gedrehten System:
+; a entlang des Stiels (nach rechts oben), q quer dazu (nach rechts unten).
+; art: W_AXT, W_HACKE oder W_SCHAUFEL. Der Rand wird dunkel, damit der
+; graue Stein auch vor grauem Grund lesbar bleibt.
+Function Tx_Kopf(art, cx#, cy#)
+	For y = 0 To 15
+		For x = 0 To 15
+			dx# = x + 0.5 - cx : dy# = y + 0.5 - cy
+			a# = (dx - dy) * 0.7071 : q# = (dx + dy) * 0.7071
+			drin = False
+			Select art
+			Case W_AXT
+				; schmal am Stiel, zur Schneide (quer, nach rechts unten) breiter
+				If q >= -2.0 And q <= 4.6 And Abs(a) <= 1.6 + Tx_Klemmen(q, 0, 5) * 0.5 Then drin = True
+			Case W_HACKE
+				; ein langer Bogen quer zum Stiel, die Enden etwas zurueck
+				If Abs(q) <= 6.2 And a <= 1.3 - q * q * 0.045 And a >= -1.3 - q * q * 0.045 Then drin = True
+			Case W_SCHAUFEL
+				; ein Blatt in Verlaengerung des Stiels, vorn abgerundet
+				If a >= -1.5 And a <= 4.8 And Abs(q) <= 2.6 - Tx_Klemmen(a - 3.0, 0, 2) * 0.9 Then drin = True
+			End Select
+			tx_kopfmaske(x, y) = drin
+		Next
+	Next
+	For y = 0 To 15
+		For x = 0 To 15
+			If tx_kopfmaske(x, y)
+				rand = False
+				If x = 0 Or x = 15 Or y = 0 Or y = 15
+					rand = True
+				ElseIf Not (tx_kopfmaske(x - 1, y) And tx_kopfmaske(x + 1, y) And tx_kopfmaske(x, y - 1) And tx_kopfmaske(x, y + 1))
+					rand = True
+				EndIf
+				If rand
+					Tx_Punkt(x, y, 70, 70, 68, 6)
+				Else
+					dx# = x + 0.5 - cx : dy# = y + 0.5 - cy
+					licht = Int(-(dx + dy) * 6)
+					Tx_Punkt(x, y, 156 + licht, 156 + licht, 150 + licht, 10)
+				EndIf
+			EndIf
+		Next
+	Next
+End Function
+
+; Wird von Tex_Malen fuer alle Texturen ab T_AST gerufen.
+Function Ding_Tex_Malen(t)
+	Tx_Leer()
+	Select t
+	Case T_AST
+		Tx_Stiel(3, 14, 12, 3)
+		Tx_Linie(8, 8, 12, 9, 148, 104, 58, 6)
+		Tx_Punkt(13, 9, 84, 160, 50, 10) : Tx_Punkt(13, 10, 70, 140, 40, 10) : Tx_Punkt(12, 10, 84, 160, 50, 10)
+		Tx_Punkt(13, 2, 84, 160, 50, 10) : Tx_Punkt(14, 2, 70, 140, 40, 10)
+	Case T_BROCKEN
+		Tx_Kiesel(5.5, 10.5, 3.2, 136)
+		Tx_Kiesel(11.0, 11.5, 2.8, 120)
+		Tx_Kiesel(8.5, 5.5, 2.6, 150)
+	Case T_STEINAXT
+		Tx_Stiel(1, 15, 11, 5)
+		Tx_Kopf(W_AXT, 10.0, 5.0)
+	Case T_STEINHACKE
+		Tx_Stiel(1, 15, 11, 5)
+		Tx_Kopf(W_HACKE, 10.5, 5.5)
+	Case T_STEINSCHAUFEL
+		Tx_Stiel(1, 15, 8, 8)
+		Tx_Kopf(W_SCHAUFEL, 10.0, 6.0)
+	End Select
+End Function
+
+Function Tx_Klemmen#(x#, a#, b#)
+	If x < a Then Return a
+	If x > b Then Return b
+	Return x
 End Function

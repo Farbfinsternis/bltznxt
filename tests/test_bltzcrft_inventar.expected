@@ -14,6 +14,15 @@ links tauscht - Sandx64 Sandx10 - Sandx8 Sandx2 hand Kiesx10
 schliessen Kiesx10 Sandx64 Sandx10 - Sandx8 Sandx2 hand leer
 schieben in vorrat Kiesx10 - Sandx10 | Sandx64 - 
 schieben zurueck Kiesx10 - Sandx64 | - - 
-symbole 15 fuer 24 blockarten, groesse 40x40
+ertrag laub ast um 30%: 1, kies brocken um 25%: 1 sonst kies: 1
+ertrag steine Steinbrocken 1-2, setzbar ast 0 stein 1
+gesehen vorher axt 0
+werkzeuge Steinaxtx1 Steinaxtx1 Astx5 - | Steinaxt (100/100), Steinaxt (37/100)
+tauschen Steinaxt (37/100), hand Steinaxt (100/100)
+schliessen Steinaxtx1 Steinaxtx1 Astx5 - | platz 1 Steinaxt (100/100)
+kaputt geschoben Steinaxtx1 Steinaxtx1 Astx5 - | Steinschaufelx1 | Steinschaufel (kaputt)
+gesehen axt 1 ast 1 hacke 0
+symbole 15 fuer 25 blockarten, groesse 40x40
+symbole gegenstaende 5 von 5
 symbol stamm: deckel 1 links 1 rechts 1 ecken frei 1
 gezeichnet ecke 0000FF mitte nicht blau 1

@@ -264,6 +264,8 @@ Function Chunk_Bauen(c.Chunk)
 					Next
 				ElseIf bl_fackel(b)
 					Fackel_Kreuz(b, x, y, z)
+				ElseIf b = B_STEINE
+					Steine_Klumpen(x, y, z, i)
 				ElseIf bl_pflanze(b)
 					Pflanzen_Kreuz(b, x, y, z, i)
 				ElseIf b <> B_LUFT
@@ -394,6 +396,56 @@ Function Pflanzen_Kreuz(b, x, y, z, i)
 		AddTriangle s, v0, v2, v3
 	Next
 End Function
+
+; Lose Steine: drei kleine Quader aus Steintextur am Boden der Zelle, Lage
+; und Groesse aus der Weltlage (wie der Versatz des Grases). Ohne
+; Unterseite; die Seiten unterschiedlich hell wie bei den Bloecken.
+Function Steine_Klumpen(x, y, z, i)
+	t = T_STEIN
+	s = nz_fl(t)
+	If s = 0
+		s = CreateSurface(nz_aktuell, tx_pinsel(t))
+		nz_fl(t) = s
+	EndIf
+	nz_bloecke = nz_bloecke + 1
+	hell# = Himmel(i) * 255
+	fk# = 0
+	If nz_licht_da Then fk = Fackel_Hell(nz_l(i))
+	h = rs_p(((nz_wx0 + x) And 255) + rs_p((nz_wz0 + z) And 255))
+	For k = 0 To 2
+		h = rs_p((h + 53) And 255) : h1 = rs_p((h + 17) And 255) : h2 = rs_p((h + 101) And 255)
+		; drei Plaetze im Dreieck, je etwas verschoben
+		px# = x + 0.5 + Cos(k * 120 + h) * 0.22
+		pz# = z + 0.5 + Sin(k * 120 + h) * 0.22
+		gx# = 0.055 + h1 / 255.0 * 0.06
+		gz# = 0.05 + h2 / 255.0 * 0.06
+		gy# = 0.04 + ((h1 + h2) And 255) / 255.0 * 0.06
+		If k = 0 Then gx = gx * 1.3 : gz = gz * 1.3 : gy = gy * 1.3
+		Restore nz_kiesel
+		For f = 0 To 4
+			Read seite_hell#
+			v0 = 0
+			For c = 0 To 3
+				Read ex#, ey#, ez#, u#, v#
+				vi = AddVertex(s, px + ex * gx, y + (ey + 1) * gy, pz + ez * gz, (u + h1 / 64.0) * 0.25, (v + h2 / 64.0) * 0.25)
+				If c = 0 Then v0 = vi
+				VertexColor s, vi, hell * seite_hell, hell * seite_hell, hell * seite_hell
+				VertexTexCoords s, vi, fk * seite_hell, 0.5, 0, 1  ; Fackellicht, s. Block_Flaeche
+			Next
+			AddTriangle s, v0, v0 + 1, v0 + 2
+			AddTriangle s, v0, v0 + 2, v0 + 3
+		Next
+	Next
+End Function
+
+; Flaechen eines Klumpens: Helligkeit, dann vier Ecken x y z u v, von aussen
+; gesehen im Uhrzeigersinn (oben und die vier Seiten, ohne Unterseite)
+.nz_kiesel
+Data 1.0,   -1, 1, 1, 0, 0,   1, 1, 1, 1, 0,   1, 1, -1, 1, 1,   -1, 1, -1, 0, 1
+Data 0.8,   -1, 1, -1, 0, 0,   1, 1, -1, 1, 0,   1, -1, -1, 1, 1,   -1, -1, -1, 0, 1
+Data 0.8,   1, 1, 1, 0, 0,   -1, 1, 1, 1, 0,   -1, -1, 1, 1, 1,   1, -1, 1, 0, 1
+Data 0.65,  -1, 1, 1, 0, 0,   -1, 1, -1, 1, 0,   -1, -1, -1, 1, 1,   -1, -1, 1, 0, 1
+Data 0.65,  1, 1, -1, 0, 0,   1, 1, 1, 1, 0,   1, -1, 1, 1, 1,   1, -1, -1, 0, 1
 
 ; Fackel: dasselbe Kreuz, schmal genug fuer einen Stab. An der Wand steht
 ; der Fuss an der Wand und etwas hoeher, die Spitze neigt sich in den Raum.

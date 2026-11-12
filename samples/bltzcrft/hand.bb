@@ -30,7 +30,7 @@ Global hd_licht# = 1            ; Himmelslicht am Auge, so hell ist die Hand
 Global hd_fackel.Fackel = Null  ; das Licht der Fackel in der Hand
 Global hd_fackel_zeit           ; wann es zuletzt mitgewandert ist
 Const HD_FACKEL_MS = 120        ; hoechstens so oft (jedes Mal bauen Chunks neu)
-Dim hd_bloecke(B_ANZAHL - 1)    ; je Blockart ein Mesh, erst bei Bedarf gebaut
+Dim hd_bloecke(D_ANZAHL - 1)    ; je Ding ein Mesh, erst bei Bedarf gebaut
 
 Function Hand_Laden()
 	hd_halter = CreatePivot(sp_kamera)
@@ -58,7 +58,7 @@ End Function
 ; die Seiten unterschiedlich hell wie in der Welt.
 Function Hand_Block(b)
 	If hd_bloecke(b) Then Return hd_bloecke(b)
-	If bl_pflanze(b) Or bl_fackel(b) Then Return Hand_Pflanze(b)
+	If Ding_Flach(b) >= 0 Then Return Hand_Pflanze(b)
 	m = CreateMesh(hd_halter)
 	Restore hd_wuerfel
 	For f = 0 To 5
@@ -83,11 +83,11 @@ Function Hand_Block(b)
 	Return m
 End Function
 
-; Eine Pflanze in der Hand: flach, leicht schraeg, beidseitig (der Pinsel
+; Eine Pflanze oder ein Gegenstand in der Hand: flach, leicht schraeg, beidseitig (der Pinsel
 ; der Pflanzentextur zeichnet beide Seiten).
 Function Hand_Pflanze(b)
 	m = CreateMesh(hd_halter)
-	s = CreateSurface(m, tx_pinsel(bl_tex(b, 1)))
+	s = CreateSurface(m, tx_pinsel(Ding_Flach(b)))
 	AddVertex s, -0.5, 0.5, 0, 0, 0
 	AddVertex s, 0.5, 0.5, 0, 1, 0
 	AddVertex s, 0.5, -0.5, 0, 1, 1
@@ -98,9 +98,17 @@ Function Hand_Pflanze(b)
 	Next
 	AddTriangle s, 0, 1, 2
 	AddTriangle s, 0, 2, 3
-	ScaleEntity m, 0.34, 0.34, 0.34
-	PositionEntity m, 0.0, 0.06, 0.14
-	RotateEntity m, 0, -25, 0
+	If Ist_Block(b)
+		ScaleEntity m, 0.34, 0.34, 0.34
+		PositionEntity m, 0.0, 0.06, 0.14
+		RotateEntity m, 0, -25, 0
+	Else
+		; Gegenstaende: der Griff (in der Textur links unten) liegt rechts
+		; unten in der Hand, Kopf bzw. Spitze zeigen nach oben zur Bildmitte
+		ScaleEntity m, 0.3, 0.3, 0.3
+		PositionEntity m, -0.02, 0.12, 0.16
+		RotateEntity m, 0, -25, 90
+	EndIf
 	EntityOrder m, -1
 	HideEntity m
 	hd_bloecke(b) = m
