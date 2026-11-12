@@ -1,6 +1,6 @@
 # BLTZCRFT – Konzept Handwerk, Werkbank und Werkzeuge
 
-Stand: 2026-11-12. Entwurf, noch nicht gebaut.
+Stand: 2026-11-12. Erster Meilenstein gebaut (Schritte 1-5, siehe unten).
 
 Vorbild ist **nicht** das Rezeptgitter von Minecraft, sondern Survival-Handwerk wie in
 Conan Exiles oder Enshrouded: Man wählt ein Rezept aus einer Liste, die Zutaten werden
@@ -112,7 +112,7 @@ kennt jeder Spieler seine eigenen Rezepte; das Inventar ist ohnehin je Spieler.
 
 Die Werkbank hat in diesem Schritt bewusst wenig. Sie bekommt später den Schmelzofen
 als nächste Station (Eisenbarren → Eisenwerkzeuge, Stufe 2) und Dinge wie Truhe, Tür,
-Leiter. Die 64 Startfackeln fallen weg.
+Leiter. Die 64 Startfackeln sind weggefallen (Schritt 5).
 
 ## 5. Herstellen mit Fortschrittsbalken
 
@@ -159,11 +159,11 @@ Leiter. Die 64 Startfackeln fallen weg.
 2. ✅ Werkzeuge mit Abbauzeit und Verschleiß. Kohleerz gibt dabei den Gegenstand Kohle; die Erzblöcke heißen jetzt „Kohleerz“ und „Eisenerz“.
 3. ✅ Rezeptliste von Hand mit Freischalten und Fortschrittsbalken; dazu der Block Bretter.
 4. ✅ Werkbank-Block, Werkbank-Rezepte, Reparatur; Rechtsklick auf die Werkbank öffnet das Inventar (Umschalt+Rechtsklick setzt wie sonst).
-5. Startfackeln weg, Hilfe und README nachziehen, Fotolauf zum Prüfen.
+5. ✅ Startfackeln weg, Hilfe und README nachziehen, Fotolauf zum Prüfen.
 
 Jeder Schritt ist für sich spielbar und wird einzeln committet.
 
-## Offene Punkte
+## Annahmen (so gebaut, vom Nutzer nicht anders entschieden)
 
 - **Freischalten:** Hier gilt „jede Zutat einmal aufgehoben“. Die genaue Menge
   muss nicht gleichzeitig im Inventar liegen. Falls doch gemeint: kurz sagen.

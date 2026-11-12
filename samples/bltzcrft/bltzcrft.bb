@@ -15,8 +15,8 @@
 ;             Hand: Erde und Holz geben einen Block, Stein und Erze erst mit
 ;             der Spitzhacke; Axt und Schaufel sind schneller;
 ;             Laub ab und zu einen Ast, lose Steine Steinbrocken)
-;             rechte Maustaste Block setzen (Fackeln an Boden oder Wand,
-;             64 Stueck zum Start)
+;             rechte Maustaste Block setzen (Fackeln an Boden oder Wand;
+;             auf eine Werkbank: ihre Rezepte)
 ;             1 - 9 / Mausrad Platz der Schnellleiste waehlen
 ;             E Inventar (Linksklick nehmen/ablegen, Rechtsklick halber
 ;             Stapel/ein Stueck, Umschalt+Klick zwischen Leiste und Vorrat)
@@ -44,8 +44,8 @@
 ; in einem Gewoelbe (bltzcrft.exe -pos -2900 60 1500).
 ; Mit -abbau dazu haelt es ab 4 s die linke Maustaste und speichert schon
 ; bei 4,5 s ein Bild (foto_<uhrzeit>_a.bmp) - Hand, Risse, Bruchstuecke.
-; Mit -werkzeuge liegen dazu Aeste, Steinbrocken und drei Steinwerkzeuge
-; (neu, abgenutzt, kaputt) im Inventar, -wahl <n> waehlt Platz n der
+; Mit -werkzeuge liegen dazu Fackeln, Aeste, Steinbrocken, Stein und drei
+; Steinwerkzeuge (neu, abgenutzt, kaputt) im Inventar, -wahl <n> waehlt Platz n der
 ; Schnellleiste, -inventar oeffnet das Inventar fuer das Bild, -herstellen
 ; reiht dazu drei Steinaexte in die Warteschlange, -werkbank stellt eine
 ; Werkbank zwei Bloecke voraus.
@@ -124,10 +124,10 @@ Dinge_Arten()
 Inventar_Symbole()
 Inventar_Leeren()
 Rezepte_Laden()
-; Fackeln zum Start - bis es eine Werkbank gibt
-Inventar_Hinzu(B_FACKEL, 64)
 If foto_werkzeuge
-	; zum Pruefen: Gegenstaende und Werkzeuge in drei Zustaenden
+	; zum Pruefen: Fackeln, Gegenstaende und Werkzeuge in drei Zustaenden
+	; (Fackeln gibt es sonst erst aus Ast und Kohle)
+	Inventar_Hinzu(B_FACKEL, 64)
 	Inventar_Hinzu(G_AST, 12)
 	Inventar_Hinzu(G_BROCKEN, 9)
 	Inventar_Hinzu(G_STEINAXT, 1)
@@ -508,7 +508,7 @@ While Not ende
 	If Not rundflug Then Leiste_Zeichnen()
 	If Not (rundflug Or inv_offen) Then Rezepte_Leiste_Zeichnen()
 	If MilliSecs() < hinweis_bis And (Not (inv_offen Or hilfe Or rundflug))
-		Text_Schatten(GraphicsWidth() / 2, GraphicsHeight() - INV_FELD - 40, "Linke Maustaste halten: abbauen    Rechte Maustaste: setzen    E: Inventar    F1: Hilfe", 220, 220, 220)
+		Text_Schatten(GraphicsWidth() / 2, GraphicsHeight() - INV_FELD - 40, "Linke Maustaste halten: abbauen    Rechte Maustaste: setzen    E: Inventar und Herstellen    F1: Hilfe", 220, 220, 220)
 	EndIf
 	If MilliSecs() < meldung_bis
 		Text_Schatten(GraphicsWidth() / 2, GraphicsHeight() - INV_FELD - 64, meldung, 255, 220, 120)

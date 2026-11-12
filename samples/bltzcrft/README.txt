@@ -20,8 +20,9 @@ Fackel - schon gut zehn Blöcke unter dem Gestein ahnt man nur noch Umrisse,
 hell ist es nur, wo durch eine Öffnung Licht von oben fällt. Auch die Hand,
 Bruchstücke und Mitspieler werden dort dunkel.
 
-Dagegen helfen Fackeln: 64 Stück liegen zum Start in der Schnellleiste (bis
-es eine Werkbank gibt). Mit der rechten Maustaste steht eine Fackel aufrecht
+Dagegen helfen Fackeln. Man stellt sie aus einem Ast und einem Stück Kohle
+her - Kohle bringt erst die Spitzhacke aus dem Kohleerz, man beginnt also
+ohne Licht. Mit der rechten Maustaste steht eine Fackel aufrecht
 auf dem Boden oder schräg an einer Wand, nie an der Decke. Ihr Licht breitet
 sich wie in Minecraft aus - um Ecken herum, nicht durch Gestein, nach etwa
 zehn Blöcken ist es verglüht - und scheint nachts so hell wie am Tag. Baut
