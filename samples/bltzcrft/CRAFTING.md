@@ -158,7 +158,7 @@ Leiter. Die 64 Startfackeln fallen weg.
 1. ✅ Gegenstände und Haltbarkeit im Inventar (ohne Rezepte), Äste aus Laub, lose Steine.
 2. ✅ Werkzeuge mit Abbauzeit und Verschleiß. Kohleerz gibt dabei den Gegenstand Kohle; die Erzblöcke heißen jetzt „Kohleerz“ und „Eisenerz“.
 3. ✅ Rezeptliste von Hand mit Freischalten und Fortschrittsbalken; dazu der Block Bretter.
-4. Werkbank-Block, Werkbank-Rezepte, Reparatur.
+4. ✅ Werkbank-Block, Werkbank-Rezepte, Reparatur; Rechtsklick auf die Werkbank öffnet das Inventar (Umschalt+Rechtsklick setzt wie sonst).
 5. Startfackeln weg, Hilfe und README nachziehen, Fotolauf zum Prüfen.
 
 Jeder Schritt ist für sich spielbar und wird einzeln committet.

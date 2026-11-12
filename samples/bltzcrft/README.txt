@@ -56,6 +56,13 @@ liegt das Ergebnis im Inventar; bis zu acht Aufträge warten in einer Reihe
 und laufen auch bei geschlossenem Inventar weiter (Balken neben der
 Schnellleiste).
 
+Aus vier Brettern und zwei Steinbrocken entsteht eine Werkbank. Steht man
+höchstens vier Blöcke von ihr entfernt, kommen ihre Rezepte dazu (zuerst
+Steinziegel aus Stein), und abgenutzte oder kaputte Werkzeuge lassen sich
+dort reparieren: gegen die Hälfte ihrer Zutaten, mindestens eine je Art.
+Rechtsklick auf die Werkbank öffnet das Inventar, mit Umschalt setzt man wie
+sonst einen Block daran. Werkbank-Aufträge halten an, wenn man weggeht.
+
 Gespeichert wird noch nichts.
 
 Ein Tag dauert 20 Minuten: die Sonne zieht über den Himmel, abends färbt er
@@ -123,7 +130,7 @@ linke Maustaste       halten: Block abbauen (Risse zeigen den Fortschritt,
                       Erde 0,75 s, Holz 3 s, Stein 7,5 s ohne Ertrag,
                       Grundgestein bricht nie)
 rechte Maustaste      Block aus der Schnellleiste setzen, Fackeln an Boden
-                      oder Wand
+                      oder Wand; auf eine Werkbank: ihre Rezepte (Umschalt: setzen)
 1 - 9 / Mausrad       Platz der Schnellleiste wählen
 E                     Inventar öffnen/schließen; darin: Linksklick Stapel
                       nehmen/ablegen/tauschen, Rechtsklick halber Stapel

@@ -49,7 +49,9 @@ Const B_FACKEL_ZP = 23          ; ... bei +z
 Const B_FACKEL_ZM = 24          ; ... bei -z
 Const B_STEINE = 25             ; lose Steine am Boden (wie eine Pflanze)
 Const B_BRETTER = 26
-Const B_ANZAHL = 27
+Const B_WERKBANK = 27
+Const B_STEINZIEGEL = 28
+Const B_ANZAHL = 29
 
 Const T_STEIN = 0
 Const T_ERDE = 1
@@ -69,21 +71,24 @@ Const T_KOHLE = 14
 Const T_EISEN = 15
 Const T_SANDSTEIN = 16
 Const T_BRETTER = 17
-Const T_HOHESGRAS = 18
-Const T_LOEWENZAHN = 19
-Const T_MOHN = 20
-Const T_KORNBLUME = 21
-Const T_SCHILF = 22
-Const T_FACKEL = 23
+Const T_WERKBANK_OBEN = 18
+Const T_WERKBANK_SEITE = 19
+Const T_STEINZIEGEL = 20
+Const T_HOHESGRAS = 21
+Const T_LOEWENZAHN = 22
+Const T_MOHN = 23
+Const T_KORNBLUME = 24
+Const T_SCHILF = 25
+Const T_FACKEL = 26
 ; ab hier die Gegenstaende (flach, Ding_Tex_Malen)
-Const T_AST = 24
-Const T_BROCKEN = 25
-Const T_STEINAXT = 26
-Const T_STEINHACKE = 27
-Const T_STEINSCHAUFEL = 28
-Const T_KOHLESTUECK = 29
-Const T_ANZAHL = 30
-Const T_ERSTE_PFLANZE = 18      ; ab hier Pflanzentexturen (mit Maske)
+Const T_AST = 27
+Const T_BROCKEN = 28
+Const T_STEINAXT = 29
+Const T_STEINHACKE = 30
+Const T_STEINSCHAUFEL = 31
+Const T_KOHLESTUECK = 32
+Const T_ANZAHL = 33
+Const T_ERSTE_PFLANZE = 21      ; ab hier Pflanzentexturen (mit Maske)
 
 Const TEX_ZOOM = 8          ; Bildpunkte je Texel
 
@@ -208,6 +213,8 @@ Function Bloecke_Arten()
 	Block_Art(B_EISEN, "Eisenerz", T_EISEN, T_EISEN, T_EISEN, True, True, 3.0, False)
 	Block_Art(B_SANDSTEIN, "Sandstein", T_SANDSTEIN, T_SANDSTEIN, T_SANDSTEIN, True, True, 0.8, False)
 	Block_Art(B_BRETTER, "Bretter", T_BRETTER, T_BRETTER, T_BRETTER, True, True, 2.0, True)
+	Block_Art(B_WERKBANK, "Werkbank", T_WERKBANK_OBEN, T_WERKBANK_SEITE, T_BRETTER, True, True, 2.5, True)
+	Block_Art(B_STEINZIEGEL, "Steinziegel", T_STEINZIEGEL, T_STEINZIEGEL, T_STEINZIEGEL, True, True, 1.5, False)
 	Pflanzen_Art(B_HOHESGRAS, "Hohes Gras", T_HOHESGRAS)
 	Pflanzen_Art(B_LOEWENZAHN, "Loewenzahn", T_LOEWENZAHN)
 	Pflanzen_Art(B_MOHN, "Mohn", T_MOHN)
@@ -225,9 +232,9 @@ Function Bloecke_Arten()
 	; die Schaufel fuer lockeren Boden.
 	For b = B_STEIN To B_ANZAHL - 1
 		Select b
-		Case B_STEIN, B_KOHLE, B_SANDSTEIN : Block_Werkzeug(b, W_HACKE, 1)
+		Case B_STEIN, B_KOHLE, B_SANDSTEIN, B_STEINZIEGEL : Block_Werkzeug(b, W_HACKE, 1)
 		Case B_EISEN : Block_Werkzeug(b, W_HACKE, 2)
-		Case B_STAMM, B_BRETTER : Block_Werkzeug(b, W_AXT, 0)
+		Case B_STAMM, B_BRETTER, B_WERKBANK : Block_Werkzeug(b, W_AXT, 0)
 		Case B_ERDE, B_GRAS, B_SAND, B_KIES, B_SCHNEE, B_TON : Block_Werkzeug(b, W_SCHAUFEL, 0)
 		End Select
 	Next
@@ -399,6 +406,50 @@ Function Tex_Malen(t)
 					Tx_Punkt(x, y, 128, 94, 56, 4)
 				Else
 					Tx_Punkt(x, y, 182 + s, 142 + s, 90 + s, 6)
+				EndIf
+			Next
+		Next
+	Case T_WERKBANK_OBEN
+		; Bretter mit dunklem Rahmen und einem Raster aus Fugen darauf
+		Tex_Malen(T_BRETTER)
+		For k = 0 To 15
+			Tx_Punkt(k, 0, 92, 64, 36, 4) : Tx_Punkt(k, 15, 92, 64, 36, 4)
+			Tx_Punkt(0, k, 92, 64, 36, 4) : Tx_Punkt(15, k, 92, 64, 36, 4)
+			If k > 1 And k < 14
+				Tx_Punkt(k, 5, 120, 86, 50, 4) : Tx_Punkt(k, 10, 120, 86, 50, 4)
+				Tx_Punkt(5, k, 120, 86, 50, 4) : Tx_Punkt(10, k, 120, 86, 50, 4)
+			EndIf
+		Next
+	Case T_WERKBANK_SEITE
+		; Bretter, oben die dunkle Kante der Platte, davor Hammer und Saege
+		Tex_Malen(T_BRETTER)
+		For x = 0 To 15
+			Tx_Punkt(x, 0, 120, 86, 50, 4) : Tx_Punkt(x, 1, 150, 110, 64, 4) : Tx_Punkt(x, 2, 92, 64, 36, 4)
+		Next
+		For y = 6 To 13
+			Tx_Punkt(4, y, 104, 70, 38, 4)
+		Next
+		For x = 2 To 6
+			Tx_Punkt(x, 5, 150, 150, 150, 6) : Tx_Punkt(x, 6, 110, 110, 110, 6)
+		Next
+		For y = 7 To 11
+			For x = 9 To 13
+				Tx_Punkt(x, y, 186, 186, 190, 6)
+			Next
+		Next
+		For x = 9 To 13 Step 2
+			Tx_Punkt(x, 12, 150, 150, 156, 4)
+		Next
+		Tx_Punkt(14, 7, 104, 70, 38, 4) : Tx_Punkt(14, 8, 104, 70, 38, 4) : Tx_Punkt(14, 9, 104, 70, 38, 4)
+	Case T_STEINZIEGEL
+		; Ziegel in Reihen zu vier Texeln, die Stoesse versetzt, helle Fugen
+		For y = 0 To 15
+			reihe = y / 4
+			For x = 0 To 15
+				If (y Mod 4) = 3 Or ((x + (reihe Mod 2) * 4) Mod 8) = 7
+					Tx_Punkt(x, y, 156, 156, 152, 5)
+				Else
+					Tx_Punkt(x, y, 118, 118, 120, 9)
 				EndIf
 			Next
 		Next

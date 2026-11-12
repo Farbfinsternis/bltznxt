@@ -1,4 +1,4 @@
-rezepte 7, frei -
+rezepte 9, frei -
 nur ast: frei -meldung -
 ast und brocken: frei Steinaxt Steinspitzhacke Steinschaufel meldung Neue Rezepte: Steinaxt, Steinspitzhacke, Steinschaufel (E)
 nochmal pruefen: meldung -
@@ -22,3 +22,18 @@ platz frei: fertig 1, schaufel 1, schlange 0
 stamm und kohle: frei Ast Bretter Steinaxt Steinspitzhacke Steinschaufel Fackel meldung Neue Rezepte: Ast, Bretter, Fackel (E)
 bretter 4, stamm 0
 entfernen: rest 2, passt 64 sand 1, passt 36*64+1 0
+werkbank frei 1, steinziegel frei 1 meldung Neue Rezepte: Steinbrocken, Werkbank, Steinziegel (E)
+werkbank 1, bretter 0
+ziegel ohne werkbank: 0 meldung Steinziegel gibt es nur an einer Werkbank
+ziegel an der werkbank: 1, stein 4
+weggegangen: fertig 0 laeuft 0 fortschritt 2.0
+zurueck: fertig 1, ziegel 4
+reparierbar kaputte axt 1, volle hacke 0, ast 0, leer 0
+zeilen 11, letzte ist reparatur 1, titel davor 1
+kosten axt: ast 1 brocken 1, schaufel brocken 1
+ohne werkbank: 0 meldung Reparieren geht nur an einer Werkbank
+reparieren: 1 -> axt 0, ast 2 brocken 2 axt 0 schaufel 0, schlange 1: Steinaxt
+nach 2.9 s: axt 0
+nach 3.1 s: Steinaxt (100/100) meldung Steinaxt ist repariert
+hacke reparieren: 1, ast 0 brocken 0 axt 0 schaufel 0
+abbrechen: 1, ast 1 brocken 1 axt 0 schaufel 0, Steinspitzhacke (12/100)

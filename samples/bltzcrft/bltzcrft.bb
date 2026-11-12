@@ -47,7 +47,8 @@
 ; Mit -werkzeuge liegen dazu Aeste, Steinbrocken und drei Steinwerkzeuge
 ; (neu, abgenutzt, kaputt) im Inventar, -wahl <n> waehlt Platz n der
 ; Schnellleiste, -inventar oeffnet das Inventar fuer das Bild, -herstellen
-; reiht dazu drei Steinaexte in die Warteschlange.
+; reiht dazu drei Steinaexte in die Warteschlange, -werkbank stellt eine
+; Werkbank zwei Bloecke voraus.
 ; Mit -test <s> prueft das Programm den Mehrspieler ohne Maus und Tastatur:
 ; wer beitritt, schickt nach 3 s eine Chatzeile und setzt einen Stein
 ; zwischen sich und den Host; kurz vor Schluss speichert jeder ein Bild
@@ -106,6 +107,7 @@ Repeat
 	Case "-werkzeuge" : foto_werkzeuge = True
 	Case "-inventar" : foto_inventar = True
 	Case "-herstellen" : foto_herstellen = True
+	Case "-werkbank" : foto_werkbank = True
 	Case "-wahl" : i = i + 1 : foto_wahl = Int(Wort(args, i))
 	Case "-pos"
 		pos_x# = Float(Wort(args, i + 1)) : pos_y# = Float(Wort(args, i + 2)) : pos_z# = Float(Wort(args, i + 3))
@@ -131,6 +133,7 @@ If foto_werkzeuge
 	Inventar_Hinzu(G_STEINAXT, 1)
 	Inventar_Hinzu(G_STEINHACKE, 1, 37)
 	Inventar_Hinzu(G_STEINSCHAUFEL, 1, 0)
+	Inventar_Hinzu(B_STEIN, 8)
 EndIf
 If foto_wahl > 0 And foto_wahl <= INV_LEISTE Then inv_gewaehlt = foto_wahl - 1
 Abbau_Laden()
@@ -254,12 +257,10 @@ While Not ende
 				If p >= 0
 					If umschalt Then Inventar_Schieben(p) Else Inventar_Links(p)
 				Else
-					; rechts die Rezepte (rezepte.bb): Klick stellt einmal her,
-					; Umschalt+Klick so oft, wie Zutaten und Warteschlange reichen
-					r = Rezept_Unter(MouseX(), MouseY())
-					If r >= 0
-						If umschalt Then Rezept_Herstellen(r, RZ_SCHLANGE) Else Rezept_Herstellen(r, 1)
-					EndIf
+					; rechts die Rezepte (rezepte.bb): Klick stellt einmal her
+					; oder repariert, Umschalt+Klick so oft, wie Zutaten und
+					; Warteschlange reichen
+					Zeile_Klick(Zeile_Unter(MouseX(), MouseY()), umschalt)
 				EndIf
 			EndIf
 			If klick2
@@ -384,7 +385,14 @@ While Not ende
 			EndIf
 			If MouseHit(2)
 				b = Inventar_Gewaehlt()
-				If b = B_LUFT
+				If Welt_Block(ziel_x, ziel_y, ziel_z) = B_WERKBANK And (Not (KeyDown(42) Or KeyDown(54)))
+					; Rechtsklick auf die Werkbank oeffnet das Inventar mit ihren
+					; Rezepten; mit Umschalt setzt man wie sonst einen Block daran
+					inv_offen = True : gefangen = False
+					ShowPointer
+					MouseHit(1) : MouseHit(2)
+					Abbau_Loslassen()
+				ElseIf b = B_LUFT
 					meldung = "Dieser Platz ist leer - erst Bloecke abbauen (linke Maustaste halten)"
 					meldung_bis = MilliSecs() + 2500
 				ElseIf Not Ist_Block(b)
@@ -444,6 +452,8 @@ While Not ende
 	Hand_Takt(bild_dt)
 	Partikel_Takt(bild_dt)
 	; Herstellen laeuft weiter, auch bei geschlossenem Inventar
+	; die Werkbank zaehlt bis 4 Bloecke um den Spieler (alle 8 Bilder geprueft)
+	If (bilder Mod 8) = 0 Then rz_werkbank_nah = Werkbank_In_Naehe(Floor(sp_x), Floor(sp_y + 0.5), Floor(sp_z))
 	Rezepte_Pruefen()
 	Rezepte_Takt(bild_dt)
 	If rz_meldung <> "" Then meldung = rz_meldung : meldung_bis = MilliSecs() + 3000 : rz_meldung = ""
@@ -520,6 +530,17 @@ While Not ende
 			foto_start = MilliSecs()
 			If foto_inventar Then inv_offen = True
 			If foto_herstellen Then Rezepte_Pruefen() : Rezept_Herstellen(3, 3) : rz_fortschritt = 2.5
+		EndIf
+		If foto_werkbank And (Not foto_werkbank_da) And MilliSecs() - foto_start > 500 And sp_boden
+			; eine Werkbank zwei Bloecke voraus (Blick nach +z) auf den Boden
+			foto_werkbank_da = True
+			tx = Floor(sp_x) : tz = Floor(sp_z) + 2
+			For ty = Floor(sp_y) + 4 To Floor(sp_y) - 8 Step -1
+				If bl_fest(Welt_Block(tx, ty - 1, tz)) And (Not bl_fest(Welt_Block(tx, ty, tz)))
+					Welt_Aendern(tx, ty, tz, B_WERKBANK)
+					Exit
+				EndIf
+			Next
 		EndIf
 		If foto_fackeln And (Not foto_fackeln_da) And MilliSecs() - foto_start > 500 And sp_boden
 			; ringsum auf den Boden, alle fuenf Bloecke
@@ -602,7 +623,7 @@ Data "Leertaste", "springen, im Wasser schwimmen"
 Data "Strg", "rennen"
 Data "F", "fliegen ein/aus (Leertaste hoch, Umschalt runter)"
 Data "Linke Maustaste", "halten: abbauen (Stein, Erze nur mit Spitzhacke)"
-Data "Rechte Maustaste", "setzen - Fackeln an Boden oder Wand"
+Data "Rechte Maustaste", "setzen - auf eine Werkbank: ihre Rezepte"
 Data "1 - 9 / Mausrad", "Platz der Schnellleiste waehlen"
 Data "E", "Inventar oeffnen/schliessen"
 Data "  im Inventar", "Links: Stapel nehmen/ablegen, Rechts: halber Stapel"
@@ -645,6 +666,20 @@ Function Block_Abbauen(x, y, z, d = 0, h = 0)
 	Next
 	n = Welt_Block(x, y + 1, z)
 	If bl_pflanze(n) Or bl_fackel(n) = 1 Then Block_Abbauen(x, y + 1, z)
+End Function
+
+; Steht im Wuerfel von 4 Bloecken um x,y,z eine Werkbank?
+Function Werkbank_In_Naehe(x, y, z)
+	For dy = -4 To 4
+		If y + dy >= 0 And y + dy < HOEHE
+			For dz = -4 To 4
+				For dx = -4 To 4
+					If Welt_Block(x + dx, y + dy, z + dz) = B_WERKBANK Then Return True
+				Next
+			Next
+		EndIf
+	Next
+	Return False
 End Function
 
 ; Maus fangen: Zeiger weg und in die Mitte, aufgelaufene Bewegung und Klicks

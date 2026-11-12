@@ -104,4 +104,46 @@ Rezept_Herstellen(Nr(B_BRETTER))
 Rezepte_Takt(2)
 Print "bretter " + Inventar_Zaehlen(B_BRETTER) + ", stamm " + Inventar_Zaehlen(B_STAMM)
 Print "entfernen: rest " + Inventar_Entfernen(B_BRETTER, 6) + ", passt 64 sand " + Inventar_Passt(B_SAND, 64) + ", passt 36*64+1 " + Inventar_Passt(B_SAND, INV_PLAETZE * 64 + 1)
+
+; Werkbank: Rezept aus Brettern und Brocken, ihre Rezepte nur in der Naehe
+Inventar_Leeren()
+Inventar_Hinzu(B_BRETTER, 4) : Inventar_Hinzu(G_BROCKEN, 2) : Inventar_Hinzu(B_STEIN, 8)
+Rezepte_Pruefen()
+Print "werkbank frei " + rz_frei(Nr(B_WERKBANK)) + ", steinziegel frei " + rz_frei(Nr(B_STEINZIEGEL)) + " meldung " + Meldung()
+Rezept_Herstellen(Nr(B_WERKBANK)) : Rezepte_Takt(5)
+Print "werkbank " + Inventar_Zaehlen(B_WERKBANK) + ", bretter " + Inventar_Zaehlen(B_BRETTER)
+rz_werkbank_nah = False
+Print "ziegel ohne werkbank: " + Rezept_Herstellen(Nr(B_STEINZIEGEL)) + " meldung " + Meldung()
+rz_werkbank_nah = True
+Print "ziegel an der werkbank: " + Rezept_Herstellen(Nr(B_STEINZIEGEL)) + ", stein " + Inventar_Zaehlen(B_STEIN)
+Rezepte_Takt(2)
+rz_werkbank_nah = False
+Print "weggegangen: fertig " + Rezepte_Takt(5) + " laeuft " + Auftrag_Laeuft() + " fortschritt " + rz_fortschritt
+rz_werkbank_nah = True
+Print "zurueck: fertig " + Rezepte_Takt(2) + ", ziegel " + Inventar_Zaehlen(B_STEINZIEGEL)
+
+; Reparieren: halbe Zutaten (mindestens 1), das Werkzeug geht mit und
+; kommt heil zurueck; volle und Nicht-Werkzeuge gehen nicht
+Inventar_Leeren()
+Inventar_Hinzu(G_STEINAXT, 1, 0) : Inventar_Hinzu(G_STEINHACKE, 1) : Inventar_Hinzu(G_AST, 3) : Inventar_Hinzu(G_BROCKEN, 3)
+Print "reparierbar kaputte axt " + Reparierbar(0) + ", volle hacke " + Reparierbar(1) + ", ast " + Reparierbar(2) + ", leer " + Reparierbar(9)
+r = Nr(G_STEINAXT)
+Zeilen_Bauen()
+Print "zeilen " + zl_anzahl + ", letzte ist reparatur " + (zl_art(zl_anzahl - 1) = ZL_REPARATUR) + ", titel davor " + (zl_art(zl_anzahl - 2) = ZL_TITEL Or zl_art(zl_anzahl - 2) = ZL_REZEPT)
+Print "kosten axt: ast " + Reparatur_Menge(r, 0) + " brocken " + Reparatur_Menge(r, 1) + ", schaufel brocken " + Reparatur_Menge(Nr(G_STEINSCHAUFEL), 1)
+rz_werkbank_nah = False
+Print "ohne werkbank: " + Reparieren(0) + " meldung " + Meldung()
+rz_werkbank_nah = True
+Print "reparieren: " + Reparieren(0) + " -> axt " + Inventar_Zaehlen(G_STEINAXT) + ", " + Vorrat() + ", schlange " + Schlange()
+Rezepte_Takt(2.9)
+Print "nach 2.9 s: axt " + Inventar_Zaehlen(G_STEINAXT)
+Rezepte_Takt(0.2)
+p = 0 : While inv_ding(p) <> G_STEINAXT And p < INV_PLAETZE - 1 : p = p + 1 : Wend
+Print "nach 3.1 s: " + Ding_Titel(inv_ding(p), inv_haltbar(p)) + " meldung " + Meldung()
+
+; Abbrechen einer Reparatur: Werkzeug mit alter Haltbarkeit und Zutaten zurueck
+Inventar_Leeren()
+Inventar_Hinzu(G_STEINHACKE, 1, 12) : Inventar_Hinzu(G_AST, 1) : Inventar_Hinzu(G_BROCKEN, 1)
+Print "hacke reparieren: " + Reparieren(0) + ", " + Vorrat()
+Print "abbrechen: " + Auftrag_Abbrechen(0) + ", " + Vorrat() + ", " + Ding_Titel(inv_ding(0), inv_haltbar(0))
 End
