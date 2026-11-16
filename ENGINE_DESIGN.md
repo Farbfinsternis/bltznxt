@@ -745,8 +745,12 @@ Zu O1 gibt es seit dem 2026-11-16 eine Messung und einen Vorschlag
 ## 11. Oberflächen (BlitzPlus-Fähigkeiten)
 
 *Ergänzt am 2026-11-16. Alles in diesem Abschnitt ist ◇ Vorschlag oder ? offen.
-Die Befehlsnamen sind aus dem Gedächtnis zusammengestellt und vor dem Bau gegen
-BlitzPlus zu prüfen.*
+Befehle, Signaturen und Ereignisnummern sind am selben Tag gegen die
+veröffentlichten BlitzPlus-Quellen geprüft
+(<https://github.com/blitz-research/blitzplus_msvc2017>, zlib/libpng-Lizenz);
+die Fundstellen stehen in 11.3. Das Verhalten der einzelnen Befehle ist noch
+nicht geprüft. Für alles, was BlitzPlus betrifft, gilt: in den Quellen
+nachsehen, nicht aus dem Gedächtnis schreiben.*
 
 ### 11.1 Worum es geht
 
@@ -773,16 +777,65 @@ denn BlitzPlus weicht auch außerhalb der Oberflächen von Blitz3D ab.
 ◇ Empfehlung: selbst gezeichnet. Nativ bleibt, was SDL3 ohnehin liefert:
 Dateidialoge und Meldungsfenster.
 
+BlitzPlus trennt selbst zwischen den Befehlen und ihrer Umsetzung: `gui/gui.h`
+beschreibt mit `BBGuiDriver` eine Schnittstelle (ein `create…` je
+Bedienelement, dazu Meldungen und Abfragen), und `win32gui/` setzt sie mit den
+Bedienelementen von Windows um. Die Naht für eine selbst gezeichnete Umsetzung
+liegt also an derselben Stelle wie im Original.
+
 ### 11.3 Umfang in Stufen
+
+Quelle: die Befehlstabellen in `blitzplus/gui_link.cpp` (110 aktive Einträge),
+`blitzplus/b2d_link.cpp` (Canvas, Ereignisse, Maus) und
+`blitzplus/sys_link.cpp` (Meldungen, Timer, `FlushEvents`, `HotKeyEvent`).
+Alle `Create…`-Befehle für Gadgets haben dieselbe Form
+`(x, y, width, height, group [,style])`; bei `CreateButton`, `CreateLabel` und
+`CreateWindow` steht ein Text davor, bei `CreateToolBar` die Bilddatei.
 
 | Stufe | Inhalt |
 |-------|--------|
-| 1 | Fenster, Menüs, `Button` (auch Ankreuzfeld und Auswahlknopf), `Label`, `TextField`, `Slider`, `ProgBar`, `Panel`, `Canvas`; Ereignisse (`WaitEvent`, `PeekEvent`, `EventID`, `EventSource`, `EventData`, `EventX`, `EventY`); Abfragen (`Notify`, `Confirm`, `Proceed`, `RequestFile`, `RequestDir`) |
-| 2 | `ListBox`, `ComboBox`, `Tabber`, `TreeView`, `ToolBar`, `RequestColor`, `RequestFont`; Anordnung beim Ändern der Fenstergröße (`SetGadgetLayout`) |
-| 3 | `TextArea` — ein mehrzeiliger Editor mit Formatierung, der teuerste Einzelposten |
-| — | `HtmlView` (eingebetteter Browser) ist nicht vorgesehen |
+| 1 | **Fenster:** `CreateWindow(text$, x, y, w, h [,group [,style]])` mit Stil 15 als Vorgabe (1 Titelzeile, 2 größenveränderlich, 4 Menü, 8 Statuszeile, 16 Werkzeugfenster, 32 Maße als Innenfläche), `ActiveWindow`, `ActivateWindow`, `MinimizeWindow`, `MaximizeWindow`, `RestoreWindow`, `WindowMinimized`, `WindowMaximized`, `SetStatusText`, `SetMinWindowSize`, `Desktop`, `ClientWidth`, `ClientHeight`. **Menüs:** `CreateMenu(text$, id, parent)`, `WindowMenu`, `UpdateWindowMenu`, `SetMenuText`, `MenuText`, `CheckMenu`, `UncheckMenu`, `MenuChecked`, `EnableMenu`, `DisableMenu`, `MenuEnabled`. **Alle Gadgets:** `FreeGadget`, `SetGadgetShape`, `SetGadgetLayout gadget, left, right, top, bottom`, `SetGadgetText`, `GadgetText`, `SetGadgetFont`, `GadgetFont`, `ShowGadget`, `HideGadget`, `EnableGadget`, `DisableGadget`, `ActivateGadget`, `GadgetX`, `GadgetY`, `GadgetWidth`, `GadgetHeight`, `GadgetGroup`. **Einzelne:** `CreateButton` (Stil 1 Knopf, 2 Ankreuzfeld, 3 Auswahlknopf, 4 löst bei Return aus, 5 bei Escape) mit `SetButtonState`/`ButtonState`; `CreateLabel`; `CreateTextField` mit `TextFieldText`; `CreateSlider` mit `SetSliderRange`, `SetSliderValue`, `SliderValue`; `CreateProgBar` mit `UpdateProgBar`; `CreatePanel` mit `SetPanelColor`, `SetPanelImage`. **Canvas:** `CreateCanvas`, `CanvasBuffer`, `FlipCanvas`. **Ereignisse:** siehe 11.3a. **Abfragen:** `RequestFile`, `RequestDir` |
+| 2 | `CreateListBox`, `CreateComboBox`, `CreateTabber` mit den gemeinsamen Eintragsbefehlen (`AddGadgetItem`, `InsertGadgetItem`, `ModifyGadgetItem`, `RemoveGadgetItem`, `SelectGadgetItem`, `SelectedGadgetItem`, `CountGadgetItems`, `GadgetItemText`, `ClearGadgetItems`); `CreateTreeView` mit elf Knotenbefehlen (`TreeViewRoot`, `AddTreeViewNode`, `SelectTreeViewNode`, `ExpandTreeViewNode` …); `CreateToolBar` mit `EnableToolBarItem`, `DisableToolBarItem`, `SetToolBarTips`; Bildstreifen (`LoadIconStrip`, `FreeIconStrip`, `SetGadgetIconStrip`); `RequestColor` mit `RequestedRed`/`Green`/`Blue`, `RequestFont` |
+| 3 | `CreateTextArea` mit 15 weiteren Befehlen (`SetTextAreaText`, `AddTextAreaText`, `FormatTextAreaText`, `TextAreaText`, `TextAreaCursor`, `TextAreaSelLen`, `LockTextArea` …) — ein mehrzeiliger Editor mit Formatierung, der teuerste Einzelposten |
+| — | `CreateHtmlView` und seine sieben Befehle sind nicht vorgesehen. Im Repository sind sie in der Befehlstabelle auskommentiert, ebenso `CreateSplitter`/`SplitterPanel`; die Hilfe beschreibt HtmlView noch. |
 
 Einschätzung: Stufe 1 reicht für einfache Werkzeuge wie einen Level-Editor.
+
+**Überschneidung mit dem, was BLTZNXT schon hat** (`commands.h`):
+
+| Befehl | BLTZNXT heute | BlitzPlus |
+|--------|---------------|-----------|
+| `Notify`, `Confirm`, `Proceed` | ein Parameter `msg$` | zusätzlich `serious=0` |
+| `CreateTimer`, `FreeTimer`, `WaitTimer` | vorhanden, `hz%` | `hertz#`; dazu `TimerTicks`, `ResetTimer`, `PauseTimer`, `ResumeTimer` und das Ereignis `$4001` |
+| `MouseX`, `MouseY`, `MouseXSpeed`, `MouseYSpeed`, `MoveMouse`, `ShowPointer`, `HidePointer` | ohne Canvas | zusätzlich `canvas=0` am Ende |
+
+Alle drei Erweiterungen sind zusätzliche Parameter mit Vorgabewert; ein
+Blitz3D-Programm merkt davon nichts.
+
+### 11.3a Ereignisse
+
+Befehle (`b2d_link.cpp`, `sys_link.cpp`): `WaitEvent([timeout])` mit −1 als
+Vorgabe, `PeekEvent`, `EventID`, `EventData`, `EventX`, `EventY`, `EventZ`,
+`EventSource`, `FlushEvents [kind [,source]]`,
+`HotKeyEvent rawkey, modifier, ev_id [,ev_data, ev_x, ev_y, ev_z, ev_source]`,
+`AutoSuspend enable`.
+
+Nummern aus `event/event.h`:
+
+| Nummer | Ereignis |
+|--------|----------|
+| `$101`, `$102`, `$103` | Taste gedrückt, losgelassen, Zeichen |
+| `$201`, `$202`, `$203`, `$204` | Maustaste gedrückt, losgelassen, Maus bewegt, Mausrad |
+| `$205`, `$206` | Maus betritt, verlässt |
+| `$401` | Gadget betätigt |
+| `$801`, `$802`, `$803`, `$804` | Fenster verschoben, Größe geändert, geschlossen, aktiviert |
+| `$1001` | Menüpunkt gewählt |
+| `$2001`, `$2002` | Programm angehalten, fortgesetzt |
+| `$2003`, `$2004`, `$2005` | Anzeige geändert, modaler Dialog beginnt, endet |
+| `$4001` | Timer |
+
+Die Quelle kennt außerdem `$104`/`$105` (`KEY_OKAY`, `KEY_CANCEL`) und `$402`
+(`GADGET_ACTIVATE`). ? Ob Programme sie zu sehen bekommen, ist nicht geprüft.
 
 ### 11.4 Umbau der Laufzeit
 
@@ -792,7 +845,10 @@ Einschätzung: Stufe 1 reicht für einfache Werkzeuge wie einen Level-Editor.
 - **Ereignisschlange neben dem Abfragen.** `KeyHit`, `MouseX` und die übrigen
   Eingabebefehle arbeiten weiter wie bisher. Die Ereignisse der Oberfläche
   kommen in dieselbe Verarbeitung (`bb_sdl_process_event_`) als zweite Sicht
-  auf dieselben Eingaben.
+  auf dieselben Eingaben. BlitzPlus ist genauso gebaut: Die Ereignisse sind
+  dort das Erste, und ein Filter (`B2DEventFilter` in `blitz2d/b2devent.cpp`)
+  leitet daraus den Zustand für `KeyDown`, `KeyHit`, `GetKey`, `MouseDown`,
+  `MouseHit` und `MouseZ` ab.
 - **Canvas als Zieltextur.** Ein Canvas ist ein Puffer für `SetBuffer` und ein
   mögliches Ziel für `CameraRenderTarget` (5.3). 2D in einem Canvas geht mit
   den Mitteln aus `bb_canvas.h`; 3D in einem Canvas braucht die Zieltexturen
