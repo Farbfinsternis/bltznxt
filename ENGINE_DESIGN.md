@@ -4,7 +4,7 @@
 
 *Stand: 2026-09-17 (Abgleich mit der Bugliste eingearbeitet), ergänzt am
 2026-11-16 um den Stand im Code, den gemeinsamen Unterbau (0.1) und die
-Oberflächen (Abschnitt 11); am selben Tag O13 bis O16 entschieden. Entwurf,
+Oberflächen (Abschnitt 11); am selben Tag O1, O7, O10 und O13 bis O16 entschieden. Entwurf,
 nichts davon ist implementiert.*
 
 Zeichen in diesem Dokument: **✔ entschieden** · **◇ Vorschlag** · **? offen**
@@ -70,7 +70,7 @@ festgelegt werden, gelten für alles, was danach kommt.
 | Nr. | Regel | Stand |
 |-----|-------|-------|
 | E1 | Erweiterungen sind **neue Namen**. Die Grammatik von Blitz3D wird nicht verändert; ein gültiges Blitz3D-Programm bleibt syntaktisch gültig. | ✔ (seit 2026-09-05) |
-| E2 | **Reservierte Namen einer Erweiterung gewinnen.** Verwendet ein altes Programm einen solchen Namen selbst, wird es mit einer erklärenden Meldung abgelehnt und muss umbenannt werden. | ✔ für `Vec2`/`Vec3`/`Vec4`; **?** ob das für alle neuen Befehle gilt |
+| E2 | **Reservierte Namen einer Erweiterung gewinnen.** Verwendet ein altes Programm einen solchen Namen selbst, wird es mit einer erklärenden Meldung abgelehnt und muss umbenannt werden. | ✔ für Typnamen und Schlüsselwörter (`Vec2`/`Vec3`/`Vec4`); bei Befehlen gewinnt die Funktion des Programms (O1, ✔ 2026-11-16) |
 | E3 | Neue Namen werden vorher gegen die Befehlsliste von Blitz3D und gegen die Beispielprogramme der Installation geprüft. Häufig benutzte Wörter bekommen ein Präfix. | ◇ |
 | E4 | Kleine Datentypen (Vektoren, Matrizen) sind **Werte**, keine Objekte: Zuweisen kopiert, kein `New`/`Delete`. Ressourcen (Shader, Render-Targets) sind wie in Blitz3D **Handles** (Ganzzahlen) mit `Create…`/`Load…`/`Free…`. | ◇ |
 
@@ -87,10 +87,23 @@ abgelehnt, sobald es den Befehl gibt. Als ganzes Wort, Kommentare
 eingeschlossen, kommen `Shader`, `Gadget`, `Canvas` und `Event` in keiner Datei
 vor, `Uniform`, `Material` und `Window` in je einer.
 
-◇ Vorschlag für O1: E2 gilt für **Typnamen und Schlüsselwörter** (`Vec3`),
-nicht für Befehle. Definiert ein Programm eine Funktion, die wie ein neuer
-Befehl heißt, gewinnt die Funktion des Programms; der neue Befehl ist in diesem
-Programm dann nicht erreichbar. Für die Befehle von Blitz3D ändert sich nichts.
+Zweite Messung am selben Tag: Von 129 Befehlsnamen aus den Tabellen von
+BlitzPlus (Abschnitt 11) kommt in den 729 Dateien, Kommentare entfernt, nur
+`CreateButton` vor — dreimal, alle in bnb.
+
+✔ Entschieden am 2026-11-16 (O1): E2 gilt für **Typnamen und Schlüsselwörter**
+(`Vec3`), nicht für Befehle. Definiert ein Programm eine Funktion, die wie ein
+neuer Befehl heißt, gewinnt die Funktion des Programms; der neue Befehl ist in
+diesem Programm dann nicht erreichbar. Einen Hinweis gibt der Compiler dazu
+nicht aus. Für die Befehle von Blitz3D ändert sich nichts.
+
+Der Compiler arbeitet bereits so: `semant.h` prüft einen Aufruf zuerst gegen
+die Funktionen des Programms und erst danach gegen die Befehlstabelle, und
+`emitter.h` schreibt eigene Funktionen als `fn_…`, Befehle als `bb_…`. Das ist
+im Code gelesen, nicht mit einem gleichnamigen Befehl ausprobiert; ein Test
+dafür gehört zum ersten neuen Befehl, der eine solche Überschneidung hat.
+Variablen, Arrays und Types mit dem Namen eines neuen Befehls sind nicht
+untersucht.
 
 ---
 
@@ -318,7 +331,14 @@ die Abweichung zu groß aus, greift der Schalter pro Programm aus VISION.md.
 `LightColor` mit negativen Werten zum Abdunkeln, `LightRange` als Reichweite,
 außerhalb nichts, `LightConeAngles`, `AmbientLight`.
 
-◇ HDR-Rendering mit Tone-Mapping am Ende. **?** Belichtung als Befehl.
+✔ Entschieden am 2026-11-16 (O7): `RenderWorld` rechnet **immer** in ein
+HDR-Ziel, auch ohne eigene Passes. Ohne Einstellung wird am Ende nur auf 0..1
+begrenzt (3.4). Tone-Mapping-Kurve und Belichtung stellt ein Programm **je
+Kamera** ein, so wie `CameraFogMode`. Es gibt damit ein Bildverhalten für alle
+Programme; der Preis ist etwas Speicher und Zeit auf schwachen Grafikchips.
+
+◇ Arbeitsnamen: `CameraToneMap cam, mode` und `CameraExposure cam, value#`.
+Beide kommen in den 729 Dateien der Installation nicht vor (E3).
 
 ? Anzahl der Lichter: Blitz3D garantiert 8. Die neue Engine sollte mindestens 8
 können; mehr hängt an der Renderer-Entscheidung (Abschnitt 7).
@@ -445,8 +465,8 @@ wollen, z. B. `CameraBloom cam, threshold#, strength#`. Sie laufen innerhalb von
     gelten weiter.
 - ? Rechnet `RenderWorld` immer in HDR mit Tone-Mapping, auch ohne eigene
   Passes? Das ändert das Aussehen alter Szenen (zulässig nach der Richtlinie).
-  ◇ Vorschlag in 3.4: immer in HDR rechnen, die Tone-Mapping-Kurve aber nur
-  auf Wunsch.
+  ✔ Entschieden am 2026-11-16 (O7, siehe 4.1): immer in HDR, die
+  Tone-Mapping-Kurve nur auf Wunsch und je Kamera.
 - ? Mehrere Kameras mit Viewports: jede mit eigenem Target, oder Passes je
   Viewport? Das Beobachtbare (BUG-129: Bild und `CameraClsColor` in jedem
   Viewport) hängt nicht daran und wird vorher behoben; die Kameraschleife soll
@@ -532,11 +552,12 @@ Es fehlen die Vektoren (Abschnitt 2).
 Parameter als Eingabe und eine Farbe als Ausgabe (Skizze in 6.2). Er berührt
 weder Licht noch Materialmodell.
 
-◇ **Material-Shader als Funktion, die Materialwerte füllt.** Der Shader
-bestimmt Grundfarbe, Normale, Roughness, Metallic, Leuchten und Deckkraft einer
+✔ Entschieden am 2026-11-16 (O10): **Material-Shader als Funktion, die
+Materialwerte füllt.** Der Shader bestimmt Grundfarbe, Normale, Roughness, Metallic, Leuchten und Deckkraft einer
 Oberfläche; Licht, Schatten, Nebel und Knochen rechnet die Engine. So
 überlebt ein Material-Shader jeden Umbau des Renderers (7.3), und er sieht
-unter jedem Licht richtig aus. Skizze, Namen nicht festgelegt:
+unter jedem Licht richtig aus. ◇ Skizze; die Namen der Ein- und Ausgaben
+(`Uniform`, `Surface`, `Material…`) sind nicht festgelegt:
 
 ```blitzbasic
 ; lava.bbs
@@ -551,8 +572,9 @@ Function Surface(uv.Vec2)
 End Function
 ```
 
-Ein eigenes Beleuchtungsmodell (Toon-Shading u. ä.) ist damit nicht möglich. ?
-Ob es dafür später einen zweiten Einhängepunkt gibt, bleibt offen (O10).
+Ein eigenes Beleuchtungsmodell (Toon-Shading u. ä.) ist damit zunächst nicht
+möglich. Ein Einhängepunkt dafür kann später als weitere Funktion dazukommen,
+ohne bestehende Shader zu brechen.
 
 ### 6.5 Eigene Datei oder Block im Programm (2026-11-16)
 
@@ -731,16 +753,16 @@ der Bugliste (Include, Objektlebensdauer, Gosub, Dateiformat, Zufallszahlen,
 
 | Nr. | Frage | Abschnitt |
 |-----|-------|-----------|
-| O1 | Gilt „das Programm verliert“ (E2) für alle neuen Befehle oder nur für `Vec`? | 1 |
+| O1 | Gilt „das Programm verliert“ (E2) für alle neuen Befehle oder nur für `Vec`? ✔ 2026-11-16: nur für Typnamen und Schlüsselwörter; bei Befehlen gewinnt die Funktion des Programms, ohne Hinweis | 1 |
 | O2 | Vergleich `a = b` bei Vektoren, Format bei `Print v` (◇ wie `Str(float)`, BUG-68) | 2.3 |
 | O3 | Matrizen: Schreibweise, Elementzugriff, Befehle | 2.5 |
 | O4 | Kurve Shininess → Roughness | 3.1 |
 | O5 | Lightmaps: vorberechnete Beleuchtung oder nur Multiplikation | 3.1 |
 | O6 | Befehlsnamen für Schatten, Verhalten bei Alpha und Maske | 4.2 |
-| O7 | Belichtung als Befehl; HDR/Tone-Mapping immer oder nur mit Passes | 4.1, 5.4 |
+| O7 | ✔ 2026-11-16: `RenderWorld` rechnet immer in HDR; Tone-Mapping-Kurve und Belichtung je Kamera, ohne Einstellung nur Begrenzung. Befehlsnamen bleiben ◇ | 4.1, 5.4 |
 | O8 | `TextureBuffer`/`CopyRect` auf GPU-Targets (◇ geteilt: Bedeutung in Schritt 1, Speicherung in Schritt 7) | 5.4 |
 | O9 | Passes und mehrere Kameras/Viewports (BUG-129 unabhängig davon vorher) | 5.4 |
-| O10 | Ein- und Ausgaben des Shader-Dialekts, Material-Shader | 6.2 |
+| O10 | ✔ 2026-11-16: Material-Shader füllen Materialwerte, das Licht rechnet die Engine; ein Einhängepunkt für eigenes Licht kann später dazukommen. Die Namen der Ein- und Ausgaben bleiben ◇ | 6.2, 6.4 |
 | O11 | Forward+ oder Deferred | 7.3 |
 | O12 | Vektoren und die Implizit-Regeln: ungetaggte Zuweisung, `Const`, `Data`, Vorgabewerte, `Handle` (BUG-80/99/107/49/101) | 2.3a |
 | O13 | ✔ 2026-11-16: PBR-Weg — ein Rechenweg mit zurückhaltenden Vorgaben, kein Schalter. Vorbehalt: die Messung zum Blending im linearen Farbraum; fällt sie durch, greift der Schalter pro Programm aus VISION.md | 3.4 |
@@ -748,9 +770,7 @@ der Bugliste (Include, Objektlebensdauer, Gosub, Dateiformat, Zufallszahlen,
 | O15 | ✔ 2026-11-16: Oberflächen — selbst gezeichnet auf SDL3; Ziel ist die Fähigkeit mit den Namen und Signaturen von BlitzPlus, nicht dass alte BlitzPlus-Programme unverändert laufen | 11.1, 11.2 |
 | O16 | ✔ 2026-11-16: Browser — offengehalten, kein festes Ziel. Neues wird WebGL-2-tauglich gebaut, der 2D-Weg bleibt vorerst | 7.1 |
 
-Zu O1 gibt es seit dem 2026-11-16 eine Messung und einen Vorschlag
-(Abschnitt 1), zu O7 und O10 je einen Vorschlag (3.4, 6.4). Diese drei sind
-weiter offen.
+Offen sind damit noch O2 bis O6, O8, O9, O11 und O12.
 
 ---
 
@@ -875,5 +895,5 @@ von damals gelten weiter.
 
 Die Namen stoßen mit alten Blitz3D-Programmen zusammen, die sich ihre
 Oberfläche selbst gebaut haben; gemessen ist das für `CreateButton` in bnb
-(Abschnitt 1). Mit dem Vorschlag zu O1 — die eigene Funktion des Programms
+(Abschnitt 1). Mit der Entscheidung zu O1 — die eigene Funktion des Programms
 gewinnt — laufen solche Programme unverändert weiter.
