@@ -4,7 +4,8 @@
 
 *Stand: 2026-09-17 (Abgleich mit der Bugliste eingearbeitet), ergänzt am
 2026-11-16 um den Stand im Code, den gemeinsamen Unterbau (0.1) und die
-Oberflächen (Abschnitt 11). Entwurf, nichts davon ist implementiert.*
+Oberflächen (Abschnitt 11); am selben Tag O13 bis O16 entschieden. Entwurf,
+nichts davon ist implementiert.*
 
 Zeichen in diesem Dokument: **✔ entschieden** · **◇ Vorschlag** · **? offen**
 
@@ -283,12 +284,12 @@ Befehl dazu; `stb_image.h` in `src/thirdparty` liest das `.hdr`-Format bereits.
 
 ### 3.4 Ein Rechenweg, zurückhaltende Vorgaben (2026-11-16)
 
-? Offen (O13). [VISION.md](VISION.md) vom 2026-09-26 widerspricht 3.1: Dort
-steht die Empfehlung, den modernen Weg **pro Programm** einzuschalten, weil
-lineare Farben und Tone-Mapping die Helligkeit alter Szenen ändern. 3.1 legt
-dagegen ein Modell ohne Umschalter fest.
+✔ Entschieden am 2026-11-16 (O13). [VISION.md](VISION.md) vom 2026-09-26
+widersprach 3.1: Dort stand die Empfehlung, den modernen Weg **pro Programm**
+einzuschalten, weil lineare Farben und Tone-Mapping die Helligkeit alter Szenen
+ändern. 3.1 legt dagegen ein Modell ohne Umschalter fest.
 
-◇ Vorschlag, der beides verbindet: Es bleibt bei **einem** Rechenweg, es gibt
+Die Entscheidung verbindet beides: Es bleibt bei **einem** Rechenweg, es gibt
 keinen zweiten Renderer. Was das Bild als Ganzes prägt, wird eine Einstellung
 der Szene mit einer Vorgabe:
 
@@ -301,11 +302,11 @@ der Szene mit einer Vorgabe:
 Damit bleibt `EntityFX 1` farbgenau — die Tests prüfen dort exakte Pixelwerte —,
 und ein neues Programm schaltet den Rest mit einem Befehl ein.
 
-**Risiko, das sich nicht am Schreibtisch entscheiden lässt:** Alpha-, Add- und
-Multiply-Blending im linearen Farbraum verändert Partikel, Sprites und
-Überblendungen alter Programme sichtbar. Vor der Festlegung wird das an den
-Beispielen der Blitz3D-Installation gemessen. Fällt die Abweichung zu groß aus,
-ist der Schalter pro Programm aus VISION.md die Rückfallebene.
+**Vorbehalt:** Alpha-, Add- und Multiply-Blending im linearen Farbraum
+verändert Partikel, Sprites und Überblendungen alter Programme sichtbar. Das
+lässt sich nicht am Schreibtisch beurteilen. Vor dem Bau des Materialmodells
+(Schritt 5) wird es an den Beispielen der Blitz3D-Installation gemessen. Fällt
+die Abweichung zu groß aus, greift der Schalter pro Programm aus VISION.md.
 
 ---
 
@@ -514,7 +515,8 @@ solange es das Projekt gibt. Der Dialekt hebt das auf, weil `blitzcc`
 erzeugt, was der Renderer gerade braucht — heute GLSL 3.30, später zum Beispiel
 GLSL ES 3.00 für den Browser.
 
-◇ Vorschlag (O14): Der Dialekt ist die **einzige offizielle** Shader-API.
+✔ Entschieden am 2026-11-16 (O14): Der Dialekt ist die **einzige offizielle**
+Shader-API.
 `.glsl` bleibt als Ausweg möglich, wird aber als nicht portabel gekennzeichnet
 und nicht auf Dauer zugesichert. Die Reihenfolge aus 6.1 (GLSL zuerst, um das
 Pass-Modell auszuprobieren) bleibt davon unberührt.
@@ -581,10 +583,18 @@ denselben Bildpuffer des Fensters wie `RenderWorld` mit seinem 3.3-Kontext
 `RenderWorld` in den Bildpuffer umgerechnet, die 2D-Befehle zeichnen danach
 darüber wie bisher.
 
-? Einschätzung, nicht geprüft (O16): Für den Browser und für 3D in einem Canvas
-(11.4) ist die Konstruktion ein Hindernis, weil dort zwei Kontexte auf einer
-Fläche nicht vorgesehen sind. Ist der Browser ein Ziel, gehört die Entscheidung
-über den 2D-Weg vor den Bau der Zieltexturen.
+Einschätzung, nicht geprüft: Für den Browser und für 3D in einem Canvas (11.4)
+ist die Konstruktion ein Hindernis, weil dort zwei Kontexte auf einer Fläche
+nicht vorgesehen sind.
+
+✔ Entschieden am 2026-11-16 (O16): Der Browser wird **offengehalten**, er ist
+kein festes Ziel. Daraus folgt:
+
+- Alles Neue (Zieltexturen, Materialmodell, Shader-Dialekt) wird so gebaut,
+  dass es auch mit WebGL 2 ginge, also im gemeinsamen Teil von OpenGL 3.3 und
+  GLSL ES 3.00.
+- Der 2D-Weg über den SDL-Renderer bleibt, wie er ist. Umgebaut wird er erst,
+  wenn der Browser wirklich ansteht oder 3D in einem Canvas ihn verlangt.
 
 ### 7.2 Gliederung
 
@@ -707,8 +717,9 @@ verweist (`bb_canvas.h` nennt Schritt 7 und O8). ◇ Vorschläge:
 - **Oberflächen (Abschnitt 11) als eigener Strang.** Sie hängen an keinem der
   Schritte 1 bis 10; nur 3D in einem Canvas braucht die Zieltexturen.
 
-Stand der Voraussetzungen: Schritt 4 (Vektoren) ist nicht begonnen. Vor dem
-ersten Schritt stehen O13 und O16.
+Stand der Voraussetzungen: Schritt 4 (Vektoren) ist nicht begonnen. O13 und O16
+sind seit dem 2026-11-16 entschieden; vor Schritt 5 steht noch die Messung zum
+Blending im linearen Farbraum (3.4).
 
 Vom Entwurf unabhängig und jederzeit möglich sind die übrigen offenen Einträge
 der Bugliste (Include, Objektlebensdauer, Gosub, Dateiformat, Zufallszahlen,
@@ -732,20 +743,21 @@ der Bugliste (Include, Objektlebensdauer, Gosub, Dateiformat, Zufallszahlen,
 | O10 | Ein- und Ausgaben des Shader-Dialekts, Material-Shader | 6.2 |
 | O11 | Forward+ oder Deferred | 7.3 |
 | O12 | Vektoren und die Implizit-Regeln: ungetaggte Zuweisung, `Const`, `Data`, Vorgabewerte, `Handle` (BUG-80/99/107/49/101) | 2.3a |
-| O13 | PBR-Weg: ein Rechenweg mit zurückhaltenden Vorgaben (◇) oder Schalter pro Programm wie in VISION.md; vorher Blending im linearen Farbraum an den Beispielen messen | 3.4 |
-| O14 | Shader-API: der Dialekt als einzige offizielle API, GLSL nur als gekennzeichneter Ausweg (◇)? | 6.3 |
-| O15 | Oberflächen: selbst gezeichnet (◇) oder nativ; gehören BlitzPlus-Programme zum Kompatibilitätsanspruch? | 11.1, 11.2 |
-| O16 | Zielplattformen und der 2D-Weg im 3D-Modus: ist der Browser ein Ziel? | 7.1 |
+| O13 | ✔ 2026-11-16: PBR-Weg — ein Rechenweg mit zurückhaltenden Vorgaben, kein Schalter. Vorbehalt: die Messung zum Blending im linearen Farbraum; fällt sie durch, greift der Schalter pro Programm aus VISION.md | 3.4 |
+| O14 | ✔ 2026-11-16: Shader-API — der Dialekt ist die einzige offizielle API, GLSL bleibt als gekennzeichneter Ausweg | 6.3 |
+| O15 | ✔ 2026-11-16: Oberflächen — selbst gezeichnet auf SDL3; Ziel ist die Fähigkeit mit den Namen und Signaturen von BlitzPlus, nicht dass alte BlitzPlus-Programme unverändert laufen | 11.1, 11.2 |
+| O16 | ✔ 2026-11-16: Browser — offengehalten, kein festes Ziel. Neues wird WebGL-2-tauglich gebaut, der 2D-Weg bleibt vorerst | 7.1 |
 
 Zu O1 gibt es seit dem 2026-11-16 eine Messung und einen Vorschlag
-(Abschnitt 1), zu O7 und O10 je einen Vorschlag (3.4, 6.4).
+(Abschnitt 1), zu O7 und O10 je einen Vorschlag (3.4, 6.4). Diese drei sind
+weiter offen.
 
 ---
 
 ## 11. Oberflächen (BlitzPlus-Fähigkeiten)
 
-*Ergänzt am 2026-11-16. Alles in diesem Abschnitt ist ◇ Vorschlag oder ? offen.
-Befehle, Signaturen und Ereignisnummern sind am selben Tag gegen die
+*Ergänzt am 2026-11-16. Bauweise und Anspruch sind entschieden (O15), alles
+Übrige in diesem Abschnitt ist ◇ Vorschlag oder ? offen. Befehle, Signaturen und Ereignisnummern sind am selben Tag gegen die
 veröffentlichten BlitzPlus-Quellen geprüft
 (<https://github.com/blitz-research/blitzplus_msvc2017>, zlib/libpng-Lizenz);
 die Fundstellen stehen in 11.3. Das Verhalten der einzelnen Befehle ist noch
@@ -760,8 +772,9 @@ Menü, Knöpfen und einer Fläche, in der `RenderWorld` zeichnet, konnte in der
 Blitz-Welt deshalb keines von beiden — genau das brauchen Editoren und
 Werkzeuge.
 
-Ziel ist die **Fähigkeit**. ? Ob darüber hinaus alte BlitzPlus-Programme laufen
-sollen, ist offen (O15). Das wäre ein eigener Anspruch mit eigenem Korpus,
+✔ Entschieden am 2026-11-16 (O15): Ziel ist die **Fähigkeit**. Namen und
+Signaturen folgen BlitzPlus; dass alte BlitzPlus-Programme unverändert laufen,
+gehört nicht zum Anspruch. Das wäre ein eigenes Vorhaben mit eigenem Korpus,
 denn BlitzPlus weicht auch außerhalb der Oberflächen von Blitz3D ab.
 
 ### 11.2 Bauweise
@@ -774,8 +787,8 @@ denn BlitzPlus weicht auch außerhalb der Oberflächen von Blitz3D ab.
 | 3D in einem Canvas | Fenster im Fenster, je Plattform anders | eine Zieltextur wie jede andere (0.1) |
 | Texteingabe, Bedienhilfen | bringt das System mit | muss selbst gebaut werden |
 
-◇ Empfehlung: selbst gezeichnet. Nativ bleibt, was SDL3 ohnehin liefert:
-Dateidialoge und Meldungsfenster.
+✔ Entschieden am 2026-11-16 (O15): selbst gezeichnet. Nativ bleibt, was SDL3
+ohnehin liefert: Dateidialoge und Meldungsfenster.
 
 BlitzPlus trennt selbst zwischen den Befehlen und ihrer Umsetzung: `gui/gui.h`
 beschreibt mit `BBGuiDriver` eine Schnittstelle (ein `create…` je

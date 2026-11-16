@@ -175,6 +175,11 @@ Programm oder pro Kamera: ein Befehl, mit dem ein Programm einmal den modernen P
 lineare Farben, PBR-Materialien, kein D3D7-Clamp, keine 1/2 − 1/256-Verschiebung. Alte Programme
 sagen ihn nie und merken nichts, und die Suite bleibt in zwei sauber getrennte Korpora teilbar.
 
+**Entschieden am 2026-11-16** ([ENGINE_DESIGN.md](ENGINE_DESIGN.md), 3.4 und O13): Es bleibt bei
+einem Rechenweg ohne Schalter. Tone-Mapping-Kurve und Umgebungsbild sind Einstellungen der Szene
+und zunächst aus. Der Schalter pro Programm bleibt die Rückfallebene, falls die Messung zum
+Blending im linearen Farbraum zu große Abweichungen zeigt.
+
 ## Reihenfolge für NEXT
 
 Die Liste GLTF/PBR/Shader ist richtig, aber in dieser Reihenfolge falsch sortiert.
@@ -198,8 +203,11 @@ ab.
 
 - [ ] Welcher Korpus definiert „Phase 1 fertig"? Welche Demos, welche Spiele?
 - [ ] Was heißt „aktuelle Systeme": Windows allein, oder auch Linux, macOS, Browser?
-- [ ] Wo liegt der Schalter zwischen altem und modernem Pfad — pro Programm oder pro Kamera?
-- [ ] Wird GLSL die Shader-API, mit der Festlegung auf OpenGL?
+- [x] Wo liegt der Schalter zwischen altem und modernem Pfad — pro Programm oder pro Kamera?
+  Entschieden am 2026-11-16: vorerst kein Schalter, siehe oben und ENGINE_DESIGN.md O13.
+- [x] Wird GLSL die Shader-API, mit der Festlegung auf OpenGL? Entschieden am 2026-11-16: nein.
+  Die offizielle Shader-API ist der Blitz-Dialekt, GLSL bleibt ein gekennzeichneter Ausweg
+  (ENGINE_DESIGN.md O14). Der Browser ist damit offengehalten, aber kein festes Ziel (O16).
 - [ ] Netzwerk (Entwurf oben): welcher Treffpunkt ist die Vorgabe, und wer betreibt TURN — das
   Projekt, der Spieleentwickler oder niemand?
 
