@@ -324,6 +324,25 @@ The runtime is **header-only** — the generated `.cpp` file `#include`s only wh
 
 ## Roadmap Overview
 
+### Coming updates
+
+Every larger update has one theme. First BlitzNext catches up with the last things Blitz3D could do, then it grows past it. No dates; order and names may still change.
+
+| Update | What it brings |
+|--------|----------------|
+| **Network Update** | Blitz3D's 14 multiplayer commands are back, without DirectPlay. One player hosts, the others join, on the local network or over the internet. If the host drops out, another player takes over. Old programs keep their code. |
+| **Debugger Update** | Find bugs the way you did in Blitz3D: stop the program, step through it line by line and look at your variables. Runtime errors name the file and the line. |
+| **IDE Update** | The debugger moves into the BLTZNXT IDE, with breakpoints set in the editor. On top comes what the old Blitz3D IDE never had: go to definition and completion across `Include` files. |
+| **Vector Update** | Vectors become part of the language. Three lines for x, y and z turn into one: `pos = pos + vel * 2`. With commands for length, distance, dot and cross product. |
+| **Render Target Update** | A camera renders straight into a texture: mirrors, in-game monitors and minimaps without a detour. Bright lights no longer burn out; exposure and tone mapping are set per camera. |
+| **Material Update** | Modern materials: metal, rough and smooth surfaces, normal maps and reflections of the surroundings. Models from Blender bring their materials along through glTF. Old programs keep running unchanged. |
+| **Shadow Update** | Real shadows for every kind of light, switched on from the start. If an old game already brings its own shadows, one line turns them off. |
+| **Effects Update** | Bloom, ambient occlusion and colour correction as simple commands. If you want more, chain your own image effects in the main loop. |
+| **Shader Update** | Shaders in Blitz syntax instead of GLSL: one language for the game and the graphics card, with error messages in Blitz terms. For image effects and for your own materials. |
+| **UI Update** | Windows, menus, buttons, lists and text fields as in BlitzPlus, plus a 3D view in the middle of a window. Write editors and tools in Blitz. |
+
+### Milestones so far
+
 Milestones 6–46 (language, runtime, 2D) are implemented, with compatibility defects tracked separately. The 3D work is tracked in [ROADMAP3D.md](ROADMAP3D.md); several milestones contain both implemented and missing commands. See [roadmap.md](roadmap.md) for the 2D detail.
 
 Where the 3D engine is heading — one modern material model, per-pixel lighting, shadows, render passes, `Vec2`/`Vec3`/`Vec4` vectors in the language and shaders written in Blitz syntax — is laid out in the design document [ENGINE_DESIGN.md](ENGINE_DESIGN.md) (German, draft, nothing of it implemented yet).
