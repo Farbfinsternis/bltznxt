@@ -1,9 +1,10 @@
 # BlitzNext Engine-Entwurf
 
-**Vektoren, Materialien, Licht und Schatten, Render-Passes, Shader, Renderer**
+**Vektoren, Materialien, Licht und Schatten, Render-Passes, Shader, Renderer, Oberflächen**
 
-*Stand: 2026-09-17 (Abgleich mit der Bugliste eingearbeitet). Entwurf, nichts
-davon ist implementiert.*
+*Stand: 2026-09-17 (Abgleich mit der Bugliste eingearbeitet), ergänzt am
+2026-11-16 um den Stand im Code, den gemeinsamen Unterbau (0.1) und die
+Oberflächen (Abschnitt 11). Entwurf, nichts davon ist implementiert.*
 
 Zeichen in diesem Dokument: **✔ entschieden** · **◇ Vorschlag** · **? offen**
 
@@ -31,6 +32,33 @@ einen früheren, nicht veröffentlichten Plan mit drei Darstellungsmodi ab — w
 daraus übernommen wurde, steht in
 [Abschnitt 8](#8-was-aus-dem-früheren-drei-modi-plan-übernommen-wurde).
 
+### 0.1 Drei Vorhaben, ein Unterbau (2026-11-16)
+
+Nach der Parität mit Blitz3D soll BLTZNXT an drei Stellen darüber
+hinauswachsen: PBR-Rendering (Abschnitte 3 und 4), Shader in Blitz-Syntax
+(Abschnitt 6) und Oberflächen, wie BlitzPlus sie hatte (Abschnitt 11).
+
+Alle drei brauchen dasselbe, und es fehlt heute: **Rendern in Zieltexturen.**
+
+| Vorhaben | Wozu die Zieltextur |
+|----------|---------------------|
+| PBR | das HDR-Bild, das am Ende von `RenderWorld` auf den Bildschirm umgerechnet wird |
+| Shader | Quelle und Ziel jedes `RenderPass` (Abschnitt 5) |
+| Oberflächen | ein Canvas, in das `RenderWorld` zeichnet (11.4) |
+
+Stand im Code, geprüft am 2026-11-16:
+
+- Die Framebuffer-Funktionen werden in `bb_gl_ctx.h` geladen, aber nirgends
+  aufgerufen. Es gibt kein sRGB- und kein HDR-Format.
+- `bb_shader.h` enthält drei feste GLSL-3.30-Shader (UNLIT, TEXTURED, LIT);
+  LIT rechnet Blinn-Phong mit bis zu acht Lichtern.
+- `Vec2`, `Vec3` und `Vec4` gibt es im Compiler nicht.
+- Die Laufzeit kennt genau ein Fenster und einen 2D-Renderer, beide als
+  globale Variablen in `bb_sdl.h`.
+
+◇ Daraus folgt: Die Zieltexturen werden zuerst gebaut, vor dem Materialmodell
+(siehe die Ergänzung in [Abschnitt 9](#9-reihenfolge)).
+
 ---
 
 ## 1. Grundregeln für Spracherweiterungen
@@ -50,6 +78,18 @@ Blitz3D-Installation: `Vec2`, `Vec3`, `Vec4`, `Mat3`, `Mat4` und alle unten
 vorgeschlagenen Pipeline-Befehle kommen **nirgends** vor. `Dot` steht in 3
 Dateien, `Cross` in 1, `Length` in 4 (davon eine eigene Definition). Deshalb
 tragen die Vektorbefehle das Präfix `Vec`.
+
+**Zu O1, gemessen am 2026-11-16** in denselben Dateien:
+`Games/bnb/includes/cfg.bb` definiert selbst `Function CreateButton` — ein
+Befehlsname aus BlitzPlus (Abschnitt 11). Mit E2 würde dieses Programm
+abgelehnt, sobald es den Befehl gibt. Als ganzes Wort, Kommentare
+eingeschlossen, kommen `Shader`, `Gadget`, `Canvas` und `Event` in keiner Datei
+vor, `Uniform`, `Material` und `Window` in je einer.
+
+◇ Vorschlag für O1: E2 gilt für **Typnamen und Schlüsselwörter** (`Vec3`),
+nicht für Befehle. Definiert ein Programm eine Funktion, die wie ein neuer
+Befehl heißt, gewinnt die Funktion des Programms; der neue Befehl ist in diesem
+Programm dann nicht erreichbar. Für die Befehle von Blitz3D ändert sich nichts.
 
 ---
 
@@ -220,6 +260,53 @@ Metallic, Normal und Occlusion als lineare Daten; Tangenten werden für
 Normalmapping erzeugt; Normalen werden auch bei ungleichmäßiger Skalierung
 richtig transformiert.
 
+### 3.3 Was zum Paket gehört (2026-11-16)
+
+Der Shader ist der kleinste Teil. Ohne Umgebungslicht sind Metalle schwarz, und
+ohne Schatten und Tone-Mapping sieht PBR mit acht Punktlichtern schlechter aus
+als die heutige Beleuchtung. Die Bausteine gehören deshalb zusammen:
+
+| Baustein | Stand im Code |
+|----------|---------------|
+| Lineares Rechnen, Farbtexturen als sRGB | fehlt |
+| HDR-Ziel und Tone-Mapping | fehlt (0.1) |
+| Materialwerte am Brush (3.2) | fehlen; der Brush kennt Farbe, Deckkraft, Glanz, Blend, FX und Texturlagen |
+| Tangenten, Normal Maps | fehlen; das Vertexformat hat keine Tangenten |
+| Umgebungslicht (IBL) | fehlt |
+| Schatten, zuerst Richtungslicht (4.2) | fehlen |
+| Materialien aus glTF | der Lader liest Grundfarbe und Farbtextur und lässt Metallic, Roughness und Normal Maps liegen |
+
+◇ Umgebungslicht ohne Umgebungsbild: `AmbientLight` gilt als einfarbige
+Umgebung. Ein Programm, das nichts weiter tut, bekommt damit gleichmäßiges
+Licht und eine einfarbige Spiegelung. Ein Umgebungsbild kommt über einen neuen
+Befehl dazu; `stb_image.h` in `src/thirdparty` liest das `.hdr`-Format bereits.
+
+### 3.4 Ein Rechenweg, zurückhaltende Vorgaben (2026-11-16)
+
+? Offen (O13). [VISION.md](VISION.md) vom 2026-09-26 widerspricht 3.1: Dort
+steht die Empfehlung, den modernen Weg **pro Programm** einzuschalten, weil
+lineare Farben und Tone-Mapping die Helligkeit alter Szenen ändern. 3.1 legt
+dagegen ein Modell ohne Umschalter fest.
+
+◇ Vorschlag, der beides verbindet: Es bleibt bei **einem** Rechenweg, es gibt
+keinen zweiten Renderer. Was das Bild als Ganzes prägt, wird eine Einstellung
+der Szene mit einer Vorgabe:
+
+| Einstellung | Vorgabe | Auf Wunsch |
+|-------------|---------|------------|
+| Tone-Mapping | keine Kurve, nur Begrenzung auf 0..1 | Kurve und Belichtung (O7) |
+| Umgebungslicht | einfarbig aus `AmbientLight` | Umgebungsbild |
+| Schatten | an (4.2) | `ShadowMode 0` |
+
+Damit bleibt `EntityFX 1` farbgenau — die Tests prüfen dort exakte Pixelwerte —,
+und ein neues Programm schaltet den Rest mit einem Befehl ein.
+
+**Risiko, das sich nicht am Schreibtisch entscheiden lässt:** Alpha-, Add- und
+Multiply-Blending im linearen Farbraum verändert Partikel, Sprites und
+Überblendungen alter Programme sichtbar. Vor der Festlegung wird das an den
+Beispielen der Blitz3D-Installation gemessen. Fällt die Abweichung zu groß aus,
+ist der Schalter pro Programm aus VISION.md die Rückfallebene.
+
 ---
 
 ## 4. Licht und Schatten
@@ -357,6 +444,8 @@ wollen, z. B. `CameraBloom cam, threshold#, strength#`. Sie laufen innerhalb von
     gelten weiter.
 - ? Rechnet `RenderWorld` immer in HDR mit Tone-Mapping, auch ohne eigene
   Passes? Das ändert das Aussehen alter Szenen (zulässig nach der Richtlinie).
+  ◇ Vorschlag in 3.4: immer in HDR rechnen, die Tone-Mapping-Kurve aber nur
+  auf Wunsch.
 - ? Mehrere Kameras mit Viewports: jede mit eigenem Target, oder Passes je
   Viewport? Das Beobachtbare (BUG-129: Bild und `CameraClsColor` in jedem
   Viewport) hängt nicht daran und wird vorher behoben; die Kameraschleife soll
@@ -416,6 +505,65 @@ End Function
 Vertexdaten) und Ausgaben (Farbe, mehrere Targets) heißen, ob es neben
 Bild-Shadern auch Material-Shader (für eine Oberfläche) gibt, und wie
 Material-Shader mit dem Materialmodell aus Abschnitt 3 zusammenspielen.
+Vorschläge dazu stehen in 6.4.
+
+### 6.3 Der Dialekt als offizielle Shader-API (2026-11-16)
+
+[VISION.md](VISION.md) warnt: GLSL als API legt BLTZNXT auf OpenGL fest,
+solange es das Projekt gibt. Der Dialekt hebt das auf, weil `blitzcc`
+erzeugt, was der Renderer gerade braucht — heute GLSL 3.30, später zum Beispiel
+GLSL ES 3.00 für den Browser.
+
+◇ Vorschlag (O14): Der Dialekt ist die **einzige offizielle** Shader-API.
+`.glsl` bleibt als Ausweg möglich, wird aber als nicht portabel gekennzeichnet
+und nicht auf Dauer zugesichert. Die Reihenfolge aus 6.1 (GLSL zuerst, um das
+Pass-Modell auszuprobieren) bleibt davon unberührt.
+
+Was davon schon da ist: die Konstantenauswertung (`constfold.h`), die 6.2 für
+feste Obergrenzen verlangt, und die Zeilenzuordnung über `Include` hinweg
+(`sourcemap.h`), damit Fehlermeldungen auf die richtige Datei und Zeile zeigen.
+Es fehlen die Vektoren (Abschnitt 2).
+
+### 6.4 Zwei Stufen: Bild-Shader, dann Material-Shader (2026-11-16)
+
+◇ **Bild-Shader zuerst.** Ein Shader über das ganze Bild hat nur Texturen und
+Parameter als Eingabe und eine Farbe als Ausgabe (Skizze in 6.2). Er berührt
+weder Licht noch Materialmodell.
+
+◇ **Material-Shader als Funktion, die Materialwerte füllt.** Der Shader
+bestimmt Grundfarbe, Normale, Roughness, Metallic, Leuchten und Deckkraft einer
+Oberfläche; Licht, Schatten, Nebel und Knochen rechnet die Engine. So
+überlebt ein Material-Shader jeden Umbau des Renderers (7.3), und er sieht
+unter jedem Licht richtig aus. Skizze, Namen nicht festgelegt:
+
+```blitzbasic
+; lava.bbs
+Uniform time#
+Uniform noise.Texture
+
+Function Surface(uv.Vec2)
+  n.Vec4 = TextureSample(noise, uv + Vec2(0, time * 0.05))
+  MaterialColor     Vec3(0.1, 0.02, 0.0)
+  MaterialEmissive  Vec3(4.0, 1.2, 0.2) * n\x
+  MaterialRoughness 0.9
+End Function
+```
+
+Ein eigenes Beleuchtungsmodell (Toon-Shading u. ä.) ist damit nicht möglich. ?
+Ob es dafür später einen zweiten Einhängepunkt gibt, bleibt offen (O10).
+
+### 6.5 Eigene Datei oder Block im Programm (2026-11-16)
+
+Gewünscht ist „Shader in BB-Code“. 6.2 sieht eigene `.bbs`-Dateien vor, damit
+neue Schlüsselwörter keinem Programm einen Bezeichner nehmen. Ein Block im
+`.bb`-Programm (`Shader … End Shader`) wäre nach der Messung in Abschnitt 1
+ebenfalls möglich: `Shader` kommt in keiner der 729 Dateien vor.
+
+◇ Vorschlag: mit eigenen Dateien beginnen; der Block kann später dazukommen,
+ohne etwas zu brechen.
+
+◇ Idee: Derselbe Shader-Code lässt sich auch nach C++ übersetzen und auf der
+CPU ausführen. Das ergäbe Shader-Tests ohne Grafikkarte.
 
 ---
 
@@ -425,6 +573,18 @@ Material-Shader mit dem Materialmodell aus Abschnitt 3 zusammenspielen.
 
 Forward-Renderer, ein Draw-Call je Mesh. Richtungslicht pro Pixel, Punkt- und
 Spotlicht sowie Glanz je Vertex (Übergangsstand aus BUG-66/BUG-91).
+
+Ergänzt am 2026-11-16: Die 2D-Befehle laufen im 3D-Modus über den
+SDL-Renderer. Der hat einen eigenen OpenGL-2.1-Kontext und zeichnet in
+denselben Bildpuffer des Fensters wie `RenderWorld` mit seinem 3.3-Kontext
+(`bb_gl_ctx.h`, BUG-63). Für PBR stört das nicht: Das HDR-Bild wird am Ende von
+`RenderWorld` in den Bildpuffer umgerechnet, die 2D-Befehle zeichnen danach
+darüber wie bisher.
+
+? Einschätzung, nicht geprüft (O16): Für den Browser und für 3D in einem Canvas
+(11.4) ist die Konstruktion ein Hindernis, weil dort zwei Kontexte auf einer
+Fläche nicht vorgesehen sind. Ist der Browser ein Ziel, gehört die Entscheidung
+über den 2D-Weg vor den Bau der Zieltexturen.
 
 ### 7.2 Gliederung
 
@@ -459,6 +619,11 @@ sollen. Bloom und andere Bild-Effekte funktionieren mit beiden.
 Forward+ mit Tiefen-/Normalen-Vorpass; Deferred bleibt möglich, falls eigene
 Beleuchtungsmodelle ein Ziel werden. `ROADMAP3D.md` beschreibt den
 Deferred-Erweiterungspfad bereits.
+
+◇ Ergänzt am 2026-11-16: Für das Materialmodell (Schritt 5) reicht der heutige
+einfache Forward-Renderer mit acht Lichtern. Forward+ lohnt erst, wenn deutlich
+mehr Lichter ein Ziel werden. Material-Shader nach 6.4 hängen an keiner der
+beiden Bauweisen.
 
 ---
 
@@ -528,6 +693,23 @@ das; der Plan wurde danach gelöscht. Was davon weiter gilt:
 9. **Blitz-Shader-Dialekt** (Abschnitt 6).
 10. **Renderer-Entscheidung** Forward+ / Deferred (7.3), spätestens vor 9.
 
+**Ergänzung am 2026-11-16.** Die Nummern oben bleiben, weil der Code auf sie
+verweist (`bb_canvas.h` nennt Schritt 7 und O8). ◇ Vorschläge:
+
+- **Zieltexturen vor Schritt 5.** Das HDR-Bild des Materialmodells ist selbst
+  eine Zieltextur (0.1). Der Teil „Render-Targets“ aus Schritt 7 wird deshalb
+  vorgezogen, ohne sichtbare Änderung; `RenderPass`, die Shader-Befehle und die
+  Speicherung von `TextureBuffer`/`CopyRect` bleiben in Schritt 7.
+- **Schritt 5 als Paket.** Materialmodell, Tangenten, Umgebungslicht und das
+  Lesen der glTF-Materialien gehören zusammen (3.3); Schritt 6 (Schatten)
+  folgt unmittelbar.
+- **Schritt 9 in zwei Stufen:** erst Bild-Shader, dann Material-Shader (6.4).
+- **Oberflächen (Abschnitt 11) als eigener Strang.** Sie hängen an keinem der
+  Schritte 1 bis 10; nur 3D in einem Canvas braucht die Zieltexturen.
+
+Stand der Voraussetzungen: Schritt 4 (Vektoren) ist nicht begonnen. Vor dem
+ersten Schritt stehen O13 und O16.
+
 Vom Entwurf unabhängig und jederzeit möglich sind die übrigen offenen Einträge
 der Bugliste (Include, Objektlebensdauer, Gosub, Dateiformat, Zufallszahlen,
 2D-Kollision, Stringprüfungen u. a.).
@@ -550,3 +732,79 @@ der Bugliste (Include, Objektlebensdauer, Gosub, Dateiformat, Zufallszahlen,
 | O10 | Ein- und Ausgaben des Shader-Dialekts, Material-Shader | 6.2 |
 | O11 | Forward+ oder Deferred | 7.3 |
 | O12 | Vektoren und die Implizit-Regeln: ungetaggte Zuweisung, `Const`, `Data`, Vorgabewerte, `Handle` (BUG-80/99/107/49/101) | 2.3a |
+| O13 | PBR-Weg: ein Rechenweg mit zurückhaltenden Vorgaben (◇) oder Schalter pro Programm wie in VISION.md; vorher Blending im linearen Farbraum an den Beispielen messen | 3.4 |
+| O14 | Shader-API: der Dialekt als einzige offizielle API, GLSL nur als gekennzeichneter Ausweg (◇)? | 6.3 |
+| O15 | Oberflächen: selbst gezeichnet (◇) oder nativ; gehören BlitzPlus-Programme zum Kompatibilitätsanspruch? | 11.1, 11.2 |
+| O16 | Zielplattformen und der 2D-Weg im 3D-Modus: ist der Browser ein Ziel? | 7.1 |
+
+Zu O1 gibt es seit dem 2026-11-16 eine Messung und einen Vorschlag
+(Abschnitt 1), zu O7 und O10 je einen Vorschlag (3.4, 6.4).
+
+---
+
+## 11. Oberflächen (BlitzPlus-Fähigkeiten)
+
+*Ergänzt am 2026-11-16. Alles in diesem Abschnitt ist ◇ Vorschlag oder ? offen.
+Die Befehlsnamen sind aus dem Gedächtnis zusammengestellt und vor dem Bau gegen
+BlitzPlus zu prüfen.*
+
+### 11.1 Worum es geht
+
+BlitzPlus war Blitz2D mit Fenstern, Bedienelementen (Gadgets) und einer
+Ereignisschlange, aber ohne 3D. Blitz3D war das Umgekehrte. Ein Fenster mit
+Menü, Knöpfen und einer Fläche, in der `RenderWorld` zeichnet, konnte in der
+Blitz-Welt deshalb keines von beiden — genau das brauchen Editoren und
+Werkzeuge.
+
+Ziel ist die **Fähigkeit**. ? Ob darüber hinaus alte BlitzPlus-Programme laufen
+sollen, ist offen (O15). Das wäre ein eigener Anspruch mit eigenem Korpus,
+denn BlitzPlus weicht auch außerhalb der Oberflächen von Blitz3D ab.
+
+### 11.2 Bauweise
+
+| | Native Bedienelemente | Selbst gezeichnet |
+|---|---|---|
+| Aussehen | wie das Betriebssystem | überall gleich |
+| Plattformen | je Plattform eine eigene Umsetzung | eine Umsetzung auf SDL3 |
+| Browser | nicht möglich | möglich |
+| 3D in einem Canvas | Fenster im Fenster, je Plattform anders | eine Zieltextur wie jede andere (0.1) |
+| Texteingabe, Bedienhilfen | bringt das System mit | muss selbst gebaut werden |
+
+◇ Empfehlung: selbst gezeichnet. Nativ bleibt, was SDL3 ohnehin liefert:
+Dateidialoge und Meldungsfenster.
+
+### 11.3 Umfang in Stufen
+
+| Stufe | Inhalt |
+|-------|--------|
+| 1 | Fenster, Menüs, `Button` (auch Ankreuzfeld und Auswahlknopf), `Label`, `TextField`, `Slider`, `ProgBar`, `Panel`, `Canvas`; Ereignisse (`WaitEvent`, `PeekEvent`, `EventID`, `EventSource`, `EventData`, `EventX`, `EventY`); Abfragen (`Notify`, `Confirm`, `Proceed`, `RequestFile`, `RequestDir`) |
+| 2 | `ListBox`, `ComboBox`, `Tabber`, `TreeView`, `ToolBar`, `RequestColor`, `RequestFont`; Anordnung beim Ändern der Fenstergröße (`SetGadgetLayout`) |
+| 3 | `TextArea` — ein mehrzeiliger Editor mit Formatierung, der teuerste Einzelposten |
+| — | `HtmlView` (eingebetteter Browser) ist nicht vorgesehen |
+
+Einschätzung: Stufe 1 reicht für einfache Werkzeuge wie einen Level-Editor.
+
+### 11.4 Umbau der Laufzeit
+
+- **Mehrere Fenster.** Heute gibt es ein Fenster und einen 2D-Renderer als
+  globale Variablen (0.1). Daraus werden Objekte; `Graphics` und `Graphics3D`
+  legen weiter ihr eines Fenster an, alte Programme merken nichts.
+- **Ereignisschlange neben dem Abfragen.** `KeyHit`, `MouseX` und die übrigen
+  Eingabebefehle arbeiten weiter wie bisher. Die Ereignisse der Oberfläche
+  kommen in dieselbe Verarbeitung (`bb_sdl_process_event_`) als zweite Sicht
+  auf dieselben Eingaben.
+- **Canvas als Zieltextur.** Ein Canvas ist ein Puffer für `SetBuffer` und ein
+  mögliches Ziel für `CameraRenderTarget` (5.3). 2D in einem Canvas geht mit
+  den Mitteln aus `bb_canvas.h`; 3D in einem Canvas braucht die Zieltexturen
+  und hängt an O16.
+
+### 11.5 Namen
+
+◇ Die Befehle heißen wie in BlitzPlus (`CreateWindow`, `CreateButton`,
+`WaitEvent` …). Wer BlitzPlus kennt, findet sich sofort zurecht, und Anleitungen
+von damals gelten weiter.
+
+Die Namen stoßen mit alten Blitz3D-Programmen zusammen, die sich ihre
+Oberfläche selbst gebaut haben; gemessen ist das für `CreateButton` in bnb
+(Abschnitt 1). Mit dem Vorschlag zu O1 — die eigene Funktion des Programms
+gewinnt — laufen solche Programme unverändert weiter.
