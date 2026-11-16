@@ -20,6 +20,7 @@
 #include "bb_file.h"
 #include "bb_string.h"
 #include <algorithm>
+#include <chrono>
 #include <cstring>
 #include <string>
 #include <unordered_map>
@@ -122,13 +123,15 @@ inline int bb_tcp_read_(int handle, void* buf, int size) {
   if (p->e) return 0;
   char* b = static_cast<char*>(buf);
   char* l = b + size;
-  const long long tout = bb_tcp_read_timeout_
-                       ? static_cast<long long>(bb_MilliSecs()) + bb_tcp_read_timeout_
-                       : 0;
+  // Eigene Uhr statt MilliSecs: das ist seit BUG-234 die 32-Bit-Systemzeit
+  // und laeuft um; die Frist darf darueber nicht verloren gehen.
+  using bb_tcp_clock_ = std::chrono::steady_clock;
+  const auto tout = bb_tcp_clock_::now() + std::chrono::milliseconds(bb_tcp_read_timeout_);
   while (b < l) {
     long dt = 0;
     if (bb_tcp_read_timeout_) {
-      dt = static_cast<long>(tout - bb_MilliSecs());
+      dt = static_cast<long>(std::chrono::duration_cast<std::chrono::milliseconds>(
+             tout - bb_tcp_clock_::now()).count());
       if (dt < 0) dt = 0;
     }
     fd_set fd;

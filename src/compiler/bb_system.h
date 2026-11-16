@@ -17,17 +17,27 @@
 inline int    bb_argc_ = 0;
 inline char** bb_argv_ = nullptr;
 
-// ---- Program Start Time (used by MilliSecs) ----
-
-inline const auto bb_start_time_ = std::chrono::steady_clock::now();
+#ifdef _WIN32
+  #include <mmsystem.h>  // timeGetTime (winmm, von blitzcc gelinkt)
+#endif
 
 // ---- Time Functions ----
 
+// BUG-234: Millisekunden seit dem Systemstart wie im Original (timeGetTime,
+// gemessen 2026-11-16: das Original lieferte die Laufzeit des Rechners), nicht
+// seit Programmstart. Sonst bekam SeedRnd MilliSecs() am Programmanfang bei
+// jedem Start fast denselben Wert. Wie im Original ein 32-Bit-Wert, der nach
+// 24,8 Tagen Laufzeit negativ wird und nach 49,7 Tagen umlaeuft; Abstaende
+// (MilliSecs() - t0) stimmen trotzdem.
 inline int bb_MilliSecs() {
-  auto now = std::chrono::steady_clock::now();
-  return static_cast<int>(
-    std::chrono::duration_cast<std::chrono::milliseconds>(now - bb_start_time_).count()
-  );
+#ifdef _WIN32
+  return static_cast<int>(timeGetTime());
+#else
+  // steady_clock zaehlt unter Linux seit dem Systemstart
+  return static_cast<int>(static_cast<uint32_t>(
+    std::chrono::duration_cast<std::chrono::milliseconds>(
+      std::chrono::steady_clock::now().time_since_epoch()).count()));
+#endif
 }
 
 // Returns current date as "DD Mon YYYY" (e.g. "23 Feb 2026")

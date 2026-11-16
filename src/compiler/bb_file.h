@@ -366,11 +366,25 @@ inline int bb_FileSize(const bbString &path) {
 }
 
 // Copies src to dst, overwriting if dst exists.
+//
+// BUG-233: std::filesystem::copy_file aus MinGWs libstdc++ hielt unter
+// Windows jede vorhandene Zieldatei fuer "dieselbe Datei" (st_ino ist dort
+// immer 0) und brach trotz overwrite_existing mit "File exists" ab - das Ziel
+// blieb alt. Das Original ruft CopyFile(src, dst, FALSE) aus der Win32-API
+// auf; das tun wir auch.
 inline void bb_CopyFile(const bbString &src, const bbString &dst) {
+#ifdef _WIN32
+  if (!CopyFileW(bb_path_(src).c_str(), bb_path_(dst).c_str(), FALSE)) {
+    const DWORD err = GetLastError();
+    std::cerr << "[runtime] CopyFile failed: "
+              << std::system_category().message((int)err) << "\n";
+  }
+#else
   std::error_code ec;
   std::filesystem::copy_file(bb_path_(src), bb_path_(dst),
     std::filesystem::copy_options::overwrite_existing, ec);
   if (ec) std::cerr << "[runtime] CopyFile failed: " << ec.message() << "\n";
+#endif
 }
 
 inline void bb_DeleteFile(const bbString &path) {
