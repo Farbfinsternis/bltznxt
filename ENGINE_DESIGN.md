@@ -4,7 +4,7 @@
 
 *Stand: 2026-09-17 (Abgleich mit der Bugliste eingearbeitet), ergänzt am
 2026-11-16 um den Stand im Code, den gemeinsamen Unterbau (0.1) und die
-Oberflächen (Abschnitt 11); am selben Tag O1, O7, O10 und O13 bis O16 entschieden. Entwurf,
+Oberflächen (Abschnitt 11); am selben Tag alle offenen Entscheidungen O1 bis O16 entschieden. Entwurf,
 nichts davon ist implementiert.*
 
 Zeichen in diesem Dokument: **✔ entschieden** · **◇ Vorschlag** · **? offen**
@@ -153,25 +153,26 @@ End Function
 | `a * b`, `a / b` | komponentenweise, wie GLSL | ◇ |
 | `a * 2.0`, `2.0 * a`, `a / 2.0` | jede Komponente | ◇ |
 | `-a` | jede Komponente negiert | ◇ |
-| `a = b`, `a <> b` | alle Komponenten gleich / nicht alle gleich | ? |
+| `a = b`, `a <> b` | alle Komponenten gleich / nicht alle gleich; dieselbe Falle bei Rundungsresten wie beim Vergleich zweier Kommazahlen | ✔ (O2, 2026-11-16) |
 | `a < b` usw. | nicht erlaubt | ◇ |
 | `Vec3` mit `Vec2` mischen | Fehler, keine stille Anpassung | ◇ |
 | Komponente in Ganzzahl (`n% = v\x`) | wird gerundet, wie überall in Blitz | ✔ |
-| Vektor in String (`Print v`, `"" + v`) | ◇ jede Komponente wie `Str(float)` des Originals, durch Komma getrennt: `"1.0,2.0,3.0"`. Setzt BUG-68 voraus | ? |
+| Vektor in String (`Print v`, `"" + v`) | jede Komponente wie `Str(float)` des Originals, durch Komma getrennt: `"1.0,2.0,3.0"`. BUG-68 ist behoben | ✔ (O2, 2026-11-16) |
 
 ### 2.3a Vektoren und die Implizit-Regeln von Blitz
 
-? Offen (O12). Blitz legt eine Variable ohne Tag als Ganzzahl an und wandelt
-Konstanten, `Data` und Vorgabewerte nach eigenen Regeln um. Für Vektoren ist
-noch nichts davon festgelegt:
+✔ Entschieden am 2026-11-16 (O12). Blitz legt eine Variable ohne Tag als
+Ganzzahl an und wandelt Konstanten, `Data` und Vorgabewerte nach eigenen Regeln
+um. Für Vektoren gilt: streng wie bei Objekten, `Const` und Vorgabewerte sind
+erlaubt. Die genannten Bugs sind in der Bugliste alle als behoben geführt.
 
 | Fall | Frage | Bezug |
 |------|-------|-------|
-| `v = Vec3(1,2,3)` ohne Tag | ◇ `Illegal type conversion` wie bei Objekten, denn eine implizite Variable ist int | BUG-80 |
-| `Const up.Vec3 = Vec3(0,1,0)` | erlaubt? | BUG-99 |
-| `Data` mit Vektoren | erlaubt? | BUG-107 |
-| `Function F(v.Vec3 = Vec3(0,0,0))` | Vorgabewerte erlaubt? | BUG-49 |
-| `Handle v`, `Object.Vec3(h)` | ◇ Meldung, Vektoren sind Werte (E4) | BUG-101 |
+| `v = Vec3(1,2,3)` ohne Tag | ✔ Fehler `Illegal type conversion` wie bei Objekten, denn eine implizite Variable ist int | BUG-80 |
+| `Const up.Vec3 = Vec3(0,1,0)` | ✔ erlaubt, wenn alle Komponenten konstant sind | BUG-99 |
+| `Data` mit Vektoren | ✔ nicht erlaubt; man liest die Komponenten einzeln | BUG-107 |
+| `Function F(v.Vec3 = Vec3(0,0,0))` | ✔ erlaubt, wenn alle Komponenten konstant sind | BUG-49 |
+| `Handle v`, `Object.Vec3(h)` | ✔ Meldung, Vektoren sind Werte (E4) | BUG-101 |
 
 ### 2.4 Befehle
 
@@ -194,7 +195,19 @@ alten Signatur.
 
 ### 2.5 Matrizen
 
-? Nach demselben Schema `Mat3`, `Mat4`, immer Kommazahl, Wert.
+✔ Entschieden am 2026-11-16 (O3): Werte mit Befehlen, gebaut erst mit den
+Shadern (Schritt 9). Die Namen `Mat3` und `Mat4` werden schon mit den Vektoren
+reserviert (E2); sie kommen in den 729 Dateien nicht vor.
+
+- `*` rechnet Matrix mal Matrix und Matrix mal Vektor.
+- Aufbau über Befehle. ◇ Arbeitsnamen: `MatIdentity`, `MatTranslate`,
+  `MatRotate`, `MatScale`, `MatInverse`, `EntityMatrix(ent)`.
+- Elemente lesen mit `MatElement(m, row, col)`, angelehnt an `GetMatElement`.
+- Kein Feldzugriff, kein Schreiben einzelner Elemente.
+
+Der ursprüngliche Text dazu:
+
+Nach demselben Schema `Mat3`, `Mat4`, immer Kommazahl, Wert.
 Gebraucht werden sie vor allem in Shadern und für eigene 3D-Mathematik
 (`mat * vec`). Zu klären: Zugriff auf Elemente, Befehle zum Aufbau
 (`MatIdentity`, `MatRotate`…), Anschluss an `GetMatElement` aus Blitz3D.
@@ -215,7 +228,8 @@ funktionieren weiter.
   aus 2.3 gilt heute nicht überall), BUG-97 (Float-Literale als double, Vektoren
   sind 32 Bit), BUG-100 (Local/Global in der Symboltabelle), BUG-80 (ungetaggte
   Zuweisung übernimmt den Typ der rechten Seite), BUG-68 (`Str(float)`, für
-  das Format aus 2.3).
+  das Format aus 2.3). Stand 2026-11-16: Alle fünf sind in der Bugliste als
+  behoben geführt.
 - **C++:** kleine Struktur mit Rechenoperatoren.
 - **GLSL:** entspricht 1:1 `vec2`/`vec3`/`vec4` bzw. `mat3`/`mat4`.
 
@@ -236,7 +250,7 @@ Richtlinie, die Formeln werden beim Bau festgelegt):
 |---------|-------------------|
 | `EntityColor`, `BrushColor` | Grundfarbe (Albedo) |
 | `EntityAlpha`, `BrushAlpha` | Deckkraft |
-| `EntityShininess`, `BrushShininess` | Roughness, umgekehrt: 0 → rau, 1 → glatt. **?** Kurve |
+| `EntityShininess`, `BrushShininess` | Roughness, umgekehrt: 0 → rau, 1 → glatt. ✔ Kurve über den Glanzexponenten, siehe unter der Tabelle (O4) |
 | — | Metallic = 0 |
 | `EntityFX 1` | unbeleuchtet (Farbe direkt) |
 | `EntityFX 2` | Vertexfarbe ersetzt die Grundfarbe |
@@ -247,7 +261,24 @@ Richtlinie, die Formeln werden beim Bau festgelegt):
 | `EntityBlend` 1/2/3 | Alpha / Multiplizieren / Addieren |
 | `TextureBlend` 0–5, mehrere Texturlagen | emuliert: die Lagen werden vor der Beleuchtung zur Grundfarbe verrechnet |
 | Texturflag 64, 128 | Umgebungsabbildung (Kugel, Würfel) als Reflexion; Flag 64 fehlt heute ganz (BUG-130, für 0.7.0 vorgezogen und im heutigen Shader behoben; Schritt 5 übernimmt es ins Materialmodell) |
-| Lightmap in zweiter UV-Lage | **?** als vorberechnete Beleuchtung behandeln oder nur multiplizieren |
+| Lightmap in zweiter UV-Lage | ✔ nur multiplizieren, siehe unter der Tabelle (O5) |
+
+✔ **Glanz, entschieden am 2026-11-16 (O4).** Blitz3D rechnet den
+Glanzexponenten als `Shininess * 128`; so steht es auch im heutigen Shader
+(`bb_shader.h`). Die Rauheit folgt daraus nach der üblichen Umrechnung von
+Blinn-Phong: `alpha = Sqr(2 / (Shininess * 128 + 2))`. Shininess 0 ergibt 1
+(ganz rau), Shininess 1 etwa 0,12. `alpha` ist dabei die Rauheit der
+Verteilung; die Roughness, die ein Material angibt, ist deren Wurzel. Glanzpunkte
+alter Programme behalten so etwa ihre Größe. Die Stärke des Glanzlichts, die
+Blitz3D zusätzlich mit der Shininess skaliert, hat im Materialmodell keine
+Entsprechung. Die Formel wird beim Bau an Beispielen geprüft.
+
+✔ **Lightmaps, entschieden am 2026-11-16 (O5).** Wie in Blitz3D: Die Lagen
+ergeben zusammen die Grundfarbe, eine Lightmap wird nur multipliziert. Mit
+`EntityFX 1`, wie es bei Lightmaps üblich ist, entsteht genau das alte Bild. Es
+gibt keine Erkennung. Ein eigener Befehl, mit dem neue Programme eine Lightmap
+als vorberechnetes Licht anmelden, kann später dazukommen, ohne etwas zu
+brechen.
 
 ### 3.2 Neue Materialbefehle
 
@@ -347,7 +378,8 @@ können; mehr hängt an der Renderer-Entscheidung (Abschnitt 7).
 
 ✔ Schatten sind **standardmäßig an**.
 
-◇ Abschalten in drei Ebenen, jeweils mit neuen Namen (E1):
+Abschalten in drei Ebenen, jeweils mit neuen Namen (E1); die Namen sind seit
+dem 2026-11-16 entschieden (O6), die Parameter bleiben ◇:
 
 | Ebene | Vorschlag | Wirkung |
 |-------|-----------|---------|
@@ -365,8 +397,20 @@ schon eingebacken (Lightmaps, Vertexfarben, Blob-Schatten, negative Lichter).
 Mit echten Schatten wird es dort doppelt dunkel. Nach der Richtlinie ist das
 zulässig; `ShadowMode 0` hilft.
 
-? Wie reagieren Schatten auf `EntityAlpha`, maskierte Texturen (Flag 4) und
-`EntityFX 1`?
+✔ Entschieden am 2026-11-16 (O6): Die Befehle heißen `ShadowMode`,
+`LightShadows` und `EntityShadows`; keiner der Namen kommt in den 729 Dateien
+der Installation vor. Was ein Objekt von sich aus tut:
+
+| Objekt | wirft Schatten | empfängt Schatten |
+|--------|----------------|-------------------|
+| undurchsichtig und beleuchtet | ja | ja |
+| maskierte Textur (Flag 4) | ja, in Form der Maske | ja |
+| durchsichtig (`EntityAlpha` unter 1, `EntityBlend` Multiplizieren oder Addieren), Sprites | nein | nein |
+| `EntityFX 1` | nein | nein |
+
+Alles lässt sich je Entity mit `EntityShadows` umstellen. Himmelskugeln und
+Partikel verdunkeln so von sich aus nichts. ◇ Texturen mit Alphakanal (Flag 2)
+und `EntityFX 32` zählen als durchsichtig.
 
 ---
 
@@ -463,12 +507,20 @@ wollen, z. B. `CameraBloom cam, threshold#, strength#`. Sie laufen innerhalb von
     Hochladen oder als GPU-Target lebt. Ziel bleibt, dass der alte Weg
     „Kamera → Textur“ nicht langsamer ist als der neue. Die Tests aus Schritt 1
     gelten weiter.
+  - ✔ **Entschieden am 2026-11-16 (O8):** Die Kopie im Arbeitsspeicher bleibt
+    maßgeblich (`bb_canvas.h`), die Zeichenroutinen ändern sich nicht. Eine
+    Abkürzung auf der Grafikkarte für `CopyRect` vom Bildschirm in eine Textur
+    kommt nur, wenn die Spiegel-Beispiele (etwa `samples/birdie/Mirror`)
+    messbar zu langsam sind. Das Ziel aus dem Punkt darüber gilt damit nicht
+    mehr unbedingt; neue Programme nehmen `CameraRenderTarget`.
 - ? Rechnet `RenderWorld` immer in HDR mit Tone-Mapping, auch ohne eigene
   Passes? Das ändert das Aussehen alter Szenen (zulässig nach der Richtlinie).
   ✔ Entschieden am 2026-11-16 (O7, siehe 4.1): immer in HDR, die
   Tone-Mapping-Kurve nur auf Wunsch und je Kamera.
-- ? Mehrere Kameras mit Viewports: jede mit eigenem Target, oder Passes je
-  Viewport? Das Beobachtbare (BUG-129: Bild und `CameraClsColor` in jedem
+- ✔ Entschieden am 2026-11-16 (O9): Jede Kamera rechnet in ihr eigenes
+  HDR-Ziel in der Größe ihres Viewports und landet danach in ihrem Viewport.
+  Tone-Mapping und fertige Effekte gelten je Kamera; das folgt aus O7. Der
+  Preis ist etwas Speicher je Kamera. Das Beobachtbare (BUG-129: Bild und `CameraClsColor` in jedem
   Viewport) hängt nicht daran und wird vorher behoben; die Kameraschleife soll
   dabei ein eigenes Target je Kamera zulassen.
 
@@ -634,8 +686,8 @@ optischen Erweiterung in klare Schritte zerlegt:
 
 ### 7.3 Forward+ oder Deferred
 
-? Offen. Die Entscheidung fällt, wenn feststeht, was Shader-Befehle können
-sollen. Bloom und andere Bild-Effekte funktionieren mit beiden.
+✔ Entschieden am 2026-11-16 (O11), siehe unter der Tabelle. Ursprünglich sollte
+die Entscheidung fallen, wenn feststeht, was Shader-Befehle können sollen. Bloom und andere Bild-Effekte funktionieren mit beiden.
 
 | | Forward+ (Lichter in Kacheln/Clustern) | Deferred |
 |---|---|---|
@@ -652,10 +704,12 @@ Forward+ mit Tiefen-/Normalen-Vorpass; Deferred bleibt möglich, falls eigene
 Beleuchtungsmodelle ein Ziel werden. `ROADMAP3D.md` beschreibt den
 Deferred-Erweiterungspfad bereits.
 
-◇ Ergänzt am 2026-11-16: Für das Materialmodell (Schritt 5) reicht der heutige
-einfache Forward-Renderer mit acht Lichtern. Forward+ lohnt erst, wenn deutlich
-mehr Lichter ein Ziel werden. Material-Shader nach 6.4 hängen an keiner der
-beiden Bauweisen.
+✔ Entschieden am 2026-11-16 (O11); die Empfehlung darüber ist damit überholt.
+Der Renderer bleibt ein einfacher Forward-Renderer mit acht Lichtern, gegliedert
+nach 7.2. Forward+ kommt erst, wenn deutlich mehr Lichter ein Ziel werden.
+Deferred wird nicht verfolgt. Gründe: Blitz-Programme sind voll von
+Durchsichtigem, Sprites und Partikeln; Kantenglättung geht direkt; es passt zu
+WebGL 2 (O16); und Material-Shader nach 6.4 hängen an keiner Bauweise.
 
 ---
 
@@ -739,9 +793,14 @@ verweist (`bb_canvas.h` nennt Schritt 7 und O8). ◇ Vorschläge:
 - **Oberflächen (Abschnitt 11) als eigener Strang.** Sie hängen an keinem der
   Schritte 1 bis 10; nur 3D in einem Canvas braucht die Zieltexturen.
 
-Stand der Voraussetzungen: Schritt 4 (Vektoren) ist nicht begonnen. O13 und O16
-sind seit dem 2026-11-16 entschieden; vor Schritt 5 steht noch die Messung zum
-Blending im linearen Farbraum (3.4).
+Stand am 2026-11-16:
+
+- Aus Schritt 3 sind BUG-95, 97, 100, 80, 68, 99 und 107 in der Bugliste als
+  behoben geführt; BUG-75 und BUG-78 sind nicht nachgeschlagen. O2 und O12 sind entschieden. Schritt 4 (Vektoren) kann
+  damit beginnen, begonnen ist er nicht.
+- Schritt 10 ist mit O11 erledigt.
+- Vor Schritt 5 steht noch die Messung zum Blending im linearen Farbraum
+  (3.4).
 
 Vom Entwurf unabhängig und jederzeit möglich sind die übrigen offenen Einträge
 der Bugliste (Include, Objektlebensdauer, Gosub, Dateiformat, Zufallszahlen,
@@ -754,23 +813,30 @@ der Bugliste (Include, Objektlebensdauer, Gosub, Dateiformat, Zufallszahlen,
 | Nr. | Frage | Abschnitt |
 |-----|-------|-----------|
 | O1 | Gilt „das Programm verliert“ (E2) für alle neuen Befehle oder nur für `Vec`? ✔ 2026-11-16: nur für Typnamen und Schlüsselwörter; bei Befehlen gewinnt die Funktion des Programms, ohne Hinweis | 1 |
-| O2 | Vergleich `a = b` bei Vektoren, Format bei `Print v` (◇ wie `Str(float)`, BUG-68) | 2.3 |
-| O3 | Matrizen: Schreibweise, Elementzugriff, Befehle | 2.5 |
-| O4 | Kurve Shininess → Roughness | 3.1 |
-| O5 | Lightmaps: vorberechnete Beleuchtung oder nur Multiplikation | 3.1 |
-| O6 | Befehlsnamen für Schatten, Verhalten bei Alpha und Maske | 4.2 |
+| O2 | ✔ 2026-11-16: Vergleich `a = b` bei Vektoren ist erlaubt (alle Komponenten gleich); `Print v` gibt jede Komponente wie `Str(float)` aus, durch Komma getrennt | 2.3 |
+| O3 | ✔ 2026-11-16: Matrizen sind Werte mit Befehlen, `*` für Matrix und Vektor, Lesen mit `MatElement`, kein Feldzugriff; Namen jetzt reserviert, gebaut mit den Shadern. Befehlsnamen bleiben ◇ | 2.5 |
+| O4 | ✔ 2026-11-16, über den Glanzexponenten (`alpha = Sqr(2 / (Shininess * 128 + 2))`), beim Bau an Beispielen zu prüfen: Kurve Shininess → Roughness | 3.1 |
+| O5 | ✔ 2026-11-16: Lightmaps werden nur multipliziert, wie in Blitz3D; keine Erkennung. Ein eigener Befehl kann später dazukommen | 3.1 |
+| O6 | ✔ 2026-11-16: `ShadowMode`, `LightShadows`, `EntityShadows`. Durchsichtiges, Sprites und `EntityFX 1` werfen und empfangen nichts, maskierte Texturen werfen in Form der Maske; je Entity umstellbar | 4.2 |
 | O7 | ✔ 2026-11-16: `RenderWorld` rechnet immer in HDR; Tone-Mapping-Kurve und Belichtung je Kamera, ohne Einstellung nur Begrenzung. Befehlsnamen bleiben ◇ | 4.1, 5.4 |
-| O8 | `TextureBuffer`/`CopyRect` auf GPU-Targets (◇ geteilt: Bedeutung in Schritt 1, Speicherung in Schritt 7) | 5.4 |
-| O9 | Passes und mehrere Kameras/Viewports (BUG-129 unabhängig davon vorher) | 5.4 |
+| O8 | ✔ 2026-11-16: `TextureBuffer`/`CopyRect` — die Kopie im Arbeitsspeicher bleibt maßgeblich; eine Abkürzung auf der Grafikkarte nur, wenn die Spiegel-Beispiele messbar zu langsam sind | 5.4 |
+| O9 | ✔ 2026-11-16: jede Kamera mit eigenem HDR-Ziel in Viewport-Größe; Tone-Mapping und Effekte je Kamera | 5.4 |
 | O10 | ✔ 2026-11-16: Material-Shader füllen Materialwerte, das Licht rechnet die Engine; ein Einhängepunkt für eigenes Licht kann später dazukommen. Die Namen der Ein- und Ausgaben bleiben ◇ | 6.2, 6.4 |
-| O11 | Forward+ oder Deferred | 7.3 |
-| O12 | Vektoren und die Implizit-Regeln: ungetaggte Zuweisung, `Const`, `Data`, Vorgabewerte, `Handle` (BUG-80/99/107/49/101) | 2.3a |
+| O11 | ✔ 2026-11-16: einfaches Forward mit acht Lichtern; Forward+ erst bei deutlich mehr Lichtern, Deferred wird nicht verfolgt | 7.3 |
+| O12 | ✔ 2026-11-16: Vektoren und die Implizit-Regeln — ohne Tag ein Fehler, `Const` und Vorgabewerte erlaubt, `Data` nicht, `Handle`/`Object` mit Meldung | 2.3a |
 | O13 | ✔ 2026-11-16: PBR-Weg — ein Rechenweg mit zurückhaltenden Vorgaben, kein Schalter. Vorbehalt: die Messung zum Blending im linearen Farbraum; fällt sie durch, greift der Schalter pro Programm aus VISION.md | 3.4 |
 | O14 | ✔ 2026-11-16: Shader-API — der Dialekt ist die einzige offizielle API, GLSL bleibt als gekennzeichneter Ausweg | 6.3 |
 | O15 | ✔ 2026-11-16: Oberflächen — selbst gezeichnet auf SDL3; Ziel ist die Fähigkeit mit den Namen und Signaturen von BlitzPlus, nicht dass alte BlitzPlus-Programme unverändert laufen | 11.1, 11.2 |
 | O16 | ✔ 2026-11-16: Browser — offengehalten, kein festes Ziel. Neues wird WebGL-2-tauglich gebaut, der 2D-Weg bleibt vorerst | 7.1 |
 
-Offen sind damit noch O2 bis O6, O8, O9, O11 und O12.
+Damit ist keine der Entscheidungen O1 bis O16 mehr offen. Was bleibt:
+
+- **Zwei Messungen**, von denen Entscheidungen abhängen: das Blending im
+  linearen Farbraum (O13) und die Geschwindigkeit der Spiegel-Beispiele (O8).
+- **Zwei Prüfungen beim Bau:** die Glanzformel an Beispielen (O4) und ein Test
+  für eine eigene Funktion mit dem Namen eines neuen Befehls (O1).
+- **Befehlsnamen und Einzelheiten**, die in den Abschnitten als ◇ markiert
+  sind; sie werden festgelegt, wenn der jeweilige Schritt gebaut wird.
 
 ---
 
