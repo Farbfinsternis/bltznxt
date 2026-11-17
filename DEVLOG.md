@@ -1,5 +1,22 @@
 # BlitzNext Developer Log
 
+## 2026-11-17 — Network: a diagnostic log you can share (test chat, package C1)
+
+The planned public test chat needs a report every tester can post without a second thought.
+The runtime now writes one: `NetGameLog file$`, or `log =` in the `.net` file, or
+`BLTZNXT_NET_LOG`. One line per event with the seconds since the log opened: the families this
+computer has, hosting, UPnP, the list server, knocks, each join with the family it used and how
+long it took, host migrations and lost connections. It never contains addresses or ports of
+other computers, player or game names, or messages; an address only shows up as its kind, such
+as "IPv4 carrier-grade NAT" or "IPv6 global".
+
+`NetGameServerStatus()` returns the HTTP status of the last list request, so a program can tell
+a list server that is gone (404) from a missing internet connection (0). The test chat uses it
+to say "the test is over" once `games.php` has been renamed.
+
+A new multi-process test reads both logs of a host and a client and checks the expected lines,
+and that no address and no name appears in them.
+
 ## 2026-11-17 — Network: IPv6 in the user documentation (IPv6 packages 6.5 and 6.6)
 
 NETWORKING.md now has a section on IPv6: why it matters behind carrier-grade NAT, that both

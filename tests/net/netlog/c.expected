@@ -1,0 +1,15 @@
+status before -1
+dead server 0 status 0
+found 1 status 200
+join 1
+found: client sockets: IPv4 no, IPv6 yes (bound by BIND)
+found: this computer: IPv4 none, IPv6 loopback
+found: list server: no list (HTTP 0, no answer)
+found: list server: 1 game(s), 1 with IPv4, 1 with IPv6
+found: search: 1 game(s), 0 in the LAN, 1 from the list server
+found: join: trying 2 addresses (IPv6, IPv4), game from the list server
+found: knock: accepted by the list server
+found: join: joined over IPv6
+found: game stopped
+no address
+no name

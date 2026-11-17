@@ -845,6 +845,7 @@ Blitz3D itself does not have (e.g. `FreeSurface`, `VectorDistance`) are not coun
     - [x] NEXT: FindNetGames, NetGameName, NetGameIP, NetGamePlayers, NetGameLAN, NetGameHost, NetGameApp, NetGamePort, NetGameServer (Spielsuche im LAN und ueber Listen-Server, fuer eigene Dialoge) *(2026-10-27)*
     - [x] NEXT: UPnP-Portweiterleitung beim Hosten, NetGameUPnP, NetGameForwarded *(2026-10-29)*
     - [x] NEXT: IPv6 (beide Familien, Adresslisten fuer die Migration, Listen-Server mit Feld ip6, Klopfen durch die Router-Firewall; NETWORK.md, Abschnitt IPv6) *(2026-11-17)*
+    - [x] NEXT: Diagnose-Log ohne Adressen und Namen (NetGameLog, BLTZNXT_NET_LOG), NetGameServerStatus *(2026-11-17)*
     - [ ] NEXT: NAT Hole Punching fuer IPv4 (Treffpunkt, VISION.md Phase 2)
 - [x] **Time / System** *(M21–M23)*
     - [x] Delay, MilliSecs, CurrentDate, CurrentTime *(M21)*

@@ -62,6 +62,8 @@ game already started" (hosting or joining twice).
 | `NetGameServer url$` | List server for internet games; `""` switches it off |
 | `NetGameUPnP enable` | Ask the router to forward the game port while hosting (UPnP); default on, 0 switches it off, for example for LAN-only games |
 | `NetGameForwarded()` | While hosting: 1 if the router forwards the game port, 0 if not, -1 while the answer is still pending (a few seconds after hosting) |
+| `NetGameServerStatus()` | HTTP status of the last list request to the list server: 200 if it worked, the error otherwise (404: the list server is gone), 0 without an answer, -1 if none was made yet |
+| `NetGameLog file$` | Writes a diagnostic log of the network code to `file$` (see below); `""` stops it |
 
 A join dialog in a few lines:
 
@@ -78,13 +80,32 @@ When a join fails, the reason goes to stderr, for example
 `JoinNetGame: host runs 'racer', this program is 'shooter'` or
 `JoinNetGame: no answer from 1.2.3.4:2350, [2a03:ed00::1]:2350`.
 
+### Diagnostic log
+
+`NetGameLog file$` (or `log = file` in the `.net` file, or `BLTZNXT_NET_LOG`) writes what the
+network code does, one line per event with the seconds since the log was opened: which
+families this computer has, hosting, UPnP, the list server, knocking, every join with the
+family it used and how long it took, host migrations and lost connections. It is meant to be
+shared when something does not work, so it never contains addresses or ports of other
+computers, player or game names, or messages; addresses only appear as a kind ("IPv4
+carrier-grade NAT", "IPv6 global"):
+
+```
+[    0.001] BLTZNXT network log, protocol 3, Windows 10.0.26200, 2026-11-17
+[    0.001] client sockets: IPv4 yes, IPv6 yes
+[    0.001] this computer: IPv4 private, IPv6 global
+[    2.566] join: trying 2 addresses (IPv6, IPv4), game from the list server
+[    2.568] knock: accepted by the list server
+[    5.582] join: joined over IPv6 after 3.0 s (knock accepted)
+```
+
 ## Settings from outside
 
 Old programs can be pointed at another game or list server without changing their code. The
 first source that sets a value wins:
 
 1. Environment variables `BLTZNXT_NET_JOIN`, `BLTZNXT_NET_SERVER`, `BLTZNXT_NET_APP`,
-   `BLTZNXT_NET_PORT`, `BLTZNXT_NET_LAN`, `BLTZNXT_NET_UPNP`
+   `BLTZNXT_NET_PORT`, `BLTZNXT_NET_LAN`, `BLTZNXT_NET_UPNP`, `BLTZNXT_NET_LOG`
 2. A file `<program>.net` next to the program, one setting per line:
    ```
    ; comment
@@ -94,8 +115,10 @@ first source that sets a value wins:
    port   = 2350
    lan    = 0                 ; do not search the LAN
    upnp   = 0                 ; do not ask the router to forward the port
+   log    = net.log           ; diagnostic log, see above
    ```
-3. What the program sets with `NetGameServer`, `NetGameApp`, `NetGamePort` and `NetGameUPnP`
+3. What the program sets with `NetGameServer`, `NetGameApp`, `NetGamePort`, `NetGameUPnP` and
+   `NetGameLog`
 
 ## Internet games
 

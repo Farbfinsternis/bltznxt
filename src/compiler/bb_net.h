@@ -33,7 +33,9 @@
 #include <cctype>
 #include <chrono>
 #include <climits>
+#include <cstdio>
 #include <cstdlib>
+#include <ctime>
 #include <deque>
 #include <fstream>
 #include <map>
@@ -291,6 +293,82 @@ inline bb_NetAddrs_ bb_net_merge_addrs_(const bb_NetAddr_& first, const bb_NetAd
 inline bool bb_net_global6_(const bb_NetAddr_& a) { return a.fam == 6 && (a.ip[0] & 0xE0) == 0x20; }
 
 // ============================================================
+// Diagnose-Log (samples/netchat/KONZEPT.md, Paket C1)
+// ============================================================
+//
+// Einstellung log = datei (BLTZNXT_NET_LOG) oder NetGameLog: Ereignisse des
+// Netzcodes mit der Zeit seit dem Oeffnen, eine Zeile je Ereignis, englisch.
+// Der Bericht soll oeffentlich stehen koennen: nie Adressen oder Ports
+// fremder Rechner, keine Spieler- oder Spielnamen, keine Nachrichten.
+// Adressen erscheinen nur als Klasse (bb_net_class_).
+
+struct bb_NetLog_ {
+  std::mutex m;
+  FILE* f = nullptr;
+  int64_t t0 = 0;
+};
+inline bb_NetLog_ bb_netlog_;
+
+inline bool bb_net_logging_() { return bb_netlog_.f != nullptr; }
+
+inline void bb_net_log_(const std::string& line) {
+  auto& L = bb_netlog_;
+  std::lock_guard<std::mutex> g(L.m);
+  if (!L.f) return;
+  const double t = static_cast<double>(bb_net_now_() - L.t0) / 1000.0;
+  std::fprintf(L.f, "[%9.3f] %s\n", t, line.c_str());
+  std::fflush(L.f);
+}
+
+// Sekunden mit einer Nachkommastelle: "3.1 s"
+inline std::string bb_net_secs_(int64_t ms) {
+  char b[32];
+  std::snprintf(b, sizeof(b), "%.1f s", static_cast<double>(ms) / 1000.0);
+  return b;
+}
+
+inline const char* bb_net_fam_name_(int fam) { return fam == 6 ? "IPv6" : fam == 4 ? "IPv4" : "none"; }
+
+// Art einer Adresse, ohne die Adresse selbst
+inline std::string bb_net_class_(const bb_NetAddr_& a) {
+  const unsigned char* p = a.ip;
+  if (a.fam == 4) {
+    if (!p[0] && !p[1] && !p[2] && !p[3]) return "IPv4 none";
+    if (p[0] == 127) return "IPv4 loopback";
+    if (p[0] == 10 || (p[0] == 172 && (p[1] & 0xF0) == 16) || (p[0] == 192 && p[1] == 168)) return "IPv4 private";
+    if (p[0] == 100 && (p[1] & 0xC0) == 64) return "IPv4 carrier-grade NAT";
+    if (p[0] == 169 && p[1] == 254) return "IPv4 link-local";
+    return "IPv4 public";
+  }
+  if (a.fam == 6) {
+    if (bb_net_loopback_(a)) return "IPv6 loopback";
+    if (p[0] == 0xFE && (p[1] & 0xC0) == 0x80) return "IPv6 link-local";
+    if ((p[0] & 0xFE) == 0xFC) return "IPv6 unique local";
+    if (bb_net_global6_(a)) return "IPv6 global";
+    return "IPv6 other";
+  }
+  return "none";
+}
+
+// Windows-Version fuer den Kopf des Logs
+inline std::string bb_net_os_text_() {
+#ifdef _WIN32
+  using RtlGetVersionFn = LONG(WINAPI*)(OSVERSIONINFOW*);
+  if (HMODULE nt = GetModuleHandleA("ntdll.dll"))
+    if (auto fn = reinterpret_cast<RtlGetVersionFn>(reinterpret_cast<void*>(GetProcAddress(nt, "RtlGetVersion")))) {
+      OSVERSIONINFOW v{};
+      v.dwOSVersionInfoSize = sizeof(v);
+      if (fn(&v) == 0)
+        return "Windows " + std::to_string(v.dwMajorVersion) + "." + std::to_string(v.dwMinorVersion) + "." +
+               std::to_string(v.dwBuildNumber);
+    }
+  return "Windows";
+#else
+  return "Linux";
+#endif
+}
+
+// ============================================================
 // Zustand
 // ============================================================
 
@@ -368,6 +446,8 @@ struct bb_NetState_ {
   uint32_t joinNonce = 0;
   bb_NetAddrs_ joinOwn;                    // eigene Adressen, im JOIN an den Host
   int joinKnock = 0;                       // Klopfen: 0 keins, 1 laeuft, 2 angenommen, -1 abgelehnt
+  int joinReject = 0;                      // Grund einer Ablehnung (BB_NR_*), fuers Log
+  int64_t migrateBegin = 0;                // Beginn der Migration, fuers Log
   int64_t joinKnockAt = 0;                 // wann der Listen-Server es angenommen hat
   std::string joinName;
   int joinResult = 0;                      // 0 laeuft, 1 beigetreten, -1 abgelehnt
@@ -387,6 +467,9 @@ struct bb_NetState_ {
 
   // Listen-Server
   std::atomic<int> regGen{0};
+  std::atomic<int> serverStatus{-1};       // HTTP-Status der letzten Liste (NetGameServerStatus), -1 nie gefragt
+  std::string extLog;                      // log = datei von aussen
+  bool envLogged = false;                  // Rechner und Sockets schon ins Log geschrieben
   std::string regKey, regUrl;
 
   // UPnP: Schalter (ext -1 = nicht gesetzt), feste Geraetebeschreibung statt
@@ -402,6 +485,28 @@ struct bb_NetState_ {
 };
 
 inline bb_NetState_ bb_net_;
+
+// Log oeffnen (neu anlegen); ein leerer Pfad schliesst es.
+inline void bb_net_log_open_(const std::string& path) {
+  auto& L = bb_netlog_;
+  {
+    std::lock_guard<std::mutex> g(L.m);
+    if (L.f) { std::fclose(L.f); L.f = nullptr; }
+    if (path.empty()) return;
+    L.f = std::fopen(path.c_str(), "w");
+    if (!L.f) {
+      std::cerr << "Net log: cannot write '" << path << "'\n";
+      return;
+    }
+    L.t0 = bb_net_now_();
+  }
+  bb_net_.envLogged = false;
+  char day[16] = {};
+  const std::time_t now = std::time(nullptr);
+  if (const std::tm* tm = std::localtime(&now)) std::strftime(day, sizeof(day), "%Y-%m-%d", tm);
+  bb_net_log_("BLTZNXT network log, protocol " + std::to_string(BB_NET_VERSION) + ", " + bb_net_os_text_() +
+              ", " + day);
+}
 
 // ============================================================
 // Einstellungen
@@ -438,6 +543,7 @@ inline void bb_net_setting_(const std::string& key, const std::string& val, cons
       a0 = comma + 1;
     }
   }
+  else if (k == "log") S.extLog = val;
   else if (k == "firewall") S.firewall = std::atoi(val.c_str()) != 0;
   else if (k == "drop") S.drop = std::max(0, std::min(100, std::atoi(val.c_str())));
   else if (k == "upnp") {
@@ -475,11 +581,12 @@ inline void bb_net_read_settings_() {
     bb_net_setting_(bb_net_trim_(line.substr(0, eq)), bb_net_trim_(line.substr(eq + 1)), (base + ".net").c_str());
   }
   // Umgebungsvariablen gewinnen vor der Datei
-  static const char* keys[] = {"JOIN", "SERVER", "APP", "PORT", "LAN", "BIND", "DROP", "UPNP", "FIREWALL"};
+  static const char* keys[] = {"JOIN", "SERVER", "APP", "PORT", "LAN", "BIND", "DROP", "UPNP", "FIREWALL", "LOG"};
   for (const char* k : keys) {
     const std::string name = std::string("BLTZNXT_NET_") + k;
     if (const char* v = std::getenv(name.c_str())) bb_net_setting_(k, v, name.c_str());
   }
+  if (!bb_net_.extLog.empty()) bb_net_log_open_(bb_net_.extLog);
 }
 
 // ============================================================
@@ -792,8 +899,11 @@ inline void bb_net_route_(int origin, const bb_NetMsg_& msg, const std::string& 
 
 // Ein Programm verlaesst die Sitzung: seine Spieler gehen (101), der Host
 // sagt es den anderen.
-inline void bb_net_remove_machine_(int machine) {
+inline void bb_net_remove_machine_(int machine, const char* why = nullptr) {
   auto& S = bb_net_;
+  if (S.isHost && why && S.machines.count(machine))
+    bb_net_log_(std::string("a program left the game (") + why + "), " + std::to_string(S.machines.size() - 1) +
+                " program(s) remain");
   std::vector<int> ids;
   for (auto& [id, pl] : S.players)
     if (pl.machine == machine) ids.push_back(id);
@@ -824,15 +934,28 @@ inline void bb_net_become_host_(int64_t now) {
   S.nextOrder = maxOrder + 1;
   S.resumeDeadline = now + BB_NET_MIGRATE;
   if (S.sockH[0] == BB_INVALID_SOCKET && S.sockH[1] == BB_INVALID_SOCKET) bb_net_open_host_(bb_net_port_());
+  bb_net_log_(std::string("migration: this program is the host now, game port IPv4 ") +
+              (S.sockH[0] != BB_INVALID_SOCKET ? "yes" : "no") + ", IPv6 " +
+              (S.sockH[1] != BB_INVALID_SOCKET ? "yes" : "no") + ", " + std::to_string(S.machines.size()) +
+              " program(s) expected");
   bb_net_event_(102, -1);
   bb_net_reg_start_();
   bb_net_upnp_start_();
 }
 
 // Der Client hat den Host verloren (BYE oder Zeitueberschreitung).
-inline void bb_net_host_gone_(int64_t now) {
+// Familien einer Adressliste fuers Log: "2 addresses (IPv6, IPv4)"
+inline std::string bb_net_fams_text_(const bb_NetAddrs_& l) {
+  std::string t;
+  for (auto& a : l) t += (t.empty() ? "" : ", ") + std::string(bb_net_fam_name_(a.fam));
+  return std::to_string(l.size()) + (l.size() == 1 ? " address (" : " addresses (") + t + ")";
+}
+
+inline void bb_net_host_gone_(int64_t now, const char* why = "timeout") {
   auto& S = bb_net_;
   const int old = S.hostMachine;
+  bb_net_log_(std::string("host lost (") + why + ")");
+  S.migrateBegin = now;
   S.peers.clear();
   std::vector<int> ids;
   for (auto& [id, pl] : S.players)
@@ -845,9 +968,11 @@ inline void bb_net_host_gone_(int64_t now) {
   if (cand == S.myMachine) {
     bb_net_become_host_(now);
   } else if (cand == 0) {
+    bb_net_log_("session lost: no program left to take over");
     S.lost = true;
     bb_net_event_(200, 0);
   } else {
+    bb_net_log_("migration: reconnecting to the new host at " + bb_net_fams_text_(S.machines[cand].addrs));
     S.migrating = true;
     S.candidate = cand;
     S.migrateStart = now;
@@ -956,6 +1081,7 @@ inline void bb_net_on_join_(bb_socket_t s, const bb_NetAddr_& from, bb_NetR_& r,
     // ueber eine zweite Adresse (der Client fragt alle Adressen des Spiels).
     // Die bleibt ohne Antwort, sonst entstuende ein zweiter Rechner.
     if (bb_net_same_addr_(S.peers[known->second].addr, from)) bb_net_send_welcome_(s, from, nonce, known->second);
+    else bb_net_log_(std::string("a join arrived again over ") + bb_net_fam_name_(from.fam) + ", ignored");
     return;
   }
   const int id = S.nextMachine++;
@@ -967,6 +1093,9 @@ inline void bb_net_on_join_(bb_socket_t s, const bb_NetAddr_& from, bb_NetR_& r,
   bb_net_new_peer_(id, from, s);
   S.joinNonces[nonce] = id;
   bb_net_send_welcome_(s, from, nonce, id);
+  bb_net_log_(std::string("a program joined over ") + bb_net_fam_name_(from.fam) + " (" + bb_net_class_(from) +
+              "), it reports " + bb_net_fams_text_(own) + "; " + std::to_string(S.machines.size()) +
+              " program(s) in the game");
 }
 
 inline void bb_net_on_welcome_(const bb_NetAddr_& from, bb_socket_t s, bb_NetR_& r) {
@@ -1032,6 +1161,7 @@ inline void bb_net_on_resume_(bb_socket_t s, const bb_NetAddr_& from, bb_NetR_& 
   mc.addrs = bb_net_merge_addrs_(from, mc.addrs);
   bb_NetPeer_& p = bb_net_new_peer_(machine, from, s);
   bb_net_sendto_(s, from, ok.b);
+  bb_net_log_(std::string("migration: a program reconnected over ") + bb_net_fam_name_(from.fam));
   // Der Zurueckgekehrte bekommt den Stand des neuen Hosts, die anderen seine neue Adresse.
   for (auto& [id, m] : S.machines) bb_net_send_rel_(p, bb_net_madd_payload_(id, m));
   for (auto& [id, pl] : S.players)
@@ -1046,6 +1176,8 @@ inline void bb_net_on_resumed_(const bb_NetAddr_& from, bb_socket_t s, bb_NetR_&
   if (!r.ok || !S.migrating || token != S.token) return;
   S.migrating = false;
   S.hostMachine = S.candidate;
+  bb_net_log_(std::string("migration: reconnected to the new host over ") + bb_net_fam_name_(from.fam) + " after " +
+              bb_net_secs_(bb_net_now_() - S.migrateBegin));
   bb_NetPeer_& p = bb_net_new_peer_(S.candidate, from, s);
   for (auto& pl : S.pendingOut) bb_net_send_rel_(p, pl);
   S.pendingOut.clear();
@@ -1116,6 +1248,7 @@ inline void bb_net_on_packet_(bb_socket_t s, const bb_NetAddr_& from, const std:
       S.joinReason = "host's game is '" + detail + "', not '" + S.joinName + "'";
     else
       S.joinReason = "the game is closed";
+    S.joinReject = code;
     S.joinResult = -1;
     return;
   }
@@ -1184,8 +1317,8 @@ inline void bb_net_on_packet_(bb_socket_t s, const bb_NetAddr_& from, const std:
       break;
     }
     case BB_NK_BYE:
-      if (S.isHost) bb_net_remove_machine_(machine);
-      else if (machine == S.hostMachine) bb_net_host_gone_(now);
+      if (S.isHost) bb_net_remove_machine_(machine, "left");
+      else if (machine == S.hostMachine) bb_net_host_gone_(now, "left");
       break;
   }
 }
@@ -1249,6 +1382,7 @@ inline void bb_net_tick_(int64_t now) {
       // Der Kandidat antwortet nicht: er ist wohl mit dem Host gegangen. Der
       // naechste in der Reihe uebernimmt; ist keiner mehr da, ist die Sitzung verloren.
       const int gone = S.candidate;
+      bb_net_log_("migration: the new host did not answer, trying the next one");
       std::vector<int> ids;
       for (auto& [id, pl] : S.players)
         if (pl.machine == gone) ids.push_back(id);
@@ -1260,6 +1394,7 @@ inline void bb_net_tick_(int64_t now) {
       if (cand == S.myMachine) {
         bb_net_become_host_(now);
       } else if (cand == 0) {
+        bb_net_log_("session lost: no program left to take over");
         S.migrating = false;
         S.lost = true;
         S.pendingOut.clear();
@@ -1283,7 +1418,7 @@ inline void bb_net_tick_(int64_t now) {
     std::vector<int> gone;
     for (auto& [id, mc] : S.machines)
       if (id != S.myMachine && !S.peers.count(id)) gone.push_back(id);
-    for (int id : gone) bb_net_remove_machine_(id);
+    for (int id : gone) bb_net_remove_machine_(id, "did not come back after the migration");
   }
   std::vector<int> timedOut;
   for (auto& [mid, p] : S.peers) {
@@ -1307,8 +1442,8 @@ inline void bb_net_tick_(int64_t now) {
   }
   for (int mid : timedOut) {
     if (!S.peers.count(mid)) continue;
-    if (S.isHost) bb_net_remove_machine_(mid);
-    else if (mid == S.hostMachine) bb_net_host_gone_(now);
+    if (S.isHost) bb_net_remove_machine_(mid, "timeout");
+    else if (mid == S.hostMachine) bb_net_host_gone_(now, "timeout");
   }
 }
 
@@ -1527,6 +1662,7 @@ inline constexpr int BB_NET_KNOCK_POLL = 3000;   // so oft fragt der Host nach K
 // Firewall seines Routers die Antworten dieser Adresse durch. Ohne Mutex aufrufen.
 inline void bb_net_knock_back_(int gen, const std::string& resp) {
   auto& S = bb_net_;
+  int answered = 0;
   size_t pos = resp.find('\n');
   while (pos != std::string::npos && pos + 1 < resp.size()) {
     const size_t e = resp.find('\n', pos + 1);
@@ -1538,11 +1674,15 @@ inline void bb_net_knock_back_(int gen, const std::string& resp) {
     if (tab == std::string::npos || !bb_net_parse_ip_(line.substr(0, tab), a) || a.fam != 6) continue;
     a.port = std::atoi(line.c_str() + tab + 1);
     if (a.port <= 0 || a.port > 65535) continue;
-    std::lock_guard<std::mutex> g(S.m);
-    if (S.regGen != gen || S.sockH[1] == BB_INVALID_SOCKET) return;
-    const std::string pkt = bb_net_pkt_(BB_NK_KNOCK).b;
-    for (int i = 0; i < 3; ++i) bb_net_sendto_(S.sockH[1], a, pkt);
+    {
+      std::lock_guard<std::mutex> g(S.m);
+      if (S.regGen != gen || S.sockH[1] == BB_INVALID_SOCKET) break;
+      const std::string pkt = bb_net_pkt_(BB_NK_KNOCK).b;
+      for (int i = 0; i < 3; ++i) bb_net_sendto_(S.sockH[1], a, pkt);
+    }
+    ++answered;
   }
+  if (answered) bb_net_log_("list server: answered " + std::to_string(answered) + " knock(s)");
 }
 
 inline void bb_net_reg_run_(int gen, std::string url, std::string body) {
@@ -1563,17 +1703,23 @@ inline void bb_net_reg_run_(int gen, std::string url, std::string body) {
         resp = bb_net_trim_(bb_net_http_(true, url, "a=host&" + body + "&players=" + std::to_string(players), 5000, status));
         if (status == 200 && resp.compare(0, 3, "ok ") == 0) {
           key = bb_net_trim_(resp.substr(3));
+          bb_net_log_(std::string("list server: registered, ") +
+                      (body.find("&ip6=") != std::string::npos ? "IPv6 address reported" : "no IPv6 address to report"));
           std::lock_guard<std::mutex> g(S.m);
           if (S.regGen == gen) { S.regKey = key; S.regUrl = url; }
         } else if (!warned) {
           warned = true;
+          bb_net_log_("list server: registration failed (HTTP " + std::to_string(status) + ")");
           std::cerr << "Net list server: registration failed (" << url << ", status " << status << "): "
                     << resp.substr(0, 80) << "\n";
         }
       } else {
         resp = bb_net_trim_(bb_net_http_(true, url, "a=beat&key=" + bb_net_urlenc_(key) + "&players=" +
                                                         std::to_string(players), 5000, status));
-        if (resp.compare(0, 3, "err") == 0) key.clear();   // abgelaufen: neu anmelden
+        if (resp.compare(0, 3, "err") == 0) {   // abgelaufen: neu anmelden
+          key.clear();
+          bb_net_log_("list server: the entry expired, registering again");
+        }
       }
       next = bb_net_now_() + (key.empty() ? 10000 : 30000);
       nextKnock = bb_net_now_() + BB_NET_KNOCK_POLL;
@@ -1590,6 +1736,7 @@ inline void bb_net_reg_run_(int gen, std::string url, std::string body) {
       if (resp.compare(0, 3, "err") == 0) {
         key.clear();   // abgelaufen: neu anmelden
         next = 0;
+        bb_net_log_("list server: the entry expired, registering again");
       } else if (status == 200 && resp.compare(0, 2, "ok") == 0) {
         bb_net_knock_back_(gen, resp);
       }
@@ -1639,8 +1786,10 @@ inline std::vector<bb_NetOffer_> bb_net_server_list_(int timeout) {
   const std::string url = bb_net_server_url_(base, "a=list&app=" + bb_net_urlenc_(bb_net_app_()) +
                                                        "&v=" + std::to_string(BB_NET_VERSION));
   const std::string resp = bb_net_http_(false, url, "", std::max(timeout, 1000), status);
+  bb_net_.serverStatus = status;
   if (status != 200) {
     std::cerr << "Net list server: no list from " << base << " (status " << status << ")\n";
+    bb_net_log_("list server: no list (HTTP " + std::to_string(status) + (status ? ")" : ", no answer)"));
     return out;
   }
   size_t pos = 0;
@@ -1678,6 +1827,11 @@ inline std::vector<bb_NetOffer_> bb_net_server_list_(int timeout) {
     o.lan = 0;
     out.push_back(o);
   }
+  int with4 = 0, with6 = 0;
+  for (auto& o : out)
+    for (auto& a : o.addrs) (a.fam == 6 ? with6 : with4) += 1;
+  bb_net_log_("list server: " + std::to_string(out.size()) + " game(s), " + std::to_string(with4) + " with IPv4, " +
+              std::to_string(with6) + " with IPv6");
   return out;
 }
 
@@ -1860,6 +2014,7 @@ inline void bb_net_upnp_run_(int gen, int port, std::string fixed, std::string d
     S.upnpState = 0;
     std::cerr << "Net UPnP: " << why << "; to host over the Internet, forward UDP port " << port
               << " to this computer by hand\n";
+    bb_net_log_("UPnP: " + why);
   };
   std::vector<std::string> locs;
   if (!fixed.empty()) locs.push_back(fixed);
@@ -1887,6 +2042,11 @@ inline void bb_net_upnp_run_(int gen, int port, std::string fixed, std::string d
   int status = 0;
   const std::string ext = bb_net_xml_(bb_net_soap_(d, "GetExternalIPAddress", "", 3000, status), "NewExternalIPAddress");
   const bool pub = ext.empty() || bb_net_ip_public_(ext);
+  {
+    bb_NetAddr_ ea;
+    bb_net_log_("UPnP: the router forwards the game port; the router's own address: " +
+                (bb_net_parse_ip_(ext, ea) ? bb_net_class_(ea) : std::string("unknown")));
+  }
   {
     std::lock_guard<std::mutex> g(S.m);
     if (S.upnpGen == gen) {
@@ -1951,6 +2111,28 @@ inline void bb_net_upnp_stop_() {
 
 inline void bb_net_quit_();
 
+// Was dieser Rechner hat, einmal je Log: Sockets, Adressklassen, Einstellungen.
+inline void bb_net_log_env_() {
+  auto& S = bb_net_;
+  if (!bb_net_logging_() || S.envLogged || !S.inited) return;
+  S.envLogged = true;
+  bb_net_log_(std::string("client sockets: IPv4 ") + (S.sockC[0] != BB_INVALID_SOCKET ? "yes" : "no") + ", IPv6 " +
+              (S.sockC[1] != BB_INVALID_SOCKET ? "yes" : "no") + (bb_net_bound_() ? " (bound by BIND)" : ""));
+  std::string own;
+  for (int fam : {4, 6}) {
+    bb_NetAddr_ a;
+    if (S.sockC[bb_net_fi_(fam)] != BB_INVALID_SOCKET)
+      a = S.bind[bb_net_fi_(fam)].fam ? S.bind[bb_net_fi_(fam)] : bb_net_outgoing_ip_(fam);
+    if (!a.fam) a.fam = fam, a.ip[0] = 0;
+    own += (own.empty() ? "" : ", ") + (a.fam && std::any_of(a.ip, a.ip + 16, [](unsigned char c) { return c; })
+                                            ? bb_net_class_(a)
+                                            : std::string(bb_net_fam_name_(fam)) + " none");
+  }
+  bb_net_log_("this computer: " + own);
+  bb_net_log_(std::string("settings when the log opened: LAN search ") + (S.lan ? "on" : "off") + ", UPnP " +
+              (bb_net_upnp_on_() ? "on" : "off"));
+}
+
 inline bool bb_net_init_() {
   auto& S = bb_net_;
   if (S.inited) return bb_net_have_client_();
@@ -1966,6 +2148,7 @@ inline bool bb_net_init_() {
   }
   std::thread(bb_net_thread_).detach();
   std::atexit(bb_net_quit_);
+  bb_net_log_env_();
   return true;
 }
 
@@ -1991,6 +2174,7 @@ inline void bb_net_clear_session_() {
 // zustellen, dann BYE an alle.
 inline void bb_net_stop_(int flush_ms) {
   auto& S = bb_net_;
+  bb_net_log_("game stopped");
   const int64_t end = bb_net_now_() + flush_ms;
   while (bb_net_now_() < end) {
     {
@@ -2151,6 +2335,10 @@ inline std::vector<bb_NetOffer_> bb_net_find_(int timeout) {
       out.push_back(o);
     }
   }
+  int lan = 0;
+  for (auto& o : out) lan += o.lan;
+  bb_net_log_("search: " + std::to_string(out.size()) + " game(s), " + std::to_string(lan) + " in the LAN, " +
+              std::to_string(out.size() - lan) + " from the list server");
   return out;
 }
 
@@ -2160,6 +2348,9 @@ inline void bb_net_knock_run_(uint32_t nonce, std::string url, std::string body)
   int status = 0;
   const std::string resp = bb_net_trim_(bb_net_http_(true, url, body, 5000, status));
   const bool ok = status == 200 && resp == "ok";
+  bb_net_log_(ok ? std::string("knock: accepted by the list server")
+                 : "knock: refused (" + (resp.compare(0, 3, "err") == 0 ? resp.substr(0, 24)
+                                                                        : "HTTP " + std::to_string(status)) + ")");
   std::lock_guard<std::mutex> g(bb_net_.m);
   if (bb_net_.joinNonce != nonce || bb_net_.joinKnock != 1) return;
   bb_net_.joinKnock = ok ? 2 : -1;
@@ -2186,6 +2377,8 @@ inline int bb_net_join_(const bb_NetAddrs_& addrs, const std::string& name, bool
     S.joinReason.clear();
     S.joinLast = 0;
     S.joinKnock = 0;
+    S.joinReject = 0;
+    bb_net_log_("join: trying " + bb_net_fams_text_(addrs) + (knock_token ? ", game from the list server" : ""));
     const std::string url = bb_net_server_();
     bool v6target = false;
     for (auto& a : addrs) v6target = v6target || (a.fam == 6 && bb_net_sock_for_(a) != BB_INVALID_SOCKET);
@@ -2200,7 +2393,7 @@ inline int bb_net_join_(const bb_NetAddrs_& addrs, const std::string& name, bool
           break;
         }
   }
-  int result = 0;
+  int result = 0, knock = 0, reject = 0, fam = 0;
   std::string reason;
   for (;;) {
     {
@@ -2211,13 +2404,28 @@ inline int bb_net_join_(const bb_NetAddrs_& addrs, const std::string& name, bool
       if (S.joinResult != 0 || bb_net_now_() >= end) {
         result = S.joinResult;
         reason = S.joinReason;
+        knock = S.joinKnock;
+        reject = S.joinReject;
+        const auto hp = S.peers.find(S.hostMachine);
+        if (result == 1 && hp != S.peers.end()) fam = hp->second.addr.fam;
         S.joining = false;
         break;
       }
     }
     bb_net_sleep_(5);
   }
-  if (result == 1) return 1;
+  const std::string took = bb_net_secs_(bb_net_now_() - start);
+  const char* knocked = knock == 2 ? " (knock accepted)" : knock == -1 ? " (knock refused)" : "";
+  if (result == 1) {
+    bb_net_log_(std::string("join: joined over ") + bb_net_fam_name_(fam) + " after " + took + knocked);
+    return 1;
+  }
+  if (result < 0)
+    bb_net_log_(std::string("join: refused by the host (") +
+                (reject == BB_NR_PROTOCOL ? "other protocol version" : reject == BB_NR_APP ? "other program ID"
+                 : reject == BB_NR_NAME ? "other game name" : "game closed") + ")");
+  else
+    bb_net_log_("join: no answer after " + took + knocked);
   if (!quiet) {
     if (result < 0) std::cerr << "JoinNetGame: " << reason << "\n";
     else {
@@ -2235,6 +2443,7 @@ inline int bb_net_host_(const std::string& name) {
   const int port = bb_net_port_();
   if (!bb_net_open_host_(port)) {
     std::cerr << "HostNetGame: port " << port << " is in use\n";
+    bb_net_log_("hosting failed: game port " + std::to_string(port) + " is in use");
     return 0;
   }
   S.isHost = true;
@@ -2252,6 +2461,9 @@ inline int bb_net_host_(const std::string& name) {
   S.queue.clear();
   S.cur = bb_NetMsg_();
   S.started = true;
+  bb_net_log_("hosting: game port " + std::to_string(port) + ", IPv4 " +
+              (S.sockH[0] != BB_INVALID_SOCKET ? "yes" : "no") + ", IPv6 " +
+              (S.sockH[1] != BB_INVALID_SOCKET ? "yes" : "no"));
   bb_net_reg_start_();
   bb_net_upnp_start_();
   return 2;
@@ -2502,6 +2714,19 @@ inline void bb_NetGameUPnP(int enable) {
 }
 
 // 1: der Router leitet den Spielport weiter, 0: nicht, -1: die Antwort steht noch aus.
+// Diagnose-Log in eine Datei schreiben ("" schliesst es). Eine Einstellung
+// von aussen (BLTZNXT_NET_LOG, log = in der .net-Datei) gewinnt.
+inline void bb_NetGameLog(const bbString& file) {
+  bb_net_init_();
+  if (!bb_net_.extLog.empty()) return;
+  bb_net_log_open_(bb_net_trim_(file));
+  bb_net_log_env_();
+}
+
+// HTTP-Status der letzten Abfrage der Liste beim Listen-Server: 200 bei
+// Erfolg, sonst der Fehler (etwa 404), 0 ohne Antwort, -1 nie gefragt.
+inline int bb_NetGameServerStatus() { return bb_net_.serverStatus; }
+
 inline int bb_NetGameForwarded() {
   std::lock_guard<std::mutex> g(bb_net_.m);
   return bb_net_.started && bb_net_.isHost ? bb_net_.upnpState : 0;

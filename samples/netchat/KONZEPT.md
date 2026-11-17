@@ -198,7 +198,7 @@ haben und welche Fälle scheiterten. Was dabei auffällt, wird als BUG-Eintrag i
 
 | # | Paket | Fertig, wenn |
 |---|---|---|
-| C1 | Diagnose-Log in der Laufzeit (`log =`, `BLTZNXT_NET_LOG`), Adressklassen, keine Adressen im Text; Befehl `NetGameServerStatus()` | Test in `tests/net/` liest das Log eines Falls und findet die Ereignisse, aber keine Adresse |
+| C1 ✅ | Diagnose-Log in der Laufzeit (`log =`, `BLTZNXT_NET_LOG`, Befehl `NetGameLog`), Adressklassen, keine Adressen im Text; Befehl `NetGameServerStatus()` – **erledigt 2026-11-17**, Fall `tests/net/netlog` | Test in `tests/net/` liest das Log eines Falls und findet die Ereignisse, aber keine Adresse |
 | C2 | Prüfstand gegen kaputte Pakete | Fall, der zufällige und zu große Pakete an Host und Client schickt; beide laufen weiter |
 | C3 | Netchat: Startbildschirm, Raumlogik, Chat, Teilnehmer, Status | Zwei bis drei Programme über 127.0.0.1 und ::1 im Prüfstand; von Hand mit Tastatur bedienbar |
 | C4 | Bericht: Zusammenfassung + Ereignisse, Datei neben der EXE, Frage am Ende, Senden, Nachreichen beim nächsten Start | Bericht eines Laufs enthält keine Adresse, keinen Namen, keinen Chat-Text |
