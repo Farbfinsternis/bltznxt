@@ -320,7 +320,13 @@ struct bb_NetPeer_ {
 struct bb_NetMachine_ { bb_NetAddrs_ addrs; int order = 0; };   // addrs: wie die anderen ihn erreichen
 struct bb_NetPlayer_  { std::string name; int machine = 0; };
 struct bb_NetMsg_     { int type = 0, from = 0, to = 0; std::string data; };
-struct bb_NetOffer_   { std::string name; bb_NetAddr_ addr; int players = 0; int lan = 0; uint32_t token = 0; };
+struct bb_NetOffer_ {
+  std::string name;
+  bb_NetAddr_ addr;            // die bevorzugte Adresse (NetGameIP$)
+  bb_NetAddrs_ addrs;          // alle Adressen des Spiels, die bevorzugte vorn; JoinNetGame fragt alle
+  int players = 0, lan = 0;
+  uint32_t token = 0;
+};
 
 struct bb_NetState_ {
   std::mutex m;
@@ -353,7 +359,7 @@ struct bb_NetState_ {
 
   // Beitritt (Client) und doppelte JOINs (Host)
   bool joining = false;
-  bb_NetAddr_ joinAddr;
+  bb_NetAddrs_ joinAddrs;                  // JOIN geht an alle zugleich, die erste Antwort gewinnt
   uint32_t joinNonce = 0;
   bb_NetAddrs_ joinOwn;                    // eigene Adressen, im JOIN an den Host
   std::string joinName;
@@ -918,9 +924,11 @@ inline void bb_net_on_join_(bb_socket_t s, const bb_NetAddr_& from, bb_NetR_& r,
   }
   if (S.lost) { bb_net_reject_(s, from, nonce, BB_NR_CLOSED, ""); return; }
   const auto known = S.joinNonces.find(nonce);
-  if (known != S.joinNonces.end() && S.peers.count(known->second) &&
-      bb_net_same_addr_(S.peers[known->second].addr, from)) {
-    bb_net_send_welcome_(s, from, nonce, known->second);   // WELCOME ging verloren
+  if (known != S.joinNonces.end() && S.peers.count(known->second)) {
+    // Schon aufgenommen: WELCOME ging verloren - oder derselbe Beitritt kommt
+    // ueber eine zweite Adresse (der Client fragt alle Adressen des Spiels).
+    // Die bleibt ohne Antwort, sonst entstuende ein zweiter Rechner.
+    if (bb_net_same_addr_(S.peers[known->second].addr, from)) bb_net_send_welcome_(s, from, nonce, known->second);
     return;
   }
   const int id = S.nextMachine++;
@@ -1105,6 +1113,7 @@ inline void bb_net_on_packet_(bb_socket_t s, const bb_NetAddr_& from, const std:
     bb_NetOffer_ o;
     o.name = name;
     o.addr = from;
+    o.addrs = {from};
     o.players = players;
     o.lan = 1;
     o.token = token;
@@ -1205,7 +1214,7 @@ inline void bb_net_tick_(int64_t now) {
     w.str(S.joinName);
     w.u32(S.joinNonce);
     bb_net_put_addrs_(w, S.joinOwn);
-    bb_net_sendto_(bb_net_sock_for_(S.joinAddr), S.joinAddr, w.b);
+    for (auto& a : S.joinAddrs) bb_net_sendto_(bb_net_sock_for_(a), a, w.b);
   }
   if (!S.started) return;
   if (S.migrating) {
@@ -1526,9 +1535,13 @@ inline void bb_net_reg_start_() {
   const std::string url = bb_net_server_();
   if (url.empty() || !S.isHost) return;
   const int hp = bb_net_pair_port_(S.sockH), port = hp ? hp : bb_net_pair_port_(S.sockC);
-  const std::string body = "app=" + bb_net_urlenc_(bb_net_app_()) + "&name=" + bb_net_urlenc_(S.gameName) +
-                           "&port=" + std::to_string(port) + "&v=" + std::to_string(BB_NET_VERSION) +
-                           "&token=" + std::to_string(S.token);
+  std::string body = "app=" + bb_net_urlenc_(bb_net_app_()) + "&name=" + bb_net_urlenc_(S.gameName) +
+                     "&port=" + std::to_string(port) + "&v=" + std::to_string(BB_NET_VERSION) +
+                     "&token=" + std::to_string(S.token);
+  // Ein Listen-Server nur mit IPv4 sieht die IPv6-Adresse nie: selbst nennen
+  // (NETWORK.md, IPv6 Punkt 4). Er nimmt nur eine globale an.
+  for (auto& a : bb_net_own_addrs_())
+    if (a.fam == 6) body += "&ip6=" + bb_net_urlenc_(bb_net_ip_text_(a));
   std::thread(bb_net_reg_run_, gen, url, body).detach();
 }
 
@@ -1574,9 +1587,19 @@ inline std::vector<bb_NetOffer_> bb_net_server_list_(int timeout) {
       a = t + 1;
     }
     if (f.size() < 4) continue;
+    // Feld 2 IPv4, Feld 6 IPv6; je eines darf leer sein. Die Reihenfolge
+    // (bevorzugte vorn) setzt bb_net_prefer_.
     bb_NetOffer_ o;
-    if (!bb_net_parse_ip_(f[1], o.addr)) continue;   // IPv4 oder (Listen-Server ueber IPv6) IPv6
-    o.addr.port = std::atoi(f[2].c_str());
+    const int port = std::atoi(f[2].c_str());
+    for (size_t k : {size_t(1), size_t(5)}) {
+      bb_NetAddr_ ip;
+      if (k < f.size() && bb_net_parse_ip_(f[k], ip)) {
+        ip.port = port;
+        o.addrs.push_back(ip);
+      }
+    }
+    if (o.addrs.empty() || port <= 0 || port > 65535) continue;
+    o.addr = o.addrs[0];
     o.name = f[0];
     o.players = std::atoi(f[3].c_str());
     o.token = f.size() > 4 ? static_cast<uint32_t>(std::strtoul(f[4].c_str(), nullptr, 10)) : 0;
@@ -1989,6 +2012,33 @@ inline bool bb_net_resolve_(const std::string& text, bb_NetAddr_& out, int want_
   return true;
 }
 
+// Bevorzugte Adresse eines Spiels nach vorn (NETWORK.md, IPv6 Punkt 5):
+// IPv6, wenn das Spiel eine hat und dieser Rechner sie erreichen kann - also
+// wenn es keine IPv4-Adresse gibt, die er erreicht, oder wenn beide Seiten
+// eine globale IPv6-Adresse haben. Sonst IPv4. Unter dem Mutex aufrufen.
+inline void bb_net_prefer_(bb_NetOffer_& o, bool own_global6) {
+  const bb_NetAddr_ *v4 = nullptr, *v6 = nullptr;
+  for (auto& a : o.addrs) {
+    if (bb_net_sock_for_(a) == BB_INVALID_SOCKET) continue;
+    if (a.fam == 4 && !v4) v4 = &a;
+    if (a.fam == 6 && !v6) v6 = &a;
+  }
+  const bb_NetAddr_* best = (v6 && (!v4 || (own_global6 && bb_net_global6_(*v6)))) ? v6 : v4;
+  if (!best) return;
+  const bb_NetAddr_ keep = *best;
+  o.addrs = bb_net_merge_addrs_(keep, o.addrs);
+  o.addr = keep;
+}
+
+// Alle Adressen zu addr: steht addr bei einem Spiel der letzten Suche, auch
+// dessen andere Adressen (JoinNetGame mit NetGameIP$). Unter dem Mutex.
+inline bb_NetAddrs_ bb_net_listed_addrs_(const bb_NetAddr_& addr) {
+  for (auto& o : bb_net_.list)
+    for (auto& a : o.addrs)
+      if (bb_net_same_addr_(a, addr)) return bb_net_merge_addrs_(addr, o.addrs);
+  return {addr};
+}
+
 // Sucht im LAN und beim Listen-Server; Spiele im LAN zuerst, ohne Doppelte
 // und ohne das eigene.
 inline std::vector<bb_NetOffer_> bb_net_find_(int timeout) {
@@ -2008,24 +2058,34 @@ inline std::vector<bb_NetOffer_> bb_net_find_(int timeout) {
     std::lock_guard<std::mutex> g(S.m);
     S.collecting = false;
     out = S.offers;
+    bool own_global6 = false;
+    if (!fromServer.empty())
+      for (auto& a : bb_net_own_addrs_()) own_global6 = own_global6 || bb_net_global6_(a);
     for (auto& o : fromServer) {
       if (S.started && o.token && o.token == S.token) continue;
       bool dup = false;
-      for (auto& x : out)
-        if ((o.token && x.token == o.token) || bb_net_same_addr_(x.addr, o.addr)) dup = true;
-      if (!dup) out.push_back(o);
+      for (auto& x : out) {
+        if (o.token && x.token == o.token) dup = true;
+        for (auto& a : o.addrs)
+          if (bb_net_same_addr_(x.addr, a)) dup = true;
+      }
+      if (dup) continue;
+      bb_net_prefer_(o, own_global6);
+      out.push_back(o);
     }
   }
   return out;
 }
 
-// Beitritt bei addr; 1 beigetreten, 0 nicht (Grund auf stderr, wenn quiet = false).
-inline int bb_net_join_(const bb_NetAddr_& addr, const std::string& name, bool quiet) {
+// Beitritt an den Adressen addrs (alle zugleich, die erste Antwort gewinnt);
+// 1 beigetreten, 0 nicht (Grund auf stderr, wenn quiet = false).
+inline int bb_net_join_(const bb_NetAddrs_& addrs, const std::string& name, bool quiet) {
   auto& S = bb_net_;
+  if (addrs.empty()) return 0;
   {
     std::lock_guard<std::mutex> g(S.m);
     S.joining = true;
-    S.joinAddr = addr;
+    S.joinAddrs = addrs;
     S.joinName = name;
     S.joinNonce = S.rng() | 1u;
     S.joinOwn = bb_net_own_addrs_();
@@ -2051,7 +2111,11 @@ inline int bb_net_join_(const bb_NetAddr_& addr, const std::string& name, bool q
   if (result == 1) return 1;
   if (!quiet) {
     if (result < 0) std::cerr << "JoinNetGame: " << reason << "\n";
-    else std::cerr << "JoinNetGame: no answer from " << bb_net_addr_text_(addr) << "\n";
+    else {
+      std::string where;
+      for (auto& a : addrs) where += (where.empty() ? "" : ", ") + bb_net_addr_text_(a);
+      std::cerr << "JoinNetGame: no answer from " << where << "\n";
+    }
   }
   return 0;
 }
@@ -2113,7 +2177,7 @@ inline int bb_StartNetGame() {
       std::cerr << "StartNetGame: unknown host '" << bb_net_.extJoin << "'\n";
       return 0;
     }
-    return bb_net_join_(a, "", false);
+    return bb_net_join_({a}, "", false);
   }
   for (int round = 0; round < 2; ++round) {
     if (round == 1) {
@@ -2126,7 +2190,7 @@ inline int bb_StartNetGame() {
       bb_net_sleep_(pause);
     }
     for (auto& o : bb_net_find_(round == 0 ? 1000 : 500))
-      if (bb_net_join_(o.addr, "", true)) return 1;
+      if (bb_net_join_(o.addrs, "", true)) return 1;
   }
   return bb_net_host_(bb_net_default_name_());
 }
@@ -2149,7 +2213,7 @@ inline int bb_JoinNetGame(const bbString& game_name, const bbString& ip_address)
     for (auto& o : bb_net_find_(1000)) {
       if (!want.empty() && bb_net_lower_(o.name) != want) continue;
       any = true;
-      if (bb_net_join_(o.addr, game_name, true)) return 1;
+      if (bb_net_join_(o.addrs, game_name, true)) return 1;
     }
     std::cerr << "JoinNetGame: " << (any ? "could not join" : "found no") << " game '" << game_name << "'\n";
     return 0;
@@ -2159,7 +2223,12 @@ inline int bb_JoinNetGame(const bbString& game_name, const bbString& ip_address)
     std::cerr << "JoinNetGame: unknown host '" << ip << "'\n";
     return 0;
   }
-  return bb_net_join_(a, game_name, false);
+  bb_NetAddrs_ addrs;
+  {
+    std::lock_guard<std::mutex> g(bb_net_.m);
+    addrs = bb_net_listed_addrs_(a);   // NetGameIP$ eines gefundenen Spiels: auch seine anderen Adressen
+  }
+  return bb_net_join_(addrs, game_name, false);
 }
 
 inline void bb_StopNetGame() {

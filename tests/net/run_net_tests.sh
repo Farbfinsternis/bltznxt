@@ -6,7 +6,7 @@
 #   start <prog> <ms> [NAME=WERT ...]   Programm <prog>.bb nach <ms> starten,
 #                                       mit zusaetzlichen Umgebungsvariablen
 #   kill <prog> <ms>                    Programm nach <ms> hart beenden
-#   server <ms> <port>                  Referenz-Listen-Server (listserver/
+#   server <ms> <port> [opt ...]        Referenz-Listen-Server (listserver/
 #                                       listserver.js, Node.js) starten; ohne
 #                                       Node.js wird der Fall uebersprungen
 #   igd <ms> <port> [opt ...]           nachgebauter Router fuer UPnP
@@ -94,7 +94,7 @@ for c in $CASES; do
                 pids+=($!) ;;
             server)
                 ( sleep "$(awk "BEGIN{print $a/1000}")"
-                  exec $NODE listserver/listserver.js --host "$lohost" --port "$b" --lifetime "$limit" > "$out/server.log" 2>&1 ) &
+                  exec $NODE listserver/listserver.js --host "$lohost" --port "$b" --lifetime "$limit" $rest > "$out/server.log" 2>&1 ) &
                 SERVERPIDS="$SERVERPIDS $!" ;;
             igd)
                 ( sleep "$(awk "BEGIN{print $a/1000}")"

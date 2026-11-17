@@ -3,8 +3,8 @@
 Stand: 2026-10-27 · **Umgesetzt** in [bb_net.h](src/compiler/bb_net.h), Nutzer-Doku in
 [NETWORKING.md](NETWORKING.md), Tests in [tests/net/](tests/net/). UPnP gebaut und am echten
 Router geprüft 2026-10-29, `games.php` auf echtem Webspace geprüft 2026-10-29. IPv6
-(Abschnitt „IPv6“, Konzept 2026-10-29): Pakete 6.1 und 6.2 umgesetzt 2026-11-17, 6.3 bis 6.7
-stehen aus; das Release wartet darauf. Release-Plan: als Nächstes kommt das Network Update
+(Abschnitt „IPv6“, Konzept 2026-10-29): Pakete 6.1 bis 6.3 umgesetzt 2026-11-17 (`games.php`
+auf bltznxt.com geprüft), 6.4 bis 6.7 stehen aus; das Release wartet darauf. Release-Plan: als Nächstes kommt das Network Update
 (nur Mehrspieler), danach IDE.
 
 Blitz3D hatte zwei Netzwerk-Schichten: rohe TCP- und UDP-Streams (bei uns seit 2026-09-30
@@ -449,7 +449,7 @@ verrät wie eine IPv4-Adresse den Anschluss, aber nicht dauerhaft den Rechner. I
 |---|---|---|
 | 6.1 ✅ | Adresstyp, zwei Sockets je Rolle, `BIND` mit IPv6, Schreibweise `[…]:port` | Alle bisherigen `tests/net`-Fälle grün über `127.0.0.1` und über `::1` – **erledigt 2026-11-17**, siehe unten |
 | 6.2 ✅ | Adresslisten je Rechner in JOIN, WELCOME, MADD; Migration über alle Adressen | Gemischter Fall und Migration über die Familie hinweg grün – **erledigt 2026-11-17**, siehe unten |
-| 6.3 | Listen-Server: `ip6=`, Feld 6, Beitritt an alle Adressen, `NetGameIP$` bevorzugt IPv6 | Tests gegen `listserver.js` grün; `games.php` auf bltznxt.com zeigt Feld 6 |
+| 6.3 ✅ | Listen-Server: `ip6=`, Feld 6, Beitritt an alle Adressen, `NetGameIP$` bevorzugt IPv6 | Tests gegen `listserver.js` grün; `games.php` auf bltznxt.com zeigt Feld 6 – **erledigt 2026-11-17**, siehe unten |
 | 6.4 | Klopfen (`a=knock`, Abfrage durch den Host, Pakete an den Klopfer) | Test: Host, dessen Pakete von Fremden die Testumgebung verwirft, bis er geklopft hat |
 | 6.5 | UPnP-Lücke (`AddPinhole`/`DeletePinhole`), nur wenn Entscheidung 3 so fällt | Test gegen nachgebauten Router; Versuch am echten Router |
 | 6.6 | Doku: NETWORKING.md (IPv6, Schreibweise, Firewall, Datenschutz), README des Listen-Servers | Unterschiede an allen Stellen gleich beschrieben |
@@ -496,6 +496,35 @@ neuen Host über dessen IPv4-Adresse aus der Liste). Sie mischen die Familien se
 einmal (`mixed` in `case.txt`). Gegenprobe: ohne die mitgeschickten Adressen scheitert
 `migrate_mixed` – der Client erreicht den neuen Host nicht und macht ein eigenes Spiel auf.
 Ergebnis 16/16 grün. Weiter nicht geprüft: der Betrieb ohne `BIND`.
+
+**Stand 6.3 (2026-11-17).** Listen-Server (`listserver.js` und `games.php` gleich): Die Liste
+hat sechs Felder, `name ip port players token ip6`; Feld 2 trägt nur IPv4, Feld 6 nur IPv6,
+leer, wo eine fehlt. Die Spalte `ip` hält weiter die Absenderadresse der Anmeldung (für die
+Grenze je IP); kam sie über IPv6, erscheint sie in Feld 6 und Feld 2 bleibt leer. `ip6=` gilt
+nur bei einer Anmeldung über IPv4 und nur für eine globale Adresse (2000::/3);
+`listserver.js --allow-local-ip6` nimmt für Tests auch `::1` an. `games.php` legt die Spalte
+`ip6` in einer bestehenden Datenbank selbst an (`ALTER TABLE` beim ersten Aufruf).
+
+Laufzeit: Der Host schickt bei der Anmeldung `ip6=` mit, wenn er eine IPv6-Adresse für sich
+kennt (dieselbe wie im JOIN, Stand 6.2). Ein Spiel aus der Liste trägt alle seine Adressen;
+`NetGameIP$` nennt die bevorzugte: IPv6, wenn dieser Rechner keine IPv4-Adresse des Spiels
+erreicht oder beide Seiten eine globale IPv6-Adresse haben, sonst IPv4. `JoinNetGame` schickt
+JOIN an alle Adressen zugleich, auch wenn es nur `NetGameIP$` bekommt (die Laufzeit findet das
+Spiel in der letzten Suche wieder); die erste Antwort gewinnt. Der Host beantwortet nur den
+ersten Beitritt einer Nonce; derselbe Beitritt über eine zweite Adresse bleibt ohne Antwort,
+sonst entstünde ein zweiter Rechner.
+
+Prüfstand: neuer Fall `listserver_mixed` – Host mit beiden Familien meldet sich über IPv4 mit
+`ip6=::1` an; ein Client nur mit IPv4 bekommt `127.0.0.1:28770`, einer nur mit IPv6
+`[::1]:28770` (also aus Feld 6), einer mit beiden `127.0.0.1:28770` und tritt über beide
+Adressen bei. Mit einer vorübergehenden Meldung geprüft: beim Host kommt der zweite JOIN über
+`[::1]` an und wird verworfen, genau einmal. Ergebnis 17/17 grün.
+
+`games.php` auf bltznxt.com (vom Nutzer hochgeladen 2026-11-17, bestehende Datenbank), von
+Hand mit curl: die Liste kommt ohne `err database` (Spalte `ip6` angelegt); vier Testspiele
+mit `ip6=2001:db8::1`, `fe80::1`, `::1` und leer – alle Zeilen haben sechs Felder, nur das
+erste trägt eine Adresse in Feld 6; nach `a=bye` ist die Liste leer. Nicht prüfbar: eine
+Anmeldung über IPv6, der Webspace ist nur über IPv4 erreichbar.
 
 Für 6.4 braucht der Prüfstand eine nachgebaute Firewall: ein Testschalter im Laufzeitsystem
 (wie `DROP`), der Pakete von Adressen verwirft, an die das Programm noch nichts geschickt hat.

@@ -1,0 +1,11 @@
+host 2
+100 C4
+40 C4->H [hi]
+101 C4
+100 C6
+40 C6->H [hi]
+101 C6
+100 CB
+40 CB->H [hi]
+101 CB
+stopped

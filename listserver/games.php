@@ -7,10 +7,17 @@
 // fertig. Die Datenbank games.sqlite legt das Skript selbst an, im selben
 // Ordner (der Ordner muss fuer PHP beschreibbar sein; DB_FILE aendert den Ort).
 //
-//   GET  ?a=list&app=<id>&v=<version>   name<TAB>ip<TAB>port<TAB>players<TAB>token
-//   POST a=host&app=&name=&port=&players=&v=&token=    ok <key>   | err <grund>
-//   POST a=beat&key=&players=                          ok         | err gone
-//   POST a=bye&key=                                    ok
+//   GET  ?a=list&app=<id>&v=<version>   name<TAB>ip<TAB>port<TAB>players<TAB>token<TAB>ip6
+//   POST a=host&app=&name=&port=&players=&v=&token=&ip6=   ok <key>   | err <grund>
+//   POST a=beat&key=&players=                              ok         | err gone
+//   POST a=bye&key=                                        ok
+//
+// ip ist die IPv4-Adresse des Hosts, ip6 seine IPv6-Adresse; leer, wo eine
+// fehlt (NETWORK.md, IPv6 Punkt 4). Kommt die Anmeldung ueber IPv4, sieht der
+// Server die IPv6-Adresse des Hosts nie: der Host nennt sie selbst (ip6=),
+// angenommen wird nur eine globale (2000::/3). Kommt die Anmeldung ueber
+// IPv6, gilt die Absenderadresse und ip6= nicht. Die Spalte ip haelt immer
+// die Absenderadresse (fuer die Grenze je IP), ip6 nur die angegebene.
 
 const DB_FILE    = __DIR__ . '/games.sqlite';
 const EXPIRE     = 90;     // Sekunden ohne Lebenszeichen, dann faellt ein Eintrag weg
@@ -33,6 +40,18 @@ function number($t, $low, $high, $default) {
     return ($v >= $low && $v <= $high) ? $v : $default;
 }
 
+function is_ip6($t) {
+    return filter_var($t, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) !== false;
+}
+
+// ip6= des Hosts: eine globale IPv6-Adresse (2000::/3), sonst ''
+function ip6_param($t) {
+    $t = strtolower(trim((string)$t));
+    if (!is_ip6($t)) return '';
+    $b = inet_pton($t);
+    return ($b !== false && (ord($b[0]) & 0xE0) === 0x20) ? inet_ntop($b) : '';
+}
+
 function param($k) {
     if (isset($_POST[$k])) return (string)$_POST[$k];
     if (isset($_GET[$k])) return (string)$_GET[$k];
@@ -52,6 +71,9 @@ try {
         gkey TEXT PRIMARY KEY, app TEXT, name TEXT, ip TEXT, port INTEGER,
         players INTEGER, v TEXT, token INTEGER, seen INTEGER)');
     $db->exec('CREATE TABLE IF NOT EXISTS hits (ip TEXT, t INTEGER)');
+    // Spalte ip6 (seit Protokoll 3) auch in einer schon bestehenden Datenbank
+    $cols = $db->query('PRAGMA table_info(games)')->fetchAll(PDO::FETCH_COLUMN, 1);
+    if (!in_array('ip6', $cols, true)) $db->exec("ALTER TABLE games ADD COLUMN ip6 TEXT DEFAULT ''");
 } catch (Exception $e) {
     echo "err database\n";
     exit;
@@ -69,9 +91,12 @@ switch (param('a')) {
 case 'list':
     $app = mb_strtolower(clean(param('app')), 'UTF-8');
     $v = param('v');
-    $q = $db->prepare('SELECT name, ip, port, players, token FROM games WHERE app = ? AND (? = \'\' OR v = ?)');
+    $q = $db->prepare('SELECT name, ip, port, players, token, ip6 FROM games WHERE app = ? AND (? = \'\' OR v = ?)');
     $q->execute([$app, $v, $v]);
-    foreach ($q->fetchAll(PDO::FETCH_NUM) as $row) echo implode("\t", $row), "\n";
+    foreach ($q->fetchAll(PDO::FETCH_NUM) as $row) {
+        if (is_ip6($row[1])) { $row[5] = $row[1]; $row[1] = ''; }   // Anmeldung ueber IPv6
+        echo implode("\t", [$row[0], $row[1], $row[2], $row[3], $row[4], (string)$row[5]]), "\n";
+    }
     break;
 
 case 'host':
@@ -81,10 +106,11 @@ case 'host':
     $q->execute([$ip]);
     if ((int)$q->fetchColumn() >= MAX_PER_IP) { echo "err limit\n"; break; }
     $key = bin2hex(random_bytes(16));
-    $db->prepare('INSERT INTO games (gkey, app, name, ip, port, players, v, token, seen) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    $db->prepare('INSERT INTO games (gkey, app, name, ip, port, players, v, token, seen, ip6) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
        ->execute([$key, mb_strtolower(clean(param('app')), 'UTF-8'), clean(param('name')), $ip, $port,
                   number(param('players'), 0, 65535, 0), clean(param('v')),
-                  number(param('token'), 0, 4294967295, 0), $now]);
+                  number(param('token'), 0, 4294967295, 0), $now,
+                  is_ip6($ip) ? '' : ip6_param(param('ip6'))]);
     echo "ok $key\n";
     break;
 

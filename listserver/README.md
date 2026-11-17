@@ -26,7 +26,8 @@ node listserver.js --port 8080 [--host 0.0.0.0] [--trust-proxy] [--quiet]
 ```
 
 `--trust-proxy` takes the client address from `X-Forwarded-For`; use it only behind your own
-reverse proxy.
+reverse proxy. `--host ::` listens on IPv6 as well. `--allow-local-ip6` is for the test suite
+only: it accepts non-global `ip6` addresses such as `::1`.
 
 ## Interface
 
@@ -34,12 +35,17 @@ One URL, plain-text answers, one line per game.
 
 | Request | Parameters | Answer |
 |---|---|---|
-| `GET ?a=list` | `app`, `v` | per game: `name<TAB>ip<TAB>port<TAB>players<TAB>token` |
-| `POST a=host` | `app`, `name`, `port`, `players`, `v`, `token` | `ok <key>` or `err <reason>` |
+| `GET ?a=list` | `app`, `v` | per game: `name<TAB>ip<TAB>port<TAB>players<TAB>token<TAB>ip6` |
+| `POST a=host` | `app`, `name`, `port`, `players`, `v`, `token`, `ip6` | `ok <key>` or `err <reason>` |
 | `POST a=beat` | `key`, `players` | `ok` or `err gone` (register again) |
 | `POST a=bye` | `key` | `ok` |
 
 The server takes the host's IP address from the request, so a host behind a router is listed
-with its public address. Entries without a heartbeat for 90 s disappear. Limits against abuse:
+with its public address. `ip` is the IPv4 address, `ip6` the IPv6 address; either may be empty.
+A server reached over IPv4 never sees the host's IPv6 address, so the host sends it along as
+`ip6`; the server only takes a global one (2000::/3). If the host registers over IPv6, its
+sender address goes into `ip6` and the parameter is ignored. A `games.php` database from before
+the IPv6 field gets the new column on the first request. Entries without a heartbeat for 90 s
+disappear. Limits against abuse:
 names and IDs up to 64 characters, at most 8 games per IP address, at most 60 requests per IP
 address and minute.

@@ -1,5 +1,27 @@
 # BlitzNext Developer Log
 
+## 2026-11-17 — Network: the list server knows IPv6 addresses (IPv6 package 6.3)
+
+A list server reached only over IPv4, like a typical web space, never sees a host's IPv6
+address. Now the host sends it along when it registers, and the list carries a sixth field
+for it. The server only accepts a global IPv6 address; when a host registers over IPv6, its
+sender address is used instead. `listserver.js` and `games.php` changed the same way, and
+`games.php` adds the new column to an existing database by itself.
+
+A game found through the list carries all its addresses. `NetGameIP$` names IPv6 when this
+machine cannot reach the IPv4 address or when both sides have a global IPv6 address, else
+IPv4. `JoinNetGame` asks all addresses of the game at once, even when it is only given
+`NetGameIP$`, and the first answer wins; the host accepts one join per attempt and ignores the
+same join arriving over the second address.
+
+A new test registers a host with both families over IPv4 and lets three clients join through
+the list: one with IPv4 only, one with IPv6 only and one with both. A temporary log line showed
+the host receiving the second join over `[::1]` and dropping it, once. All 17 cases pass.
+`games.php` runs on the real web space with its existing database: the new column appeared by
+itself, and of four test games registered with a global, a link-local, a loopback and no IPv6
+address, only the global one shows up in the sixth field. Registering over IPv6 could not be
+tried there, the web space is reachable over IPv4 only.
+
 ## 2026-11-17 — Network: every machine knows all addresses of the others (IPv6 package 6.2)
 
 If the host drops out, the oldest remaining program takes over and the others reconnect to
