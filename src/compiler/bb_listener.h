@@ -136,8 +136,9 @@ inline int bb_CreateListener(int parent, float rolloff = 1.0f, float doppler = 1
 inline int bb_EmitSound(int snd, int entity) {
   bb_ent_chk_(entity);
   if (!bb_listener_ent_()) bb_RuntimeError("No Listener created");
-  const int ch = bb_PlaySound(snd);
-  if (!ch || !bb_snd_sounds_[snd].is3d) return ch;
+  const int h = bb_PlaySound(snd);
+  if (!h || !bb_snd_sounds_[snd].is3d) return h;
+  const int ch = bb_snd_slot_(h);   // Platz, BUG-236
   {
     bb_SndLock_ lock;
     bb_snd_channels_[ch].is3d = true;
@@ -145,7 +146,7 @@ inline int bb_EmitSound(int snd, int entity) {
   bb_snd_track_(entity);
   bb_emitters_.push_back({ entity, ch, bb_snd_channels_[ch].serial });
   bb_snd3d_place_(ch, entity);
-  return ch;
+  return h;
 }
 
 // Am Ende von UpdateWorld: Geschwindigkeiten (Object::endUpdate).

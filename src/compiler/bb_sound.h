@@ -83,16 +83,35 @@ struct bb_Channel_ {
   float            pan3d   = 0.0f;
   float            doppler = 1.0f;
   unsigned         serial  = 0;      // unterscheidet Kanaele im selben Platz
-  // PlayMusic: der Platz bleibt nach dem Ende belegt, bis StopChannel,
-  // StopMusic oder das naechste PlayMusic ihn freigibt. Sonst bekaeme der
-  // naechste PlaySound dieselbe Nummer, und ChannelPlaying auf den alten
-  // Musikkanal meldete den fremden Klang (BUG-235).
-  bool             music   = false;
 };
 
 inline bb_Sound_   bb_snd_sounds_[BB_MAX_SOUNDS]     = {};
 inline unsigned    bb_snd_serial_ = 0;
 inline bb_Channel_ bb_snd_channels_[BB_MAX_CHANNELS] = {};
+
+// Kanalnummer fuer das Programm: Platz in den unteren 6 Bit, darueber die
+// laufende Nummer des Abspielens (serial). Eine Nummer gilt nur, solange ihr
+// Klang den Platz haelt; danach meldet ChannelPlaying 0, und StopChannel &
+// Co. treffen keinen neuen Klang im selben Platz (BUG-236). Im Original
+// vergibt gxAudio 4096 Kanalobjekte reihum, und FMOD zaehlt in den oberen
+// Bits der Kanalnummer mit. Der MIDI-Kanal 0x10000 hat Platz 0 und kollidiert
+// nie.
+inline constexpr int      BB_SND_SLOT_BITS_  = 6;
+inline constexpr unsigned BB_SND_SERIAL_MAX_ = (1u << (31 - BB_SND_SLOT_BITS_)) - 1;
+static_assert(BB_MAX_CHANNELS <= (1 << BB_SND_SLOT_BITS_), "Platz passt nicht in die Kanalnummer");
+
+inline int bb_snd_handle_(int slot) {
+  return (int)(bb_snd_channels_[slot].serial << BB_SND_SLOT_BITS_) | slot;
+}
+
+// Platz einer Kanalnummer, 0 wenn sie keinem laufenden Kanal (mehr) gehoert.
+inline int bb_snd_slot_(int h) {
+  if (h <= 0) return 0;
+  const int slot = h & ((1 << BB_SND_SLOT_BITS_) - 1);
+  if (slot < 1 || slot >= BB_MAX_CHANNELS) return 0;
+  const bb_Channel_& c = bb_snd_channels_[slot];
+  return c.stream && c.serial == ((unsigned)h >> BB_SND_SLOT_BITS_) ? slot : 0;
+}
 
 // Lautstaerke und Tonhoehe eines Kanals an seinen Strom geben: die des
 // Programms mal die aus 3D.
@@ -342,8 +361,7 @@ inline void bb_snd_update_() {
   bb_midi_update_();
   if (!bb_snd_dev_) return;
   for (int i = 1; i < BB_MAX_CHANNELS; ++i)
-    if (bb_snd_done_(bb_snd_channels_[i]) && !bb_snd_channels_[i].paused &&
-        !bb_snd_channels_[i].music)
+    if (bb_snd_done_(bb_snd_channels_[i]) && !bb_snd_channels_[i].paused)
       bb_snd_free_channel_(i);
 }
 
@@ -527,8 +545,8 @@ inline void bb_FreeSound(int snd) {
 // Internal: play sound once (loop=false) or loop forever (loop=true).
 // Reuses the first finished one-shot slot; returns channel handle, 0 on failure.
 // PlaySound nimmt die Wiederholung vom Klang (LoopSound). PlayMusic spielt
-// einmal, haelt den Platz (`music`) und startet auf Wunsch pausiert (BUG-235).
-inline int bb_play_sound_(int snd, bool loop, bool music = false, bool paused = false) {
+// einmal und startet auf Wunsch pausiert (BUG-235).
+inline int bb_play_sound_(int snd, bool loop, bool paused = false) {
   bb_snd_ensure_();
   if (!bb_snd_dev_ || snd < 1 || snd >= BB_MAX_SOUNDS ||
       !bb_snd_sounds_[snd].data) return 0;
@@ -536,8 +554,7 @@ inline int bb_play_sound_(int snd, bool loop, bool music = false, bool paused = 
   int slot = 0;
   for (int i = 1; i < BB_MAX_CHANNELS; ++i) {
     if (!bb_snd_channels_[i].stream) { slot = i; break; }
-    if (bb_snd_done_(bb_snd_channels_[i]) && !bb_snd_channels_[i].paused &&
-        !bb_snd_channels_[i].music) {
+    if (bb_snd_done_(bb_snd_channels_[i]) && !bb_snd_channels_[i].paused) {
       bb_snd_free_channel_(i);
       slot = i;
       break;
@@ -553,18 +570,17 @@ inline int bb_play_sound_(int snd, bool loop, bool music = false, bool paused = 
   c.stream  = s;
   c.snd_id  = snd;
   c.looping = loop;
-  c.music   = music;
   c.paused  = paused;
   c.gain    = sd.vol;
   c.pan     = sd.pan;
   c.ratio   = bb_snd_ratio_(snd, sd.pitch);
-  c.serial  = ++bb_snd_serial_;
+  c.serial  = bb_snd_serial_ = bb_snd_serial_ % BB_SND_SERIAL_MAX_ + 1;
   {
     bb_SndLock_ lock;
     bb_snd_channels_[slot] = c;
   }
   bb_snd_apply_(slot);
-  return slot;
+  return bb_snd_handle_(slot);
 }
 
 inline int bb_PlaySound(int snd) {
@@ -584,7 +600,7 @@ inline void bb_LoopSound(int snd) {
 // Stop playback and release the channel slot immediately.
 inline void bb_StopChannel(int ch) {
   if (ch == BB_MIDI_CH_) { bb_midi_stop_(); return; }
-  if (ch < 1 || ch >= BB_MAX_CHANNELS || !bb_snd_channels_[ch].stream) return;
+  if (!(ch = bb_snd_slot_(ch))) return;
   bb_snd_free_channel_(ch);
 }
 
@@ -600,7 +616,7 @@ inline void bb_PauseChannel(int ch) {
     }
     return;
   }
-  if (ch < 1 || ch >= BB_MAX_CHANNELS || !bb_snd_channels_[ch].stream) return;
+  if (!(ch = bb_snd_slot_(ch))) return;
   bb_SndLock_ lock;
   bb_snd_channels_[ch].paused = true;
 }
@@ -614,7 +630,7 @@ inline void bb_ResumeChannel(int ch) {
     }
     return;
   }
-  if (ch < 1 || ch >= BB_MAX_CHANNELS || !bb_snd_channels_[ch].stream) return;
+  if (!(ch = bb_snd_slot_(ch))) return;
   bb_SndLock_ lock;
   bb_snd_channels_[ch].paused = false;
 }
@@ -622,13 +638,13 @@ inline void bb_ResumeChannel(int ch) {
 // Returns 1 while the channel has an active stream (playing or paused), 0 when done.
 inline int bb_ChannelPlaying(int ch) {
   if (ch == BB_MIDI_CH_) return bb_midi_channel_playing_() ? 1 : 0;   // BUG-235
-  if (ch < 1 || ch >= BB_MAX_CHANNELS) return 0;
-  return bb_snd_channels_[ch].stream && !bb_snd_done_(bb_snd_channels_[ch]) ? 1 : 0;
+  if (!(ch = bb_snd_slot_(ch))) return 0;
+  return !bb_snd_done_(bb_snd_channels_[ch]) ? 1 : 0;
 }
 
 // Volume: 0.0 (silent) to 1.0 (full).
 inline void bb_ChannelVolume(int ch, float vol) {
-  if (ch < 1 || ch >= BB_MAX_CHANNELS || !bb_snd_channels_[ch].stream) return;
+  if (!(ch = bb_snd_slot_(ch))) return;
   bb_snd_channels_[ch].gain = vol;
   bb_snd_apply_(ch);
 }
@@ -636,7 +652,7 @@ inline void bb_ChannelVolume(int ch, float vol) {
 // Pan: -1.0 (left), 0.0 (center), 1.0 (right). Bei einem 3D-Kanal legt der
 // Listener das Panorama fest.
 inline void bb_ChannelPan(int ch, float pan) {
-  if (ch < 1 || ch >= BB_MAX_CHANNELS || !bb_snd_channels_[ch].stream) return;
+  if (!(ch = bb_snd_slot_(ch))) return;
   bb_SndLock_ lock;
   bb_snd_channels_[ch].pan = pan;
 }
@@ -645,7 +661,7 @@ inline void bb_ChannelPan(int ch, float pan) {
 // Die Frequenz ist im Original int ("ChannelPitch channel,pitch"); ein Float
 // wandelt an der Aufrufgrenze wie bei jedem int-Parameter (BUG-62).
 inline void bb_ChannelPitch(int ch, int hz) {
-  if (ch < 1 || ch >= BB_MAX_CHANNELS || !bb_snd_channels_[ch].stream) return;
+  if (!(ch = bb_snd_slot_(ch))) return;
   int snd = bb_snd_channels_[ch].snd_id;
   if (snd < 1 || snd >= BB_MAX_SOUNDS || hz <= 0) return;
   bb_snd_channels_[ch].ratio = bb_snd_ratio_(snd, (float)hz);
@@ -660,15 +676,13 @@ inline void bb_ChannelPitch(int ch, int hz) {
 // PlayCDTrack is stub-only (CD audio is deprecated hardware).
 
 inline int bb_snd_music_snd_ = 0;  // sound slot occupied by current music (0 = none)
-inline int bb_snd_music_ch_  = 0;  // channel slot occupied by current music (0 = none)
+inline int bb_snd_music_ch_  = 0;  // channel handle of the current music (0 = none)
 
 // Stop and free the currently-playing music track (if any).
 inline void bb_StopMusic() {
   bb_midi_stop_();
   if (bb_snd_music_ch_) {
-    // nur, wenn der Platz noch die Musik haelt: nach StopChannel kann ihn
-    // schon ein anderer Klang belegen
-    if (bb_snd_channels_[bb_snd_music_ch_].music) bb_StopChannel(bb_snd_music_ch_);
+    bb_StopChannel(bb_snd_music_ch_);   // nach StopChannel ungueltig, BUG-236
     bb_snd_music_ch_ = 0;
   }
   if (bb_snd_music_snd_) {
@@ -697,7 +711,7 @@ inline int bb_PlayMusic(const bbString& file, int flags = -1) {
     return bb_midi_play_(file, b3d || (flags & 1), b3d, paused);
   int snd = bb_LoadSound(file);
   if (!snd) return 0;
-  int ch = bb_play_sound_(snd, false, true, paused);
+  int ch = bb_play_sound_(snd, false, paused);
   if (!ch) { bb_FreeSound(snd); return 0; }
   bb_snd_music_snd_ = snd;
   bb_snd_music_ch_  = ch;
@@ -705,12 +719,10 @@ inline int bb_PlayMusic(const bbString& file, int flags = -1) {
 }
 
 // Returns 1 while music is playing (the channel has an active stream), else 0.
-// Der Platz bleibt nach dem Ende belegt (BUG-235) und wird erst von StopMusic
-// oder dem naechsten PlayMusic freigegeben; nach StopChannel gehoert er nicht
-// mehr der Musik.
+// Eine verklungene Musik gibt ihren Platz frei; ihre Nummer meldet dann 0
+// (BUG-236).
 inline int bb_MusicPlaying() {
   if (bb_midi_on_) return bb_midi_channel_playing_() ? 1 : 0;
-  if (!bb_snd_music_ch_ || !bb_snd_channels_[bb_snd_music_ch_].music) return 0;
   return bb_ChannelPlaying(bb_snd_music_ch_);
 }
 
