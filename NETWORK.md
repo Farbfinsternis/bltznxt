@@ -453,7 +453,7 @@ verrät wie eine IPv4-Adresse den Anschluss, aber nicht dauerhaft den Rechner. I
 | 6.4 ✅ | Klopfen (`a=knock`, Abfrage durch den Host, Pakete an den Klopfer) | Test: Host, dessen Pakete von Fremden die Testumgebung verwirft, bis er geklopft hat – **erledigt 2026-11-17**, siehe unten |
 | 6.5 ⊘ | UPnP-Lücke (`AddPinhole`/`DeletePinhole`), nur wenn Entscheidung 3 so fällt | Test gegen nachgebauten Router; Versuch am echten Router – **entfällt 2026-11-17**: der Router des Entwicklers bietet den Dienst nicht an, siehe unten |
 | 6.6 ✅ | Doku: NETWORKING.md (IPv6, Schreibweise, Firewall, Datenschutz), README des Listen-Servers | Unterschiede an allen Stellen gleich beschrieben – **erledigt 2026-11-17**: NETWORKING.md (Abschnitt IPv6, Privacy, Tabellen, Beispiele), listserver/README.md (mit 6.3/6.4), KNOWN_ISSUES.md, README.md, roadmap.md |
-| 6.7 | Echter Versuch über zwei Anschlüsse | Ein Rechner hinter Carrier-NAT hostet, ein anderer Anschluss tritt über IPv6 bei |
+| 6.7 | Echter Versuch über zwei Anschlüsse | Ein Rechner hinter Carrier-NAT hostet, ein anderer Anschluss tritt über IPv6 bei – ◇ als öffentlicher Test-Chat, Konzept in [samples/netchat/KONZEPT.md](samples/netchat/KONZEPT.md) (2026-11-17) |
 
 **Stand 6.1 (2026-11-17).** `bb_NetAddr_` (Familie, 16 Byte, Port, Zone) ersetzt
 `sockaddr_in` in Peers, Angeboten, Beitritt und Rechnerliste; Vergleich, Text, Umwandlung und
