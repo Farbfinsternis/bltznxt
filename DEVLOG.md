@@ -1,5 +1,23 @@
 # BlitzNext Developer Log
 
+## 2026-11-17 — Network: knocking through the router's firewall (IPv6 package 6.4)
+
+IPv6 has no NAT, but the host's router still has a firewall that drops packets nobody asked
+for. A client that joins a game from the list server over IPv6 now knocks first: it tells the
+list server which game it wants and from which address. The host asks the list server every
+3 seconds, which also serves as its heartbeat, and sends each knocker three small packets.
+That opens its firewall for exactly that address, and the client's join, which kept going the
+whole time, gets through. A join that knocks waits up to about 5 seconds longer.
+
+`listserver.js` and `games.php` both learned `a=knock` and `a=knocks`; knocks only take global
+IPv6 addresses and expire after 30 seconds.
+
+For the test suite the runtime can now pretend to sit behind such a firewall
+(`BLTZNXT_NET_FIREWALL=1`). In the new test a client that joins directly by address is turned
+away, and a client that found the game through the list server knocks and gets in. All 18
+cases pass. `games.php` with knocking is checked on the real web space, too. Only a real
+second line (package 6.7) will show whether knocking is enough for a real router.
+
 ## 2026-11-17 — Network: the list server knows IPv6 addresses (IPv6 package 6.3)
 
 A list server reached only over IPv4, like a typical web space, never sees a host's IPv6

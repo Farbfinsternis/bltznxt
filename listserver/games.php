@@ -11,6 +11,14 @@
 //   POST a=host&app=&name=&port=&players=&v=&token=&ip6=   ok <key>   | err <grund>
 //   POST a=beat&key=&players=                              ok         | err gone
 //   POST a=bye&key=                                        ok
+//   POST a=knock&app=&token=&ip6=&port=                    ok         | err <grund>
+//   POST a=knocks&key=                     ok, dann je Klopfer ip6<TAB>port | err gone
+//
+// Klopfen (NETWORK.md, IPv6 Punkt 7a): ein Client meldet "ich will zu Spiel
+// (app, token), von Adresse ip6, Port port"; der Host fragt alle 3 s nach
+// (a=knocks, zaehlt auch als Lebenszeichen) und schickt jedem Klopfer ein
+// paar Pakete, das oeffnet die Firewall seines Routers fuer diese Adresse.
+// Klopfer gelten 30 s, hoechstens 16 je Spiel; die Abfrage leert die Liste.
 //
 // ip ist die IPv4-Adresse des Hosts, ip6 seine IPv6-Adresse; leer, wo eine
 // fehlt (NETWORK.md, IPv6 Punkt 4). Kommt die Anmeldung ueber IPv4, sieht der
@@ -25,6 +33,8 @@ const MAX_PER_IP = 8;      // Eintraege je Absender-IP
 const MAX_TEXT   = 64;     // Laenge von Name und Kennung
 const RATE       = 60;     // Anfragen je IP und Minute
 const TRUST_PROXY = false; // true: Absender-IP aus X-Forwarded-For (nur hinter eigenem Proxy)
+const KNOCK_TTL  = 30;     // Sekunden, die ein Klopfer auf die Abfrage des Hosts wartet
+const MAX_KNOCKS = 16;     // offene Klopfer je Spiel
 
 header('Content-Type: text/plain; charset=utf-8');
 header('Cache-Control: no-store');
@@ -71,6 +81,7 @@ try {
         gkey TEXT PRIMARY KEY, app TEXT, name TEXT, ip TEXT, port INTEGER,
         players INTEGER, v TEXT, token INTEGER, seen INTEGER)');
     $db->exec('CREATE TABLE IF NOT EXISTS hits (ip TEXT, t INTEGER)');
+    $db->exec('CREATE TABLE IF NOT EXISTS knocks (gkey TEXT, ip6 TEXT, port INTEGER, t INTEGER)');
     // Spalte ip6 (seit Protokoll 3) auch in einer schon bestehenden Datenbank
     $cols = $db->query('PRAGMA table_info(games)')->fetchAll(PDO::FETCH_COLUMN, 1);
     if (!in_array('ip6', $cols, true)) $db->exec("ALTER TABLE games ADD COLUMN ip6 TEXT DEFAULT ''");
@@ -82,6 +93,7 @@ try {
 $now = time();
 $db->prepare('DELETE FROM games WHERE seen < ?')->execute([$now - EXPIRE]);
 $db->prepare('DELETE FROM hits WHERE t < ?')->execute([$now - 60]);
+$db->prepare('DELETE FROM knocks WHERE t < ?')->execute([$now - KNOCK_TTL]);
 $db->prepare('INSERT INTO hits (ip, t) VALUES (?, ?)')->execute([$ip, $now]);
 $q = $db->prepare('SELECT COUNT(*) FROM hits WHERE ip = ?');
 $q->execute([$ip]);
@@ -123,7 +135,39 @@ case 'beat':
 
 case 'bye':
     $db->prepare('DELETE FROM games WHERE gkey = ?')->execute([param('key')]);
+    $db->prepare('DELETE FROM knocks WHERE gkey = ?')->execute([param('key')]);
     echo "ok\n";
+    break;
+
+case 'knock':
+    $token = number(param('token'), 1, 4294967295, 0);
+    $q = $db->prepare('SELECT gkey FROM games WHERE app = ? AND token = ? AND token > 0 LIMIT 1');
+    $q->execute([mb_strtolower(clean(param('app')), 'UTF-8'), $token]);
+    $gkey = $q->fetchColumn();
+    if ($gkey === false) { echo "err gone\n"; break; }
+    // ueber IPv6 gilt die Absenderadresse; sonst die angegebene, wenn sie global ist
+    $ip6 = is_ip6($ip) ? $ip : ip6_param(param('ip6'));
+    if ($ip6 === '') { echo "err ip6\n"; break; }
+    $port = number(param('port'), 1, 65535, null);
+    if ($port === null) { echo "err port\n"; break; }
+    $q = $db->prepare('SELECT COUNT(*) FROM knocks WHERE gkey = ?');
+    $q->execute([$gkey]);
+    if ((int)$q->fetchColumn() >= MAX_KNOCKS) { echo "err limit\n"; break; }
+    $db->prepare('INSERT INTO knocks (gkey, ip6, port, t) VALUES (?, ?, ?, ?)')->execute([$gkey, $ip6, $port, $now]);
+    echo "ok\n";
+    break;
+
+case 'knocks':
+    // zaehlt auch als Lebenszeichen; leert die Klopfer des Spiels
+    $q = $db->prepare('UPDATE games SET seen = ? WHERE gkey = ?');
+    $q->execute([$now, param('key')]);
+    if (!$q->rowCount()) { echo "err gone\n"; break; }
+    $q = $db->prepare('SELECT ip6, port FROM knocks WHERE gkey = ?');
+    $q->execute([param('key')]);
+    $rows = $q->fetchAll(PDO::FETCH_NUM);
+    $db->prepare('DELETE FROM knocks WHERE gkey = ?')->execute([param('key')]);
+    echo "ok\n";
+    foreach ($rows as $row) echo $row[0], "\t", $row[1], "\n";
     break;
 
 default:

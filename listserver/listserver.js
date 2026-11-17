@@ -18,6 +18,15 @@
 //   POST a=host&app=&name=&port=&players=&v=&token=&ip6=   ok <key>   | err <grund>
 //   POST a=beat&key=&players=                              ok         | err gone
 //   POST a=bye&key=                                        ok
+//   POST a=knock&app=&token=&ip6=&port=                    ok         | err <grund>
+//   POST a=knocks&key=                     ok, dann je Klopfer ip6<TAB>port | err gone
+//
+// Klopfen (NETWORK.md, IPv6 Punkt 7a): Ohne NAT steht bei IPv6 nur die
+// Firewall des Routers im Weg. Ein Client meldet "ich will zu Spiel (app,
+// token), von Adresse ip6, Port port"; der Host fragt alle 3 s nach (a=knocks,
+// zaehlt auch als Lebenszeichen) und schickt jedem Klopfer ein paar Pakete,
+// das oeffnet seine Firewall fuer genau diese Adresse. Klopfer gelten 30 s,
+// hoechstens 16 je Spiel; die Abfrage leert die Liste.
 //
 // ip ist die IPv4-Adresse des Hosts, ip6 seine IPv6-Adresse; leer, wo eine
 // fehlt (NETWORK.md, IPv6 Punkt 4). Kommt die Anmeldung ueber IPv4, sieht der
@@ -34,6 +43,8 @@ const EXPIRE = 90 * 1000;   // ohne Lebenszeichen faellt ein Eintrag weg
 const MAX_PER_IP = 8;       // Eintraege je Absender-IP
 const MAX_TEXT = 64;        // Laenge von Name und Kennung
 const RATE = 60;            // Anfragen je IP und Minute
+const KNOCK_TTL = 30 * 1000; // so lange wartet ein Klopfer auf die Abfrage des Hosts
+const MAX_KNOCKS = 16;      // offene Klopfer je Spiel
 
 const opt = { host: '0.0.0.0', port: 8080, lifetime: 0, trustProxy: false, quiet: false, localIp6: false };
 for (let i = 2; i < process.argv.length; i++) {
@@ -113,6 +124,30 @@ function handle(ip, p) {
       const key = p.get('key') || '', g = games.get(key);
       if (g) { games.delete(key); log(`bye ${g.ip}:${g.port} name='${g.name}'`); }
       return 'ok';
+    }
+    case 'knock': {
+      const app = clean(p.get('app')).toLowerCase(), token = number(p.get('token'), 1, 4294967295, 0);
+      let g = null;
+      for (const x of games.values()) if (token && x.app === app && x.token === token) g = x;
+      if (!g) return 'err gone';
+      // ueber IPv6 gilt die Absenderadresse; sonst die angegebene, wenn sie global ist
+      const ip6 = net.isIPv6(ip) ? ip : ip6Param(p.get('ip6'));
+      if (!ip6) return 'err ip6';
+      const port = number(p.get('port'), 1, 65535, null);
+      if (port === null) return 'err port';
+      g.knocks = (g.knocks || []).filter((k) => now - k.t < KNOCK_TTL);
+      if (g.knocks.length >= MAX_KNOCKS) return 'err limit';
+      g.knocks.push({ ip6, port, t: now });
+      log(`knock [${ip6}]:${port} -> name='${g.name}'`);
+      return 'ok';
+    }
+    case 'knocks': {
+      const g = games.get(p.get('key') || '');
+      if (!g) return 'err gone';
+      g.seen = now;
+      const lines = (g.knocks || []).filter((k) => now - k.t < KNOCK_TTL).map((k) => k.ip6 + '\t' + k.port);
+      g.knocks = [];
+      return ['ok', ...lines].join('\n') + '\n';
     }
   }
   return 'err action';

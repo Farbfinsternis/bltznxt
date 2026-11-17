@@ -39,6 +39,8 @@ One URL, plain-text answers, one line per game.
 | `POST a=host` | `app`, `name`, `port`, `players`, `v`, `token`, `ip6` | `ok <key>` or `err <reason>` |
 | `POST a=beat` | `key`, `players` | `ok` or `err gone` (register again) |
 | `POST a=bye` | `key` | `ok` |
+| `POST a=knock` | `app`, `token`, `ip6`, `port` | `ok` or `err <reason>` |
+| `POST a=knocks` | `key` | `ok`, then per knock `ip6<TAB>port`; or `err gone` |
 
 The server takes the host's IP address from the request, so a host behind a router is listed
 with its public address. `ip` is the IPv4 address, `ip6` the IPv6 address; either may be empty.
@@ -46,6 +48,15 @@ A server reached over IPv4 never sees the host's IPv6 address, so the host sends
 `ip6`; the server only takes a global one (2000::/3). If the host registers over IPv6, its
 sender address goes into `ip6` and the parameter is ignored. A `games.php` database from before
 the IPv6 field gets the new column on the first request. Entries without a heartbeat for 90 s
-disappear. Limits against abuse:
-names and IDs up to 64 characters, at most 8 games per IP address, at most 60 requests per IP
-address and minute.
+disappear.
+
+Knocking gets a player through the firewall of the host's router, which IPv6 still has even
+without NAT. A client that wants to join over IPv6 posts `a=knock` with the game's `app` and
+`token` and its own IPv6 address and port (over IPv6 the server takes the sender address). The
+host asks `a=knocks` every 3 s, which also counts as a heartbeat, and sends each knocker a few
+packets; that opens its firewall for exactly that address. Knocks wait 30 s, at most 16 per
+game, and asking clears them.
+
+Limits against abuse: names and IDs up to 64 characters, at most 8 games per IP address, at
+most 60 requests per IP address and minute. A knock makes a host send three small packets to
+the given address, so knocks only take global IPv6 addresses.

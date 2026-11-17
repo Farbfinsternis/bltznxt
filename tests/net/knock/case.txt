@@ -1,0 +1,6 @@
+mixed
+server 0 28790 --allow-local-ip6
+start h 1500 BLTZNXT_NET_BIND=::1 BLTZNXT_NET_FIREWALL=1
+start d 3000 BLTZNXT_NET_BIND=::1
+start k 7500 BLTZNXT_NET_BIND=::1 BLTZNXT_NET_LAN=0
+timeout 40

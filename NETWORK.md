@@ -3,8 +3,8 @@
 Stand: 2026-10-27 · **Umgesetzt** in [bb_net.h](src/compiler/bb_net.h), Nutzer-Doku in
 [NETWORKING.md](NETWORKING.md), Tests in [tests/net/](tests/net/). UPnP gebaut und am echten
 Router geprüft 2026-10-29, `games.php` auf echtem Webspace geprüft 2026-10-29. IPv6
-(Abschnitt „IPv6“, Konzept 2026-10-29): Pakete 6.1 bis 6.3 umgesetzt 2026-11-17 (`games.php`
-auf bltznxt.com geprüft), 6.4 bis 6.7 stehen aus; das Release wartet darauf. Release-Plan: als Nächstes kommt das Network Update
+(Abschnitt „IPv6“, Konzept 2026-10-29): Pakete 6.1 bis 6.4 umgesetzt 2026-11-17 (`games.php`
+auf bltznxt.com geprüft), 6.5 bis 6.7 stehen aus; das Release wartet darauf. Release-Plan: als Nächstes kommt das Network Update
 (nur Mehrspieler), danach IDE.
 
 Blitz3D hatte zwei Netzwerk-Schichten: rohe TCP- und UDP-Streams (bei uns seit 2026-09-30
@@ -450,7 +450,7 @@ verrät wie eine IPv4-Adresse den Anschluss, aber nicht dauerhaft den Rechner. I
 | 6.1 ✅ | Adresstyp, zwei Sockets je Rolle, `BIND` mit IPv6, Schreibweise `[…]:port` | Alle bisherigen `tests/net`-Fälle grün über `127.0.0.1` und über `::1` – **erledigt 2026-11-17**, siehe unten |
 | 6.2 ✅ | Adresslisten je Rechner in JOIN, WELCOME, MADD; Migration über alle Adressen | Gemischter Fall und Migration über die Familie hinweg grün – **erledigt 2026-11-17**, siehe unten |
 | 6.3 ✅ | Listen-Server: `ip6=`, Feld 6, Beitritt an alle Adressen, `NetGameIP$` bevorzugt IPv6 | Tests gegen `listserver.js` grün; `games.php` auf bltznxt.com zeigt Feld 6 – **erledigt 2026-11-17**, siehe unten |
-| 6.4 | Klopfen (`a=knock`, Abfrage durch den Host, Pakete an den Klopfer) | Test: Host, dessen Pakete von Fremden die Testumgebung verwirft, bis er geklopft hat |
+| 6.4 ✅ | Klopfen (`a=knock`, Abfrage durch den Host, Pakete an den Klopfer) | Test: Host, dessen Pakete von Fremden die Testumgebung verwirft, bis er geklopft hat – **erledigt 2026-11-17**, siehe unten |
 | 6.5 | UPnP-Lücke (`AddPinhole`/`DeletePinhole`), nur wenn Entscheidung 3 so fällt | Test gegen nachgebauten Router; Versuch am echten Router |
 | 6.6 | Doku: NETWORKING.md (IPv6, Schreibweise, Firewall, Datenschutz), README des Listen-Servers | Unterschiede an allen Stellen gleich beschrieben |
 | 6.7 | Echter Versuch über zwei Anschlüsse | Ein Rechner hinter Carrier-NAT hostet, ein anderer Anschluss tritt über IPv6 bei |
@@ -528,6 +528,37 @@ Anmeldung über IPv6, der Webspace ist nur über IPv4 erreichbar.
 
 Für 6.4 braucht der Prüfstand eine nachgebaute Firewall: ein Testschalter im Laufzeitsystem
 (wie `DROP`), der Pakete von Adressen verwirft, an die das Programm noch nichts geschickt hat.
+
+**Stand 6.4 (2026-11-17).** Listen-Server (`listserver.js` und `games.php` gleich, in
+`games.php` eine Tabelle `knocks`): `a=knock&app=&token=&ip6=&port=` legt einen Klopfer zum
+Spiel mit dieser Kennung ab (über IPv6 gilt die Absenderadresse, sonst nur eine globale
+`ip6`; 30 s gültig, höchstens 16 je Spiel). `a=knocks&key=` gibt `ok` und je Klopfer
+`ip6<TAB>port` zurück, leert die Liste und zählt als Lebenszeichen; `err gone` bei
+abgelaufenem Schlüssel (der Host meldet sich neu an).
+
+Laufzeit: Ein Host mit IPv6-Spielport fragt alle 3 s nach (Entscheidung 2) und schickt jedem
+Klopfer vom IPv6-Spielport drei KNOCK-Pakete (neue Paketart, der Empfänger verwirft sie).
+Ein Client klopft, wenn er einem Spiel vom Listen-Server beitritt (über die Suche oder mit
+dessen `NetGameIP$`), das Spiel eine IPv6-Adresse hat, die er erreicht, und er selbst eine
+IPv6-Adresse kennt (dieselbe wie im JOIN). Das Klopfen läuft in einem eigenen Thread, JOIN
+geht währenddessen weiter. Der Beitritt wartet dann länger: bis zu 6 s auf die Antwort des
+Listen-Servers, nach einem `ok` bis 5 s danach (3 s Abfrage + 2 s); ohne Klopfen bleibt es bei
+3 s. Testschalter `BLTZNXT_NET_FIREWALL=1` (auch `firewall = 1` in der `.net`-Datei):
+verwirft UDP von Adressen (mit Port), an die das Programm noch nichts geschickt hat.
+
+Missbrauch: Ein Klopfer lässt den Host drei kleine Pakete an die genannte Adresse schicken.
+Deshalb nur globale Adressen, höchstens 16 offene je Spiel und die Grenze von 60 Anfragen je
+IP und Minute. Das ist wenig Verkehr; ein Angreifer bekommt mehr, wenn er selbst sendet.
+
+Prüfstand: neuer Fall `knock` – Host nur mit IPv6 hinter der nachgebauten Firewall, angemeldet
+über IPv4 mit `ip6=::1`. Client D tritt direkt mit `[::1]:28771` bei, ohne Listen-Server und
+damit ohne Klopfen: „no answer“, die Firewall verwirft seine JOINs. Client K findet das Spiel
+in der Liste, klopft (im Log des Servers zu sehen) und tritt bei. Ergebnis 18/18 grün.
+`games.php` auf bltznxt.com (vom Nutzer hochgeladen 2026-11-17), von Hand mit curl: Klopfen
+mit `2001:db8::5` angenommen, mit `fe80::5` `err ip6`, mit Port 0 `err port`, bei unbekannter
+Kennung `err gone`; `a=knocks` gibt den Klopfer einmal zurück und danach nur `ok`, ein
+falscher Schlüssel und einer nach `a=bye` `err gone`. Am echten Router zeigt erst 6.7, ob das
+Klopfen reicht.
 
 ## Messen am Original
 

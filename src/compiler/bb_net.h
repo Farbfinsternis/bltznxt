@@ -24,8 +24,8 @@
 // Einstellungen von aussen (gewinnen vor dem Code): Umgebungsvariablen
 // BLTZNXT_NET_JOIN/SERVER/APP/PORT/LAN/UPNP, sonst die Datei <exe>.net neben der
 // Exe. Nur fuer Tests: BLTZNXT_NET_BIND (Adresse der Sockets, 127.0.0.1 oder ::1 haelt
-// die Firewall-Abfrage fern) und BLTZNXT_NET_DROP (Prozent verworfener
-// Pakete).
+// die Firewall-Abfrage fern), BLTZNXT_NET_DROP (Prozent verworfener Pakete)
+// und BLTZNXT_NET_FIREWALL (Firewall eines Routers nachgebaut, fuers Klopfen).
 
 #include "bb_socket.h"
 #include <algorithm>
@@ -67,7 +67,7 @@ inline constexpr int    BB_NET_MIGRATE   = 8000;   // so lange dauert eine Host-
 enum : int {
   BB_NK_DISCOVER = 1, BB_NK_OFFER, BB_NK_JOIN, BB_NK_WELCOME, BB_NK_REJECT,
   BB_NK_REL, BB_NK_UNREL, BB_NK_ACK, BB_NK_PING, BB_NK_PONG, BB_NK_BYE,
-  BB_NK_RESUME, BB_NK_RESUMED
+  BB_NK_RESUME, BB_NK_RESUMED, BB_NK_KNOCK   // KNOCK: der Host oeffnet seine Firewall, der Empfaenger verwirft es
 };
 // Sitzungsnachrichten im zuverlaessigen oder unzuverlaessigen Kanal
 enum : int { BB_NS_MSG = 1, BB_NS_PADD, BB_NS_PDEL, BB_NS_MADD, BB_NS_MDEL };
@@ -342,6 +342,11 @@ struct bb_NetState_ {
   bool extAppSet = false, extServerSet = false;
   int extPort = 0, codePort = 0;
   int lan = 1, drop = 0;
+  // Testschalter BLTZNXT_NET_FIREWALL: verwirft UDP von Adressen, an die dieses
+  // Programm noch nichts geschickt hat - wie die Firewall eines Routers ohne NAT.
+  int firewall = 0;
+  std::mutex fwM;
+  std::set<std::string> contacted;
   bb_NetAddr_ bind[2];                     // BIND je Familie; keine gesetzt: beide Familien, jede Adresse
 
   // Sitzung
@@ -362,6 +367,8 @@ struct bb_NetState_ {
   bb_NetAddrs_ joinAddrs;                  // JOIN geht an alle zugleich, die erste Antwort gewinnt
   uint32_t joinNonce = 0;
   bb_NetAddrs_ joinOwn;                    // eigene Adressen, im JOIN an den Host
+  int joinKnock = 0;                       // Klopfen: 0 keins, 1 laeuft, 2 angenommen, -1 abgelehnt
+  int64_t joinKnockAt = 0;                 // wann der Listen-Server es angenommen hat
   std::string joinName;
   int joinResult = 0;                      // 0 laeuft, 1 beigetreten, -1 abgelehnt
   std::string joinReason;
@@ -431,6 +438,7 @@ inline void bb_net_setting_(const std::string& key, const std::string& val, cons
       a0 = comma + 1;
     }
   }
+  else if (k == "firewall") S.firewall = std::atoi(val.c_str()) != 0;
   else if (k == "drop") S.drop = std::max(0, std::min(100, std::atoi(val.c_str())));
   else if (k == "upnp") {
     // 0 aus, 1 an, oder die URL der Geraetebeschreibung (Tests, Router, die die Suche nicht beantworten)
@@ -467,7 +475,7 @@ inline void bb_net_read_settings_() {
     bb_net_setting_(bb_net_trim_(line.substr(0, eq)), bb_net_trim_(line.substr(eq + 1)), (base + ".net").c_str());
   }
   // Umgebungsvariablen gewinnen vor der Datei
-  static const char* keys[] = {"JOIN", "SERVER", "APP", "PORT", "LAN", "BIND", "DROP", "UPNP"};
+  static const char* keys[] = {"JOIN", "SERVER", "APP", "PORT", "LAN", "BIND", "DROP", "UPNP", "FIREWALL"};
   for (const char* k : keys) {
     const std::string name = std::string("BLTZNXT_NET_") + k;
     if (const char* v = std::getenv(name.c_str())) bb_net_setting_(k, v, name.c_str());
@@ -604,11 +612,30 @@ inline bb_socket_t bb_net_sock_for_(const bb_NetAddr_& a) {
   return a.fam ? bb_net_.sockC[bb_net_fi_(a.fam)] : BB_INVALID_SOCKET;
 }
 
+// Schluessel einer Adresse fuer die nachgebaute Firewall
+inline std::string bb_net_fw_key_(const bb_NetAddr_& a) {
+  return std::string(1, static_cast<char>(a.fam)) + std::string(reinterpret_cast<const char*>(a.ip), 16) +
+         std::to_string(a.port);
+}
+
+// Testschalter BLTZNXT_NET_FIREWALL: durchlassen, was von einer Adresse
+// kommt, an die dieses Programm schon etwas geschickt hat.
+inline bool bb_net_fw_allows_(const bb_NetAddr_& from) {
+  if (!bb_net_.firewall) return true;
+  std::lock_guard<std::mutex> g(bb_net_.fwM);
+  return bb_net_.contacted.count(bb_net_fw_key_(from)) != 0;
+}
+
 inline void bb_net_sendto_(bb_socket_t s, const bb_NetAddr_& a, const std::string& d) {
   if (s == BB_INVALID_SOCKET) return;
   sockaddr_storage ss;
   const socklen_t n = bb_net_to_sa_(a, ss);
-  if (n) sendto(s, d.data(), static_cast<int>(d.size()), 0, reinterpret_cast<const sockaddr*>(&ss), n);
+  if (!n) return;
+  if (bb_net_.firewall) {
+    std::lock_guard<std::mutex> g(bb_net_.fwM);
+    bb_net_.contacted.insert(bb_net_fw_key_(a));
+  }
+  sendto(s, d.data(), static_cast<int>(d.size()), 0, reinterpret_cast<const sockaddr*>(&ss), n);
 }
 
 // Testschalter BLTZNXT_NET_DROP: verwirft einen Anteil der Pakete beider Richtungen.
@@ -1323,7 +1350,9 @@ inline void bb_net_thread_() {
         const int n = recvfrom(s, &buf[0], static_cast<int>(buf.size()), 0,
                                reinterpret_cast<sockaddr*>(&from), &fl);
         if (n <= 0) break;
-        bb_net_on_packet_(s, bb_net_from_sa_(from), std::string(buf.data(), static_cast<size_t>(n)), now);
+        const bb_NetAddr_ fa = bb_net_from_sa_(from);
+        if (!bb_net_fw_allows_(fa)) continue;   // nachgebaute Firewall (Test)
+        bb_net_on_packet_(s, fa, std::string(buf.data(), static_cast<size_t>(n)), now);
       }
     }
     bb_net_tick_(now);
@@ -1491,10 +1520,35 @@ inline std::string bb_net_server_url_(const std::string& base, const std::string
 
 // Haelt den Eintrag beim Listen-Server: anmelden, alle 30 s ein Lebenszeichen.
 // Endet, sobald regGen weiterzaehlt (StopNetGame, neue Anmeldung, Ende).
+inline constexpr int BB_NET_KNOCK_POLL = 3000;   // so oft fragt der Host nach Klopfern (Entscheidung 2)
+
+// Antwort auf a=knocks: "ok", dann je Klopfer "ip6<TAB>port". Jedem Klopfer
+// schickt der Host vom IPv6-Spielport ein paar KNOCK-Pakete; damit laesst die
+// Firewall seines Routers die Antworten dieser Adresse durch. Ohne Mutex aufrufen.
+inline void bb_net_knock_back_(int gen, const std::string& resp) {
+  auto& S = bb_net_;
+  size_t pos = resp.find('\n');
+  while (pos != std::string::npos && pos + 1 < resp.size()) {
+    const size_t e = resp.find('\n', pos + 1);
+    std::string line = resp.substr(pos + 1, e == std::string::npos ? std::string::npos : e - pos - 1);
+    pos = e;
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+    const size_t tab = line.find('\t');
+    bb_NetAddr_ a;
+    if (tab == std::string::npos || !bb_net_parse_ip_(line.substr(0, tab), a) || a.fam != 6) continue;
+    a.port = std::atoi(line.c_str() + tab + 1);
+    if (a.port <= 0 || a.port > 65535) continue;
+    std::lock_guard<std::mutex> g(S.m);
+    if (S.regGen != gen || S.sockH[1] == BB_INVALID_SOCKET) return;
+    const std::string pkt = bb_net_pkt_(BB_NK_KNOCK).b;
+    for (int i = 0; i < 3; ++i) bb_net_sendto_(S.sockH[1], a, pkt);
+  }
+}
+
 inline void bb_net_reg_run_(int gen, std::string url, std::string body) {
   auto& S = bb_net_;
   std::string key;
-  int64_t next = 0;
+  int64_t next = 0, nextKnock = 0;
   bool warned = false;
   while (!S.quit && S.regGen == gen) {
     const int64_t now = bb_net_now_();
@@ -1522,6 +1576,24 @@ inline void bb_net_reg_run_(int gen, std::string url, std::string body) {
         if (resp.compare(0, 3, "err") == 0) key.clear();   // abgelaufen: neu anmelden
       }
       next = bb_net_now_() + (key.empty() ? 10000 : 30000);
+      nextKnock = bb_net_now_() + BB_NET_KNOCK_POLL;
+    }
+    // Klopfer abfragen (NETWORK.md, IPv6 Punkt 7a), nur mit einem IPv6-Spielport
+    bool v6 = false;
+    {
+      std::lock_guard<std::mutex> g(S.m);
+      v6 = S.sockH[1] != BB_INVALID_SOCKET;
+    }
+    if (!key.empty() && v6 && bb_net_now_() >= nextKnock) {
+      int status = 0;
+      const std::string resp = bb_net_http_(true, url, "a=knocks&key=" + bb_net_urlenc_(key), 5000, status);
+      if (resp.compare(0, 3, "err") == 0) {
+        key.clear();   // abgelaufen: neu anmelden
+        next = 0;
+      } else if (status == 200 && resp.compare(0, 2, "ok") == 0) {
+        bb_net_knock_back_(gen, resp);
+      }
+      nextKnock = bb_net_now_() + BB_NET_KNOCK_POLL;
     }
     bb_net_sleep_(50);
   }
@@ -2031,11 +2103,16 @@ inline void bb_net_prefer_(bb_NetOffer_& o, bool own_global6) {
 }
 
 // Alle Adressen zu addr: steht addr bei einem Spiel der letzten Suche, auch
-// dessen andere Adressen (JoinNetGame mit NetGameIP$). Unter dem Mutex.
-inline bb_NetAddrs_ bb_net_listed_addrs_(const bb_NetAddr_& addr) {
+// dessen andere Adressen (JoinNetGame mit NetGameIP$); knock_token wird die
+// Kennung eines Spiels vom Listen-Server, zum Klopfen. Unter dem Mutex.
+inline bb_NetAddrs_ bb_net_listed_addrs_(const bb_NetAddr_& addr, uint32_t& knock_token) {
+  knock_token = 0;
   for (auto& o : bb_net_.list)
     for (auto& a : o.addrs)
-      if (bb_net_same_addr_(a, addr)) return bb_net_merge_addrs_(addr, o.addrs);
+      if (bb_net_same_addr_(a, addr)) {
+        knock_token = o.lan ? 0 : o.token;
+        return bb_net_merge_addrs_(addr, o.addrs);
+      }
   return {addr};
 }
 
@@ -2077,11 +2154,27 @@ inline std::vector<bb_NetOffer_> bb_net_find_(int timeout) {
   return out;
 }
 
+// Klopfen beim Listen-Server (NETWORK.md, IPv6 Punkt 7a): "ich will zu Spiel
+// token, von meiner IPv6-Adresse own". Eigener Thread, damit JOIN schon laeuft.
+inline void bb_net_knock_run_(uint32_t nonce, std::string url, std::string body) {
+  int status = 0;
+  const std::string resp = bb_net_trim_(bb_net_http_(true, url, body, 5000, status));
+  const bool ok = status == 200 && resp == "ok";
+  std::lock_guard<std::mutex> g(bb_net_.m);
+  if (bb_net_.joinNonce != nonce || bb_net_.joinKnock != 1) return;
+  bb_net_.joinKnock = ok ? 2 : -1;
+  bb_net_.joinKnockAt = bb_net_now_();
+}
+
 // Beitritt an den Adressen addrs (alle zugleich, die erste Antwort gewinnt);
-// 1 beigetreten, 0 nicht (Grund auf stderr, wenn quiet = false).
-inline int bb_net_join_(const bb_NetAddrs_& addrs, const std::string& name, bool quiet) {
+// 1 beigetreten, 0 nicht (Grund auf stderr, wenn quiet = false). knock_token:
+// das Spiel stammt vom Listen-Server und hat diese Kennung; hat es eine
+// IPv6-Adresse, klopft der Client dort an und wartet laenger, bis der Host
+// nachgefragt und seine Firewall geoeffnet hat.
+inline int bb_net_join_(const bb_NetAddrs_& addrs, const std::string& name, bool quiet, uint32_t knock_token = 0) {
   auto& S = bb_net_;
   if (addrs.empty()) return 0;
+  const int64_t start = bb_net_now_();
   {
     std::lock_guard<std::mutex> g(S.m);
     S.joining = true;
@@ -2092,13 +2185,29 @@ inline int bb_net_join_(const bb_NetAddrs_& addrs, const std::string& name, bool
     S.joinResult = 0;
     S.joinReason.clear();
     S.joinLast = 0;
+    S.joinKnock = 0;
+    const std::string url = bb_net_server_();
+    bool v6target = false;
+    for (auto& a : addrs) v6target = v6target || (a.fam == 6 && bb_net_sock_for_(a) != BB_INVALID_SOCKET);
+    if (knock_token && v6target && !url.empty())
+      for (auto& own : S.joinOwn)
+        if (own.fam == 6) {
+          S.joinKnock = 1;
+          std::thread(bb_net_knock_run_, S.joinNonce, url,
+                      "a=knock&app=" + bb_net_urlenc_(bb_net_app_()) + "&token=" + std::to_string(knock_token) +
+                          "&ip6=" + bb_net_urlenc_(bb_net_ip_text_(own)) + "&port=" + std::to_string(own.port))
+              .detach();
+          break;
+        }
   }
-  const int64_t end = bb_net_now_() + 3000;
   int result = 0;
   std::string reason;
   for (;;) {
     {
       std::lock_guard<std::mutex> g(S.m);
+      int64_t end = start + 3000;
+      if (S.joinKnock == 1) end = std::max(end, start + 6000);   // Antwort des Listen-Servers abwarten
+      if (S.joinKnock == 2) end = std::max(end, S.joinKnockAt + BB_NET_KNOCK_POLL + 2000);
       if (S.joinResult != 0 || bb_net_now_() >= end) {
         result = S.joinResult;
         reason = S.joinReason;
@@ -2190,7 +2299,7 @@ inline int bb_StartNetGame() {
       bb_net_sleep_(pause);
     }
     for (auto& o : bb_net_find_(round == 0 ? 1000 : 500))
-      if (bb_net_join_(o.addrs, "", true)) return 1;
+      if (bb_net_join_(o.addrs, "", true, o.lan ? 0 : o.token)) return 1;
   }
   return bb_net_host_(bb_net_default_name_());
 }
@@ -2213,7 +2322,7 @@ inline int bb_JoinNetGame(const bbString& game_name, const bbString& ip_address)
     for (auto& o : bb_net_find_(1000)) {
       if (!want.empty() && bb_net_lower_(o.name) != want) continue;
       any = true;
-      if (bb_net_join_(o.addrs, game_name, true)) return 1;
+      if (bb_net_join_(o.addrs, game_name, true, o.lan ? 0 : o.token)) return 1;
     }
     std::cerr << "JoinNetGame: " << (any ? "could not join" : "found no") << " game '" << game_name << "'\n";
     return 0;
@@ -2224,11 +2333,12 @@ inline int bb_JoinNetGame(const bbString& game_name, const bbString& ip_address)
     return 0;
   }
   bb_NetAddrs_ addrs;
+  uint32_t token = 0;
   {
     std::lock_guard<std::mutex> g(bb_net_.m);
-    addrs = bb_net_listed_addrs_(a);   // NetGameIP$ eines gefundenen Spiels: auch seine anderen Adressen
+    addrs = bb_net_listed_addrs_(a, token);   // NetGameIP$ eines gefundenen Spiels: auch seine anderen Adressen
   }
-  return bb_net_join_(addrs, game_name, false);
+  return bb_net_join_(addrs, game_name, false, token);
 }
 
 inline void bb_StopNetGame() {
