@@ -55,3 +55,16 @@ Function Describe$()
 	End Select
 	Return t + " " + NameOf(NetMsgFrom()) + "->" + NameOf(NetMsgTo()) + " [" + NetMsgData() + "]"
 End Function
+
+; Adresse dieses Rechners: 127.0.0.1, im IPv6-Durchgang von run_net_tests.sh ::1
+Function Lo$()
+	a$ = GetEnv("NET_TEST_LO")
+	If a = "" Then a = "127.0.0.1"
+	Return a
+End Function
+
+; Dieselbe Adresse vor einem Port oder in einer URL: IPv6 in eckigen Klammern
+Function LoUrl$()
+	If Instr(Lo(), ":") Then Return "[" + Lo() + "]"
+	Return Lo()
+End Function

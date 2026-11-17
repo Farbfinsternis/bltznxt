@@ -1,5 +1,22 @@
 # BlitzNext Developer Log
 
+## 2026-11-17 — Network: IPv6 addresses and sockets (package 6.1)
+
+First step of IPv6 for the Network Update (NETWORK.md, section "IPv6"). The networking code
+had IPv4 built in everywhere; now one address type carries either family, and the client
+port and the game port each get an IPv4 and an IPv6 socket. Without IPv6 on the system
+everything runs over IPv4 as before.
+
+Addresses with a port are written `[2a03:ed00::1]:2350`, without a port also bare; this works
+in `JoinNetGame`, the `join` setting and `BLTZNXT_NET_JOIN`, and `NetGameIP$` returns it that
+way. `BLTZNXT_NET_BIND` takes either family. The welcome and machine-list messages now carry
+the address family, so the protocol version is 2. Each machine still has one address; address
+lists, the list-server field for IPv6 and knocking through the router's firewall follow.
+
+The multi-process tests now run every case twice, over `127.0.0.1` and over `::1`: 14 of 14
+pass, the list server included. Not tried yet: running without a bind address, with both
+families on every interface, which brings up the Windows firewall prompt.
+
 ## 2026-10-29 — Network: games.php on a real web space
 
 The PHP list server had only been written, never run: the development machine has no PHP,

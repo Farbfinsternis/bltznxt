@@ -23,7 +23,7 @@
 //
 // Einstellungen von aussen (gewinnen vor dem Code): Umgebungsvariablen
 // BLTZNXT_NET_JOIN/SERVER/APP/PORT/LAN/UPNP, sonst die Datei <exe>.net neben der
-// Exe. Nur fuer Tests: BLTZNXT_NET_BIND (Adresse der Sockets, 127.0.0.1 haelt
+// Exe. Nur fuer Tests: BLTZNXT_NET_BIND (Adresse der Sockets, 127.0.0.1 oder ::1 haelt
 // die Firewall-Abfrage fern) und BLTZNXT_NET_DROP (Prozent verworfener
 // Pakete).
 
@@ -55,7 +55,7 @@
 // Konstanten und Hilfen
 // ============================================================
 
-inline constexpr int    BB_NET_VERSION   = 1;
+inline constexpr int    BB_NET_VERSION   = 2;   // 2: Adressen mit Familie (IPv6) in WELCOME und MADD
 inline constexpr int    BB_NET_PORT      = 2350;   // aus dem alten DirectPlay-Bereich
 inline constexpr size_t BB_NET_FRAG      = 1100;   // Nutzdaten je Paket
 inline constexpr size_t BB_NET_WINDOW    = 256;    // unbestaetigte Pakete je Verbindung
@@ -137,20 +137,120 @@ inline bb_NetW_ bb_net_pkt_(int kind) {
   return w;
 }
 
-inline bool bb_net_same_addr_(const sockaddr_in& a, const sockaddr_in& b) {
-  return a.sin_addr.s_addr == b.sin_addr.s_addr && a.sin_port == b.sin_port;
+// ============================================================
+// Adressen: IPv4 oder IPv6 (NETWORK.md, Abschnitt "IPv6")
+// ============================================================
+
+// Eine Socket-Adresse mit Port. IPv4 bleibt ein eigener Fall, keine
+// IPv4-in-IPv6-Adressen. fam 0 = leer (etwa der eigene Eintrag des Hosts in
+// der Rechnerliste).
+struct bb_NetAddr_ {
+  int fam = 0;                 // 0, 4 oder 6
+  unsigned char ip[16] = {};   // Netzreihenfolge; IPv4 in den ersten 4 Byte
+  int port = 0;
+  uint32_t scope = 0;          // Zone einer IPv6-Adresse im LAN (fe80::...%n), nur auf diesem Rechner gueltig
+};
+
+inline int bb_net_ip_len_(int fam) { return fam == 6 ? 16 : fam == 4 ? 4 : 0; }
+
+inline bool bb_net_same_addr_(const bb_NetAddr_& a, const bb_NetAddr_& b) {
+  return a.fam == b.fam && a.port == b.port && std::memcmp(a.ip, b.ip, bb_net_ip_len_(a.fam)) == 0;
 }
-inline sockaddr_in bb_net_addr_(uint32_t ip_host_order, int port) {
-  sockaddr_in a{};
-  a.sin_family = AF_INET;
-  a.sin_addr.s_addr = htonl(ip_host_order);
-  a.sin_port = htons(static_cast<uint16_t>(port));
+
+inline bb_NetAddr_ bb_net_addr4_(uint32_t ip_host_order, int port) {
+  bb_NetAddr_ a;
+  a.fam = 4;
+  a.port = port;
+  for (int i = 0; i < 4; ++i) a.ip[i] = static_cast<unsigned char>(ip_host_order >> (24 - 8 * i));
   return a;
 }
-inline std::string bb_net_ip_text_(const sockaddr_in& a) {
-  const uint32_t ip = ntohl(a.sin_addr.s_addr);
-  return std::to_string(ip >> 24) + "." + std::to_string((ip >> 16) & 255) + "." +
-         std::to_string((ip >> 8) & 255) + "." + std::to_string(ip & 255);
+
+inline bb_NetAddr_ bb_net_from_sa_(const sockaddr_storage& ss) {
+  bb_NetAddr_ a;
+  if (ss.ss_family == AF_INET) {
+    const auto& s4 = reinterpret_cast<const sockaddr_in&>(ss);
+    a.fam = 4;
+    std::memcpy(a.ip, &s4.sin_addr, 4);
+    a.port = ntohs(s4.sin_port);
+  } else if (ss.ss_family == AF_INET6) {
+    const auto& s6 = reinterpret_cast<const sockaddr_in6&>(ss);
+    a.fam = 6;
+    std::memcpy(a.ip, &s6.sin6_addr, 16);
+    a.port = ntohs(s6.sin6_port);
+    a.scope = s6.sin6_scope_id;
+  }
+  return a;
+}
+
+// Socket-Adresse fuer sendto/bind/connect; 0 bei einer leeren Adresse.
+inline socklen_t bb_net_to_sa_(const bb_NetAddr_& a, sockaddr_storage& ss) {
+  std::memset(&ss, 0, sizeof(ss));
+  if (a.fam == 4) {
+    auto& s4 = reinterpret_cast<sockaddr_in&>(ss);
+    s4.sin_family = AF_INET;
+    std::memcpy(&s4.sin_addr, a.ip, 4);
+    s4.sin_port = htons(static_cast<uint16_t>(a.port));
+    return sizeof(sockaddr_in);
+  }
+  if (a.fam == 6) {
+    auto& s6 = reinterpret_cast<sockaddr_in6&>(ss);
+    s6.sin6_family = AF_INET6;
+    std::memcpy(&s6.sin6_addr, a.ip, 16);
+    s6.sin6_port = htons(static_cast<uint16_t>(a.port));
+    s6.sin6_scope_id = a.scope;
+    return sizeof(sockaddr_in6);
+  }
+  return 0;
+}
+
+// Nur die Adresse, IPv6 ohne Klammern: "1.2.3.4", "2a03:ed00::1".
+inline std::string bb_net_ip_text_(const bb_NetAddr_& a) {
+  char b[64] = {};
+  if (a.fam == 4) inet_ntop(AF_INET, const_cast<unsigned char*>(a.ip), b, sizeof(b));
+  else if (a.fam == 6) inet_ntop(AF_INET6, const_cast<unsigned char*>(a.ip), b, sizeof(b));
+  return b;
+}
+
+// Adresse mit Port: "1.2.3.4:2350", "[2a03:ed00::1]:2350".
+inline std::string bb_net_addr_text_(const bb_NetAddr_& a) {
+  const std::string ip = bb_net_ip_text_(a);
+  return (a.fam == 6 ? "[" + ip + "]" : ip) + ":" + std::to_string(a.port);
+}
+
+// Eine IP-Adresse als Text (ohne Port, IPv6 auch in Klammern); kein Rechnername.
+inline bool bb_net_parse_ip_(std::string s, bb_NetAddr_& out) {
+  if (s.size() >= 2 && s.front() == '[' && s.back() == ']') s = s.substr(1, s.size() - 2);
+  bb_NetAddr_ a;
+  if (inet_pton(AF_INET, s.c_str(), a.ip) == 1) a.fam = 4;
+  else if (inet_pton(AF_INET6, s.c_str(), a.ip) == 1) a.fam = 6;
+  else return false;
+  a.port = out.port;
+  out = a;
+  return true;
+}
+
+inline bool bb_net_loopback_(const bb_NetAddr_& a) {
+  if (a.fam == 4) return a.ip[0] == 127;
+  if (a.fam == 6) {
+    static const unsigned char lo[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
+    return std::memcmp(a.ip, lo, 16) == 0;
+  }
+  return false;
+}
+
+// Im Protokoll: Familie (0, 4, 6), 0/4/16 Byte Adresse, Port.
+inline void bb_net_put_addr_(bb_NetW_& w, const bb_NetAddr_& a) {
+  w.u8(a.fam);
+  w.b.append(reinterpret_cast<const char*>(a.ip), bb_net_ip_len_(a.fam));
+  w.u16(a.port);
+}
+inline bb_NetAddr_ bb_net_get_addr_(bb_NetR_& r) {
+  bb_NetAddr_ a;
+  a.fam = r.u8();
+  if (a.fam != 0 && a.fam != 4 && a.fam != 6) { r.ok = false; return bb_NetAddr_(); }
+  for (int i = 0; i < bb_net_ip_len_(a.fam); ++i) a.ip[i] = static_cast<unsigned char>(r.u8());
+  a.port = r.u16();
+  return r.ok ? a : bb_NetAddr_();
 }
 
 // ============================================================
@@ -161,7 +261,7 @@ struct bb_NetOut_ { std::string pkt; int64_t sent = 0; int rto = 0; int tries = 
 struct bb_NetUnrelAsm_ { std::vector<std::string> parts; int got = 0; int64_t start = 0; };
 
 struct bb_NetPeer_ {
-  sockaddr_in addr{};
+  bb_NetAddr_ addr;
   bb_socket_t sock = BB_INVALID_SOCKET;
   int machine = 0;
   // zuverlaessig, senden
@@ -180,24 +280,26 @@ struct bb_NetPeer_ {
   double srtt = 100;
 };
 
-struct bb_NetMachine_ { uint32_t ip = 0; int port = 0; int order = 0; };
+struct bb_NetMachine_ { bb_NetAddr_ addr; int order = 0; };
 struct bb_NetPlayer_  { std::string name; int machine = 0; };
 struct bb_NetMsg_     { int type = 0, from = 0, to = 0; std::string data; };
-struct bb_NetOffer_   { std::string name; sockaddr_in addr{}; int players = 0; int lan = 0; uint32_t token = 0; };
+struct bb_NetOffer_   { std::string name; bb_NetAddr_ addr; int players = 0; int lan = 0; uint32_t token = 0; };
 
 struct bb_NetState_ {
   std::mutex m;
   bool inited = false;
   std::atomic<bool> quit{false}, threadDone{false};
-  bb_socket_t sockC = BB_INVALID_SOCKET;   // Client-Verkehr und Suche, freier Port
-  bb_socket_t sockH = BB_INVALID_SOCKET;   // Spielport, solange gehostet wird
+  // Je Familie ein Socket: [0] IPv4, [1] IPv6. Ein Dual-Mode-Socket waere
+  // kuerzer, aber Broadcast ueber ihn ist unsicher (NETWORK.md, IPv6 Punkt 2).
+  bb_socket_t sockC[2] = {BB_INVALID_SOCKET, BB_INVALID_SOCKET};   // Client-Verkehr und Suche, freier Port
+  bb_socket_t sockH[2] = {BB_INVALID_SOCKET, BB_INVALID_SOCKET};   // Spielport, solange gehostet wird
 
   // Einstellungen: von aussen (ext*) vor dem Code (code*)
   std::string extApp, codeApp, extServer, codeServer, extJoin;
   bool extAppSet = false, extServerSet = false;
   int extPort = 0, codePort = 0;
   int lan = 1, drop = 0;
-  uint32_t bindIp = 0;                     // INADDR_ANY
+  bb_NetAddr_ bind;                        // fam 0: beide Familien, jede Adresse; sonst nur diese Familie
 
   // Sitzung
   std::atomic<bool> started{false};
@@ -214,7 +316,7 @@ struct bb_NetState_ {
 
   // Beitritt (Client) und doppelte JOINs (Host)
   bool joining = false;
-  sockaddr_in joinAddr{};
+  bb_NetAddr_ joinAddr;
   uint32_t joinNonce = 0;
   std::string joinName;
   int joinResult = 0;                      // 0 laeuft, 1 beigetreten, -1 abgelehnt
@@ -273,8 +375,9 @@ inline void bb_net_setting_(const std::string& key, const std::string& val, cons
   else if (k == "port") S.extPort = std::atoi(val.c_str());
   else if (k == "lan") S.lan = std::atoi(val.c_str()) != 0;
   else if (k == "bind") {
-    in_addr a{};
-    if (inet_pton(AF_INET, val.c_str(), &a) == 1) S.bindIp = ntohl(a.s_addr);
+    bb_NetAddr_ a;
+    if (bb_net_parse_ip_(bb_net_trim_(val), a)) S.bind = a;
+    else std::cerr << "Net settings: '" << val << "' is no IP address (bind, " << where << ")\n";
   }
   else if (k == "drop") S.drop = std::max(0, std::min(100, std::atoi(val.c_str())));
   else if (k == "upnp") {
@@ -323,18 +426,30 @@ inline void bb_net_read_settings_() {
 // Sockets
 // ============================================================
 
-inline bb_socket_t bb_net_open_socket_(int port) {
-  bb_socket_t s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+inline int bb_net_fi_(int fam) { return fam == 6 ? 1 : 0; }   // Index in sockC/sockH
+
+// Ein UDP-Socket der Familie fam (4 oder 6). Ist BIND auf die andere Familie
+// gesetzt, gibt es keinen.
+inline bb_socket_t bb_net_open_socket_(int fam, int port) {
+  const bb_NetAddr_& b = bb_net_.bind;
+  if (b.fam != 0 && b.fam != fam) return BB_INVALID_SOCKET;
+  bb_socket_t s = socket(fam == 6 ? AF_INET6 : AF_INET, SOCK_DGRAM, IPPROTO_UDP);
   if (s == BB_INVALID_SOCKET) return s;
   int one = 1, big = 4 << 20;
-  setsockopt(s, SOL_SOCKET, SO_BROADCAST, reinterpret_cast<const char*>(&one), sizeof(one));
+  if (fam == 4) setsockopt(s, SOL_SOCKET, SO_BROADCAST, reinterpret_cast<const char*>(&one), sizeof(one));
+  else setsockopt(s, IPPROTO_IPV6, IPV6_V6ONLY, reinterpret_cast<const char*>(&one), sizeof(one));
   setsockopt(s, SOL_SOCKET, SO_RCVBUF, reinterpret_cast<const char*>(&big), sizeof(big));
   setsockopt(s, SOL_SOCKET, SO_SNDBUF, reinterpret_cast<const char*>(&big), sizeof(big));
 #ifdef _WIN32
   setsockopt(s, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, reinterpret_cast<const char*>(&one), sizeof(one));
 #endif
-  sockaddr_in a = bb_net_addr_(bb_net_.bindIp, port);
-  if (bind(s, reinterpret_cast<sockaddr*>(&a), sizeof(a)) != 0) {
+  bb_NetAddr_ a;
+  if (b.fam == fam) a = b;
+  a.fam = fam;
+  a.port = port;
+  sockaddr_storage ss;
+  const socklen_t n = bb_net_to_sa_(a, ss);
+  if (bind(s, reinterpret_cast<sockaddr*>(&ss), n) != 0) {
     closesocket(s);
     return BB_INVALID_SOCKET;
   }
@@ -353,15 +468,50 @@ inline bb_socket_t bb_net_open_socket_(int port) {
 
 inline int bb_net_sock_port_(bb_socket_t s) {
   if (s == BB_INVALID_SOCKET) return 0;
-  sockaddr_in a{};
-  socklen_t n = sizeof(a);
-  if (getsockname(s, reinterpret_cast<sockaddr*>(&a), &n) != 0) return 0;
-  return ntohs(a.sin_port);
+  sockaddr_storage ss{};
+  socklen_t n = sizeof(ss);
+  if (getsockname(s, reinterpret_cast<sockaddr*>(&ss), &n) != 0) return 0;
+  return bb_net_from_sa_(ss).port;
 }
 
-inline void bb_net_sendto_(bb_socket_t s, const sockaddr_in& a, const std::string& d) {
+// Port eines Socket-Paars (beide Familien haben denselben, sonst der erste offene).
+inline int bb_net_pair_port_(const bb_socket_t (&socks)[2]) {
+  return socks[0] != BB_INVALID_SOCKET ? bb_net_sock_port_(socks[0]) : bb_net_sock_port_(socks[1]);
+}
+
+inline void bb_net_close_pair_(bb_socket_t (&socks)[2]) {
+  for (auto& s : socks)
+    if (s != BB_INVALID_SOCKET) { closesocket(s); s = BB_INVALID_SOCKET; }
+}
+
+// Spielport in beiden Familien oeffnen. Scheitert die Hauptfamilie (IPv4,
+// bei BIND auf IPv6 diese), ist der Port belegt; fehlt nur IPv6 (im System
+// aus), geht es ohne Meldung mit IPv4 weiter.
+inline bool bb_net_open_host_(int port) {
+  auto& S = bb_net_;
+  for (int i = 0; i < 2; ++i)
+    if (S.sockH[i] == BB_INVALID_SOCKET) S.sockH[i] = bb_net_open_socket_(i ? 6 : 4, port);
+  if (S.sockH[S.bind.fam == 6 ? 1 : 0] == BB_INVALID_SOCKET) {
+    bb_net_close_pair_(S.sockH);
+    return false;
+  }
+  return true;
+}
+
+inline bool bb_net_have_client_() {
+  return bb_net_.sockC[0] != BB_INVALID_SOCKET || bb_net_.sockC[1] != BB_INVALID_SOCKET;
+}
+
+// Der Client-Socket, ueber den eine Adresse erreichbar ist.
+inline bb_socket_t bb_net_sock_for_(const bb_NetAddr_& a) {
+  return a.fam ? bb_net_.sockC[bb_net_fi_(a.fam)] : BB_INVALID_SOCKET;
+}
+
+inline void bb_net_sendto_(bb_socket_t s, const bb_NetAddr_& a, const std::string& d) {
   if (s == BB_INVALID_SOCKET) return;
-  sendto(s, d.data(), static_cast<int>(d.size()), 0, reinterpret_cast<const sockaddr*>(&a), sizeof(a));
+  sockaddr_storage ss;
+  const socklen_t n = bb_net_to_sa_(a, ss);
+  if (n) sendto(s, d.data(), static_cast<int>(d.size()), 0, reinterpret_cast<const sockaddr*>(&ss), n);
 }
 
 // Testschalter BLTZNXT_NET_DROP: verwirft einen Anteil der Pakete beider Richtungen.
@@ -442,7 +592,7 @@ inline void bb_net_flush_acks_(bb_NetPeer_& p) {
   p.acks.clear();
 }
 
-inline bb_NetPeer_& bb_net_new_peer_(int machine, const sockaddr_in& addr, bb_socket_t sock) {
+inline bb_NetPeer_& bb_net_new_peer_(int machine, const bb_NetAddr_& addr, bb_socket_t sock) {
   bb_NetPeer_& p = bb_net_.peers[machine];
   p = bb_NetPeer_();
   p.machine = machine;
@@ -483,8 +633,7 @@ inline std::string bb_net_madd_payload_(int id, const bb_NetMachine_& mc) {
   bb_NetW_ w;
   w.u8(BB_NS_MADD);
   w.i32(id);
-  w.u32(mc.ip);
-  w.u16(mc.port);
+  bb_net_put_addr_(w, mc.addr);
   w.i32(mc.order);
   return w.b;
 }
@@ -550,7 +699,7 @@ inline void bb_net_become_host_(int64_t now) {
   S.nextMachine = maxId + 1;
   S.nextOrder = maxOrder + 1;
   S.resumeDeadline = now + BB_NET_MIGRATE;
-  if (S.sockH == BB_INVALID_SOCKET) S.sockH = bb_net_open_socket_(bb_net_port_());
+  if (S.sockH[0] == BB_INVALID_SOCKET && S.sockH[1] == BB_INVALID_SOCKET) bb_net_open_host_(bb_net_port_());
   bb_net_event_(102, -1);
   bb_net_reg_start_();
   bb_net_upnp_start_();
@@ -621,8 +770,7 @@ inline void bb_net_deliver_(int machine, const std::string& pl, bool reliable) {
   } else if (kind == BB_NS_MADD && !S.isHost) {
     const int id = r.i32();
     bb_NetMachine_ mc;
-    mc.ip = r.u32();
-    mc.port = r.u16();
+    mc.addr = bb_net_get_addr_(r);
     mc.order = r.i32();
     if (r.ok) S.machines[id] = mc;
   } else if (kind == BB_NS_MDEL && !S.isHost) {
@@ -635,13 +783,13 @@ inline void bb_net_deliver_(int machine, const std::string& pl, bool reliable) {
 // Pakete empfangen
 // ============================================================
 
-inline bb_NetPeer_* bb_net_find_peer_(const sockaddr_in& from) {
+inline bb_NetPeer_* bb_net_find_peer_(const bb_NetAddr_& from) {
   for (auto& [mid, p] : bb_net_.peers)
     if (bb_net_same_addr_(p.addr, from)) return &p;
   return nullptr;
 }
 
-inline void bb_net_reject_(bb_socket_t s, const sockaddr_in& to, uint32_t nonce, int code, const std::string& detail) {
+inline void bb_net_reject_(bb_socket_t s, const bb_NetAddr_& to, uint32_t nonce, int code, const std::string& detail) {
   bb_NetW_ w = bb_net_pkt_(BB_NK_REJECT);
   w.u32(nonce);
   w.u8(code);
@@ -649,7 +797,7 @@ inline void bb_net_reject_(bb_socket_t s, const sockaddr_in& to, uint32_t nonce,
   bb_net_sendto_(s, to, w.b);
 }
 
-inline void bb_net_send_welcome_(bb_socket_t s, const sockaddr_in& to, uint32_t nonce, int machine) {
+inline void bb_net_send_welcome_(bb_socket_t s, const bb_NetAddr_& to, uint32_t nonce, int machine) {
   auto& S = bb_net_;
   bb_NetW_ w = bb_net_pkt_(BB_NK_WELCOME);
   w.u32(nonce);
@@ -658,13 +806,13 @@ inline void bb_net_send_welcome_(bb_socket_t s, const sockaddr_in& to, uint32_t 
   w.u32(S.token);
   w.str(S.gameName);
   w.u16(static_cast<int>(S.machines.size()));
-  for (auto& [id, mc] : S.machines) { w.i32(id); w.u32(mc.ip); w.u16(mc.port); w.i32(mc.order); }
+  for (auto& [id, mc] : S.machines) { w.i32(id); bb_net_put_addr_(w, mc.addr); w.i32(mc.order); }
   w.u32(static_cast<uint32_t>(S.players.size()));
   for (auto& [id, pl] : S.players) { w.i32(id); w.i32(pl.machine); w.str(pl.name); }
   bb_net_sendto_(s, to, w.b);
 }
 
-inline void bb_net_on_join_(bb_socket_t s, const sockaddr_in& from, bb_NetR_& r, int version) {
+inline void bb_net_on_join_(bb_socket_t s, const bb_NetAddr_& from, bb_NetR_& r, int version) {
   auto& S = bb_net_;
   const std::string app = bb_net_lower_(r.str()), name = r.str();
   const uint32_t nonce = r.u32();
@@ -684,8 +832,7 @@ inline void bb_net_on_join_(bb_socket_t s, const sockaddr_in& from, bb_NetR_& r,
   }
   const int id = S.nextMachine++;
   bb_NetMachine_ mc;
-  mc.ip = ntohl(from.sin_addr.s_addr);
-  mc.port = ntohs(from.sin_port);
+  mc.addr = from;
   mc.order = S.nextOrder++;
   for (auto& [mid, p] : S.peers) bb_net_send_rel_(p, bb_net_madd_payload_(id, mc));
   S.machines[id] = mc;
@@ -694,7 +841,7 @@ inline void bb_net_on_join_(bb_socket_t s, const sockaddr_in& from, bb_NetR_& r,
   bb_net_send_welcome_(s, from, nonce, id);
 }
 
-inline void bb_net_on_welcome_(const sockaddr_in& from, bb_socket_t s, bb_NetR_& r) {
+inline void bb_net_on_welcome_(const bb_NetAddr_& from, bb_socket_t s, bb_NetR_& r) {
   auto& S = bb_net_;
   const uint32_t nonce = r.u32();
   if (!S.joining || S.joinResult != 0 || nonce != S.joinNonce) return;
@@ -706,8 +853,7 @@ inline void bb_net_on_welcome_(const sockaddr_in& from, bb_socket_t s, bb_NetR_&
   for (int i = 0; i < nm && r.ok; ++i) {
     const int id = r.i32();
     bb_NetMachine_& mc = machines[id];
-    mc.ip = r.u32();
-    mc.port = r.u16();
+    mc.addr = bb_net_get_addr_(r);
     mc.order = r.i32();
   }
   std::map<int, bb_NetPlayer_> players;
@@ -737,7 +883,7 @@ inline void bb_net_on_welcome_(const sockaddr_in& from, bb_socket_t s, bb_NetR_&
   S.joinResult = 1;
 }
 
-inline void bb_net_on_resume_(bb_socket_t s, const sockaddr_in& from, bb_NetR_& r) {
+inline void bb_net_on_resume_(bb_socket_t s, const bb_NetAddr_& from, bb_NetR_& r) {
   auto& S = bb_net_;
   const uint32_t token = r.u32();
   const int machine = r.i32();
@@ -752,8 +898,7 @@ inline void bb_net_on_resume_(bb_socket_t s, const sockaddr_in& from, bb_NetR_& 
     return;
   }
   bb_NetMachine_& mc = S.machines[machine];
-  mc.ip = ntohl(from.sin_addr.s_addr);
-  mc.port = ntohs(from.sin_port);
+  mc.addr = from;
   bb_NetPeer_& p = bb_net_new_peer_(machine, from, s);
   bb_net_sendto_(s, from, ok.b);
   // Der Zurueckgekehrte bekommt den Stand des neuen Hosts, die anderen seine neue Adresse.
@@ -764,7 +909,7 @@ inline void bb_net_on_resume_(bb_socket_t s, const sockaddr_in& from, bb_NetR_& 
     if (mid != machine) bb_net_send_rel_(q, bb_net_madd_payload_(machine, mc));
 }
 
-inline void bb_net_on_resumed_(const sockaddr_in& from, bb_socket_t s, bb_NetR_& r) {
+inline void bb_net_on_resumed_(const bb_NetAddr_& from, bb_socket_t s, bb_NetR_& r) {
   auto& S = bb_net_;
   const uint32_t token = r.u32();
   if (!r.ok || !S.migrating || token != S.token) return;
@@ -820,7 +965,7 @@ inline void bb_net_on_unrel_(int machine, bb_NetR_& r, int64_t now) {
   bb_net_deliver_(machine, whole, false);
 }
 
-inline void bb_net_on_packet_(bb_socket_t s, const sockaddr_in& from, const std::string& d, int64_t now) {
+inline void bb_net_on_packet_(bb_socket_t s, const bb_NetAddr_& from, const std::string& d, int64_t now) {
   auto& S = bb_net_;
   if (d.size() < 5 || d.compare(0, 3, "BNX") != 0) return;
   const int version = static_cast<unsigned char>(d[3]), kind = static_cast<unsigned char>(d[4]);
@@ -917,12 +1062,21 @@ inline void bb_net_on_packet_(bb_socket_t s, const sockaddr_in& from, const std:
 // Takt: Neusenden, Lebenszeichen, Zeitueberschreitungen, Suche
 // ============================================================
 
-inline std::vector<sockaddr_in> bb_net_discover_targets_() {
-  std::vector<sockaddr_in> out;
+// Ziele der Suche im LAN. Sie bleibt bei IPv4-Broadcast (NETWORK.md, IPv6
+// Punkt 8); nur mit BIND auf eine IPv6-Adresse (Tests ueber ::1) sucht sie dort.
+inline std::vector<bb_NetAddr_> bb_net_discover_targets_() {
+  std::vector<bb_NetAddr_> out;
   const int port = bb_net_port_();
-  out.push_back(bb_net_addr_(0x7F000001u, port));
-  if (bb_net_.bindIp != 0) return out;   // an 127.0.0.1 gebunden: kein Broadcast
-  out.push_back(bb_net_addr_(0xFFFFFFFFu, port));
+  const bb_NetAddr_& b = bb_net_.bind;
+  if (b.fam == 6) {
+    bb_NetAddr_ a = b;
+    a.port = port;
+    out.push_back(a);
+    return out;
+  }
+  out.push_back(bb_net_addr4_(0x7F000001u, port));
+  if (b.fam == 4) return out;   // an eine Adresse gebunden: kein Broadcast
+  out.push_back(bb_net_addr4_(0xFFFFFFFFu, port));
   char name[256];
   if (gethostname(name, sizeof(name)) == 0) {
     addrinfo hints{}, *res = nullptr;
@@ -930,7 +1084,7 @@ inline std::vector<sockaddr_in> bb_net_discover_targets_() {
     if (getaddrinfo(name, nullptr, &hints, &res) == 0) {
       for (addrinfo* a = res; a; a = a->ai_next) {
         const uint32_t ip = ntohl(reinterpret_cast<sockaddr_in*>(a->ai_addr)->sin_addr.s_addr);
-        if ((ip >> 24) != 127) out.push_back(bb_net_addr_(ip | 0xFFu, port));   // /24 angenommen
+        if ((ip >> 24) != 127) out.push_back(bb_net_addr4_(ip | 0xFFu, port));   // /24 angenommen
       }
       freeaddrinfo(res);
     }
@@ -944,7 +1098,7 @@ inline void bb_net_tick_(int64_t now) {
     S.discLast = now;
     bb_NetW_ w = bb_net_pkt_(BB_NK_DISCOVER);
     w.str(bb_net_app_());
-    for (auto& a : bb_net_discover_targets_()) bb_net_sendto_(S.sockC, a, w.b);
+    for (auto& a : bb_net_discover_targets_()) bb_net_sendto_(bb_net_sock_for_(a), a, w.b);
   }
   if (S.joining && S.joinResult == 0 && now - S.joinLast >= 250) {
     S.joinLast = now;
@@ -952,7 +1106,7 @@ inline void bb_net_tick_(int64_t now) {
     w.str(bb_net_app_());
     w.str(S.joinName);
     w.u32(S.joinNonce);
-    bb_net_sendto_(S.sockC, S.joinAddr, w.b);
+    bb_net_sendto_(bb_net_sock_for_(S.joinAddr), S.joinAddr, w.b);
   }
   if (!S.started) return;
   if (S.migrating) {
@@ -986,7 +1140,7 @@ inline void bb_net_tick_(int64_t now) {
       bb_NetW_ w = bb_net_pkt_(BB_NK_RESUME);
       w.u32(S.token);
       w.i32(S.myMachine);
-      bb_net_sendto_(S.sockC, bb_net_addr_(mc.ip, mc.port), w.b);
+      bb_net_sendto_(bb_net_sock_for_(mc.addr), mc.addr, w.b);
     }
   }
   if (S.isHost && S.resumeDeadline && now > S.resumeDeadline) {
@@ -1027,11 +1181,13 @@ inline void bb_net_thread_() {
   auto& S = bb_net_;
   std::string buf(65536, '\0');
   while (!S.quit) {
-    bb_socket_t socks[2];
+    bb_socket_t socks[4];
     {
       std::lock_guard<std::mutex> g(S.m);
-      socks[0] = S.sockC;
-      socks[1] = S.sockH;
+      socks[0] = S.sockC[0];
+      socks[1] = S.sockC[1];
+      socks[2] = S.sockH[0];
+      socks[3] = S.sockH[1];
     }
     fd_set rs;
     FD_ZERO(&rs);
@@ -1052,14 +1208,14 @@ inline void bb_net_thread_() {
     const int64_t now = bb_net_now_();
     for (bb_socket_t s : socks) {
       if (s == BB_INVALID_SOCKET || !FD_ISSET(s, &rs)) continue;
-      if (s != S.sockC && s != S.sockH) continue;   // inzwischen geschlossen
+      if (s != S.sockC[0] && s != S.sockC[1] && s != S.sockH[0] && s != S.sockH[1]) continue;   // inzwischen geschlossen
       for (int i = 0; i < 4000; ++i) {
-        sockaddr_in from{};
+        sockaddr_storage from{};
         socklen_t fl = sizeof(from);
         const int n = recvfrom(s, &buf[0], static_cast<int>(buf.size()), 0,
                                reinterpret_cast<sockaddr*>(&from), &fl);
         if (n <= 0) break;
-        bb_net_on_packet_(s, from, std::string(buf.data(), static_cast<size_t>(n)), now);
+        bb_net_on_packet_(s, bb_net_from_sa_(from), std::string(buf.data(), static_cast<size_t>(n)), now);
       }
     }
     bb_net_tick_(now);
@@ -1091,8 +1247,16 @@ inline bool bb_net_url_split_(const std::string& url, std::string& hostport, std
   path = slash == std::string::npos ? "/" : url.substr(slash);
   host = hostport;
   port = "80";
-  const size_t colon = hostport.find(':');
-  if (colon != std::string::npos) { host = hostport.substr(0, colon); port = hostport.substr(colon + 1); }
+  size_t colon = hostport.rfind(':');
+  if (!hostport.empty() && hostport[0] == '[') {   // http://[::1]:8080/
+    const size_t close = hostport.find(']');
+    if (close == std::string::npos) return false;
+    host = hostport.substr(1, close - 1);
+    if (colon < close) colon = std::string::npos;
+  } else if (colon != std::string::npos) {
+    host = hostport.substr(0, colon);
+  }
+  if (colon != std::string::npos) port = hostport.substr(colon + 1);
   return true;
 }
 
@@ -1107,10 +1271,10 @@ inline std::string bb_net_http_plain_(bool post, const std::string& url, const s
   std::string hostport, host, port, path;
   if (!bb_net_url_split_(url, hostport, host, port, path)) return std::string();
   addrinfo hints{}, *res = nullptr;
-  hints.ai_family = AF_INET;
+  hints.ai_family = AF_UNSPEC;
   hints.ai_socktype = SOCK_STREAM;
   if (getaddrinfo(host.c_str(), port.c_str(), &hints, &res) != 0 || !res) return std::string();
-  bb_socket_t s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+  bb_socket_t s = socket(res->ai_family, SOCK_STREAM, IPPROTO_TCP);
   std::string out;
   if (s != BB_INVALID_SOCKET) {
 #ifdef _WIN32
@@ -1262,7 +1426,7 @@ inline void bb_net_reg_start_() {
   S.regKey.clear();
   const std::string url = bb_net_server_();
   if (url.empty() || !S.isHost) return;
-  const int port = S.sockH != BB_INVALID_SOCKET ? bb_net_sock_port_(S.sockH) : bb_net_sock_port_(S.sockC);
+  const int hp = bb_net_pair_port_(S.sockH), port = hp ? hp : bb_net_pair_port_(S.sockC);
   const std::string body = "app=" + bb_net_urlenc_(bb_net_app_()) + "&name=" + bb_net_urlenc_(S.gameName) +
                            "&port=" + std::to_string(port) + "&v=" + std::to_string(BB_NET_VERSION) +
                            "&token=" + std::to_string(S.token);
@@ -1311,11 +1475,10 @@ inline std::vector<bb_NetOffer_> bb_net_server_list_(int timeout) {
       a = t + 1;
     }
     if (f.size() < 4) continue;
-    in_addr ia{};
-    if (inet_pton(AF_INET, f[1].c_str(), &ia) != 1) continue;
     bb_NetOffer_ o;
+    if (!bb_net_parse_ip_(f[1], o.addr)) continue;   // IPv4 oder (Listen-Server ueber IPv6) IPv6
+    o.addr.port = std::atoi(f[2].c_str());
     o.name = f[0];
-    o.addr = bb_net_addr_(ntohl(ia.s_addr), std::atoi(f[2].c_str()));
     o.players = std::atoi(f[3].c_str());
     o.token = f.size() > 4 ? static_cast<uint32_t>(std::strtoul(f[4].c_str(), nullptr, 10)) : 0;
     o.lan = 0;
@@ -1337,7 +1500,7 @@ inline std::vector<bb_NetOffer_> bb_net_server_list_(int timeout) {
 
 inline constexpr int BB_NET_LEASE = 3600;
 
-inline bool bb_net_resolve_(const std::string& text, sockaddr_in& out);
+inline bool bb_net_resolve_(const std::string& text, bb_NetAddr_& out, int want_fam = 0);
 
 // Inhalt des ersten <tag>...</tag> ab from, auch mit Namensraum (<u:tag>).
 inline std::string bb_net_xml_(const std::string& x, const std::string& tag, size_t from = 0) {
@@ -1378,7 +1541,7 @@ inline std::vector<std::string> bb_net_ssdp_(int timeout) {
   timeval tv{0, 100000};
 #endif
   setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&tv), sizeof(tv));
-  const sockaddr_in to = bb_net_addr_(0xEFFFFFFAu, 1900);   // 239.255.255.250
+  const bb_NetAddr_ to = bb_net_addr4_(0xEFFFFFFAu, 1900);   // 239.255.255.250
   static const char* types[] = {"urn:schemas-upnp-org:device:InternetGatewayDevice:1",
                                 "urn:schemas-upnp-org:device:InternetGatewayDevice:2",
                                 "urn:schemas-upnp-org:service:WANIPConnection:1",
@@ -1447,16 +1610,19 @@ inline std::string bb_net_soap_(const bb_NetIgd_& d, const std::string& action, 
 // Eigene Adresse, ueber die dieser Rechner den Router erreicht.
 inline std::string bb_net_local_ip_for_(const std::string& url) {
   std::string hostport, host, port, path;
-  sockaddr_in a{};
-  if (!bb_net_url_split_(url, hostport, host, port, path) || !bb_net_resolve_(host + ":" + port, a)) return "";
+  bb_NetAddr_ a;
+  if (!bb_net_url_split_(url, hostport, host, port, path) ||
+      !bb_net_resolve_((host.find(':') != std::string::npos ? "[" + host + "]" : host) + ":" + port, a, 4))
+    return "";   // die Weiterleitung von UPnP gibt es nur fuer IPv4
   bb_socket_t s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
   if (s == BB_INVALID_SOCKET) return "";
-  sockaddr_in me{};
+  sockaddr_storage to, me{};
+  const socklen_t tn = bb_net_to_sa_(a, to);
   socklen_t n = sizeof(me);
-  const bool ok = connect(s, reinterpret_cast<sockaddr*>(&a), sizeof(a)) == 0 &&
+  const bool ok = connect(s, reinterpret_cast<sockaddr*>(&to), tn) == 0 &&
                   getsockname(s, reinterpret_cast<sockaddr*>(&me), &n) == 0;
   closesocket(s);
-  return ok ? bb_net_ip_text_(me) : "";
+  return ok ? bb_net_ip_text_(bb_net_from_sa_(me)) : "";
 }
 
 // 0 bei Erfolg, sonst der UPnP-Fehlercode (-1 ohne Antwort).
@@ -1555,7 +1721,7 @@ inline bool bb_net_upnp_on_() {
   auto& S = bb_net_;
   if (!S.upnpUrl.empty()) return true;
   if ((S.extUpnp >= 0 ? S.extUpnp : S.codeUpnp) == 0) return false;
-  return (S.bindIp >> 24) != 127;   // Tests an 127.0.0.1: kein Router im Spiel
+  return !bb_net_loopback_(S.bind) && S.bind.fam != 6;   // Tests an 127.0.0.1 oder ::1: kein Router im Spiel
 }
 
 // unter dem Mutex aufrufen; beim Hosten und nach einer Migration
@@ -1564,9 +1730,9 @@ inline void bb_net_upnp_start_() {
   const int gen = ++S.upnpGen;
   S.upnpState = 0;
   S.upnpCtl.clear();
-  if (!S.isHost || !bb_net_upnp_on_() || S.sockH == BB_INVALID_SOCKET) return;
+  if (!S.isHost || !bb_net_upnp_on_() || S.sockH[0] == BB_INVALID_SOCKET) return;
   S.upnpState = -1;
-  std::thread(bb_net_upnp_run_, gen, bb_net_sock_port_(S.sockH), S.upnpUrl, "BLTZNXT " + S.gameName).detach();
+  std::thread(bb_net_upnp_run_, gen, bb_net_sock_port_(S.sockH[0]), S.upnpUrl, "BLTZNXT " + S.gameName).detach();
 }
 
 // Gibt die Weiterleitung zurueck; aus dem Hauptthread, ohne Mutex.
@@ -1592,12 +1758,14 @@ inline void bb_net_quit_();
 
 inline bool bb_net_init_() {
   auto& S = bb_net_;
-  if (S.inited) return S.sockC != BB_INVALID_SOCKET;
+  if (S.inited) return bb_net_have_client_();
   S.inited = true;
   if (!bb_sockets_ready_()) return false;
   bb_net_read_settings_();
-  S.sockC = bb_net_open_socket_(0);
-  if (S.sockC == BB_INVALID_SOCKET) {
+  // Je Familie ein Client-Socket; fehlt IPv6 im System, geht es mit IPv4 allein.
+  S.sockC[0] = bb_net_open_socket_(4, 0);
+  S.sockC[1] = bb_net_open_socket_(6, 0);
+  if (!bb_net_have_client_()) {
     std::cerr << "Net: cannot open a UDP socket\n";
     return false;
   }
@@ -1621,7 +1789,7 @@ inline void bb_net_clear_session_() {
   S.cur = bb_NetMsg_();
   S.pendingOut.clear();
   S.joinNonces.clear();
-  if (S.sockH != BB_INVALID_SOCKET) { closesocket(S.sockH); S.sockH = BB_INVALID_SOCKET; }
+  bb_net_close_pair_(S.sockH);
 }
 
 // Verlaesst das Spiel: offene zuverlaessige Nachrichten bis zu flush_ms noch
@@ -1667,22 +1835,57 @@ inline void bb_net_need_no_game_() {
   if (bb_net_.started) bb_RuntimeError("Multiplayer game already started");
 }
 
-// "host[:port]" aufloesen; false, wenn es den Rechner nicht gibt.
-inline bool bb_net_resolve_(const std::string& text, sockaddr_in& out) {
+// Adresse mit Port aufloesen: "1.2.3.4", "1.2.3.4:2350", "rechner:2350",
+// "[2a03:ed00::1]:2350" oder ohne Port "2a03:ed00::1" (NETWORK.md, IPv6
+// Punkt 6). Ohne Port gilt der Spielport. want_fam 4/6 verlangt diese
+// Familie; sonst nimmt ein Rechnername die erste Adresse einer Familie, fuer
+// die ein Socket offen ist. false, wenn es den Rechner nicht gibt.
+inline bool bb_net_resolve_(const std::string& text, bb_NetAddr_& out, int want_fam) {
   std::string host = bb_net_trim_(text);
   int port = bb_net_port_();
-  const size_t colon = host.rfind(':');
-  if (colon != std::string::npos) {
-    port = std::atoi(host.c_str() + colon + 1);
-    host = host.substr(0, colon);
+  if (!host.empty() && host[0] == '[') {
+    const size_t close = host.find(']');
+    if (close == std::string::npos) return false;
+    const std::string rest = host.substr(close + 1);
+    if (!rest.empty()) {
+      if (rest[0] != ':' || rest.size() < 2) return false;
+      port = std::atoi(rest.c_str() + 1);
+    }
+    host = host.substr(1, close - 1);
+  } else {
+    const size_t colon = host.find(':');
+    if (colon != std::string::npos && colon == host.rfind(':')) {   // mehrere Doppelpunkte: IPv6 ohne Port
+      port = std::atoi(host.c_str() + colon + 1);
+      host = host.substr(0, colon);
+    }
+  }
+  if (host.empty() || port <= 0 || port > 65535) return false;
+  bb_NetAddr_ a;
+  if (bb_net_parse_ip_(host, a)) {
+    if (want_fam && a.fam != want_fam) return false;
+    a.port = port;
+    out = a;
+    return true;
   }
   addrinfo hints{}, *res = nullptr;
-  hints.ai_family = AF_INET;
+  hints.ai_family = want_fam == 4 ? AF_INET : want_fam == 6 ? AF_INET6 : AF_UNSPEC;
   hints.ai_socktype = SOCK_DGRAM;
   if (getaddrinfo(host.c_str(), nullptr, &hints, &res) != 0 || !res) return false;
-  out = *reinterpret_cast<sockaddr_in*>(res->ai_addr);
-  out.sin_port = htons(static_cast<uint16_t>(port));
+  bool found = false;
+  for (int pass = 0; pass < 2 && !found; ++pass)
+    for (addrinfo* r = res; r && !found; r = r->ai_next) {
+      sockaddr_storage ss{};
+      std::memcpy(&ss, r->ai_addr, std::min(sizeof(ss), static_cast<size_t>(r->ai_addrlen)));
+      a = bb_net_from_sa_(ss);
+      if (!a.fam) continue;
+      // erster Durchgang: nur Familien mit offenem Socket; zweiter: irgendeine
+      if (pass == 0 && !want_fam && bb_net_.sockC[bb_net_fi_(a.fam)] == BB_INVALID_SOCKET) continue;
+      found = true;
+    }
   freeaddrinfo(res);
+  if (!found) return false;
+  a.port = port;
+  out = a;
   return true;
 }
 
@@ -1717,7 +1920,7 @@ inline std::vector<bb_NetOffer_> bb_net_find_(int timeout) {
 }
 
 // Beitritt bei addr; 1 beigetreten, 0 nicht (Grund auf stderr, wenn quiet = false).
-inline int bb_net_join_(const sockaddr_in& addr, const std::string& name, bool quiet) {
+inline int bb_net_join_(const bb_NetAddr_& addr, const std::string& name, bool quiet) {
   auto& S = bb_net_;
   {
     std::lock_guard<std::mutex> g(S.m);
@@ -1747,7 +1950,7 @@ inline int bb_net_join_(const sockaddr_in& addr, const std::string& name, bool q
   if (result == 1) return 1;
   if (!quiet) {
     if (result < 0) std::cerr << "JoinNetGame: " << reason << "\n";
-    else std::cerr << "JoinNetGame: no answer from " << bb_net_ip_text_(addr) << ":" << ntohs(addr.sin_port) << "\n";
+    else std::cerr << "JoinNetGame: no answer from " << bb_net_addr_text_(addr) << "\n";
   }
   return 0;
 }
@@ -1756,8 +1959,7 @@ inline int bb_net_host_(const std::string& name) {
   auto& S = bb_net_;
   std::lock_guard<std::mutex> g(S.m);
   const int port = bb_net_port_();
-  S.sockH = bb_net_open_socket_(port);
-  if (S.sockH == BB_INVALID_SOCKET) {
+  if (!bb_net_open_host_(port)) {
     std::cerr << "HostNetGame: port " << port << " is in use\n";
     return 0;
   }
@@ -1803,9 +2005,9 @@ inline std::string bb_net_default_name_() {
 // Ohne Dialog: kurz suchen, beitreten (1), sonst hosten (2).
 inline int bb_StartNetGame() {
   bb_net_need_no_game_();
-  if (bb_net_.sockC == BB_INVALID_SOCKET) return 0;
+  if (!bb_net_have_client_()) return 0;
   if (!bb_net_.extJoin.empty()) {
-    sockaddr_in a{};
+    bb_NetAddr_ a;
     if (!bb_net_resolve_(bb_net_.extJoin, a)) {
       std::cerr << "StartNetGame: unknown host '" << bb_net_.extJoin << "'\n";
       return 0;
@@ -1830,7 +2032,7 @@ inline int bb_StartNetGame() {
 
 inline int bb_HostNetGame(const bbString& game_name) {
   bb_net_need_no_game_();
-  if (bb_net_.sockC == BB_INVALID_SOCKET) return 0;
+  if (!bb_net_have_client_()) return 0;
   return bb_net_host_(game_name);
 }
 
@@ -1838,7 +2040,7 @@ inline int bb_HostNetGame(const bbString& game_name) {
 // Ein leerer Name passt auf jedes Spiel.
 inline int bb_JoinNetGame(const bbString& game_name, const bbString& ip_address) {
   bb_net_need_no_game_();
-  if (bb_net_.sockC == BB_INVALID_SOCKET) return 0;
+  if (!bb_net_have_client_()) return 0;
   const std::string ip = bb_net_trim_(ip_address);
   if (ip.empty() || ip == "0.0.0.0") {
     const std::string want = bb_net_lower_(game_name);
@@ -1851,7 +2053,7 @@ inline int bb_JoinNetGame(const bbString& game_name, const bbString& ip_address)
     std::cerr << "JoinNetGame: " << (any ? "could not join" : "found no") << " game '" << game_name << "'\n";
     return 0;
   }
-  sockaddr_in a{};
+  bb_NetAddr_ a;
   if (!bb_net_resolve_(ip, a)) {
     std::cerr << "JoinNetGame: unknown host '" << ip << "'\n";
     return 0;
@@ -1972,8 +2174,8 @@ inline bbString bb_NetGameIP(int index) {
   std::lock_guard<std::mutex> g(bb_net_.m);
   const bb_NetOffer_* o = bb_net_listed_(index);
   if (!o) return bbString();
-  const int port = ntohs(o->addr.sin_port);
-  return bb_net_ip_text_(o->addr) + (port == bb_net_port_() ? std::string() : ":" + std::to_string(port));
+  // ohne Port, wenn es der Spielport ist; sonst "1.2.3.4:port" oder "[2a03::1]:port"
+  return o->addr.port == bb_net_port_() ? bb_net_ip_text_(o->addr) : bb_net_addr_text_(o->addr);
 }
 
 inline int bb_NetGamePlayers(int index) {

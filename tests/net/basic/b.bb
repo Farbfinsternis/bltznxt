@@ -2,7 +2,7 @@
 Include "../common.bb"
 NetGameApp "basic"
 NetGamePort 28761
-Print "join " + JoinNetGame("basic", "127.0.0.1")
+Print "join " + JoinNetGame("basic", LoUrl() + ":28761")
 While RecvNetMsg()
 	Print "early " + Describe()
 Wend

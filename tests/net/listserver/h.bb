@@ -1,6 +1,6 @@
 ; Host meldet sich beim Listen-Server an und beim Ende wieder ab
 Include "../common.bb"
-NetGameServer "http://127.0.0.1:28790/games"
+NetGameServer "http://" + LoUrl() + ":28790/games"
 NetGamePort 28766
 Print "host " + HostNetGame("listed")
 h = CreateNetPlayer("H")

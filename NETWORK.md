@@ -2,8 +2,9 @@
 
 Stand: 2026-10-27 · **Umgesetzt** in [bb_net.h](src/compiler/bb_net.h), Nutzer-Doku in
 [NETWORKING.md](NETWORKING.md), Tests in [tests/net/](tests/net/). UPnP gebaut und am echten
-Router geprüft 2026-10-29, `games.php` auf echtem Webspace geprüft 2026-10-29. Neu: Konzept
-IPv6 (Abschnitt „IPv6“, 2026-10-29), Entscheidungen getroffen, Bau steht aus. Release-Plan: als Nächstes kommt das Network Update
+Router geprüft 2026-10-29, `games.php` auf echtem Webspace geprüft 2026-10-29. IPv6
+(Abschnitt „IPv6“, Konzept 2026-10-29): Paket 6.1 umgesetzt 2026-11-17, 6.2 bis 6.7 stehen
+aus; das Release wartet darauf. Release-Plan: als Nächstes kommt das Network Update
 (nur Mehrspieler), danach IDE.
 
 Blitz3D hatte zwei Netzwerk-Schichten: rohe TCP- und UDP-Streams (bei uns seit 2026-09-30
@@ -446,13 +447,34 @@ verrät wie eine IPv4-Adresse den Anschluss, aber nicht dauerhaft den Rechner. I
 
 | # | Paket | Fertig, wenn |
 |---|---|---|
-| 6.1 | Adresstyp, zwei Sockets je Rolle, `BIND` mit IPv6, Schreibweise `[…]:port` | Alle bisherigen `tests/net`-Fälle grün über `127.0.0.1` und über `::1` |
+| 6.1 ✅ | Adresstyp, zwei Sockets je Rolle, `BIND` mit IPv6, Schreibweise `[…]:port` | Alle bisherigen `tests/net`-Fälle grün über `127.0.0.1` und über `::1` – **erledigt 2026-11-17**, siehe unten |
 | 6.2 | Adresslisten je Rechner in JOIN, WELCOME, MADD; Migration über alle Adressen | Gemischter Fall und Migration über die Familie hinweg grün |
 | 6.3 | Listen-Server: `ip6=`, Feld 6, Beitritt an alle Adressen, `NetGameIP$` bevorzugt IPv6 | Tests gegen `listserver.js` grün; `games.php` auf bltznxt.com zeigt Feld 6 |
 | 6.4 | Klopfen (`a=knock`, Abfrage durch den Host, Pakete an den Klopfer) | Test: Host, dessen Pakete von Fremden die Testumgebung verwirft, bis er geklopft hat |
 | 6.5 | UPnP-Lücke (`AddPinhole`/`DeletePinhole`), nur wenn Entscheidung 3 so fällt | Test gegen nachgebauten Router; Versuch am echten Router |
 | 6.6 | Doku: NETWORKING.md (IPv6, Schreibweise, Firewall, Datenschutz), README des Listen-Servers | Unterschiede an allen Stellen gleich beschrieben |
 | 6.7 | Echter Versuch über zwei Anschlüsse | Ein Rechner hinter Carrier-NAT hostet, ein anderer Anschluss tritt über IPv6 bei |
+
+**Stand 6.1 (2026-11-17).** `bb_NetAddr_` (Familie, 16 Byte, Port, Zone) ersetzt
+`sockaddr_in` in Peers, Angeboten, Beitritt und Rechnerliste; Vergleich, Text, Umwandlung und
+Lesen/Schreiben im Protokoll stehen je an einer Stelle. Client und Spielport haben je einen
+IPv4- und einen IPv6-Socket (`IPV6_V6ONLY`), der I/O-Thread liest alle vier. Fehlt IPv6 im
+System, läuft alles über IPv4 ohne Meldung; „Port belegt“ meldet `HostNetGame` nur, wenn die
+Hauptfamilie (IPv4, bei `BIND` auf IPv6 diese) scheitert. `BIND` nimmt IPv4 und IPv6 und
+öffnet dann nur Sockets dieser Familie. WELCOME und MADD tragen die Adresse mit Familie
+(1 Byte, 0/4/16 Byte, Port); deshalb Protokollversion 2. Die Rechnerliste hat noch **eine**
+Adresse je Rechner (die Absenderadresse beim Host) – die Listen kommen mit 6.2. Schreibweise
+`[addr]:port`, IPv6 ohne Port ohne Klammern, gilt in `JoinNetGame`, `join =`,
+`BLTZNXT_NET_JOIN`; `NetGameIP$` gibt sie so zurück. Der Listen-Server-Client liest im
+Feld 2 auch eine IPv6-Adresse (Listen-Server über IPv6 erreichbar); `ip6=` und Feld 6 sind 6.3.
+Die Suche im LAN bleibt IPv4, nur mit `BIND` auf IPv6 fragt sie dort. UPnP bleibt IPv4.
+
+Prüfstand: `tests/net/run_net_tests.sh` lässt jeden Fall zweimal laufen, über `127.0.0.1` und
+über `::1` (`NET_TEST_LO`, Hilfen `Lo$()`/`LoUrl$()` in `common.bb`; Adressen in `case.txt` und
+den Erwartungen werden umgeschrieben); UPnP-Fälle sind `v4only`. Neu geprüft: Beitritt mit
+`127.0.0.1:28761` und `[::1]:28761`, `"[::1"` als unbekannter Rechner. Ergebnis 14/14 grün,
+Listen-Server im IPv6-Durchgang auf `::1`. **Nicht geprüft:** der Betrieb ohne `BIND` (beide
+Familien zugleich auf jeder Adresse) – er ruft die Firewall-Abfrage von Windows hervor.
 
 Für 6.4 braucht der Prüfstand eine nachgebaute Firewall: ein Testschalter im Laufzeitsystem
 (wie `DROP`), der Pakete von Adressen verwirft, an die das Programm noch nichts geschickt hat.

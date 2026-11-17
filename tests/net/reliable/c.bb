@@ -2,7 +2,7 @@
 Include "../common.bb"
 NetGameApp "reliable"
 NetGamePort 28762
-Print "join " + JoinNetGame("reliable", "127.0.0.1")
+Print "join " + JoinNetGame("reliable", Lo())
 While RecvNetMsg() : Describe() : Wend
 c = CreateNetPlayer("C")
 hid = IdOf("H")

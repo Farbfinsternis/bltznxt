@@ -2,7 +2,7 @@
 Include "../common.bb"
 NetGameApp "migrate"
 NetGamePort 28763
-Print "join " + JoinNetGame("migrate", "127.0.0.1")
+Print "join " + JoinNetGame("migrate", Lo())
 While RecvNetMsg() : Print "early " + Describe() : Wend
 a1 = CreateNetPlayer("A1") : Remember(a1)
 StartClock(30000)
