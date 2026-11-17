@@ -1,5 +1,16 @@
 # BlitzNext Developer Log
 
+## 2026-11-17 — Network: IPv6 in the user documentation (IPv6 packages 6.5 and 6.6)
+
+NETWORKING.md now has a section on IPv6: why it matters behind carrier-grade NAT, that both
+sides need it, how a game uses both families without code changes, knocking through the
+router's firewall, and what to allow in the router by hand. The privacy notes cover temporary
+IPv6 addresses and what a knock reveals. KNOWN_ISSUES, the README and the roadmap say the same.
+
+The planned UPnP pinhole for IPv6 (package 6.5) is dropped: the developer's router, looked at
+without changing anything, offers only the IPv4 forwarding service, so a pinhole could not be
+tested. What remains before the Network Update can ship is a real attempt over two lines.
+
 ## 2026-11-17 — Network: knocking through the router's firewall (IPv6 package 6.4)
 
 IPv6 has no NAT, but the host's router still has a firewall that drops packets nobody asked

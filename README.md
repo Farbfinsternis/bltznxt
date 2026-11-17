@@ -118,7 +118,7 @@ bin\blitzcc.exe hello.bb
 |------|-----------|
 | **Language** | Every Blitz3D construct: control flow, functions, `Type` objects, arrays, `Const`, `Goto`/`Gosub`, `Data`/`Read`, `Include` |
 | **Runtime** | Maths, strings, files, banks, timers, keyboard, mouse, joystick and gamepad, audio including 3D sound, TCP and UDP |
-| **Multiplayer** | The 14 DirectPlay commands on BlitzNext's own UDP protocol, LAN search, list server for internet games, host migration — see [NETWORKING.md](NETWORKING.md) |
+| **Multiplayer** | The 14 DirectPlay commands on BlitzNext's own UDP protocol over IPv4 and IPv6, LAN search, list server for internet games, host migration — see [NETWORKING.md](NETWORKING.md) |
 | **2D** | Drawing, text and fonts, images with masks, handles and transforms, pixel buffers, image overlap tests |
 | **3D** | Entities, cameras, lights, textures, brushes, meshes and surfaces, `.x`/`.3ds`/`.b3d`/MD2/glTF loading, animation, sprites, mirrors, collisions, picking and projection, terrain |
 
@@ -330,7 +330,7 @@ Every larger update has one theme. First BlitzNext catches up with the last thin
 
 | Update | What it brings |
 |--------|----------------|
-| **Network Update** | Blitz3D's 14 multiplayer commands are back, without DirectPlay. One player hosts, the others join, on the local network or over the internet. If the host drops out, another player takes over. Old programs keep their code. |
+| **Network Update** | Blitz3D's 14 multiplayer commands are back, without DirectPlay. One player hosts, the others join, on the local network or over the internet, also over IPv6 for lines without a public IPv4 address. If the host drops out, another player takes over. Old programs keep their code. |
 | **Debugger Update** | Find bugs the way you did in Blitz3D: stop the program, step through it line by line and look at your variables. Runtime errors name the file and the line. |
 | **IDE Update** | The debugger moves into the BLTZNXT IDE, with breakpoints set in the editor. On top comes what the old Blitz3D IDE never had: go to definition and completion across `Include` files. |
 | **Vector Update** | Vectors become part of the language. Three lines for x, y and z turn into one: `pos = pos + vel * 2`. With commands for length, distance, dot and cross product. |
@@ -401,8 +401,8 @@ check the executed program's exit status, or impose timeouts.
 
 The network commands get a runner of their own, `bash tests/net/run_net_tests.sh`, which
 `run_tests.sh` calls at the end: each case in `tests/net/` starts several programs that talk to
-each other over 127.0.0.1 and compares the output of every one of them. The list-server case
-needs Node.js and is skipped without it.
+each other over 127.0.0.1, and again over ::1, and compares the output of every one of them.
+The cases with the list server or a simulated router need Node.js and are skipped without it.
 
 Where expected values are identified as reference measurements, they come from Blitz3D 11.8.
 The primary game test supplements this suite; it does not replace coverage of features absent

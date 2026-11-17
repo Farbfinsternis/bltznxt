@@ -4,7 +4,7 @@ Stand: 2026-10-27 · **Umgesetzt** in [bb_net.h](src/compiler/bb_net.h), Nutzer-
 [NETWORKING.md](NETWORKING.md), Tests in [tests/net/](tests/net/). UPnP gebaut und am echten
 Router geprüft 2026-10-29, `games.php` auf echtem Webspace geprüft 2026-10-29. IPv6
 (Abschnitt „IPv6“, Konzept 2026-10-29): Pakete 6.1 bis 6.4 umgesetzt 2026-11-17 (`games.php`
-auf bltznxt.com geprüft), 6.5 bis 6.7 stehen aus; das Release wartet darauf. Release-Plan: als Nächstes kommt das Network Update
+auf bltznxt.com geprüft), 6.5 entfällt (Router kann es nicht), 6.6 erledigt, 6.7 steht aus; das Release wartet darauf. Release-Plan: als Nächstes kommt das Network Update
 (nur Mehrspieler), danach IDE.
 
 Blitz3D hatte zwei Netzwerk-Schichten: rohe TCP- und UDP-Streams (bei uns seit 2026-09-30
@@ -451,8 +451,8 @@ verrät wie eine IPv4-Adresse den Anschluss, aber nicht dauerhaft den Rechner. I
 | 6.2 ✅ | Adresslisten je Rechner in JOIN, WELCOME, MADD; Migration über alle Adressen | Gemischter Fall und Migration über die Familie hinweg grün – **erledigt 2026-11-17**, siehe unten |
 | 6.3 ✅ | Listen-Server: `ip6=`, Feld 6, Beitritt an alle Adressen, `NetGameIP$` bevorzugt IPv6 | Tests gegen `listserver.js` grün; `games.php` auf bltznxt.com zeigt Feld 6 – **erledigt 2026-11-17**, siehe unten |
 | 6.4 ✅ | Klopfen (`a=knock`, Abfrage durch den Host, Pakete an den Klopfer) | Test: Host, dessen Pakete von Fremden die Testumgebung verwirft, bis er geklopft hat – **erledigt 2026-11-17**, siehe unten |
-| 6.5 | UPnP-Lücke (`AddPinhole`/`DeletePinhole`), nur wenn Entscheidung 3 so fällt | Test gegen nachgebauten Router; Versuch am echten Router |
-| 6.6 | Doku: NETWORKING.md (IPv6, Schreibweise, Firewall, Datenschutz), README des Listen-Servers | Unterschiede an allen Stellen gleich beschrieben |
+| 6.5 ⊘ | UPnP-Lücke (`AddPinhole`/`DeletePinhole`), nur wenn Entscheidung 3 so fällt | Test gegen nachgebauten Router; Versuch am echten Router – **entfällt 2026-11-17**: der Router des Entwicklers bietet den Dienst nicht an, siehe unten |
+| 6.6 ✅ | Doku: NETWORKING.md (IPv6, Schreibweise, Firewall, Datenschutz), README des Listen-Servers | Unterschiede an allen Stellen gleich beschrieben – **erledigt 2026-11-17**: NETWORKING.md (Abschnitt IPv6, Privacy, Tabellen, Beispiele), listserver/README.md (mit 6.3/6.4), KNOWN_ISSUES.md, README.md, roadmap.md |
 | 6.7 | Echter Versuch über zwei Anschlüsse | Ein Rechner hinter Carrier-NAT hostet, ein anderer Anschluss tritt über IPv6 bei |
 
 **Stand 6.1 (2026-11-17).** `bb_NetAddr_` (Familie, 16 Byte, Port, Zone) ersetzt
@@ -559,6 +559,14 @@ mit `2001:db8::5` angenommen, mit `fe80::5` `err ip6`, mit Port 0 `err port`, be
 Kennung `err gone`; `a=knocks` gibt den Klopfer einmal zurück und danach nur `ok`, ein
 falscher Schlüssel und einer nach `a=bye` `err gone`. Am echten Router zeigt erst 6.7, ob das
 Klopfen reicht.
+
+**6.5 entfällt (2026-11-17).** Am Router des Entwicklers nur lesend nachgesehen (SSDP-Suche,
+Gerätebeschreibung): MiniUPnPd 1.9 unter `http://192.168.0.1:5000/rootDesc.xml` beschreibt nur
+InternetGatewayDevice:1 mit Layer3Forwarding, WANCommonInterfaceConfig und WANIPConnection,
+keinen Dienst `WANIPv6FirewallControl` (IGD 2). Nach Entscheidung 3 bleibt die UPnP-Lücke
+weg: ohne einen Router, der sie kann, ließe sie sich nicht prüfen. Für IPv6 bleiben das
+Klopfen (6.4) und die Freigabe von Hand (Weg c, Nutzer-Doku in 6.6). Am Router wurde nichts
+geändert.
 
 ## Messen am Original
 

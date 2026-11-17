@@ -110,8 +110,9 @@ These are not bugs but decisions, and they will stay:
   the LAN, joins a game it finds or hosts one. A BlitzNext program cannot join a game of a
   program built with the original Blitz3D. Message types travel as full integers instead of
   bytes, a message to one of the program's own players arrives, and a crashed host is
-  replaced after 5 s. All differences and the new commands for finding games are in
-  [NETWORKING.md](NETWORKING.md).
+  replaced after 5 s. Games run over IPv4 and IPv6; `JoinNetGame` also takes IPv6 addresses,
+  with a port in brackets (`"[2a03:ed00::1]:2350"`). All differences and the new commands for
+  finding games are in [NETWORKING.md](NETWORKING.md).
 
 The full reasoning is in [ROADMAP3D.md](ROADMAP3D.md), section
 "Richtlinie: Was exakt stimmen muss und was besser werden darf".

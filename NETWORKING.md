@@ -33,9 +33,9 @@ StopNetGame
 | Topic | Blitz3D (DirectPlay) | BlitzNext |
 |---|---|---|
 | `StartNetGame()` | Dialog: host or join, connection type, IP | **No dialog.** Searches the LAN for about a second, joins a game it finds (returns 1), otherwise hosts one (returns 2). Build your own join dialog with `FindNetGames` |
-| Connections | TCP/IP, IPX, modem, serial | UDP over IPv4 only |
+| Connections | TCP/IP, IPX, modem, serial | UDP over IPv4 and IPv6 (see [IPv6](#ipv6)) |
 | Playing with Blitz3D | — | A BlitzNext program cannot join a game of a program built with the original Blitz3D |
-| `JoinNetGame(name$, ip$)` | Exact game name required; empty IP searches the LAN | Empty name joins any game at that address; the name is compared without case; `ip$` may carry a port (`"1.2.3.4:2351"`) or a host name. Empty IP or `"0.0.0.0"` searches the LAN |
+| `JoinNetGame(name$, ip$)` | Exact game name required; empty IP searches the LAN | Empty name joins any game at that address; the name is compared without case; `ip$` may carry a port (`"1.2.3.4:2351"`), be an IPv6 address (`"2a03:ed00::1"`, with a port in brackets: `"[2a03:ed00::1]:2351"`) or a host name. Empty IP or `"0.0.0.0"` searches the LAN |
 | Message type | Sent as a signed byte (150 arrives as -106) | Sent as a full integer. Type 0 is never delivered; use 1–99 for your own messages |
 | Message to one of your own players | Never arrives | Arrives (local to local). A message to everyone (`to_player = 0`) still skips the sending program |
 | A host that crashes | DirectPlay noticed nothing for at least 17 s and blocked the other programs | Noticed after 5 s; the oldest remaining program becomes host |
@@ -53,7 +53,7 @@ game already started" (hosting or joining twice).
 |---|---|
 | `FindNetGames([timeout_ms = 1000])` | Searches the LAN and, if set, the list server; returns the number of games found. Blocks for the timeout |
 | `NetGameName$(index)` | Name of game `index` (1 … count) |
-| `NetGameIP$(index)` | Its address, with the port when it is not the game port; passes straight into `JoinNetGame` |
+| `NetGameIP$(index)` | Its address, with the port when it is not the game port (`"1.2.3.4:2351"`, `"[2a03:ed00::1]:2351"`); passes straight into `JoinNetGame`, which then also tries the game's other address |
 | `NetGamePlayers(index)` | Number of players in it |
 | `NetGameLAN(index)` | 1 if it was found in the LAN, 0 if it came from the list server |
 | `NetGameHost()` | 1 while this program hosts the game (also after a host migration) |
@@ -76,7 +76,7 @@ If pick = 0 Then HostNetGame("my game") Else JoinNetGame(NetGameName(pick), NetG
 
 When a join fails, the reason goes to stderr, for example
 `JoinNetGame: host runs 'racer', this program is 'shooter'` or
-`JoinNetGame: no answer from 1.2.3.4:2350`.
+`JoinNetGame: no answer from 1.2.3.4:2350, [2a03:ed00::1]:2350`.
 
 ## Settings from outside
 
@@ -88,7 +88,7 @@ first source that sets a value wins:
 2. A file `<program>.net` next to the program, one setting per line:
    ```
    ; comment
-   join   = 1.2.3.4:2350      ; StartNetGame joins exactly here
+   join   = 1.2.3.4:2350      ; StartNetGame joins exactly here (IPv6: [2a03:ed00::1]:2350)
    server = https://example.org/games.php
    app    = racer
    port   = 2350
@@ -118,15 +118,56 @@ the port sharing settings of that device), when another computer already has the
 behind carrier-grade NAT (DS-Lite, many mobile networks): there the router gets the forwarding,
 but its own address is not public. BlitzNext says which case it is on stderr, for example
 `Net UPnP: no router answered; to host over the Internet, forward UDP port 2350 to this
-computer by hand`. Then forward the port by hand, or host on another machine. NAT hole
-punching is planned, not yet built.
+computer by hand`. Then forward the port by hand, host on another machine, or use IPv6 (next
+section). NAT hole punching for IPv4 is planned, not yet built. UPnP only forwards IPv4.
 
 While a game is hosted with UPnP, its port is open to the internet, not only to the LAN. A game
 meant only for the LAN can switch it off with `NetGameUPnP 0`.
 
-**Privacy:** a game that is hosted through a list server shows its public IP address to
-everyone who reads the list, and the operator of the list server stores it while the game
-runs.
+### IPv6
+
+More and more lines have no public IPv4 address of their own any more: behind carrier-grade NAT
+nobody can host over IPv4, not even with a forwarding by hand. Most of these lines do have
+IPv6, and with IPv6 every computer has a public address of its own. BlitzNext uses both
+families without any change to the program:
+
+- Every program listens on IPv4 and IPv6. If IPv6 is switched off on the computer, everything
+  runs over IPv4 as before.
+- A host that registers with a list server also reports its IPv6 address, even when the list
+  server itself is only reachable over IPv4 (as on most web space). `FindNetGames` then knows
+  both addresses of the game, `NetGameIP$` names the one that suits this computer (IPv6 when it
+  cannot reach the IPv4 address or when both sides have a public IPv6 address, else IPv4),
+  and `JoinNetGame` tries both at once.
+- If the host drops out, the other programs find the new host over whichever family they share
+  with it.
+- The LAN search stays on IPv4; every home network has IPv4.
+
+IPv6 only helps when **both** sides have it. A player with IPv4 only still cannot reach a host
+behind carrier-grade NAT.
+
+**The router's firewall.** IPv6 has no NAT, but the router still drops packets from the
+internet that nobody asked for. BlitzNext gets through it by **knocking**: a player who joins a
+game from the list server tells the list server "I want to join this game from this address".
+The host asks the list server every 3 seconds and sends each such player a few packets, which
+opens its firewall for exactly that address; the player's join gets through right after. This
+needs no settings and works with any router, but only for games found through a list server, and
+a join can take a few seconds longer.
+
+Without a list server, or if knocking is not enough for a router, allow incoming UDP on the game
+port (2350 unless changed) over IPv6 for the hosting computer in the router. On a FRITZ!Box this
+is a port sharing for IPv6 in the settings of that device. Some routers can open such a pinhole
+on request (UPnP IGD 2 or PCP); BlitzNext does not use that.
+
+### Privacy
+
+A game that is hosted through a list server shows its public IP addresses to everyone who reads
+the list, and the operator of the list server stores them while the game runs. A player who
+knocks shows their IPv6 address to the list server and the host; the list server keeps it until
+the host has fetched it and treats it as expired after 30 seconds.
+
+For IPv6, Windows uses changing ("temporary") addresses for outgoing connections, and BlitzNext
+reports the one the system picks. Like an IPv4 address it reveals the line, but it does not
+identify the computer for good: it changes, typically every day.
 
 ## How it works
 
@@ -135,13 +176,17 @@ Each connection has a reliable channel (sequence numbers, acknowledgements, rese
 and an unreliable one; long messages are split and joined again. A background thread keeps the
 connections alive even while the program does not call `RecvNetMsg`. When the host leaves or
 stops answering for 5 s, the oldest remaining program becomes host and gets a 102; the others
-reconnect to it, and everyone gets a 101 for the old host's players. Messages sent during the
+reconnect to it at every address they know for it, and everyone gets a 101 for the old host's
+players. Messages sent during the
 switch may be lost, reliable ones from clients are delivered after it. The design notes are in
 [NETWORK.md](NETWORK.md) (German).
 
 ## Testing
 
-`bash tests/net/run_net_tests.sh` runs several programs at once over 127.0.0.1: joining,
-messages, 20 % packet loss, host migration, a crashed host, the LAN search, the list server,
-and UPnP against a simulated router (`tests/net/fake_igd.js`). A real router can be checked
+`bash tests/net/run_net_tests.sh` runs several programs at once, every case over 127.0.0.1 and
+again over ::1: joining, messages, 20 % packet loss, host migration, a crashed host, the LAN
+search, the list server, and UPnP against a simulated router (`tests/net/fake_igd.js`). Further
+cases mix the families (a client with IPv4 only and one with IPv6 only in one game, a host
+migration across families, a list server reached over IPv4 for a host with IPv6) and check
+knocking against a simulated router firewall. A real router can be checked
 with [samples/network/upnpcheck.bb](samples/network/upnpcheck.bb). `bash tests/run_tests.sh` includes it.
