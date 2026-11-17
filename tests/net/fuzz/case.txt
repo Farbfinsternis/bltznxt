@@ -1,0 +1,5 @@
+start h 0
+fuzz 800 --target 28780 --fake 28781 --time 6000
+start f 1500
+start c 13500
+timeout 45

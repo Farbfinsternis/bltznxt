@@ -1,0 +1,8 @@
+host 2
+100 F
+41 F->H [F ok]
+101 F
+100 C
+40 C->H [C ok]
+101 C
+stopped

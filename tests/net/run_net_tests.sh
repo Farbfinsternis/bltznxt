@@ -12,7 +12,10 @@
 #   igd <ms> <port> [opt ...]           nachgebauter Router fuer UPnP
 #                                       (fake_igd.js, Node.js), Protokoll der
 #                                       Aufrufe auf TCP <port> + 1
-#   timeout <s>                         Zeitlimit des Falls (Vorgabe 40)
+#   fuzz <ms> [opt ...]                 Paket-Fuzzer (fuzz.js, Node.js) gegen
+#                                       die Adresse des Durchgangs; Ausgabe in
+#                                       fuzz.log
+#   timeout <s>                        Zeitlimit des Falls (Vorgabe 40)
 #   v4only                              Fall nur im IPv4-Durchgang (UPnP leitet
 #                                       nur IPv4 weiter)
 #   mixed                               Fall mischt die Familien selbst (BIND
@@ -44,7 +47,7 @@ v6text() { sed -e 's/127\.0\.0\.1:\([0-9]\)/[::1]:\1/g' -e 's/127\.0\.0\.1/::1/g
 for c in $CASES; do
     dir="tests/net/$c"
     [ -f "$dir/case.txt" ] || continue
-    if grep -q "^server\|^igd" "$dir/case.txt" && [ -z "$NODE" ]; then
+    if grep -q "^server\|^igd\|^fuzz" "$dir/case.txt" && [ -z "$NODE" ]; then
         echo "SKIP (no Node.js for the list server or router): net/$c"
         ((SKIP++)); continue
     fi
@@ -99,6 +102,10 @@ for c in $CASES; do
             igd)
                 ( sleep "$(awk "BEGIN{print $a/1000}")"
                   exec $NODE tests/net/fake_igd.js --port "$b" --lifetime "$limit" $rest > "$out/igd.log" 2>&1 ) &
+                SERVERPIDS="$SERVERPIDS $!" ;;
+            fuzz)
+                ( sleep "$(awk "BEGIN{print $a/1000}")"
+                  exec $NODE tests/net/fuzz.js --host "$lohost" --lifetime "$limit" $b $rest > "$out/fuzz.log" 2>&1 ) &
                 SERVERPIDS="$SERVERPIDS $!" ;;
             timeout) limit="$a" ;;
             esac

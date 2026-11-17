@@ -1,5 +1,29 @@
 # BlitzNext Developer Log
 
+## 2026-11-17 — Network: hardened against broken packets (test chat, package C2)
+
+In the public test chat, every program accepts packets from strangers on the internet. Reading
+the receive paths again turned up no crash, but several ways to make a program run out of
+memory: the reliable channel accepted packets up to a million sequence numbers ahead, a message
+split into fragments could grow without end, unreliable fragments could open any number of
+buffers, and there was no cap on programs, players or found games. Now there are limits:
+messages up to 16 MB, 4096 sequence numbers ahead, 32 half-received unreliable messages per
+connection, 64 programs per game (a 65th is told the game is full), 4096 players, player names
+up to 1024 bytes, 256 games per search, and 64 MB of messages waiting for `RecvNetMsg`. The host
+also only accepts player IDs that belong to the program that sends them.
+
+The tighter receive window first broke the 20 % packet-loss test: the receiver acknowledged
+packets it dropped for being too far ahead, so the sender never sent them again. Now a dropped
+packet is not acknowledged, and the sender never runs further ahead of its oldest unacknowledged
+packet than the receiver accepts.
+
+A new fuzzer (`tests/net/fuzz.js`) fires about 70,000 broken packets at a host — random bytes,
+valid headers with broken contents, length fields pointing past the end, and broken session
+messages after joining like a real program, including a fragmented message over 16 MB — and
+plays a fake host that answers a client with broken welcomes and then floods it. Both programs
+keep running and take in real programs afterwards, over IPv4 and IPv6 and with three different
+seeds.
+
 ## 2026-11-17 — Network: a diagnostic log you can share (test chat, package C1)
 
 The planned public test chat needs a report every tester can post without a second thought.

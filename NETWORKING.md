@@ -40,8 +40,9 @@ StopNetGame
 | Message to one of your own players | Never arrives | Arrives (local to local). A message to everyone (`to_player = 0`) still skips the sending program |
 | A host that crashes | DirectPlay noticed nothing for at least 17 s and blocked the other programs | Noticed after 5 s; the oldest remaining program becomes host |
 | Timing | `JoinNetGame` about 6 s, `StopNetGame` about 3 s | `JoinNetGame` a few milliseconds, `StopNetGame` at most 0.5 s; `StartNetGame` about 1 s when it finds a game, about 2 s before it hosts |
+| Limits | — | Messages up to 16 MB (`SendNetMsg` refuses longer ones on stderr); at most 64 programs per game (a 65th gets `JoinNetGame: the game is full`), 4096 players per game, player names up to 1024 bytes; at most 64 MB of messages wait for `RecvNetMsg`, further ones are dropped with a note on stderr. These keep a program that is open to the internet from running out of memory |
 
-Unchanged: the return values, `reliable = 1` as default, messages of any length (1 MB tested),
+Unchanged: the return values, `reliable = 1` as default, long messages (1 MB tested),
 a 100 for every player already in the game right after joining, no 100 for your own players,
 `NetPlayerName$` returning `<unknown>` for unknown players and `<all>` for 0, and the runtime
 errors "Multiplayer game not started" (sending or receiving without a game) and "Multiplayer

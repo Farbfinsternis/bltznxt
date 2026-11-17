@@ -65,6 +65,17 @@ inline constexpr int    BB_NET_TIMEOUT   = 5000;   // ohne Lebenszeichen: weg
 inline constexpr int    BB_NET_PING      = 250;
 inline constexpr int    BB_NET_MIGRATE   = 8000;   // so lange dauert eine Host-Migration hoechstens
 
+// Grenzen gegen fremde Pakete (samples/netchat/KONZEPT.md, C2): Ein Programm im
+// Internet nimmt Pakete von jedem an; keines darf den Speicher volllaufen lassen.
+inline constexpr size_t BB_NET_MAX_MSG      = 16u << 20;  // groesste Nachricht (SendNetMsg)
+inline constexpr uint32_t BB_NET_RECV_AHEAD = 4096;       // so weit voraus nimmt der zuverlaessige Kanal Pakete an
+inline constexpr size_t BB_NET_MAX_UNREL    = 32;         // halb empfangene unzuverlaessige Nachrichten je Verbindung
+inline constexpr size_t BB_NET_MAX_MACHINES = 64;         // Programme je Spiel
+inline constexpr size_t BB_NET_MAX_PLAYERS  = 4096;       // Spieler je Spiel
+inline constexpr size_t BB_NET_MAX_OFFERS   = 256;        // gefundene Spiele je Suche
+inline constexpr size_t BB_NET_MAX_NAME     = 1024;       // Laenge eines Spielernamens
+inline constexpr size_t BB_NET_MAX_QUEUE    = 64u << 20;  // Bytes, die auf RecvNetMsg warten duerfen
+
 // Paketarten
 enum : int {
   BB_NK_DISCOVER = 1, BB_NK_OFFER, BB_NK_JOIN, BB_NK_WELCOME, BB_NK_REJECT,
@@ -74,7 +85,7 @@ enum : int {
 // Sitzungsnachrichten im zuverlaessigen oder unzuverlaessigen Kanal
 enum : int { BB_NS_MSG = 1, BB_NS_PADD, BB_NS_PDEL, BB_NS_MADD, BB_NS_MDEL };
 // Gruende fuer REJECT
-enum : int { BB_NR_PROTOCOL = 1, BB_NR_APP, BB_NR_NAME, BB_NR_CLOSED };
+enum : int { BB_NR_PROTOCOL = 1, BB_NR_APP, BB_NR_NAME, BB_NR_CLOSED, BB_NR_FULL };
 
 inline int64_t bb_net_now_() {
   return std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -388,6 +399,7 @@ struct bb_NetPeer_ {
   std::map<uint32_t, std::string> recvBuf;
   std::vector<uint32_t> acks;
   std::string reasm;
+  bool reasmSkip = false;                 // die Nachricht wurde zu gross: Rest bis zur Endmarke verwerfen
   // unzuverlaessig
   uint32_t unrelId = 0;
   std::map<uint32_t, bb_NetUnrelAsm_> unrel;
@@ -437,6 +449,8 @@ struct bb_NetState_ {
   std::map<int, bb_NetMachine_> machines;
   std::map<int, bb_NetPlayer_> players;
   std::deque<bb_NetMsg_> queue;
+  size_t queueBytes = 0;                   // Nutzdaten in queue
+  bool queueWarned = false;
   bb_NetMsg_ cur;
   std::vector<std::string> pendingOut;     // zuverlaessige Nachrichten waehrend einer Migration
 
@@ -763,7 +777,11 @@ inline int bb_net_rto_(const bb_NetPeer_& p) {
 }
 
 inline void bb_net_pump_(bb_NetPeer_& p, int64_t now) {
-  while (!p.waiting.empty() && p.unacked.size() < BB_NET_WINDOW) {
+  // Hoechstens BB_NET_WINDOW unbestaetigte Pakete, und nie weiter als das
+  // Empfangsfenster (BB_NET_RECV_AHEAD) vor dem aeltesten unbestaetigten:
+  // der Empfaenger verwirft, was weiter voraus liegt.
+  while (!p.waiting.empty() && p.unacked.size() < BB_NET_WINDOW &&
+         (p.unacked.empty() || p.nextSeq - p.unacked.begin()->first < BB_NET_RECV_AHEAD)) {
     const uint32_t seq = p.nextSeq++;
     bb_NetW_ w = bb_net_pkt_(BB_NK_REL);
     w.u32(seq);
@@ -869,6 +887,21 @@ inline std::string bb_net_madd_payload_(int id, const bb_NetMachine_& mc) {
   return w.b;
 }
 
+inline void bb_net_queue_msg_(bb_NetMsg_ m) {
+  auto& S = bb_net_;
+  if (S.queueBytes + m.data.size() > BB_NET_MAX_QUEUE) {
+    if (!S.queueWarned) {
+      S.queueWarned = true;
+      std::cerr << "Net: more than " << (BB_NET_MAX_QUEUE >> 20)
+                << " MB of messages wait for RecvNetMsg; further messages are dropped\n";
+      bb_net_log_("messages dropped: the program does not read them (RecvNetMsg)");
+    }
+    return;
+  }
+  S.queueBytes += m.data.size();
+  S.queue.push_back(std::move(m));
+}
+
 inline void bb_net_event_(int type, int from) {
   bb_NetMsg_ m;
   m.type = type;
@@ -882,7 +915,7 @@ inline void bb_net_event_(int type, int from) {
 inline void bb_net_route_(int origin, const bb_NetMsg_& msg, const std::string& payload, bool reliable) {
   auto& S = bb_net_;
   if (msg.to == 0) {
-    if (origin != S.myMachine) S.queue.push_back(msg);
+    if (origin != S.myMachine) bb_net_queue_msg_(msg);
     for (auto& [mid, p] : S.peers)
       if (mid != origin) bb_net_send_(p, payload, reliable);
     return;
@@ -890,7 +923,7 @@ inline void bb_net_route_(int origin, const bb_NetMsg_& msg, const std::string& 
   const auto it = S.players.find(msg.to);
   if (it == S.players.end()) return;
   const int owner = it->second.machine;
-  if (owner == S.myMachine) S.queue.push_back(msg);
+  if (owner == S.myMachine) bb_net_queue_msg_(msg);
   else if (owner != origin) {
     const auto pit = S.peers.find(owner);
     if (pit != S.peers.end()) bb_net_send_(pit->second, payload, reliable);
@@ -993,14 +1026,16 @@ inline void bb_net_deliver_(int machine, const std::string& pl, bool reliable) {
     m.data = r.str();
     if (!r.ok) return;
     if (S.isHost) bb_net_route_(machine, m, pl, reliable);
-    else S.queue.push_back(std::move(m));
+    else bb_net_queue_msg_(std::move(m));
   } else if (kind == BB_NS_PADD) {
     const int id = r.i32();
     bb_NetPlayer_ p;
     p.machine = r.i32();
     p.name = r.str();
-    if (!r.ok || S.players.count(id)) return;
-    if (S.isHost && p.machine != machine) return;
+    if (!r.ok || S.players.count(id) || S.players.size() >= BB_NET_MAX_PLAYERS || p.name.size() > BB_NET_MAX_NAME)
+      return;
+    // Beim Host: nur Spieler des Absenders, mit einer Kennung, wie CreateNetPlayer sie vergibt
+    if (S.isHost && (p.machine != machine || (id >> 16) != machine || (id & 0xFFFF) == 0)) return;
     S.players[id] = p;
     bb_net_event_(100, id);
     if (S.isHost)
@@ -1021,7 +1056,7 @@ inline void bb_net_deliver_(int machine, const std::string& pl, bool reliable) {
     bb_NetMachine_ mc;
     mc.addrs = bb_net_get_addrs_(r);
     mc.order = r.i32();
-    if (r.ok) S.machines[id] = mc;
+    if (r.ok && (S.machines.count(id) || S.machines.size() < BB_NET_MAX_MACHINES)) S.machines[id] = mc;
   } else if (kind == BB_NS_MDEL && !S.isHost) {
     const int id = r.i32();
     if (r.ok && id != S.myMachine) S.machines.erase(id);
@@ -1075,6 +1110,11 @@ inline void bb_net_on_join_(bb_socket_t s, const bb_NetAddr_& from, bb_NetR_& r,
     return;
   }
   if (S.lost) { bb_net_reject_(s, from, nonce, BB_NR_CLOSED, ""); return; }
+  const bool knownNonce = S.joinNonces.count(nonce) && S.peers.count(S.joinNonces[nonce]);
+  if (!knownNonce && S.machines.size() >= BB_NET_MAX_MACHINES) {
+    bb_net_reject_(s, from, nonce, BB_NR_FULL, std::to_string(BB_NET_MAX_MACHINES));
+    return;
+  }
   const auto known = S.joinNonces.find(nonce);
   if (known != S.joinNonces.end() && S.peers.count(known->second)) {
     // Schon aufgenommen: WELCOME ging verloren - oder derselbe Beitritt kommt
@@ -1132,6 +1172,7 @@ inline void bb_net_on_welcome_(const bb_NetAddr_& from, bb_socket_t s, bb_NetR_&
   S.lost = false;
   S.localCounter = 0;
   S.queue.clear();
+  S.queueBytes = 0;
   S.cur = bb_NetMsg_();
   bb_net_new_peer_(host, from, s);
   // Wie im Original: gleich nach dem Beitritt je eine 100 fuer jeden, der schon da ist.
@@ -1188,8 +1229,11 @@ inline void bb_net_on_rel_(int machine, bb_NetR_& r) {
   bb_NetPeer_* p = &S.peers[machine];
   const uint32_t seq = r.u32();
   if (!r.ok) return;
+  // Zu weit voraus: verwerfen und NICHT bestaetigen, damit der Sender es
+  // spaeter noch einmal schickt. Schon Erhaltenes wird (wieder) bestaetigt.
+  if (seq >= p->recvNext && seq - p->recvNext >= BB_NET_RECV_AHEAD) return;
   p->acks.push_back(seq);
-  if (seq < p->recvNext || p->recvBuf.count(seq) || seq - p->recvNext > 1000000) return;
+  if (seq < p->recvNext || p->recvBuf.count(seq)) return;
   p->recvBuf[seq] = r.rest();
   for (;;) {
     auto it = p->recvBuf.find(p->recvNext);
@@ -1198,8 +1242,18 @@ inline void bb_net_on_rel_(int machine, bb_NetR_& r) {
     p->recvBuf.erase(it);
     ++p->recvNext;
     if (rec.empty()) continue;
+    const bool last = (rec[0] & 1) != 0;
+    if (!p->reasmSkip && p->reasm.size() + rec.size() - 1 > BB_NET_MAX_MSG) {
+      p->reasm.clear();   // zu gross: bis zur Endmarke verwerfen
+      p->reasmSkip = true;
+      bb_net_log_("a message over " + std::to_string(BB_NET_MAX_MSG >> 20) + " MB was dropped");
+    }
+    if (p->reasmSkip) {
+      if (last) p->reasmSkip = false;
+      continue;
+    }
     p->reasm.append(rec, 1, std::string::npos);
-    if (rec[0] & 1) {
+    if (last) {
       std::string whole;
       whole.swap(p->reasm);
       bb_net_deliver_(machine, whole, true);
@@ -1214,9 +1268,11 @@ inline void bb_net_on_unrel_(int machine, bb_NetR_& r, int64_t now) {
   bb_NetPeer_& p = bb_net_.peers[machine];
   const uint32_t id = r.u32();
   const int idx = r.u16(), cnt = r.u16();
-  if (!r.ok || cnt < 1 || idx >= cnt) return;
+  if (!r.ok || cnt < 1 || idx >= cnt || static_cast<size_t>(cnt) > BB_NET_MAX_MSG / BB_NET_FRAG + 1) return;
   std::string chunk = r.rest();
+  if (chunk.size() > BB_NET_FRAG) return;
   if (cnt == 1) { bb_net_deliver_(machine, chunk, false); return; }
+  if (!p.unrel.count(id) && p.unrel.size() >= BB_NET_MAX_UNREL) return;
   bb_NetUnrelAsm_& a = p.unrel[id];
   if (a.parts.empty()) { a.parts.resize(cnt); a.start = now; }
   if (static_cast<int>(a.parts.size()) != cnt || !a.parts[idx].empty()) return;
@@ -1246,6 +1302,8 @@ inline void bb_net_on_packet_(bb_socket_t s, const bb_NetAddr_& from, const std:
       S.joinReason = "host runs " + shown(detail) + ", this program is " + shown(bb_net_app_());
     else if (code == BB_NR_NAME)
       S.joinReason = "host's game is '" + detail + "', not '" + S.joinName + "'";
+    else if (code == BB_NR_FULL)
+      S.joinReason = "the game is full (" + detail + " programs)";
     else
       S.joinReason = "the game is closed";
     S.joinReject = code;
@@ -1268,6 +1326,7 @@ inline void bb_net_on_packet_(bb_socket_t s, const bb_NetAddr_& from, const std:
     const std::string name = r.str();
     const int players = r.u16();
     if (!r.ok || !S.collecting || (S.started && token == S.token)) return;
+    if (S.offers.size() >= BB_NET_MAX_OFFERS) return;
     for (auto& o : S.offers)
       if (o.token == token) return;
     bb_NetOffer_ o;
@@ -2164,6 +2223,7 @@ inline void bb_net_clear_session_() {
   S.machines.clear();
   S.players.clear();
   S.queue.clear();
+  S.queueBytes = 0;
   S.cur = bb_NetMsg_();
   S.pendingOut.clear();
   S.joinNonces.clear();
@@ -2423,7 +2483,7 @@ inline int bb_net_join_(const bb_NetAddrs_& addrs, const std::string& name, bool
   if (result < 0)
     bb_net_log_(std::string("join: refused by the host (") +
                 (reject == BB_NR_PROTOCOL ? "other protocol version" : reject == BB_NR_APP ? "other program ID"
-                 : reject == BB_NR_NAME ? "other game name" : "game closed") + ")");
+                 : reject == BB_NR_NAME ? "other game name" : reject == BB_NR_FULL ? "game full" : "game closed") + ")");
   else
     bb_net_log_("join: no answer after " + took + knocked);
   if (!quiet) {
@@ -2459,6 +2519,7 @@ inline int bb_net_host_(const std::string& name) {
   S.players.clear();
   S.peers.clear();
   S.queue.clear();
+  S.queueBytes = 0;
   S.cur = bb_NetMsg_();
   S.started = true;
   bb_net_log_("hosting: game port " + std::to_string(port) + ", IPv4 " +
@@ -2608,6 +2669,10 @@ inline void bb_SendNetMsg(int type, const bbString& msg, int from_player, int to
   bb_net_need_game_();
   auto& S = bb_net_;
   if (type == 0) return;   // 0 hiesse "keine Nachricht"
+  if (msg.size() > BB_NET_MAX_MSG) {
+    std::cerr << "SendNetMsg: message longer than " << (BB_NET_MAX_MSG >> 20) << " MB, not sent\n";
+    return;
+  }
   std::lock_guard<std::mutex> g(S.m);
   if (S.lost) return;
   bb_NetMsg_ m;
@@ -2618,7 +2683,7 @@ inline void bb_SendNetMsg(int type, const bbString& msg, int from_player, int to
   if (to_player != 0) {
     const auto it = S.players.find(to_player);
     if (it == S.players.end()) return;
-    if (it->second.machine == S.myMachine) { S.queue.push_back(std::move(m)); return; }
+    if (it->second.machine == S.myMachine) { bb_net_queue_msg_(std::move(m)); return; }
   }
   const std::string payload = bb_net_msg_payload_(m);
   if (S.isHost) bb_net_route_(S.myMachine, m, payload, reliable != 0);
@@ -2631,6 +2696,7 @@ inline int bb_RecvNetMsg() {
   std::lock_guard<std::mutex> g(bb_net_.m);
   if (bb_net_.queue.empty()) return 0;
   bb_net_.cur = std::move(bb_net_.queue.front());
+  bb_net_.queueBytes -= std::min(bb_net_.queueBytes, bb_net_.cur.data.size());
   bb_net_.queue.pop_front();
   return 1;
 }
