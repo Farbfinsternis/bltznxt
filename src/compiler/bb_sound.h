@@ -83,6 +83,11 @@ struct bb_Channel_ {
   float            pan3d   = 0.0f;
   float            doppler = 1.0f;
   unsigned         serial  = 0;      // unterscheidet Kanaele im selben Platz
+  // PlayMusic: der Platz bleibt nach dem Ende belegt, bis StopChannel,
+  // StopMusic oder das naechste PlayMusic ihn freigibt. Sonst bekaeme der
+  // naechste PlaySound dieselbe Nummer, und ChannelPlaying auf den alten
+  // Musikkanal meldete den fremden Klang (BUG-235).
+  bool             music   = false;
 };
 
 inline bb_Sound_   bb_snd_sounds_[BB_MAX_SOUNDS]     = {};
@@ -227,11 +232,20 @@ inline void bb_snd_quit_() {
 // FMOD spielt im Original MIDI-Dateien ueber PlayMusic (FMUSIC). SDL kann das
 // nicht; unter Windows uebernimmt der MCI-Sequencer mit dem eingebauten
 // Synthesizer. Es gibt einen MIDI-Kanal mit eigener Nummer ausserhalb der
-// Klangkanaele; PlayMusic wiederholt wie bei anderen Formaten, das erledigt
-// bb_snd_update_. Lautstaerke, Panorama und Tonhoehe wirken darauf nicht.
+// Klangkanaele. Lautstaerke, Panorama und Tonhoehe wirken darauf nicht.
+//
+// Wiederholung (BUG-235, gemessen an Blitz3D 1.108 mit Pegelmesser): Blitz3D
+// wiederholt ein Stueck hoerbar, ChannelPlaying meldet aber nach dem ersten
+// Durchlauf 0 (MusicChannel::isPlaying = !FMUSIC_IsFinished). BlitzPlus
+// wiederholt nur mit Flag 1 (FMUSIC_SetLooping) und meldet laufend, solange
+// das Stueck spielt (FMUSIC_IsPlaying). Das Wiederholen erledigt
+// bb_snd_update_.
 inline constexpr int BB_MIDI_CH_ = 0x10000;
 inline bool bb_midi_on_     = false;
 inline bool bb_midi_paused_ = false;
+inline bool bb_midi_loop_   = true;    // nach dem Ende von vorn
+inline bool bb_midi_b3d_    = true;    // ChannelPlaying wie Blitz3D
+inline int  bb_midi_passes_ = 0;       // abgeschlossene Durchlaeufe
 // Eine MCI-Abfrage kostet etwa 10 ms. bb_snd_update_ laeuft bei jedem Abholen
 // der Ereignisse (jedes KeyHit, jedes Flip); die Musik in Games/wing_ring
 // bremste das Menue so auf 20 Bilder je Sekunde (BUG-222). Gefragt wird
@@ -264,8 +278,11 @@ inline void bb_midi_stop_() {
   bb_midi_on_ = bb_midi_paused_ = false;
 }
 
-inline int bb_midi_play_(const bbString &file) {
+inline int bb_midi_play_(const bbString &file, bool loop, bool b3d, bool paused) {
   bb_midi_stop_();
+  bb_midi_loop_   = loop;
+  bb_midi_b3d_    = b3d;
+  bb_midi_passes_ = 0;
 #ifdef _WIN32
   const std::wstring f = bb_wide_from_(file, CP_ACP);
   if (!bb_midi_cmd_(L"open \"" + f + L"\" type sequencer alias bb_midi")) {
@@ -284,6 +301,11 @@ inline int bb_midi_play_(const bbString &file) {
   }
   bb_midi_due_ms_ = SDL_GetTicks() + (bb_midi_len_ms_ ? bb_midi_len_ms_ : 500);
   bb_midi_on_ = true;
+  if (paused) {   // BlitzPlus Flag 2: erst ResumeChannel spielt
+    bb_midi_cmd_(L"pause bb_midi");
+    bb_midi_paused_   = true;
+    bb_midi_pause_ms_ = SDL_GetTicks();
+  }
   return BB_MIDI_CH_;
 #else
   std::cerr << "[runtime] PlayMusic: MIDI is only supported on Windows\n";
@@ -291,23 +313,37 @@ inline int bb_midi_play_(const bbString &file) {
 #endif
 }
 
-inline void bb_snd_update_() {
+inline void bb_midi_update_() {
   // MIDI-Musik wiederholen, wenn sie zu Ende ist; MCI erst fragen, wenn es
-  // so weit sein muss (BUG-222)
-  if (bb_midi_on_ && !bb_midi_paused_) {
+  // so weit sein muss (BUG-222). Ohne Wiederholung bleibt das Stueck stehen
+  // (BlitzPlus ohne Flag 1, BUG-235).
+  if (bb_midi_on_ && !bb_midi_paused_ && (bb_midi_loop_ || bb_midi_passes_ == 0)) {
     const Uint64 now = SDL_GetTicks();
     if (now >= bb_midi_due_ms_) {
       if (!bb_midi_playing_()) {
-        bb_midi_cmd_(L"play bb_midi from 0");
+        ++bb_midi_passes_;
+        if (bb_midi_loop_) bb_midi_cmd_(L"play bb_midi from 0");
         bb_midi_due_ms_ = now + (bb_midi_len_ms_ ? bb_midi_len_ms_ : 500);
       } else {
         bb_midi_due_ms_ = now + (bb_midi_len_ms_ ? 100 : 500);
       }
     }
   }
+}
+
+// ChannelPlaying fuer den MIDI-Kanal (siehe oben). Fragt selbst nach, damit
+// eine Schleife, die nur ChannelPlaying abfragt, das Ende auch sieht.
+inline bool bb_midi_channel_playing_() {
+  bb_midi_update_();
+  return bb_midi_on_ && (bb_midi_passes_ == 0 || (bb_midi_loop_ && !bb_midi_b3d_));
+}
+
+inline void bb_snd_update_() {
+  bb_midi_update_();
   if (!bb_snd_dev_) return;
   for (int i = 1; i < BB_MAX_CHANNELS; ++i)
-    if (bb_snd_done_(bb_snd_channels_[i]) && !bb_snd_channels_[i].paused)
+    if (bb_snd_done_(bb_snd_channels_[i]) && !bb_snd_channels_[i].paused &&
+        !bb_snd_channels_[i].music)
       bb_snd_free_channel_(i);
 }
 
@@ -490,8 +526,9 @@ inline void bb_FreeSound(int snd) {
 
 // Internal: play sound once (loop=false) or loop forever (loop=true).
 // Reuses the first finished one-shot slot; returns channel handle, 0 on failure.
-// PlaySound nimmt die Wiederholung vom Klang (LoopSound), PlayMusic erzwingt sie.
-inline int bb_play_sound_(int snd, bool loop) {
+// PlaySound nimmt die Wiederholung vom Klang (LoopSound). PlayMusic spielt
+// einmal, haelt den Platz (`music`) und startet auf Wunsch pausiert (BUG-235).
+inline int bb_play_sound_(int snd, bool loop, bool music = false, bool paused = false) {
   bb_snd_ensure_();
   if (!bb_snd_dev_ || snd < 1 || snd >= BB_MAX_SOUNDS ||
       !bb_snd_sounds_[snd].data) return 0;
@@ -499,7 +536,8 @@ inline int bb_play_sound_(int snd, bool loop) {
   int slot = 0;
   for (int i = 1; i < BB_MAX_CHANNELS; ++i) {
     if (!bb_snd_channels_[i].stream) { slot = i; break; }
-    if (bb_snd_done_(bb_snd_channels_[i]) && !bb_snd_channels_[i].paused) {
+    if (bb_snd_done_(bb_snd_channels_[i]) && !bb_snd_channels_[i].paused &&
+        !bb_snd_channels_[i].music) {
       bb_snd_free_channel_(i);
       slot = i;
       break;
@@ -515,6 +553,8 @@ inline int bb_play_sound_(int snd, bool loop) {
   c.stream  = s;
   c.snd_id  = snd;
   c.looping = loop;
+  c.music   = music;
+  c.paused  = paused;
   c.gain    = sd.vol;
   c.pan     = sd.pan;
   c.ratio   = bb_snd_ratio_(snd, sd.pitch);
@@ -581,7 +621,7 @@ inline void bb_ResumeChannel(int ch) {
 
 // Returns 1 while the channel has an active stream (playing or paused), 0 when done.
 inline int bb_ChannelPlaying(int ch) {
-  if (ch == BB_MIDI_CH_) return bb_midi_on_ ? 1 : 0;   // laeuft oder pausiert, wiederholt
+  if (ch == BB_MIDI_CH_) return bb_midi_channel_playing_() ? 1 : 0;   // BUG-235
   if (ch < 1 || ch >= BB_MAX_CHANNELS) return 0;
   return bb_snd_channels_[ch].stream && !bb_snd_done_(bb_snd_channels_[ch]) ? 1 : 0;
 }
@@ -614,9 +654,9 @@ inline void bb_ChannelPitch(int ch, int hz) {
 
 // ---- Music (M36) ----
 //
-// A single background-music "track" — one looping channel dedicated to music.
-// bb_PlayMusic loads a WAV file into a temporary sound slot and starts it
-// looping.  When a new track is started the old one is stopped first.
+// A single background-music "track" on its own channel. bb_PlayMusic loads the
+// file into a temporary sound slot and plays it once, like FMOD streams in the
+// original (BUG-235). When a new track is started the old one is stopped first.
 // PlayCDTrack is stub-only (CD audio is deprecated hardware).
 
 inline int bb_snd_music_snd_ = 0;  // sound slot occupied by current music (0 = none)
@@ -626,7 +666,9 @@ inline int bb_snd_music_ch_  = 0;  // channel slot occupied by current music (0 
 inline void bb_StopMusic() {
   bb_midi_stop_();
   if (bb_snd_music_ch_) {
-    bb_StopChannel(bb_snd_music_ch_);
+    // nur, wenn der Platz noch die Musik haelt: nach StopChannel kann ihn
+    // schon ein anderer Klang belegen
+    if (bb_snd_channels_[bb_snd_music_ch_].music) bb_StopChannel(bb_snd_music_ch_);
     bb_snd_music_ch_ = 0;
   }
   if (bb_snd_music_snd_) {
@@ -635,17 +677,27 @@ inline void bb_StopMusic() {
   }
 }
 
-// Play a WAV, MP3, or OGG file as looping background music.
+// Play a WAV, MP3, or OGG file as background music.
 // Returns the channel handle (>0) on success, 0 on failure.
 // MP3: dr_mp3 (bundled). OGG: stb_vorbis (bundled). WAV: SDL_LoadWAV.
-inline int bb_PlayMusic(const bbString& file) {
+//
+// Blitz3D kennt nur `PlayMusic(file$)`, BlitzPlus `PlayMusic(file$[,flags])`
+// mit 1 = Wiederholen, 2 = pausiert starten (audio.cpp). Ohne flags (-1) gilt
+// Blitz3D (BUG-235, gemessen an 1.108):
+//  - WAV/MP3/OGG laufen einmal (FSOUND_Stream_Open mit Modus 0), danach
+//    meldet ChannelPlaying 0. BlitzPlus wertet bei Streams nur Flag 2 aus
+//    (playStream), Flag 1 wiederholt dort keinen Stream.
+//  - MIDI siehe bb_midi_play_: Blitz3D wiederholt, BlitzPlus nur mit Flag 1.
+inline int bb_PlayMusic(const bbString& file, int flags = -1) {
   bb_StopMusic();  // stop previous track first
+  const bool b3d    = flags < 0;
+  const bool paused = !b3d && (flags & 2);
   const std::string ext = bb_snd_ext_(file);
-  if (ext == "mid" || ext == "midi" || ext == "rmi") return bb_midi_play_(file);   // BUG-216
+  if (ext == "mid" || ext == "midi" || ext == "rmi")   // BUG-216
+    return bb_midi_play_(file, b3d || (flags & 1), b3d, paused);
   int snd = bb_LoadSound(file);
   if (!snd) return 0;
-  int ch = bb_play_sound_(snd, true);   // LoopSound liefert seit BUG-44
-                                        // keinen Kanal mehr
+  int ch = bb_play_sound_(snd, false, true, paused);
   if (!ch) { bb_FreeSound(snd); return 0; }
   bb_snd_music_snd_ = snd;
   bb_snd_music_ch_  = ch;
@@ -653,12 +705,13 @@ inline int bb_PlayMusic(const bbString& file) {
 }
 
 // Returns 1 while music is playing (the channel has an active stream), else 0.
+// Der Platz bleibt nach dem Ende belegt (BUG-235) und wird erst von StopMusic
+// oder dem naechsten PlayMusic freigegeben; nach StopChannel gehoert er nicht
+// mehr der Musik.
 inline int bb_MusicPlaying() {
-  if (bb_midi_on_) return 1;
-  if (!bb_snd_music_ch_) return 0;
-  int alive = bb_ChannelPlaying(bb_snd_music_ch_);
-  if (!alive) { bb_snd_music_ch_ = 0; bb_snd_music_snd_ = 0; }
-  return alive;
+  if (bb_midi_on_) return bb_midi_channel_playing_() ? 1 : 0;
+  if (!bb_snd_music_ch_ || !bb_snd_channels_[bb_snd_music_ch_].music) return 0;
+  return bb_ChannelPlaying(bb_snd_music_ch_);
 }
 
 // CD audio is deprecated hardware — log a warning and do nothing.

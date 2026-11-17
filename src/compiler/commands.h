@@ -422,7 +422,7 @@ inline constexpr CmdInfo kCommands[] = {
   { "PickedY",             "#", "" },
   { "PickedZ",             "#", "" },
   { "PlayCDTrack",         "%", "track%,mode%?" },
-  { "PlayMusic",           "%", "file$" },
+  { "PlayMusic",           "%", "file$,flags%?" },
   { "PlaySound",           "%", "snd%" },
   { "Plot",                "",  "x%,y%" },
   { "PointEntity",         "",  "h%,target%,roll#?" },
