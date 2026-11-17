@@ -1,5 +1,23 @@
 # BlitzNext Developer Log
 
+## 2026-11-17 — Network: every machine knows all addresses of the others (IPv6 package 6.2)
+
+If the host drops out, the oldest remaining program takes over and the others reconnect to
+it. Until now they only knew it by the one address under which the old host had seen it. A
+client with IPv4 only could not reach a new host that had joined over IPv6, and the session
+fell apart.
+
+Now each program sends its own addresses along when it joins, one per family, with the port
+of its client socket; for IPv6 only a global address. The host puts the sender address it saw
+in front and passes the list to everybody. During a migration the clients try all addresses of
+the new host at once, and the first answer wins. `BLTZNXT_NET_BIND` takes one address per family
+(`127.0.0.1,::1`). Protocol version 3.
+
+Two new multi-process tests mix the families: a host with both, one client with IPv4 only and
+one with IPv6 only talking to each other through it; and a migration in which the new host
+joined over IPv6 and a client with IPv4 only still finds it. With the sent addresses switched
+off the second test fails, as it should. All 16 cases pass.
+
 ## 2026-11-17 — Network: IPv6 addresses and sockets (package 6.1)
 
 First step of IPv6 for the Network Update (NETWORK.md, section "IPv6"). The networking code

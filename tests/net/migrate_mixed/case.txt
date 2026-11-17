@@ -1,0 +1,6 @@
+mixed
+start h 0 BLTZNXT_NET_BIND=127.0.0.1,::1
+start a 300 BLTZNXT_NET_BIND=127.0.0.1,::1 NET_TEST_LO=::1
+start b 1200 BLTZNXT_NET_BIND=127.0.0.1
+kill h 3000
+timeout 45

@@ -1,0 +1,6 @@
+join 1
+early 100 H1
+100 B1
+31 B1->A1 [B to A]
+101 B1
+stopped

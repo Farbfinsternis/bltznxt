@@ -3,8 +3,8 @@
 Stand: 2026-10-27 · **Umgesetzt** in [bb_net.h](src/compiler/bb_net.h), Nutzer-Doku in
 [NETWORKING.md](NETWORKING.md), Tests in [tests/net/](tests/net/). UPnP gebaut und am echten
 Router geprüft 2026-10-29, `games.php` auf echtem Webspace geprüft 2026-10-29. IPv6
-(Abschnitt „IPv6“, Konzept 2026-10-29): Paket 6.1 umgesetzt 2026-11-17, 6.2 bis 6.7 stehen
-aus; das Release wartet darauf. Release-Plan: als Nächstes kommt das Network Update
+(Abschnitt „IPv6“, Konzept 2026-10-29): Pakete 6.1 und 6.2 umgesetzt 2026-11-17, 6.3 bis 6.7
+stehen aus; das Release wartet darauf. Release-Plan: als Nächstes kommt das Network Update
 (nur Mehrspieler), danach IDE.
 
 Blitz3D hatte zwei Netzwerk-Schichten: rohe TCP- und UDP-Streams (bei uns seit 2026-09-30
@@ -448,7 +448,7 @@ verrät wie eine IPv4-Adresse den Anschluss, aber nicht dauerhaft den Rechner. I
 | # | Paket | Fertig, wenn |
 |---|---|---|
 | 6.1 ✅ | Adresstyp, zwei Sockets je Rolle, `BIND` mit IPv6, Schreibweise `[…]:port` | Alle bisherigen `tests/net`-Fälle grün über `127.0.0.1` und über `::1` – **erledigt 2026-11-17**, siehe unten |
-| 6.2 | Adresslisten je Rechner in JOIN, WELCOME, MADD; Migration über alle Adressen | Gemischter Fall und Migration über die Familie hinweg grün |
+| 6.2 ✅ | Adresslisten je Rechner in JOIN, WELCOME, MADD; Migration über alle Adressen | Gemischter Fall und Migration über die Familie hinweg grün – **erledigt 2026-11-17**, siehe unten |
 | 6.3 | Listen-Server: `ip6=`, Feld 6, Beitritt an alle Adressen, `NetGameIP$` bevorzugt IPv6 | Tests gegen `listserver.js` grün; `games.php` auf bltznxt.com zeigt Feld 6 |
 | 6.4 | Klopfen (`a=knock`, Abfrage durch den Host, Pakete an den Klopfer) | Test: Host, dessen Pakete von Fremden die Testumgebung verwirft, bis er geklopft hat |
 | 6.5 | UPnP-Lücke (`AddPinhole`/`DeletePinhole`), nur wenn Entscheidung 3 so fällt | Test gegen nachgebauten Router; Versuch am echten Router |
@@ -475,6 +475,27 @@ den Erwartungen werden umgeschrieben); UPnP-Fälle sind `v4only`. Neu geprüft: 
 `127.0.0.1:28761` und `[::1]:28761`, `"[::1"` als unbekannter Rechner. Ergebnis 14/14 grün,
 Listen-Server im IPv6-Durchgang auf `::1`. **Nicht geprüft:** der Betrieb ohne `BIND` (beide
 Familien zugleich auf jeder Adresse) – er ruft die Firewall-Abfrage von Windows hervor.
+
+**Stand 6.2 (2026-11-17).** Jeder Rechner in der Rechnerliste hat eine Adressliste (höchstens
+6). Beim Beitritt schickt ein Programm im JOIN seine eigenen Adressen mit: je Familie mit
+offenem Socket die `BIND`-Adresse, sonst die Adresse, die das System für ausgehende Pakete
+wählt (Route abfragen per `connect` auf UDP an eine Dokumentationsadresse, es geht kein Paket
+hinaus), unter IPv6 nur eine globale (2000::/3); dazu den Port seines Client-Sockets dieser
+Familie. Der Host stellt die Absenderadresse, wie er sie sieht, davor und verteilt die Liste in
+WELCOME und MADD. Bei einer Host-Migration schickt jeder Client RESUME an alle Adressen des
+Kandidaten, für die er einen Socket hat; die erste Antwort gewinnt. Der neue Host beantwortet
+nur die erste RESUME-Bitte eines Rechners; kommt sie über eine zweite Adresse noch einmal,
+bleibt sie ohne Antwort, damit die Verbindung nicht mitten im Lauf die Adresse wechselt. Nach
+RESUME rückt die Absenderadresse in der Liste nach vorn. Protokollversion 3.
+`BIND` nimmt eine Adresse je Familie, durch Komma getrennt (`127.0.0.1,::1`).
+
+Prüfstand: neue Fälle `mixed` (Host mit beiden Familien, ein Client nur IPv4, einer nur IPv6,
+Nachrichten zwischen den beiden über den Host) und `migrate_mixed` (der älteste Client hat
+beide Familien und tritt über IPv6 bei; der Host stirbt; ein Client nur mit IPv4 findet den
+neuen Host über dessen IPv4-Adresse aus der Liste). Sie mischen die Familien selbst und laufen
+einmal (`mixed` in `case.txt`). Gegenprobe: ohne die mitgeschickten Adressen scheitert
+`migrate_mixed` – der Client erreicht den neuen Host nicht und macht ein eigenes Spiel auf.
+Ergebnis 16/16 grün. Weiter nicht geprüft: der Betrieb ohne `BIND`.
 
 Für 6.4 braucht der Prüfstand eine nachgebaute Firewall: ein Testschalter im Laufzeitsystem
 (wie `DROP`), der Pakete von Adressen verwirft, an die das Programm noch nichts geschickt hat.

@@ -1,0 +1,9 @@
+join 1
+early 100 H1
+100 B1
+101 H1
+102 from -1
+host 1
+21 B1->A1 [B after]
+101 B1
+stopped

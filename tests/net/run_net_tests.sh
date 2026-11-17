@@ -15,6 +15,9 @@
 #   timeout <s>                         Zeitlimit des Falls (Vorgabe 40)
 #   v4only                              Fall nur im IPv4-Durchgang (UPnP leitet
 #                                       nur IPv4 weiter)
+#   mixed                               Fall mischt die Familien selbst (BIND
+#                                       und NET_TEST_LO je Programm in start):
+#                                       laeuft einmal, ohne Umschreiben
 #
 # Verglichen wird die Ausgabe jedes Programms mit <prog>.expected (ohne
 # Wagenruecklauf) und, falls vorhanden, stderr mit <prog>.expected_stderr.
@@ -66,13 +69,14 @@ for c in $CASES; do
 
     for fam in $FAMILIES; do
         if [ "$fam" = 6 ]; then
-            grep -q "^v4only" "$dir/case.txt" && continue
+            grep -q "^v4only\|^mixed" "$dir/case.txt" && continue
             export BLTZNXT_NET_BIND=::1 NET_TEST_LO=::1
             lohost=::1; tag=" (IPv6)"; conv=v6text
         else
             export BLTZNXT_NET_BIND=127.0.0.1
             unset NET_TEST_LO
             lohost=127.0.0.1; tag=""; conv=cat
+            grep -q "^mixed" "$dir/case.txt" && tag=" (mixed)"
         fi
         rm -f "$out"/*.out "$out"/*.err "$out"/*.log
         ok=1

@@ -1,0 +1,7 @@
+host 2
+100 A1
+100 B1
+30 A1-><all> [A to all]
+101 B1
+101 A1
+stopped
