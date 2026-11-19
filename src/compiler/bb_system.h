@@ -113,6 +113,10 @@ inline void bb_FreeTimer(int handle) {
 inline void bb_sleep_ms_(int ms) { Sleep(static_cast<DWORD>(ms)); }
 #else
 #include <unistd.h>
+#include <sys/wait.h>      // ExecFile: waitpid
+#include <filesystem>
+#include <SDL3/SDL.h>      // Notify/Confirm/Proceed: SDL_ShowMessageBox
+#include <vector>
 inline void bb_sleep_ms_(int ms) { usleep(static_cast<useconds_t>(ms) * 1000u); }
 #endif
 
@@ -190,7 +194,45 @@ inline void bb_ExecFile(const bbString &command) {
   ShellExecuteW(GetDesktopWindow(), nullptr, wc.c_str(), params.empty() ? nullptr : wp.c_str(),
                 nullptr, SW_SHOW);
 #else
-  std::system((cmd + " " + params + " &").c_str());
+  // Ohne Shell und ohne zu warten: ein Programm (auch aus dem PATH) mit
+  // seinen Parametern direkt; eine Webadresse, ein Dokument oder ein Programm,
+  // das nicht startet, ueber xdg-open - das Gegenstueck zur Dateizuordnung
+  // von ShellExecute. Doppelter fork, damit kein Zombie bleibt.
+  std::vector<std::string> args;
+  const bool open = cmd.find("://") != bbString::npos ||
+                    (std::filesystem::is_regular_file(bb_path_(cmd)) &&
+                     access(cmd.c_str(), X_OK) != 0);
+  if (!open) {
+    args.push_back(cmd);
+    std::string cur;
+    bool quoted = false, any = false;
+    for (char c : params) {
+      if (c == '"') { quoted = !quoted; any = true; continue; }
+      if (c == ' ' && !quoted) {
+        if (any) { args.push_back(cur); cur.clear(); any = false; }
+        continue;
+      }
+      cur += c;
+      any = true;
+    }
+    if (any) args.push_back(cur);
+  }
+  const pid_t pid = fork();
+  if (pid == 0) {
+    setsid();
+    if (fork() == 0) {
+      if (!open) {
+        std::vector<char *> argv;
+        for (auto &a : args) argv.push_back(&a[0]);
+        argv.push_back(nullptr);
+        execvp(argv[0], argv.data());
+      }
+      execlp("xdg-open", "xdg-open", cmd.c_str(), static_cast<char *>(nullptr));
+      _exit(127);
+    }
+    _exit(0);
+  }
+  if (pid > 0) waitpid(pid, nullptr, 0);
 #endif
 }
 
@@ -292,6 +334,23 @@ inline bbString bb_SystemProperty(const bbString &prop) {
   if (t == "windowsdir" && GetWindowsDirectoryA(buff, MAX_PATH)) return toDir(buff);
   if (t == "systemdir" && GetSystemDirectoryA(buff, MAX_PATH)) return toDir(buff);
   if (t == "tempdir" && GetTempPathA(MAX_PATH, buff)) return toDir(buff);
+#else
+  // Linux: Ordner mit abschliessendem '/'. "os" bleibt leer wie im Original
+  // unter jedem Windows nach 7; apphwnd/apphinstance sind nie leer.
+  auto toDirSlash = [](bbString d) {
+    if (!d.empty() && d.back() != '/') d += '/';
+    return d;
+  };
+  if (t == "appdir") {
+    std::error_code ec;
+    const std::filesystem::path self = std::filesystem::read_symlink("/proc/self/exe", ec);
+    return ec ? bbString() : toDirSlash(self.parent_path().string());
+  }
+  if (t == "tempdir") {
+    const char *tmp = std::getenv("TMPDIR");
+    return toDirSlash(tmp && *tmp ? tmp : "/tmp");
+  }
+  if (t == "apphwnd" || t == "apphinstance") return "0";
 #endif
   return "";
 }
@@ -324,9 +383,44 @@ inline bool bb_Proceed(const bbString &msg) {
                      MB_OKCANCEL | MB_ICONQUESTION) == IDOK;
 }
 #else
-inline void bb_Notify (const bbString &msg) { std::cerr << "[Notify] "  << msg << "\n"; }
-inline bool bb_Confirm(const bbString &msg) { std::cerr << "[Confirm] " << msg << "\n"; return true; }
-inline bool bb_Proceed(const bbString &msg) { std::cerr << "[Proceed] " << msg << "\n"; return true; }
+// Linux: Dialoge ueber SDL (X11/Wayland). Geht keiner auf (kein Bildschirm),
+// steht die Meldung auf stderr und die Antwort ist die erste Taste.
+// buttons: {Text, Rueckgabe}; der erste ist Enter, der letzte Escape.
+inline int bb_msgbox_(const bbString &msg, Uint32 icon,
+                      std::initializer_list<std::pair<const char *, int>> buttons) {
+  std::vector<SDL_MessageBoxButtonData> b;
+  for (const auto &[text, id] : buttons) {
+    SDL_MessageBoxButtonData d{};
+    d.buttonID = id;
+    d.text = text;
+    b.push_back(d);
+  }
+  b.front().flags |= SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT;
+  b.back().flags  |= SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT;
+  const std::string title = bb_utf8_(bb_app_title_.empty() ? bbString("BLTZNXT") : bb_app_title_);
+  const std::string text = bb_utf8_(msg);
+  SDL_MessageBoxData data{};
+  data.flags = icon;
+  data.title = title.c_str();
+  data.message = text.c_str();
+  data.numbuttons = static_cast<int>(b.size());
+  data.buttons = b.data();
+  int id = -1;
+  if (!SDL_ShowMessageBox(&data, &id) || id < 0) {
+    std::cerr << "[" << title << "] " << msg << "\n";
+    return buttons.begin()->second;
+  }
+  return id;
+}
+inline void bb_Notify(const bbString &msg) {
+  bb_msgbox_(msg, SDL_MESSAGEBOX_INFORMATION, {{"OK", 1}});
+}
+inline bool bb_Confirm(const bbString &msg) {
+  return bb_msgbox_(msg, SDL_MESSAGEBOX_INFORMATION, {{"Yes", 1}, {"No", 0}}) == 1;
+}
+inline bool bb_Proceed(const bbString &msg) {
+  return bb_msgbox_(msg, SDL_MESSAGEBOX_INFORMATION, {{"OK", 1}, {"Cancel", 0}}) == 1;
+}
 #endif
 
 #endif // BLITZNEXT_BB_SYSTEM_H

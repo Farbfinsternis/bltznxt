@@ -61,6 +61,58 @@ inline LONG WINAPI bb_seh_vectored_(EXCEPTION_POINTERS *p) {
     bb_RuntimeError(bb_seh_message_(code));
   return EXCEPTION_CONTINUE_SEARCH;
 }
+#else
+// Dasselbe unter Linux ueber Signale: ohne Handler endete "Print 7 / z" mit
+// z = 0 als "Floating point exception" samt Speicherabzug, und die schon
+// geschriebene, gepufferte Ausgabe ging verloren. Die Meldungen sind die des
+// Originals. Der Handler laeuft auf einem eigenen Stapel, sonst kaeme er bei
+// einem Stapelueberlauf gar nicht mehr zum Zug; einen Ueberlauf erkennt er an
+// der Fehleradresse knapp unterhalb des Stapels.
+#include <csignal>
+#include <sys/resource.h>
+namespace bb_sig_ {
+inline char *stack_top = nullptr;
+inline size_t stack_limit = 8u << 20;
+inline const char *message(int sig, const siginfo_t *si) {
+  switch (sig) {
+    case SIGFPE:
+      return (si->si_code == FPE_INTDIV || si->si_code == FPE_INTOVF)
+                 ? "Integer divide by zero" : "Unknown runtime exception";
+    case SIGSEGV:
+    case SIGBUS: {
+      const char *a = static_cast<const char *>(si->si_addr);
+      if (stack_top && a && a < stack_top && a + stack_limit + (1u << 20) > stack_top)
+        return "Stack overflow!";
+      return "Memory access violation";
+    }
+    case SIGILL: return "Illegal instruction";
+  }
+  return "Unknown runtime exception";
+}
+inline void handler(int sig, siginfo_t *si, void *) {
+  // Ein zweiter Fehler waehrend der Meldung endet wie ohne Handler.
+  std::signal(SIGSEGV, SIG_DFL); std::signal(SIGBUS, SIG_DFL);
+  std::signal(SIGFPE, SIG_DFL);  std::signal(SIGILL, SIG_DFL);
+  bb_RuntimeError(message(sig, si));
+}
+inline void install() {
+  char here;
+  stack_top = &here;
+  rlimit rl{};
+  if (getrlimit(RLIMIT_STACK, &rl) == 0 && rl.rlim_cur != RLIM_INFINITY)
+    stack_limit = static_cast<size_t>(rl.rlim_cur);
+  static std::vector<char> alt(1u << 16);
+  stack_t ss{};
+  ss.ss_sp = alt.data();
+  ss.ss_size = alt.size();
+  sigaltstack(&ss, nullptr);
+  struct sigaction sa{};
+  sa.sa_sigaction = handler;
+  sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
+  sigemptyset(&sa.sa_mask);
+  for (int s : {SIGFPE, SIGSEGV, SIGBUS, SIGILL}) sigaction(s, &sa, nullptr);
+}
+} // namespace bb_sig_
 #endif
 
 inline void bbInit(int argc = 0, char** argv = nullptr) {
@@ -85,6 +137,8 @@ inline void bbInit(int argc = 0, char** argv = nullptr) {
   // Eine Konsole (eigene oder die des Terminals) zeigt Print und liest Input$
   // in der ANSI-Codepage, wie die Strings im Programm (BUG-203).
   bb_console_ansi_();
+#else
+  bb_sig_::install();
 #endif
   // SDL is initialised lazily by bb_sdl_ensure_() when a window is first needed.
 #ifdef _WIN32

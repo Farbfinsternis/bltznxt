@@ -158,6 +158,19 @@ if [ ${#MISSING_REQ[@]} -gt 0 ]; then
     exit 1
 fi
 info "All required dependencies found."
+
+# Not needed to build, but by the programs BLTZNXT creates (loaded at runtime)
+if command -v fc-list >/dev/null 2>&1 && ! fc-list 2>/dev/null | grep -qi "Liberation Sans"; then
+    case "$PM" in
+        apt|zypper) FONT_PKG="fonts-liberation" ;; dnf) FONT_PKG="liberation-fonts" ;;
+        pacman) FONT_PKG="ttf-liberation" ;; *) FONT_PKG="the Liberation fonts" ;;
+    esac
+    warn "Recommended for programs: $FONT_PKG (Arial, Times New Roman, Courier New with the same measurements)"
+fi
+if ! ldconfig -p 2>/dev/null | grep -q "libcurl\(-gnutls\)\?\.so\.4"; then
+    warn "Recommended for programs: libcurl (https list servers of the Net commands)"
+fi
+
 if [ "$MODE" = "check" ]; then
     if [ ${#MISSING_OPT[@]} -gt 0 ]; then
         echo "    Optional: $(install_cmd "${PKGS_OPT[@]}")"

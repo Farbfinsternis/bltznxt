@@ -50,6 +50,7 @@
 #define SIO_UDP_CONNRESET _WSAIOW(IOC_VENDOR, 12)
 #endif
 #else
+#include <dlfcn.h>   // libcurl zur Laufzeit (bb_net_http_curl_)
 #include <fcntl.h>
 #endif
 
@@ -1650,6 +1651,80 @@ inline std::string bb_net_http_plain_(bool post, const std::string& url, const s
   return data;
 }
 
+#ifndef _WIN32
+// https unter Linux ueber libcurl, erst zur Laufzeit geladen: ein Programm
+// bekommt keine feste Abhaengigkeit, libcurl.so.4 liegt auf praktisch jedem
+// System. Die Zahlen sind die stabilen Werte aus curl.h. Wie WinHTTP folgt es
+// Umleitungen und nimmt einen eingestellten Proxy (http_proxy/https_proxy).
+struct bb_net_curl_api_ {
+  bool ok = false;
+  int   (*global_init)(long) = nullptr;
+  void* (*easy_init)() = nullptr;
+  int   (*easy_setopt)(void*, int, ...) = nullptr;
+  int   (*easy_perform)(void*) = nullptr;
+  int   (*easy_getinfo)(void*, int, ...) = nullptr;
+  void  (*easy_cleanup)(void*) = nullptr;
+};
+inline bb_net_curl_api_& bb_net_curl_() {
+  static bb_net_curl_api_ api = [] {
+    bb_net_curl_api_ a;
+    void* lib = dlopen("libcurl.so.4", RTLD_LAZY | RTLD_LOCAL);
+    if (!lib) lib = dlopen("libcurl-gnutls.so.4", RTLD_LAZY | RTLD_LOCAL);
+    if (!lib) return a;
+    auto sym = [lib](auto& fn, const char* n) {
+      fn = reinterpret_cast<std::remove_reference_t<decltype(fn)>>(dlsym(lib, n));
+      return fn != nullptr;
+    };
+    a.ok = sym(a.global_init, "curl_global_init") && sym(a.easy_init, "curl_easy_init") &&
+           sym(a.easy_setopt, "curl_easy_setopt") && sym(a.easy_perform, "curl_easy_perform") &&
+           sym(a.easy_getinfo, "curl_easy_getinfo") && sym(a.easy_cleanup, "curl_easy_cleanup");
+    if (a.ok && a.global_init(3 /* CURL_GLOBAL_DEFAULT */) != 0) a.ok = false;
+    return a;
+  }();
+  return api;
+}
+
+inline size_t bb_net_curl_write_(char* p, size_t sz, size_t n, void* user) {
+  std::string& out = *static_cast<std::string*>(user);
+  if (out.size() >= (1u << 20)) return 0;   // wie WinHTTP: hoechstens 1 MB
+  out.append(p, sz * n);
+  return sz * n;
+}
+
+// false: libcurl fehlt
+inline bool bb_net_http_curl_(bool post, const std::string& url, const std::string& body, int timeout,
+                              int& status, std::string& out) {
+  status = 0;
+  bb_net_curl_api_& c = bb_net_curl_();
+  if (!c.ok) return false;
+  void* h = c.easy_init();
+  if (!h) return true;
+  c.easy_setopt(h, 10002 /* URL */, url.c_str());
+  c.easy_setopt(h, 10018 /* USERAGENT */, "BLTZNXT");
+  c.easy_setopt(h, 99 /* NOSIGNAL */, 1L);
+  c.easy_setopt(h, 52 /* FOLLOWLOCATION */, 1L);
+  c.easy_setopt(h, 155 /* TIMEOUT_MS */, static_cast<long>(timeout) * 2);
+  c.easy_setopt(h, 156 /* CONNECTTIMEOUT_MS */, static_cast<long>(timeout));
+  c.easy_setopt(h, 20011 /* WRITEFUNCTION */, &bb_net_curl_write_);
+  c.easy_setopt(h, 10001 /* WRITEDATA */, static_cast<void*>(&out));
+  if (post) {
+    // POSTFIELDS sendet application/x-www-form-urlencoded wie WinHTTP hier
+    c.easy_setopt(h, 47 /* POST */, 1L);
+    c.easy_setopt(h, 60 /* POSTFIELDSIZE */, static_cast<long>(body.size()));
+    c.easy_setopt(h, 10015 /* POSTFIELDS */, body.c_str());
+  }
+  if (c.easy_perform(h) == 0) {
+    long code = 0;
+    c.easy_getinfo(h, 0x200000 + 2 /* RESPONSE_CODE */, &code);
+    status = static_cast<int>(code);
+  } else {
+    out.clear();
+  }
+  c.easy_cleanup(h);
+  return true;
+}
+#endif
+
 inline std::string bb_net_http_(bool post, const std::string& url, const std::string& body, int timeout,
                                 int& status) {
 #ifdef _WIN32
@@ -1700,7 +1775,9 @@ inline std::string bb_net_http_(bool post, const std::string& url, const std::st
   return out;
 #else
   if (url.compare(0, 8, "https://") == 0) {
-    std::cerr << "Net list server: https needs Windows in this version: " << url << "\n";
+    std::string out;
+    if (bb_net_http_curl_(post, url, body, timeout, status, out)) return out;
+    std::cerr << "Net list server: https needs libcurl (libcurl.so.4): " << url << "\n";
     status = 0;
     return std::string();
   }

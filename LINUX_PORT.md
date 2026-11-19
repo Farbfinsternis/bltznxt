@@ -61,9 +61,32 @@ macht der Nutzer, oder Claude nennt den Befehl.
   Textprogramm, 2D (Rect, Text, ReadPixel) und 3D (Würfel, RenderWorld) laufen.
 - **Nicht geprüft unter Linux:** IDE-Modus (`blitzide`), Programmargumente.
 
-### L3 Laufzeit übersetzbar — **übersetzt schon (19.11.)**
-- Erster Lauf: einziger Fehler war `<sys/ioctl.h>` in `bb_socket.h` (behoben). Die übrigen
-  Punkte unten betreffen also **Verhalten**, nicht das Übersetzen — einzeln prüfen.
+### L3 Laufzeit — **fertig 19.11.**
+- Erster Lauf: einziger Übersetzungsfehler war `<sys/ioctl.h>` in `bb_socket.h` (behoben).
+- Geprüft und behoben (Linux-Zweige, Windows unverändert):
+  - **Schriften:** alles fiel auf die 8×8-Schrift zurück. Jetzt fontconfig
+    (`libfontconfig.so.1` per `dlopen`, keine feste Abhängigkeit), gleiche Familien-Ersetzung
+    wie unter Windows (courier → courier new …). Standardschrift: Festbreitenschrift in Höhe
+    13 statt coure.fon; `LoadFont("courier",h)` rundet die Höhe wie GDI. Gemessen ohne
+    fonts-liberation: Standard 7×13, Arial 20 → 15×20, Times 24 → 22×24.
+  - **Absturzmeldung:** Signal-Handler (SIGFPE/SEGV/BUS/ILL) auf eigenem Stapel; „Integer
+    divide by zero“, „Memory access violation“, „Stack overflow!“, gepufferte Ausgabe bleibt.
+  - **SystemProperty:** appdir (`/proc/self/exe`, mit `/`), tempdir (`$TMPDIR` oder `/tmp/`),
+    apphwnd/apphinstance „0“; os leer wie im Original nach Windows 7.
+  - **WaitKey ohne Fenster:** hing; jetzt eine Taste vom Terminal (termios, ohne Echo),
+    Enter 13, Backspace 8, Pfeiltasten-Folgen zählen nicht.
+  - **Notify/Confirm/Proceed und Schließen-Rückfrage (AppTitle, BUG-210):** SDL-Dialoge statt
+    nur stderr (Confirm lieferte immer Ja).
+  - **ExecFile:** ohne Shell, Programm direkt oder über `xdg-open` (Webadressen, Dokumente).
+  - **Liste-Server https:** libcurl per `dlopen` (GET und POST gegen echte Server geprüft).
+- Bewusst offen (KNOWN_ISSUES): Gamma (SDL3 hat keine Gamma-Rampen mehr), MIDI, Filme,
+  `FontWidth` als Breite von „M“ statt GDI-Maximalbreite.
+- `build_linux.sh` empfiehlt fonts-liberation und libcurl, wenn sie fehlen.
+- Windows gegengeprüft: 8 Suite-Tests zu Schriften/Umlauten bestehen.
+- **Nicht geprüft:** Dialoge und ExecFile von Hand (gehen auf), Stapelüberlauf mit `-O2`
+  (gcc macht aus der Testrekursion eine Schleife — unter Windows genauso).
+
+Ursprüngliche Liste:
 - Gamma über SDL oder weglassen; Schriften über fontconfig mit Ersatztabelle (Arial → Liberation
   Sans usw.); Scancodes über SDL; Absturzmeldung über Signal-Handler; Liste-Server per eigenem
   HTTP statt `winhttp`.
@@ -73,6 +96,9 @@ macht der Nutzer, oder Claude nennt den Befehl.
 - Alte Programme schreiben `"Media\Bild.PNG"`. Beim Öffnen: `\` → `/`, Suche ohne Rücksicht auf
   Groß-/Kleinschreibung, Laufwerksbuchstaben behandeln. Gilt für alle Lade- und Dateibefehle.
 - Wichtigster Punkt für das Kompatibilitätsziel.
+- **Zeichensatz (aus L3):** Blitz-Strings sind Windows-1252-Bytes, Linux erwartet UTF-8.
+  Betrifft Dateinamen (`bb_path_`), Print/Input am Terminal, Fenstertitel und Dialoge
+  (`bb_utf8_` reicht unter Linux heute nur durch). Wandlung 1252 ↔ UTF-8 an diesen Grenzen.
 
 ### L5 IDE
 - Name von `blitzcc` und Programmen je Plattform, Beenden per Signal statt `taskkill`.

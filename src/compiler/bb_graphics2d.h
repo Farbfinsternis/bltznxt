@@ -1135,6 +1135,10 @@ inline void bb_Locate(int x, int y) {
 #ifdef BB_HAS_SDL3_TTF
 #  include <SDL3_ttf/SDL_ttf.h>
 #  include <filesystem>
+#  ifndef _WIN32
+#    include <dlfcn.h>        // fontconfig zur Laufzeit (bb_fc_load_)
+#    include <type_traits>
+#  endif
 #endif
 
 // ---- bb_Font_ struct ----
@@ -1221,6 +1225,77 @@ inline bbString bb_font_registry_(const bbString& want_lower) {
     }
     return "";
 }
+#else
+// fontconfig (libfontconfig.so.1) wird erst zur Laufzeit geladen: ein Programm
+// bekommt dadurch keine feste Abhaengigkeit, und fehlt die Bibliothek, bleibt
+// die Suche nach "<name>.ttf". Die Konstanten sind die stabilen Werte aus
+// fontconfig.h (FC_WEIGHT_BOLD 200, FC_SLANT_ITALIC 100, FcMatchPattern 0,
+// FcResultMatch 0).
+struct bb_Fc_ {
+    bool tried = false, ok = false;
+    void* (*patternCreate)() = nullptr;
+    int   (*patternAddString)(void*, const char*, const unsigned char*) = nullptr;
+    int   (*patternAddInteger)(void*, const char*, int) = nullptr;
+    int   (*configSubstitute)(void*, void*, int) = nullptr;
+    void  (*defaultSubstitute)(void*) = nullptr;
+    void* (*fontMatch)(void*, void*, int*) = nullptr;
+    int   (*patternGetString)(void*, const char*, int, unsigned char**) = nullptr;
+    int   (*patternGetInteger)(void*, const char*, int, int*) = nullptr;
+    void  (*patternDestroy)(void*) = nullptr;
+};
+inline bb_Fc_ bb_fc_;
+
+inline bool bb_fc_load_() {
+    bb_Fc_& f = bb_fc_;
+    if (f.tried) return f.ok;
+    f.tried = true;
+    void* lib = dlopen("libfontconfig.so.1", RTLD_LAZY | RTLD_LOCAL);
+    if (!lib) return false;
+    auto sym = [lib](auto& fn, const char* n) {
+        fn = reinterpret_cast<std::remove_reference_t<decltype(fn)>>(dlsym(lib, n));
+        return fn != nullptr;
+    };
+    f.ok = sym(f.patternCreate, "FcPatternCreate") &&
+           sym(f.patternAddString, "FcPatternAddString") &&
+           sym(f.patternAddInteger, "FcPatternAddInteger") &&
+           sym(f.configSubstitute, "FcConfigSubstitute") &&
+           sym(f.defaultSubstitute, "FcDefaultSubstitute") &&
+           sym(f.fontMatch, "FcFontMatch") &&
+           sym(f.patternGetString, "FcPatternGetString") &&
+           sym(f.patternGetInteger, "FcPatternGetInteger") &&
+           sym(f.patternDestroy, "FcPatternDestroy");
+    return f.ok;
+}
+
+// Datei der Schrift, die fontconfig fuer Familie und Stil waehlt; leer ohne
+// fontconfig. *styled: die Datei hat den verlangten Stil selbst (sonst
+// setzt SDL_ttf Fett und Kursiv kuenstlich).
+inline bbString bb_fc_match_(const bbString& family, bool bold, bool italic, bool* styled) {
+    if (!bb_fc_load_()) return "";
+    bb_Fc_& f = bb_fc_;
+    void* pat = f.patternCreate();
+    if (!pat) return "";
+    f.patternAddString(pat, "family", reinterpret_cast<const unsigned char*>(family.c_str()));
+    if (bold)   f.patternAddInteger(pat, "weight", 200);
+    if (italic) f.patternAddInteger(pat, "slant", 100);
+    f.configSubstitute(nullptr, pat, 0);
+    f.defaultSubstitute(pat);
+    int res = 0;
+    void* m = f.fontMatch(nullptr, pat, &res);
+    f.patternDestroy(pat);
+    if (!m) return "";
+    bbString file;
+    unsigned char* s = nullptr;
+    if (f.patternGetString(m, "file", 0, &s) == 0 && s) file = reinterpret_cast<char*>(s);
+    if (styled && (bold || italic)) {
+        int w = 80, sl = 0;
+        f.patternGetInteger(m, "weight", 0, &w);
+        f.patternGetInteger(m, "slant", 0, &sl);
+        *styled = (!bold || w >= 180) && (!italic || sl >= 100);
+    }
+    f.patternDestroy(m);
+    return file;
+}
 #endif
 
 inline bbString bb_find_font_file_(const bbString& name, bool bold = false, bool italic = false,
@@ -1265,7 +1340,20 @@ inline bbString bb_find_font_file_(const bbString& name, bool bold = false, bool
         if (fs::exists(bb_path_(p))) return p;
     }
 #else
-    // Linux / macOS common font directories
+    // Unter Linux kennt fontconfig die installierten Schriften und ersetzt
+    // eine fehlende Familie wie GDI durch eine passende andere - mit
+    // fonts-liberation metrisch gleich: Arial -> Liberation Sans, Times New
+    // Roman -> Liberation Serif, Courier New -> Liberation Mono.
+    bbString fam = lower;
+    if (fam == "courier" || fam == "fixedsys" || fam == "terminal" || fam == "system")
+        fam = "courier new";
+    else if (fam == "ms sans serif") fam = "microsoft sans serif";
+    else if (fam == "ms serif")      fam = "times new roman";
+    {
+        bbString p = bb_fc_match_(fam, bold, italic, styled);
+        if (!p.empty() && fs::exists(bb_path_(p))) return p;
+    }
+    // Ohne fontconfig: die ueblichen Ordner nach "<name>.ttf" absuchen
     for (const char* dir : {
             "/usr/share/fonts/truetype/",
             "/usr/share/fonts/TTF/",
@@ -1346,20 +1434,70 @@ inline bool bb_open_courier_(int height, bool bold, bool italic, bool underline,
     return true;
 }
 #endif
+
+// Die Hoehe, die GDI fuer die Bitmapschrift "Courier" waehlt (siehe
+// bb_open_courier_): die groesste der Groessen 13, 16, 20 - auch ganzzahlig
+// vergroessert -, die nicht ueber der verlangten liegt, mindestens 13.
+// Ausserhalb von Windows gibt es coure.fon nicht; dort wird eine
+// Festbreitenschrift auf diese Hoehe gebracht, damit Zeilen gleich weit
+// auseinander stehen.
+inline int bb_courier_height_(int height) {
+    static const int faces[3] = { 13, 16, 20 };
+    int best = 13;
+    for (int i = 0; i < 3; ++i)
+        for (int k = 1; faces[i] * k <= height; ++k)
+            if (faces[i] * k > best) best = faces[i] * k;
+    return best;
+}
+
+// Eine TrueType-Datei so oeffnen, dass TTF_GetFontHeight die verlangte
+// Zellenhoehe trifft (siehe bb_LoadFont). false, wenn SDL_ttf sie nicht oeffnet.
+inline bool bb_ttf_open_sized_(const bbString& path, int height, bool styled, bool bold,
+                               bool italic, bool underline, bb_Font_& f) {
+    TTF_Font* ttf = TTF_OpenFont(bb_utf8_(path).c_str(), static_cast<float>(height));   // SDL will UTF-8
+    if (!ttf) return false;
+    const int h0 = TTF_GetFontHeight(ttf);
+    if (h0 > 0 && h0 != height)
+        TTF_SetFontSize(ttf, static_cast<float>(height) * height / h0);
+    int style = TTF_STYLE_NORMAL;
+    if (!styled && bold)   style |= TTF_STYLE_BOLD;
+    if (!styled && italic) style |= TTF_STYLE_ITALIC;
+    if (underline)         style |= TTF_STYLE_UNDERLINE;
+    if (style != TTF_STYLE_NORMAL) TTF_SetFontStyle(ttf, style);
+    f.ttf    = ttf;
+    f.valid  = true;
+    f.height = TTF_GetFontHeight(ttf);
+    // Measure a representative character for the cell width
+    int mw = 0, mh = 0;
+    if (TTF_GetStringSize(ttf, "M", 1, &mw, &mh) && mw > 0)
+        f.width = mw;
+    else
+        f.width = f.height / 2;
+    return true;
+}
 #endif // BB_HAS_SDL3_TTF
 
 // Die aktive Schrift; Slot 0, die Standardschrift, wird beim ersten Gebrauch
-// als Courier 12 geladen. Ohne SDL_ttf oder Windows bleibt es die eingebaute
-// 8x8-Schrift.
+// als Courier 12 geladen - ausserhalb von Windows als Festbreitenschrift in
+// derselben Hoehe (13). Ohne SDL_ttf bleibt es die eingebaute 8x8-Schrift.
 inline bb_Font_& bb_font_active_() {
     if (bb_active_font_ > 0 && bb_active_font_ < static_cast<int>(bb_fonts_.size()))
         return bb_fonts_[bb_active_font_];
     if (!bb_font_default_tried_) {
         bb_font_default_tried_ = true;
-#if defined(BB_HAS_SDL3_TTF) && defined(_WIN32)
+#ifdef BB_HAS_SDL3_TTF
         bb_ttf_ensure_();
         bb_Font_ f;
+#  ifdef _WIN32
         if (bb_ttf_initialized_ && bb_open_courier_(12, false, false, false, f)) bb_fonts_[0] = f;
+#  else
+        if (bb_ttf_initialized_) {
+            const bbString path = bb_find_font_file_("courier");
+            if (!path.empty() &&
+                bb_ttf_open_sized_(path, bb_courier_height_(12), false, false, false, false, f))
+                bb_fonts_[0] = f;
+        }
+#  endif
 #endif
     }
     return bb_fonts_[0];
@@ -1404,14 +1542,17 @@ inline int bb_LoadFont(const bbString& name, int height = 12,
     }
     const bool isFile = dot != bbString::npos &&
                         std::filesystem::exists(bb_path_(name));   // ANSI (BUG-202)
-#ifdef _WIN32
     bbString fam = face;
     for (auto& c : fam) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+#ifdef _WIN32
     if (bb_ttf_initialized_ && !isFile && fam == "courier" &&
         bb_open_courier_(height, bold != 0, italic != 0, underline != 0, f)) {
         bb_fonts_.push_back(f);
         return static_cast<int>(bb_fonts_.size()) - 1;
     }
+#else
+    // Ersatz fuer die Bitmapschrift: gleiche Hoehe wie unter Windows
+    if (!isFile && fam == "courier") height = bb_courier_height_(height);
 #endif
     if (bb_ttf_initialized_) {
         bool styled = false;
@@ -1420,31 +1561,13 @@ inline int bb_LoadFont(const bbString& name, int height = 12,
         // Schrift, gemessen mit denselben Massen wie Arial - nicht durch die
         // eingebaute 8x8-Schrift (BUG-227).
         if (path.empty()) path = bb_find_font_file_("arial", bold != 0, italic != 0, &styled);
-        if (!path.empty()) {
-            TTF_Font* ttf = TTF_OpenFont(bb_utf8_(path).c_str(), static_cast<float>(height));   // SDL will UTF-8
-            if (ttf) {
-                const int h0 = TTF_GetFontHeight(ttf);
-                if (h0 > 0 && h0 != height)
-                    TTF_SetFontSize(ttf, static_cast<float>(height) * height / h0);
-                int style = TTF_STYLE_NORMAL;
-                if (!styled && bold)   style |= TTF_STYLE_BOLD;
-                if (!styled && italic) style |= TTF_STYLE_ITALIC;
-                if (underline)         style |= TTF_STYLE_UNDERLINE;
-                if (style != TTF_STYLE_NORMAL) TTF_SetFontStyle(ttf, style);
-                f.ttf    = ttf;
-                f.height = TTF_GetFontHeight(ttf);
-                // Measure a representative character for the cell width
-                int mw = 0, mh = 0;
-                if (TTF_GetStringSize(ttf, "M", 1, &mw, &mh) && mw > 0)
-                    f.width = mw;
-                else
-                    f.width = f.height / 2;
+        if (!path.empty() &&
+            bb_ttf_open_sized_(path, height, styled, bold != 0, italic != 0, underline != 0, f)) {
 #ifdef _WIN32
-                if (!isFile)   // GDI kennt die Familie unter `face`
-                    bb_gdi_font_metrics_(face, height, bold != 0, italic != 0, underline != 0,
-                                         f.width, f.height);
+            if (!isFile)   // GDI kennt die Familie unter `face`
+                bb_gdi_font_metrics_(face, height, bold != 0, italic != 0, underline != 0,
+                                     f.width, f.height);
 #endif
-            }
         }
     }
 #endif
