@@ -35,6 +35,7 @@ inline constexpr bb_socket_t BB_INVALID_SOCKET = INVALID_SOCKET;
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <netinet/in.h>
+#include <sys/ioctl.h>   // ioctl(FIONREAD) in ReadAvail
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <unistd.h>

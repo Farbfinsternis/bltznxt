@@ -21,37 +21,12 @@
 #include "suggest.h"
 #include "token.h"
 
-// Include last: windows.h macros (BOOL, ERROR, min/max, ...) must not
-// pollute the project headers above.
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
-#include <windows.h>
+// Include last: host.h brings in windows.h, whose macros (BOOL, ERROR,
+// min/max, ...) must not pollute the project headers above. It also defines
+// the ANSI path helpers of ansipath.h (BUG-201).
+#include "host.h"
 
 namespace fs = std::filesystem;
-
-// ---- ANSI-Pfade (ansipath.h, BUG-201) ----------------------------------------
-
-std::wstring ansiWide(const std::string &ansi) {
-  if (ansi.empty()) return std::wstring();
-  const int n = MultiByteToWideChar(CP_ACP, 0, ansi.data(), (int)ansi.size(), nullptr, 0);
-  std::wstring w(n > 0 ? n : 0, L'\0');
-  if (n > 0) MultiByteToWideChar(CP_ACP, 0, ansi.data(), (int)ansi.size(), w.data(), n);
-  return w;
-}
-
-static std::string ansiFromWide(const std::wstring &w) {
-  if (w.empty()) return std::string();
-  const int n = WideCharToMultiByte(CP_ACP, 0, w.data(), (int)w.size(), nullptr, 0,
-                                    nullptr, nullptr);
-  std::string s(n > 0 ? n : 0, '\0');
-  if (n > 0)
-    WideCharToMultiByte(CP_ACP, 0, w.data(), (int)w.size(), s.data(), n, nullptr, nullptr);
-  return s;
-}
-
-fs::path ansiPath(const std::string &ansi) { return fs::path(ansiWide(ansi)); }
-std::string ansiString(const fs::path &p) { return ansiFromWide(p.wstring()); }
-std::string ansiGeneric(const fs::path &p) { return ansiFromWide(p.generic_wstring()); }
 
 // ---- Version ---------------------------------------------------------------
 // Single source of truth for -h and -v output (Buglist BUG-02 / REFACTOR R12).
@@ -190,13 +165,32 @@ static void listCommandsBlitz() {
 
 // Was dem Compiler fehlt, um zu uebersetzen; leer, wenn alles da ist. Das
 // Original prueft beim nackten Aufruf ebenso seine Umgebung.
+#ifndef _WIN32
+// Unter Linux: SDL3 aus build_linux.sh (libs/linux/...) oder vom System
+static bool systemHeader(const char *rel) {
+  return fs::exists(fs::path("/usr/include") / rel) ||
+         fs::exists(fs::path("/usr/local/include") / rel);
+}
+#endif
+
 static std::string toolchainProblem() {
+#ifdef _WIN32
   if (!fs::exists(resolvePath("tools/mingw64/bin/g++.exe")))
     return "BLTZNXT: g++ not found (tools/mingw64)";
+#else
+  if (host::findInPath("g++").empty())
+    return "BLTZNXT: g++ not found in PATH";
+#endif
   if (!fs::exists(resolvePath("src/compiler/bb_runtime.h")))
     return "BLTZNXT: runtime headers not found (src/compiler)";
+#ifdef _WIN32
   if (!fs::exists(resolvePath("libs/sd3/x86_64-w64-mingw32/lib/libSDL3.dll.a")))
     return "BLTZNXT: SDL3 not found (libs/sd3)";
+#else
+  if (!fs::exists(resolvePath("libs/linux/sdl3/include/SDL3/SDL.h")) &&
+      !systemHeader("SDL3/SDL.h"))
+    return "BLTZNXT: SDL3 not found (libs/linux/sdl3 or system) - run build_linux.sh";
+#endif
   return "";
 }
 
@@ -224,7 +218,7 @@ static std::string ideError(const std::string &log) {
 
 // g++ ohne eigenes Konsolenfenster starten: die IDE startet blitzcc ohne
 // Konsole (DETACHED_PROCESS), und jedes Konsolenprogramm darunter bekaeme
-// sonst ein eigenes Fenster.
+// sonst ein eigenes Fenster. Nur unter Windows von Bedeutung.
 static bool g_noConsole_ = false;
 
 // ---- Semantic check: unknown calls (WEAK-03, Stufe 1 und 2) ----------------
@@ -507,59 +501,81 @@ class Transpiler {
 public:
   bool compile(const std::string &cppPath, const std::string &outputPath,
                bool debug, bool debugMode) const {
-    fs::path gppPath = resolvePath("tools/mingw64/bin/g++.exe");
+    using host::arg;
+    const fs::path includeDir = resolvePath("src/compiler");
+
+    // Die Befehlszeile ist eine Liste von Argumenten in der Zeichenbreite des
+    // Systems (host::Args), gestartet ohne Shell. Bis BUG-201 wurde sie als
+    // std::string gebaut und Byte fuer Byte nach wstring kopiert - jeder
+    // Umlaut in einem Pfad kam bei g++ kaputt an.
+    const fs::path finalCpp = fs::absolute(ansiPath(cppPath));
+    const fs::path finalOut = fs::absolute(ansiPath(outputPath + host::kExeSuffix));
+    const fs::path outDir   = ansiPath(outputPath).parent_path();
+
+    // Die SDL-Bibliotheken, die neben das Programm kopiert werden:
+    // {Quelle, Name daneben}
+    std::vector<std::pair<fs::path, std::string>> beside;
+
+#ifdef _WIN32
+    const fs::path gppPath = resolvePath("tools/mingw64/bin/g++.exe");
     if (!fs::exists(gppPath)) {
       std::cerr << "[ERROR] g++ not found at \"" << ansiString(gppPath) << "\"\n";
       return false;
     }
-
-    fs::path includeDir  = resolvePath("src/compiler");
-    fs::path sdlBase     = resolvePath("libs/sd3/x86_64-w64-mingw32");
-    fs::path sdlInc      = sdlBase / "include";
-    fs::path libDir      = sdlBase / "lib";
-    fs::path sdlImport   = libDir / "libSDL3.dll.a";
-
+    const fs::path sdlBase   = resolvePath("libs/sd3/x86_64-w64-mingw32");
+    const fs::path sdlImport = sdlBase / "lib" / "libSDL3.dll.a";
     // SDL3_ttf (optional — present after build_windows.bat has run)
-    fs::path ttfBase     = resolvePath("libs/sdl3_ttf/x86_64-w64-mingw32");
-    fs::path ttfInc      = ttfBase / "include";
-    fs::path ttfImport   = ttfBase / "lib" / "libSDL3_ttf.dll.a";
-    const bool haveTtf   = fs::exists(ttfImport);
+    const fs::path ttfBase   = resolvePath("libs/sdl3_ttf/x86_64-w64-mingw32");
+    const fs::path ttfImport = ttfBase / "lib" / "libSDL3_ttf.dll.a";
+    const bool haveTtf = fs::exists(ttfImport);
 
-    // Die Befehlszeile entsteht direkt als UTF-16 aus den Pfaden. Bis BUG-201
-    // wurde sie als std::string gebaut und Byte fuer Byte nach wstring
-    // kopiert - jeder Umlaut in einem Pfad kam bei g++ kaputt an.
-    const fs::path finalCpp = fs::absolute(ansiPath(cppPath)).make_preferred();
-    const fs::path finalOut = fs::absolute(ansiPath(outputPath + ".exe")).make_preferred();
-    auto q = [](fs::path p) { return L"\"" + p.make_preferred().wstring() + L"\""; };
+    host::Args args = {arg(gppPath), arg("-std=c++17"), arg("-static"),
+                       arg("-I", includeDir), arg("-I", sdlBase / "include")};
+    if (haveTtf) {
+      args.push_back(arg("-I", ttfBase / "include"));
+      args.push_back(arg("-DBB_HAS_SDL3_TTF"));
+    }
+    beside.push_back({sdlBase / "bin" / "SDL3.dll", "SDL3.dll"});
+    beside.push_back({ttfBase / "bin" / "SDL3_ttf.dll", "SDL3_ttf.dll"});
+#else
+    // Unter Linux: g++ aus dem PATH; SDL3 aus build_linux.sh (libs/linux/)
+    // oder vom System.
+    const fs::path gppPath = host::findInPath("g++");
+    if (gppPath.empty()) {
+      std::cerr << "[ERROR] g++ not found in PATH\n";
+      return false;
+    }
+    const fs::path sdlBase = resolvePath("libs/linux/sdl3");
+    const fs::path ttfBase = resolvePath("libs/linux/sdl3_ttf");
+    const bool ownSdl  = fs::exists(sdlBase / "include" / "SDL3" / "SDL.h");
+    const bool ownTtf  = fs::exists(ttfBase / "include" / "SDL3_ttf" / "SDL_ttf.h");
+    const bool haveTtf = ownTtf || systemHeader("SDL3_ttf/SDL_ttf.h");
 
-    std::wstring cmd = q(gppPath) + L" -std=c++17 -static"
-                       L" -I" + q(includeDir) +
-                       L" -I" + q(sdlInc);
+    host::Args args = {arg(gppPath), arg("-std=c++17"), arg("-I", includeDir)};
+    if (ownSdl) args.push_back(arg("-I", sdlBase / "include"));
+    if (ownTtf) args.push_back(arg("-I", ttfBase / "include"));
+    if (haveTtf) args.push_back(arg("-DBB_HAS_SDL3_TTF"));
+    // Die eigene SDL liegt wie unter Windows neben dem Programm; das Programm
+    // sucht sie dort ($ORIGIN), so laeuft der Ordner auch auf einem anderen
+    // Rechner. Kopiert wird die Datei unter ihrem soname.
+    if (ownSdl) beside.push_back({sdlBase / "lib" / "libSDL3.so.0", "libSDL3.so.0"});
+    if (ownTtf) beside.push_back({ttfBase / "lib" / "libSDL3_ttf.so.0", "libSDL3_ttf.so.0"});
+#endif
 
-    if (haveTtf)
-      cmd += L" -I" + q(ttfInc) + L" -DBB_HAS_SDL3_TTF";
-    if (debug || debugMode)
-      cmd += L" -DBB_DEBUG=1";
+    if (debug || debugMode) args.push_back(arg("-DBB_DEBUG=1"));
+    args.push_back(arg(finalCpp));
+    args.push_back(arg("-o"));
+    args.push_back(arg(finalOut));
 
-    cmd += L" " + q(finalCpp) + L" -o " + q(finalOut);
-
-    // Link SDL3 (required for graphics/audio/input)
-    if (fs::exists(sdlImport))
-      cmd += L" " + q(sdlImport);
-
-    // Link SDL3_ttf when available
-    if (haveTtf)
-      cmd += L" " + q(ttfImport);
-
-    // Link winmm for timeBeginPeriod/timeEndPeriod (high-res timer on Windows)
-    cmd += L" -lwinmm";
-
+#ifdef _WIN32
+    // Link SDL3 (required for graphics/audio/input) and SDL3_ttf when available
+    if (fs::exists(sdlImport)) args.push_back(arg(sdlImport));
+    if (haveTtf)               args.push_back(arg(ttfImport));
+    // winmm for timeBeginPeriod/timeEndPeriod (high-res timer on Windows);
     // Winsock fuer die TCP-Befehle (bb_socket.h), WinHTTP fuer den
-    // Listen-Server der Net-Befehle (bb_net.h)
-    cmd += L" -lws2_32 -lwinhttp";
-
-    // Link opengl32 for OpenGL (3D programs via bb_gl_ctx.h)
-    cmd += L" -lopengl32";
+    // Listen-Server der Net-Befehle (bb_net.h); opengl32 for 3D (bb_gl_ctx.h)
+    for (const char *l : {"-lwinmm", "-lws2_32", "-lwinhttp", "-lopengl32"})
+      args.push_back(arg(l));
 
     // Ein Programm mit Graphics oder Graphics3D wird ein Fensterprogramm wie
     // in Blitz3D: ohne eigenes Konsolenfenster, das sich sonst beim Start
@@ -573,8 +589,22 @@ public:
                             std::istreambuf_iterator<char>());
       if (src.find("bb_Graphics(") != std::string::npos ||
           src.find("bb_Graphics3D(") != std::string::npos)
-        cmd += L" -mwindows";
+        args.push_back(arg("-mwindows"));
     }
+#else
+    if (ownSdl) args.push_back(arg("-L", sdlBase / "lib"));
+    if (ownTtf) args.push_back(arg("-L", ttfBase / "lib"));
+    if (haveTtf) args.push_back(arg("-lSDL3_ttf"));
+    for (const char *l : {"-lSDL3", "-lGL", "-lpthread", "-ldl"})
+      args.push_back(arg(l));
+    // Ohne Shell dazwischen kommt $ORIGIN woertlich beim Linker an.
+    if (!beside.empty()) args.push_back(arg("-Wl,-rpath,$ORIGIN"));
+    // libstdc++ fest einbinden: das Programm laeuft dann auch auf einem
+    // System mit aelterer libstdc++. glibc bleibt dynamisch (statisch geht
+    // sie mit OpenGL und dlopen nicht).
+    args.push_back(arg("-static-libstdc++"));
+    args.push_back(arg("-static-libgcc"));
+#endif
 
     // Release optimiert: ohne -O laeuft die Laufzeit in den Headern (Banks
     // hinter unordered_map, Felder mit .at()) um ein Vielfaches langsamer -
@@ -583,52 +613,32 @@ public:
     // undefiniert zu sein, auf das der Optimierer bauen duerfte.
     // -fno-strict-aliasing: die Header lesen Bytes auch ueber andere Typen.
     // Der Debug-Build bleibt unoptimiert, damit -g brauchbar ist.
-    if (debug) cmd += L" -O0 -g";
-    else       cmd += L" -O2 -fwrapv -fno-strict-aliasing";
+    if (debug) {
+      args.push_back(arg("-O0"));
+      args.push_back(arg("-g"));
+    } else {
+      for (const char *o : {"-O2", "-fwrapv", "-fno-strict-aliasing"})
+        args.push_back(arg(o));
+    }
+#ifdef _WIN32
     // Ein grosses Programm hat mit -g mehr als 32767 Abschnitte in einer
     // Objektdatei; das alte COFF-Format des MinGW-Assemblers bricht dann mit
     // "too many sections" ab (Blox'n'Balls, BUG-231). Das grosse Format
-    // kostet nichts und gilt auch fuer Release.
-    cmd += L" -Wa,-mbig-obj";
+    // kostet nichts und gilt auch fuer Release. ELF kennt die Grenze nicht.
+    args.push_back(arg("-Wa,-mbig-obj"));
+#endif
 
-    // Launch g++ directly via CreateProcessW — no shell, no injection risk.
-    STARTUPINFOW si = {};
-    si.cb = sizeof(si);
-    PROCESS_INFORMATION pi = {};
-    if (!CreateProcessW(nullptr, cmd.data(),
-                        nullptr, nullptr, FALSE,
-                        g_noConsole_ ? CREATE_NO_WINDOW : 0, nullptr, nullptr,
-                        &si, &pi)) {
-      std::cerr << "[ERROR] CreateProcessW failed (code " << GetLastError() << ")\n";
-      return false;
-    }
-    WaitForSingleObject(pi.hProcess, INFINITE);
-    DWORD exitCode = 1;
-    GetExitCodeProcess(pi.hProcess, &exitCode);
-    CloseHandle(pi.hProcess);
-    CloseHandle(pi.hThread);
-    if (exitCode != 0) return false;
+    host::RunOptions opt;
+    opt.noConsole = g_noConsole_;
+    if (host::run(args, opt) != 0) return false;
 
-    // Copy SDL3.dll next to the executable (non-fatal if absent)
-    fs::path sdlDll = resolvePath("libs/sd3/x86_64-w64-mingw32/bin/SDL3.dll");
-    if (fs::exists(sdlDll)) {
+    // Die SDL-Bibliotheken neben das Programm (non-fatal if absent)
+    for (const auto &[from, name] : beside) {
+      if (!fs::exists(from)) continue;
       try {
-        fs::copy_file(sdlDll,
-                      ansiPath(outputPath).parent_path() / "SDL3.dll",
-                      fs::copy_options::overwrite_existing);
+        fs::copy_file(from, outDir / name, fs::copy_options::overwrite_existing);
       } catch (...) {}
     }
-
-    // Copy SDL3_ttf.dll next to the executable (non-fatal if absent)
-    fs::path ttfDll = ttfBase / "bin" / "SDL3_ttf.dll";
-    if (fs::exists(ttfDll)) {
-      try {
-        fs::copy_file(ttfDll,
-                      ansiPath(outputPath).parent_path() / "SDL3_ttf.dll",
-                      fs::copy_options::overwrite_existing);
-      } catch (...) {}
-    }
-
     return true;
   }
 
@@ -652,8 +662,9 @@ public:
     const bool run = cfg.outputName.empty() && !cfg.compileOnly;
     fs::path tmp;
     if (cfg.outputName.empty()) {
-      tmp = fs::temp_directory_path() / "bltznxt-ide" /
-            (src.stem().wstring() + L"-" + std::to_wstring(GetCurrentProcessId()));
+      fs::path dirName = src.stem();
+      dirName += "-" + std::to_string(host::processId());
+      tmp = fs::temp_directory_path() / "bltznxt-ide" / dirName;
       std::error_code ec;
       fs::create_directories(tmp, ec);
       cfg.outputName = ansiString(tmp / src.stem());
@@ -690,7 +701,8 @@ public:
     }
     if (!run) {
       if (!cfg.compileOnly && !cfg.veryQuiet)
-        ide << "Creating executable \"" << cfg.outputName << ".exe\"..." << std::endl;
+        ide << "Creating executable \"" << cfg.outputName << host::kExeSuffix << "\"..."
+            << std::endl;
       cleanup();
       return 0;
     }
@@ -700,27 +712,14 @@ public:
     // Das Programm mit eigenem Fenster; ein Textprogramm bekommt seine
     // eigene Konsole, weil blitzcc selbst keine hat. blitzcc wartet, damit
     // der Ordner danach geloescht werden kann.
-    const fs::path exe = ansiPath(cfg.outputName + ".exe");
-    std::wstring cmd = L"\"" + exe.wstring() + L"\"";
-    for (const auto &a : cfg.progArgs) {
-      const std::wstring w = ansiWide(a);
-      cmd += L" " + (w.find(L' ') != std::wstring::npos ? L"\"" + w + L"\"" : w);
-    }
-    const std::wstring dir = src.parent_path().wstring();
-    // Nach vorn darf ein Fenster nur, wer von der Anwendung im Vordergrund
-    // gestartet wurde - das ist blitzcc (von der IDE), nicht das Programm
-    // (von blitzcc). Ohne diese Weitergabe gehen Grafik- und Textfenster
-    // hinter der IDE auf.
-    AllowSetForegroundWindow(ASFW_ANY);
-    STARTUPINFOW si = {};
-    si.cb = sizeof(si);
-    PROCESS_INFORMATION pi = {};
-    if (CreateProcessW(exe.wstring().c_str(), cmd.data(), nullptr, nullptr, FALSE,
-                       0, nullptr, dir.c_str(), &si, &pi)) {
-      WaitForSingleObject(pi.hProcess, INFINITE);
-      CloseHandle(pi.hProcess);
-      CloseHandle(pi.hThread);
-    }
+    // Absolut: unter Linux sucht execvp ein Programm ohne '/' sonst im PATH.
+    host::Args args = {host::arg(fs::absolute(ansiPath(cfg.outputName + host::kExeSuffix)))};
+    for (const auto &a : cfg.progArgs) args.push_back(ansiPath(a).native());
+    const fs::path dir = src.parent_path();
+    host::RunOptions opt;
+    opt.cwd = &dir;
+    opt.foreground = true;   // sonst gehen die Fenster hinter der IDE auf
+    host::run(args, opt);
     cleanup();
     return 0;
   }
@@ -736,7 +735,7 @@ public:
 
     if (!cfg.quiet)
       std::cout << "Building: " << cfg.inputPath << " -> " << output
-                << ".exe\n";
+                << host::kExeSuffix << "\n";
 
     // Fortschritt je Phase; der g++-Lauf ist die lange
     auto step = [&cfg](const char *phase) { if (cfg.progress) cfg.progress(phase); };
@@ -791,7 +790,7 @@ public:
     step("Compiling C++...");
     if (compile(output + ".cpp", output, cfg.debug, cfg.debugMode)) {
       if (!cfg.quiet)
-        std::cout << "Success: " << output << ".exe created.\n";
+        std::cout << "Success: " << output << host::kExeSuffix << " created.\n";
       if (!cfg.debug) {
         try { fs::remove(ansiPath(output + ".cpp")); } catch (...) {}
       }
@@ -826,17 +825,8 @@ static void showHelp() {
 }
 
 int main(int argc, char **argv) {
-  // Der Ordner von blitzcc.exe ueber die Wide-API: argv[0] ist ANSI und
-  // waere mit einem Umlaut im Installationspfad schon hier gescheitert
-  // (BUG-201).
-  {
-    wchar_t buf[MAX_PATH * 4];
-    const DWORD n = GetModuleFileNameW(nullptr, buf, (DWORD)(sizeof(buf) / sizeof(buf[0])));
-    if (n > 0 && n < sizeof(buf) / sizeof(buf[0]))
-      g_exeDir_ = fs::path(std::wstring(buf, n)).parent_path();
-    else if (argc > 0)
-      g_exeDir_ = fs::absolute(ansiPath(argv[0])).parent_path();
-  }
+  // Der Ordner von blitzcc (unter Windows ueber die Wide-API, BUG-201)
+  g_exeDir_ = host::exeDir(argc > 0 ? argv[0] : nullptr);
 
   Config cfg;
   cfg.ide = std::getenv("blitzide") != nullptr;
