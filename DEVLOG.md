@@ -1,5 +1,33 @@
 # BlitzNext Developer Log
 
+## 2026-11-20 — v0.7.2: The Linux Update
+
+BlitzNext runs on Linux: compiler, runtime and IDE, with a ready-made package next to the
+Windows ZIP. The port was done in six steps, written down in [LINUX_PORT.md](LINUX_PORT.md):
+
+- **Build.** `build_linux.sh` takes g++ and CMake from the system, checks the development
+  packages (with the install command for apt, dnf, pacman and zypper) and builds SDL3 3.2.10
+  and SDL3_ttf 3.2.2 from checksum-verified sources.
+- **Compiler.** A small platform layer (`src/compiler/host.h`) starts g++ and the program on
+  both systems without a shell. On Linux a program is linked against SDL3, which is copied
+  next to it like the DLLs on Windows and found there.
+- **Runtime.** Fonts come from fontconfig with the same substitutions as on Windows; a crash
+  ends with Blitz3D's message ("Integer divide by zero", "Stack overflow!"); `WaitKey`
+  without a window reads the terminal; `Notify`, `Confirm`, `Proceed` and the close prompt
+  of `AppTitle` show real dialogs; `ExecFile` opens addresses and documents with xdg-open and
+  finds `bin\tool.exe` as `bin/tool`.
+- **Old programs.** Paths written the Windows way (`"Media\Pic.PNG"` for `media/pic.png`) are
+  found, ignoring case like NTFS. Strings stay Windows-1252, so `Len` and `Asc` behave as on
+  Windows, and are converted to UTF-8 for file names, the terminal, fonts and window titles.
+- **IDE.** The BLTZNXT IDE runs natively; Stop ends the program too, Create Executable makes a
+  program without `.exe`.
+
+Not on Linux: gamma, MIDI music and movies (see KNOWN_ISSUES.md). Windows behaves as in
+0.7.1; every change there was checked with the test suite and the IDE tests.
+
+Released from the `release/0.7.x` branch like 0.7.1; on `main` the same changes sit next to the
+unreleased Network Update. Version 0.7.2 (`blitzcc -v`, IDE).
+
 ## 2026-11-17 — Network: hardened against broken packets (test chat, package C2)
 
 In the public test chat, every program accepts packets from strangers on the internet. Reading
