@@ -16,7 +16,32 @@ Zeichen in diesem Dokument: **✔ entschieden** · **◇ Vorschlag** · **? offe
 BlitzNext soll eine moderne 3D-Engine bekommen, in der mehr möglich ist als in
 Blitz3D. Die alten 3D-, Surface- und Brush-Befehle bleiben gültig: Sie werden
 auf die neue Engine abgebildet und, wo nötig, emuliert. Neue Möglichkeiten
-kommen als neue Befehle und als eine Erweiterung der Sprache um Vektoren dazu.
+kommen als neue Befehle und als Erweiterungen der Blitz3D-Sprache dazu.
+
+**✔ Verbindliches Produkt- und Sprachziel (2026-11-16):** BLTZNXT fügt den
+Blitz3D-Fähigkeiten die Möglichkeiten von BlitzPlus und BlitzMax hinzu. Die
+Blitz3D-Syntax bleibt die Grundlage und wird um diese Möglichkeiten erweitert,
+ohne bestehende Blitz3D-Projekte zu brechen. Dazu gehören insbesondere
+Oberflächen aus BlitzPlus sowie erweiterte Arrays und Methoden in Types aus
+BlitzMax. Ihre genaue Syntax und Umsetzung sind noch zu entwerfen.
+
+Bestehender Blitz3D-Quelltext muss durch diese Erweiterungen unverändert
+kompilierbar und ausführbar bleiben und sein bisheriges Programm- und
+Spielverhalten behalten. Modernisierte Beleuchtung, Materialien und Schatten
+dürfen das Aussehen verändern; daraus folgt keine Bindung an das Bild von
+Direct3D 7. Die bereits dokumentierten bewussten Kompatibilitätsgrenzen
+(etwa Userlibs) werden dadurch nicht aufgehoben.
+
+Übernommen werden die Fähigkeiten von BlitzPlus und BlitzMax in der
+erweiterten Blitz3D-Sprache. Eine unveränderte Übersetzbarkeit beliebiger
+BlitzPlus- oder BlitzMax-Programme ist damit nicht zugesichert.
+
+Diese Vorgabe hat Vorrang vor älteren Einzelentscheidungen in diesem
+Entwurf, die Namenskonflikte zulasten bestehender Programme akzeptieren
+(E2 sowie die Reservierung von Vec2/Vec3/Vec4 und Mat3/Mat4). Neue Syntax und
+Namensauflösung müssen solche Konflikte vermeiden; die konkrete Lösung ist
+noch offen. Der gemeinsame Compiler-Unterbau für Arrays, Methoden und
+Vektor-Werttypen muss vor deren Umsetzung zusammen entworfen werden.
 
 Grundlage ist die Richtlinie in [ROADMAP3D.md](ROADMAP3D.md), Abschnitt
 „Richtlinie: Was exakt stimmen muss und was besser werden darf“:

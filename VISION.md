@@ -2,6 +2,22 @@
 
 Stand: 2026-09-26
 
+## Verbindliches Produkt- und Sprachziel (2026-11-16)
+
+BLTZNXT fügt den Blitz3D-Fähigkeiten die Möglichkeiten von BlitzPlus und
+BlitzMax hinzu. Die Blitz3D-Syntax wird dafür erweitert, ohne bestehende
+Blitz3D-Projekte zu brechen: Alter Quelltext bleibt unverändert kompilierbar
+und ausführbar und behält sein Programm- und Spielverhalten. Moderne
+Beleuchtung, Materialien und Schatten dürfen das Aussehen verändern.
+Bereits dokumentierte bewusste Kompatibilitätsgrenzen wie Userlibs bleiben
+bestehen.
+
+Zum Ziel gehören insbesondere BlitzPlus-Oberflächen sowie erweiterte Arrays
+und Methoden in Types aus BlitzMax. Die Fähigkeiten werden in die
+Blitz3D-Sprache integriert; vollständige Quelltextkompatibilität mit BlitzPlus
+oder BlitzMax ist damit nicht zugesichert. Syntax und Umsetzung werden unter
+dieser Kompatibilitätsvorgabe entworfen; siehe [ENGINE_DESIGN.md](ENGINE_DESIGN.md).
+
 Der Wert von BLTZNXT liegt in der Kompatibilität, nicht in PBR: zwanzig Jahre Blitz3D-Code
 laufen wieder auf Maschinen ohne DX7. Das kann keine andere Engine nachbauen, und das NEXT
 sollte diese Position ausbauen statt sie zu verlassen.
