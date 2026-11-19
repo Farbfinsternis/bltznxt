@@ -42,14 +42,28 @@ macht der Nutzer, oder Claude nennt den Befehl.
 - Voller Lauf scheitert erwartungsgemäß an `blitzcc.cpp:28` (`windows.h`) → L2.
 - Benötigte Ubuntu-Pakete (24.04): siehe Ausgabe von `./build_linux.sh --check`.
 
-### L2 Plattformschicht in blitzcc
-- Prozessstart (`CreateProcessW` ↔ `posix_spawn`), eigener Pfad (`GetModuleFileNameW` ↔
-  `/proc/self/exe`), Befehlszeile als Argumentliste statt `wstring`.
-- Linkzeile je Plattform: Linux `-lSDL3 -lSDL3_ttf -lGL -lpthread`, keine Dateiendung,
-  keine DLL-Kopie (rpath oder statisch, entscheiden).
+### L2 Plattformschicht in blitzcc — **fertig 19.11.**
+- Neu `src/compiler/host.h` (nur von `blitzcc.cpp` eingebunden, bringt `windows.h` mit):
+  ANSI-Pfadhelfer (unter Linux durchgereicht), `host::run` (Windows `CreateProcessW` mit
+  korrektem Quoting nach CommandLineToArgvW; Linux `fork`/`execvp`), `host::exeDir`
+  (`GetModuleFileNameW` ↔ `/proc/self/exe`), `host::processId`, `host::findInPath`,
+  `host::kExeSuffix` (".exe" ↔ "").
+- Befehlszeile als Argumentliste (`host::Args`) statt `wstring`.
+- Linux-Linkzeile: g++ aus dem PATH; SDL3/SDL3_ttf aus `libs/linux/` oder vom System;
+  `-lSDL3_ttf -lSDL3 -lGL -lpthread -ldl -static-libstdc++ -static-libgcc`. Die eigene SDL
+  wird **wie die DLLs unter Windows neben das Programm kopiert** (`libSDL3.so.0`,
+  `libSDL3_ttf.so.0`), gefunden über `-Wl,-rpath,$ORIGIN` — der Programmordner läuft so auch
+  auf einem anderen Rechner. Kein `-static`, kein `-mwindows`, kein `-Wa,-mbig-obj`.
+- Windows geprüft (gezielt): Umlaut-Test der Suite, Quelle im Umlaut-Ordner, GUI-Subsystem bei
+  Graphics, IDE-Modus mit Argumenten (Leerzeichen, Backslash am Ende — gleiche Ausgabe wie der
+  alte blitzcc), 6 Negativtests mit Diagnose, Fehler im IDE-Format. Volle Suite nicht gelaufen.
+- Linux geprüft (WSL): blitzcc baut über `build_linux.sh`, `-q`-Umgebungsprüfung still;
+  Textprogramm, 2D (Rect, Text, ReadPixel) und 3D (Würfel, RenderWorld) laufen.
+- **Nicht geprüft unter Linux:** IDE-Modus (`blitzide`), Programmargumente.
 
-### L3 Laufzeit übersetzbar
-- Ersten Übersetzungslauf machen, Fehler sammeln.
+### L3 Laufzeit übersetzbar — **übersetzt schon (19.11.)**
+- Erster Lauf: einziger Fehler war `<sys/ioctl.h>` in `bb_socket.h` (behoben). Die übrigen
+  Punkte unten betreffen also **Verhalten**, nicht das Übersetzen — einzeln prüfen.
 - Gamma über SDL oder weglassen; Schriften über fontconfig mit Ersatztabelle (Arial → Liberation
   Sans usw.); Scancodes über SDL; Absturzmeldung über Signal-Handler; Liste-Server per eigenem
   HTTP statt `winhttp`.

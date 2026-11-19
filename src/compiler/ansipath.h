@@ -12,11 +12,15 @@
 // endete mit filesystem_error (BUG-201). An jeder Grenze zu std::filesystem
 // und zur Windows-API deshalb ueber diese Helfer wandeln.
 //
-// Definiert in blitzcc.cpp nach <windows.h>, damit dessen Makros nicht in die
-// Projektheader geraten.
+// Unter Linux sind Pfade ohnehin Bytes; dort reichen die Helfer nur durch.
+//
+// Definiert in host.h (nur von blitzcc.cpp eingebunden, nach <windows.h>),
+// damit dessen Makros nicht in die Projektheader geraten.
 std::filesystem::path ansiPath(const std::string &ansi);    // ANSI-Bytes -> Pfad
 std::string ansiString(const std::filesystem::path &p);     // Pfad -> ANSI-Bytes
 std::string ansiGeneric(const std::filesystem::path &p);    // dasselbe mit '/'
+#ifdef _WIN32
 std::wstring ansiWide(const std::string &ansi);             // ANSI-Bytes -> UTF-16
+#endif
 
 #endif // BLITZNEXT_ANSIPATH_H
