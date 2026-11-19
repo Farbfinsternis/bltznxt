@@ -198,12 +198,25 @@ inline void bb_ExecFile(const bbString &command) {
   // seinen Parametern direkt; eine Webadresse, ein Dokument oder ein Programm,
   // das nicht startet, ueber xdg-open - das Gegenstueck zur Dateizuordnung
   // von ShellExecute. Doppelter fork, damit kein Zombie bleibt.
+  // Der Pfad wie bei den Dateibefehlen (Backslash, Schreibung); ein altes
+  // Programm startet "bin\hilfe.exe", unter Linux heisst es "bin/hilfe".
+  std::string exe = cmd;
+  if (cmd.find("://") == bbString::npos) {
+    exe = bb_os_path_(cmd);
+    if (!bb_os_exists_(exe) && exe.size() > 4) {
+      std::string low = exe.substr(exe.size() - 4);
+      for (char &c : low) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+      if (low == ".exe" && bb_os_exists_(bb_os_path_(cmd.substr(0, cmd.size() - 4))))
+        exe = bb_os_path_(cmd.substr(0, cmd.size() - 4));
+    }
+    // ohne '/' sucht execvp im PATH; ein Programm im Arbeitsordner braucht "./"
+    if (exe.find('/') == std::string::npos && bb_os_exists_(exe)) exe = "./" + exe;
+  }
   std::vector<std::string> args;
   const bool open = cmd.find("://") != bbString::npos ||
-                    (std::filesystem::is_regular_file(bb_path_(cmd)) &&
-                     access(cmd.c_str(), X_OK) != 0);
+                    (std::filesystem::is_regular_file(exe) && access(exe.c_str(), X_OK) != 0);
   if (!open) {
-    args.push_back(cmd);
+    args.push_back(exe);
     std::string cur;
     bool quoted = false, any = false;
     for (char c : params) {
@@ -227,7 +240,7 @@ inline void bb_ExecFile(const bbString &command) {
         argv.push_back(nullptr);
         execvp(argv[0], argv.data());
       }
-      execlp("xdg-open", "xdg-open", cmd.c_str(), static_cast<char *>(nullptr));
+      execlp("xdg-open", "xdg-open", exe.c_str(), static_cast<char *>(nullptr));
       _exit(127);
     }
     _exit(0);

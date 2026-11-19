@@ -151,7 +151,41 @@ Ursprünglicher Punkt:
 - Name von `blitzcc` und Programmen je Plattform, Beenden per Signal statt `taskkill`.
 - Electron nativ für Linux (`npm start` in WSL testen).
 
-### L6 Prüfen
+### L6 Prüfen — **fertig 20.11.**
+- `tests/run_tests.sh`, `tests/net/run_net_tests.sh`, `scripts/compile_samples.sh` laufen
+  unter Windows (Git-Bash) und Linux (`$OSTYPE`): Programme ohne `.exe`, `.expected` unter
+  Linux ohne `\r` verglichen, Netz-Programme über `pkill/pgrep -f` mit vollem Pfad.
+- Ohne Bildschirm: `SDL_VIDEO_DRIVER=offscreen` (2D und 3D über EGL/llvmpipe gehen).
+  Parallel mit mehr als ~6 Prozessen stürzen Grafiktests unter llvmpipe ab (Last, nicht
+  Programmfehler — einzeln laufen sie); nacheinander oder mit wenigen Prozessen laufen lassen.
+- **Gefunden und behoben:**
+  - `Include "BUG94\H2.BB"` / Umlaut-Include: der Präprozessor des Compilers löste unter Linux
+    weder Schreibung noch Zeichensatz auf → `ansiPath` (host.h) bekommt dieselbe Auflösung wie
+    `bb_os_path_`.
+  - `Float("0x10")`, `Float("inf")`: glibc-`atof` liest Hex/inf/nan, das Original nicht →
+    `bb_atof_` (bb_numconv.h, C89-Grammatik) für Laufzeit und Konstantenfaltung.
+  - `ExecFile "bin\tool.exe arg"`: Pfad wie die Dateibefehle, fehlendes `.exe` wird
+    weggelassen, Programm im Arbeitsordner mit `./`.
+- **Unter Linux als SKIP geführt** (run_tests.sh, Begründung):
+  - nur unter Windows prüfbar: `test_bug122_systemproperty` (Windows-Ordner),
+    `test_bug202_umlaut_dateien` (CurrentDir mit `\`), `test_bug210_execfile` (`cmd /c`),
+    `test_m27_dir` (`bin/blitzcc.exe`), `test_3d_klang` (setzt die exklusive Dateisperre von
+    Windows voraus);
+  - GDI-Schriftmaße: `test_bug139_fontwidth`, `test_bug139_standardschrift`,
+    `test_bug227_loadfont_dateiname`, `test_m43_fonts`;
+  - unter Linux nicht vorhanden: `test_bug195_movie`, `test_bug216_midi`,
+    `test_bug235_playmusic_einmal` (MIDI-Teil);
+  - Rundung um 1 (llvmpipe statt Grafikkarte, libm): `test_3d16_mirror`, `test_3d16_sprite`,
+    `test_bug142_blending`, `test_bug191_nebel`, `test_bug148_turnentity`;
+  - nur offscreen: `test_bug178_flip_fenster` (kein VSync), `test_bug195_klein`,
+    `test_bug213_16bit_modi` (keine Grafikmodi).
+- Ergebnis (main, Ubuntu 24.04/WSL2, offscreen): 394 Tests, nach den Fixes alle bestanden
+  außer den 19 SKIP-Fällen; Netz 20/21 (`listserver/c` über IPv6 einmal rot, nur main).
+- Offen: Gegencheck durch den Tester auf echtem Linux.
+
+Ursprünglicher Punkt:
+
+### L6 Prüfen (Planung)
 - Testsuite und Beispiel-Messlatte in WSL laufen lassen, Abweichungen in Buglist.md.
 - Gegencheck durch den Tester auf echtem Linux.
 

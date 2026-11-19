@@ -13,8 +13,19 @@
 
 set -u
 B3D="${1:-${BLITZ3D_HOME:-G:/dev/Blitz3D}}"
-OURS="bin/blitzcc.exe"
-GPP="tools/mingw64/bin/g++.exe"
+# Windows (Git-Bash) oder Linux (LINUX_PORT.md, L6)
+case "$OSTYPE" in
+    msys*|cygwin*|win32*)
+        OURS="bin/blitzcc.exe"
+        GPP="tools/mingw64/bin/g++.exe"
+        SDLDIR="libs/sd3/x86_64-w64-mingw32/include"
+        TTFDIR="libs/sdl3_ttf/x86_64-w64-mingw32/include" ;;
+    *)
+        OURS="bin/blitzcc"
+        GPP="$(command -v g++ || echo g++)"
+        SDLDIR="libs/linux/sdl3/include"
+        TTFDIR="libs/linux/sdl3_ttf/include" ;;
+esac
 
 [ -f "$OURS" ] || { echo "$OURS fehlt - erst bauen." >&2; exit 2; }
 [ -f "$GPP" ]  || { echo "$GPP fehlt." >&2; exit 2; }
@@ -22,10 +33,9 @@ GPP="tools/mingw64/bin/g++.exe"
 OURS=$(cd "$(dirname "$OURS")" && pwd)/$(basename "$OURS")
 GPP=$(cd "$(dirname "$GPP")" && pwd)/$(basename "$GPP")
 INC=$(cd src/compiler && pwd)
-SDLINC=$(cd libs/sd3/x86_64-w64-mingw32/include && pwd)
+SDLINC=$(cd "$SDLDIR" && pwd)
 TTFINC=""
-[ -d libs/sdl3_ttf/x86_64-w64-mingw32/include ] &&
-    TTFINC=$(cd libs/sdl3_ttf/x86_64-w64-mingw32/include && pwd)
+[ -d "$TTFDIR" ] && TTFINC=$(cd "$TTFDIR" && pwd)
 
 export BLITZPATH="$B3D"
 TMP=$(mktemp -d)

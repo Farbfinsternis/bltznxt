@@ -41,6 +41,22 @@ CASES="${*:-$(cd tests/net && ls -d */ | tr -d /)}"
 NODE=""
 command -v node > /dev/null 2>&1 && NODE=node
 
+# Windows (Git-Bash) oder Linux (LINUX_PORT.md, L6). Ein Testprogramm ist
+# bin/net_<fall>/net_<fall>_<prog>[.exe]; unter Linux wird es ueber diesen
+# vollen Pfad gefunden (pkill -x saehe nur 15 Zeichen des Namens).
+case "$OSTYPE" in
+    msys*|cygwin*|win32*)
+        EXE=".exe"
+        kill_prog()  { taskkill //F //IM "$1.exe" > /dev/null 2>&1; }
+        prog_alive() { tasklist //fi "IMAGENAME eq $1.exe" 2>/dev/null | grep -qi "$1"; } ;;
+    *)
+        EXE=""
+        prog_path()  { echo "$out/$1"; }   # $out: Ordner des laufenden Falls
+        kill_prog()  { pkill -9 -f -- "$(prog_path "$1")\$" > /dev/null 2>&1; }
+        prog_alive() { pgrep -f -- "$(prog_path "$1")\$" > /dev/null 2>&1; } ;;
+esac
+BLITZCC="bin/blitzcc$EXE"
+
 # Text auf stdin fuer den IPv6-Durchgang umschreiben
 v6text() { sed -e 's/127\.0\.0\.1:\([0-9]\)/[::1]:\1/g' -e 's/127\.0\.0\.1/::1/g'; }
 
@@ -58,7 +74,7 @@ for c in $CASES; do
     # parallel kompilieren: g++ braucht je Programm etwa 10 s
     for f in "$dir"/*.bb; do
         p=$(basename "$f" .bb)
-        ( bin/blitzcc.exe "$f" -o "$out/net_${c}_$p" -q 2> "$out/$p.compile" || echo fail > "$out/$p.cfail" ) &
+        ( "$BLITZCC" "$f" -o "$out/net_${c}_$p" -q 2> "$out/$p.compile" || echo fail > "$out/$p.cfail" ) &
     done
     wait
     for f in "$dir"/*.bb; do
@@ -89,11 +105,11 @@ for c in $CASES; do
             case "$cmd" in
             start)
                 ( sleep "$(awk "BEGIN{print $b/1000}")"
-                  env $rest "$out/net_${c}_$a.exe" > "$out/$a.out" 2> "$out/$a.err" ) &
+                  env $rest "$out/net_${c}_$a$EXE" > "$out/$a.out" 2> "$out/$a.err" ) &
                 pids+=($!) ;;
             kill)
                 ( sleep "$(awk "BEGIN{print $b/1000}")"
-                  taskkill //F //IM "net_${c}_$a.exe" > /dev/null 2>&1 ) &
+                  kill_prog "net_${c}_$a" ) &
                 pids+=($!) ;;
             server)
                 ( sleep "$(awk "BEGIN{print $a/1000}")"
@@ -123,9 +139,9 @@ for c in $CASES; do
         timedout=0
         for f in "$dir"/*.bb; do
             p=$(basename "$f" .bb)
-            if tasklist //fi "IMAGENAME eq net_${c}_$p.exe" 2>/dev/null | grep -qi "net_${c}_$p"; then
+            if prog_alive "net_${c}_$p"; then
                 timedout=1
-                taskkill //F //IM "net_${c}_$p.exe" > /dev/null 2>&1
+                kill_prog "net_${c}_$p"
             fi
         done
         [ -n "$SERVERPIDS" ] && kill $SERVERPIDS 2> /dev/null

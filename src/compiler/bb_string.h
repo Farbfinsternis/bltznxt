@@ -159,7 +159,7 @@ inline int bb_IntegerContext(const bbString &s) { return bb_ToInt(s); }
 inline constexpr int bb_IntegerContext(int n) { return n; }
 inline int bb_IntegerContext(double value) { return bb_FloatToInt_(value); }
 
-inline float bb_ToFloat(const bbString &s) { return (float)std::atof(s.c_str()); }
+inline float bb_ToFloat(const bbString &s) { return (float)bb_atof_(s.c_str()); }
 inline float bb_ToFloat(int n)             { return (float)n; }
 inline float bb_ToFloat(float f)           { return f; }
 inline float bb_ToFloat(double f)          { return (float)f; }
