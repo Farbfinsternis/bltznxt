@@ -13,7 +13,8 @@
 #
 # SDL3 and SDL3_ttf are taken from the system when pkg-config finds the right
 # version; otherwise their sources are downloaded (checksum-verified) and built
-# into libs/linux/. Versions match the Windows packages in build_windows.bat.
+# into libs/linux/. SDL3_ttf matches build_windows.bat; SDL3 is a newer 3.2.x
+# (see SDL3_VERSION below).
 # ============================================================
 set -euo pipefail
 
@@ -21,9 +22,11 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIBS_DIR="$ROOT_DIR/libs/linux"
 DEPS_BUILD="$ROOT_DIR/build/linux-deps"
 
-SDL3_VERSION="3.2.0"
+# SDL3 is newer than the Windows package (3.2.0): SDL3_ttf 3.2.2 needs at least
+# SDL3 3.2.6 when built from source. 3.2.x releases are bugfix-only.
+SDL3_VERSION="3.2.10"
 SDL3_URL="https://github.com/libsdl-org/SDL/releases/download/release-${SDL3_VERSION}/SDL3-${SDL3_VERSION}.tar.gz"
-SDL3_SHA256="bf308f92c5688b1479faf5cfe24af72f3cd4ce08d0c0670d6ce55bc2ec1e9a5e"
+SDL3_SHA256="f87be7b4dec66db4098e9c167b2aa34e2ca10aeb5443bdde95ae03185ed513e0"
 
 TTF_VERSION="3.2.2"
 TTF_URL="https://github.com/libsdl-org/SDL_ttf/releases/download/release-${TTF_VERSION}/SDL3_ttf-${TTF_VERSION}.tar.gz"
@@ -192,6 +195,13 @@ fetch() {
 # system_has <pc module> <min version>
 system_has() { pkg-config --exists "$1 >= $2" 2>/dev/null; }
 
+# local_is <prefix> <pc module> <version>: our own build in <prefix> has exactly <version>
+local_is() {
+    # Read Version: directly — pkg-config would also need every Requires: on its path
+    [ -f "$1/lib/pkgconfig/$2.pc" ] || return 1
+    [ "$(sed -n 's/^Version:[[:space:]]*//p' "$1/lib/pkgconfig/$2.pc")" = "$3" ]
+}
+
 if [ "$CLEAN_DEPS" = "1" ]; then
     info "Removing previously built SDL3 / SDL3_ttf"
     rm -rf "$LIBS_DIR" "$DEPS_BUILD"
@@ -204,10 +214,11 @@ TTF_PREFIX="$LIBS_DIR/sdl3_ttf"
 if system_has sdl3 "$SDL3_VERSION"; then
     SDL3_PREFIX=""
     info "SDL3 $(pkg-config --modversion sdl3) from the system"
-elif [ -f "$SDL3_PREFIX/lib/cmake/SDL3/SDL3Config.cmake" ]; then
-    info "SDL3 found at $SDL3_PREFIX"
+elif local_is "$SDL3_PREFIX" sdl3 "$SDL3_VERSION"; then
+    info "SDL3 $SDL3_VERSION found at $SDL3_PREFIX"
 else
     info "Building SDL3 $SDL3_VERSION (takes a few minutes)"
+    rm -rf "$SDL3_PREFIX" "$TTF_PREFIX"   # older own build; SDL3_ttf links against it
     fetch "$SDL3_URL" "$SDL3_SHA256" "$DEPS_BUILD/SDL3-$SDL3_VERSION.tar.gz"
     rm -rf "$DEPS_BUILD/SDL3-$SDL3_VERSION" "$DEPS_BUILD/sdl3-build"
     tar -xzf "$DEPS_BUILD/SDL3-$SDL3_VERSION.tar.gz" -C "$DEPS_BUILD"
@@ -216,7 +227,7 @@ else
         -DCMAKE_INSTALL_PREFIX="$SDL3_PREFIX" \
         -DCMAKE_INSTALL_LIBDIR=lib \
         -DSDL_SHARED=ON -DSDL_STATIC=OFF \
-        -DSDL_TESTS=OFF -DSDL_EXAMPLES=OFF
+        -DSDL_TESTS=OFF -DSDL_TEST_LIBRARY=OFF -DSDL_EXAMPLES=OFF
     cmake --build "$DEPS_BUILD/sdl3-build" -j "$JOBS"
     cmake --install "$DEPS_BUILD/sdl3-build"
     info "SDL3 installed to $SDL3_PREFIX"
@@ -225,10 +236,11 @@ fi
 if [ -z "$SDL3_PREFIX" ] && system_has sdl3-ttf "$TTF_VERSION"; then
     TTF_PREFIX=""
     info "SDL3_ttf $(pkg-config --modversion sdl3-ttf) from the system"
-elif [ -f "$TTF_PREFIX/lib/cmake/SDL3_ttf/SDL3_ttfConfig.cmake" ]; then
-    info "SDL3_ttf found at $TTF_PREFIX"
+elif local_is "$TTF_PREFIX" sdl3-ttf "$TTF_VERSION"; then
+    info "SDL3_ttf $TTF_VERSION found at $TTF_PREFIX"
 else
     info "Building SDL3_ttf $TTF_VERSION"
+    rm -rf "$TTF_PREFIX"
     fetch "$TTF_URL" "$TTF_SHA256" "$DEPS_BUILD/SDL3_ttf-$TTF_VERSION.tar.gz"
     rm -rf "$DEPS_BUILD/SDL3_ttf-$TTF_VERSION" "$DEPS_BUILD/ttf-build"
     tar -xzf "$DEPS_BUILD/SDL3_ttf-$TTF_VERSION.tar.gz" -C "$DEPS_BUILD"
