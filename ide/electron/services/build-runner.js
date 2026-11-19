@@ -48,7 +48,10 @@ function runBuild(opts, onEvent) {
 			// Das Programm läuft im Ordner seiner Quelldatei; blitzcc erbt ihn
 			cwd: path.dirname(opts.file),
 			env: { ...process.env, blitzide: '1' },
-			windowsHide: true
+			windowsHide: true,
+			// Außerhalb von Windows eine eigene Prozessgruppe: killTree beendet
+			// dann blitzcc, g++ und das Programm zusammen (siehe dort).
+			detached: process.platform !== 'win32'
 		});
 	} catch (err) {
 		onEvent({ type: 'failed', message: String(err.message) });
@@ -61,7 +64,7 @@ function runBuild(opts, onEvent) {
 
 	function handle(lines) {
 		for (const raw of lines) {
-			const line = parseLine(raw, state);
+			const line = parseLine(redecode(raw), state);
 			if (!line) continue;
 			if (line.kind === 'executing') {
 				state.running = true;
@@ -117,7 +120,11 @@ function removeBuildDir(file, pid) {
 		.catch(() => {});
 }
 
-/** Prozess und alle seine Kinder beenden (Windows: taskkill /T; sonst das Signal). */
+/**
+ * Prozess und alle seine Kinder beenden. Windows: taskkill /T. Sonst die
+ * ganze Prozessgruppe (blitzcc läuft mit `detached` in einer eigenen): nur
+ * blitzcc zu beenden ließe das Programm weiterlaufen, das es gestartet hat.
+ */
 function killTree(pid) {
 	if (!pid) return;
 	if (process.platform === 'win32') {
@@ -128,11 +135,39 @@ function killTree(pid) {
 		}
 	} else {
 		try {
-			process.kill(pid, 'SIGTERM');
+			process.kill(-pid, 'SIGTERM');
 		} catch {
-			/* schon beendet */
+			try {
+				process.kill(pid, 'SIGTERM');
+			} catch {
+				/* schon beendet */
+			}
 		}
 	}
 }
 
-module.exports = { runBuild, killTree };
+/**
+ * Eine Zeile, Byte für Byte als latin1 gelesen, richtig dekodieren. Unter
+ * Windows ist alles in der ANSI-Codepage und bleibt, wie es ist. Unter Linux
+ * sind Meldungen von blitzcc (Dateipfade) UTF-8, die Ausgabe eines Programms
+ * in eine Pipe aber Windows-1252 wie unter Windows (LINUX_PORT.md, L4):
+ * gültiges UTF-8 wird als UTF-8 gelesen, alles andere als Windows-1252.
+ */
+const utf8Strict = new TextDecoder('utf-8', { fatal: true });
+let cp1252 = null;
+try {
+	cp1252 = new TextDecoder('windows-1252');
+} catch {
+	/* ohne ICU: dann bleibt latin1 */
+}
+function redecode(line, platform = process.platform) {
+	if (platform === 'win32' || !/[\x80-\xff]/.test(line)) return line;
+	const bytes = Buffer.from(line, 'latin1');
+	try {
+		return utf8Strict.decode(bytes);
+	} catch {
+		return cp1252 ? cp1252.decode(bytes) : line;
+	}
+}
+
+module.exports = { runBuild, killTree, redecode };
