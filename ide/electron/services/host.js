@@ -2,6 +2,7 @@
 //
 //   launchFiles()   Dateien, die auf der Kommandozeile standen — wie
 //                   `blitzide datei.bb` im Original. Der Renderer öffnet sie.
+//   info()          { platform } — 'win32', 'linux', ...
 
 'use strict';
 
@@ -32,6 +33,11 @@ function setLaunchArgs(argv, isPackaged, cwd = process.cwd()) {
 }
 
 module.exports = {
-	api: { launchFiles: async () => [...files] },
+	api: {
+		launchFiles: async () => [...files],
+		// Das Betriebssystem, für das gebaut wird: unter Windows heißt ein
+		// Programm "spiel.exe", sonst "spiel" (Dialog "Programm erstellen")
+		info: async () => ({ platform: process.platform })
+	},
 	setLaunchArgs
 };

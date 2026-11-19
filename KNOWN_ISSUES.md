@@ -217,7 +217,10 @@ The 3D layer is under active development — see [ROADMAP3D.md](ROADMAP3D.md). B
     Windows;
   - the list server of the Net commands needs `libcurl.so.4` for `https://` addresses.
 
-  The BLTZNXT IDE does not run on Linux yet, not even under Wine. (WEAK-24)
+  The BLTZNXT IDE runs natively on Linux from the source tree (`ide/start-linux.sh`, needs
+  Node.js 18 or newer); under Wine it does not start. A text program that reads with `Input$`
+  waits forever when started from the IDE on Linux: it gets no terminal there, while on
+  Windows it opens its own console. (WEAK-24)
 - **Compiling takes 10 to 15 seconds per program**, even for a few lines, where Blitz3D took a
   fraction of a second. Most of the time goes into the runtime, which is compiled again with
   every program. (WEAK-29)

@@ -663,7 +663,10 @@ async function scenarioBuild() {
 	dialogStub.saveAnswers.push(exe);
 	await js(win, `void window.__ide.app.run('program.publish'); 0`);
 	await waitFor(win, `[...document.querySelectorAll('.output-line')].some((e) => /^Creating executable/.test(e.textContent)) && window.__ide.app.context.get('build.compiling') === false`, 60000);
-	check('Programm erstellen: fertig.exe entsteht (Endung ergänzt)', fs.existsSync(`${exe}.exe`), fs.readdirSync(dir).join());
+	// Unter Windows ergänzt der Dialog ".exe"; unter Linux heißt das Programm wie gewählt
+	const built = process.platform === 'win32' ? `${exe}.exe` : exe;
+	check(`Programm erstellen: ${path.basename(built)} entsteht${process.platform === 'win32' ? ' (Endung ergänzt)' : ''}`,
+		fs.existsSync(built), fs.readdirSync(dir).join());
 
 	check('Keine Fehler auf der Konsole der Seite', errors.length === 0, errors.slice(0, 3).join(' || '));
 	win.destroy();

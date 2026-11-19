@@ -400,16 +400,35 @@ function createController(ctx) {
 		return true;
 	}
 
+	// Unter Windows heißt ein Programm "spiel.exe", sonst "spiel"
+	let isWindows = null;
+	async function windowsHost() {
+		if (isWindows === null) {
+			// Ohne Auskunft (altes Backend ohne info()) wie bisher: Windows
+			let os = null;
+			try {
+				os = (await platform.invoke('host', 'info'))?.platform ?? null;
+			} catch {
+				/* bleibt null */
+			}
+			isWindows = !os || os === 'win32';
+		}
+		return isWindows;
+	}
+
 	async function askExecutable(doc) {
 		const base = doc.uri ? basename(doc.uri).replace(/\.[^.]*$/, '') : 'untitled';
 		const dir = doc.uri ? String(doc.uri).replace(/[\\/][^\\/]*$/, '') : state.get('files.lastDir', '');
 		const sep = dir.includes('\\') ? '\\' : '/';
+		const win = await windowsHost();
+		const name = win ? `${base}.exe` : base;
 		const chosen = await platform.invoke('dialog', 'save', {
 			title: t('program.publish.title'),
-			defaultPath: dir ? `${dir}${sep}${base}.exe` : `${base}.exe`,
-			filters: [{ name: 'Executable files (*.exe)', extensions: ['exe'] }]
+			defaultPath: dir ? `${dir}${sep}${name}` : name,
+			filters: win ? [{ name: 'Executable files (*.exe)', extensions: ['exe'] }] : []
 		});
 		if (!chosen) return null;
+		if (!win) return chosen;
 		return /\.exe$/i.test(chosen) ? chosen : `${chosen}.exe`;
 	}
 

@@ -122,7 +122,32 @@ Ursprüngliche Punkte:
   Betrifft Dateinamen (`bb_path_`), Print/Input am Terminal, Fenstertitel und Dialoge
   (`bb_utf8_` reicht unter Linux heute nur durch). Wandlung 1252 ↔ UTF-8 an diesen Grenzen.
 
-### L5 IDE
+### L5 IDE — **fertig 19.11.**
+- `build-runner.js`: blitzcc außerhalb von Windows mit `detached` (eigene Prozessgruppe);
+  Stop beendet die Gruppe (`kill(-pid)`) — vorher lief das Programm nach Stop weiter. Nach
+  Stop in WSL geprüft: kein Prozess bleibt.
+- `redecode`: Zeilen von blitzcc unter Linux — gültiges UTF-8 (Pfade in Meldungen) als UTF-8,
+  sonst Windows-1252 (Programmausgabe in die Pipe). Unter Windows unverändert. Unit-Test neu.
+- Dienst `host.info()` liefert `platform`; „Programm erstellen“ erzwingt unter Linux kein
+  `.exe` (ohne Auskunft wie bisher Windows).
+- `ide/start-linux.sh`: installiert beim ersten Mal die npm-Pakete, baut die Oberfläche neu,
+  wenn `src/` sich geändert hat, startet Electron. Ohne setuid-`chrome-sandbox` mit
+  `--no-sandbox` **und** `ELECTRON_DISABLE_SANDBOX=1` (nur `--no-sandbox`: „GPU process isn't
+  usable“, Electron beendet sich).
+- `test/ui-smoke.js`: Erwartung „fertig.exe“ nur unter Windows.
+- Geprüft: Windows 153/153 Unit, Smoke, UI 125/125; Linux (WSL, Node 18.19, Electron 34.5.8)
+  153/153 Unit (`node --test test/unit/*.test.js` — Node 18 kann das Glob in `npm test` nicht),
+  Smoke, UI 125/125 (Bauen, Fehlermarker, Stop, Programm erstellen), Start über das Skript.
+- Ubuntu-Pakete: `nodejs npm libnss3 libnotify4 libsecret-1-0 xdg-utils`. `npm run dev` braucht
+  Node 20 (wait-on → joi); der Start über das Skript nicht.
+- WSL-Falle: ohne Linux-Node startet `npm` das Windows-npm aus dem angehängten Windows-PATH.
+- Offen: Textprogramme mit `Input$` aus der IDE warten unter Linux ewig (kein Terminal; unter
+  Windows eigene Konsole) — Terminal-Emulator starten wäre der Weg. Kein gepacktes Linux-Paket
+  der IDE (AppImage o. ä.).
+
+Ursprünglicher Punkt:
+
+### L5 IDE (Planung)
 - Name von `blitzcc` und Programmen je Plattform, Beenden per Signal statt `taskkill`.
 - Electron nativ für Linux (`npm start` in WSL testen).
 
