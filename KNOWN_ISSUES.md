@@ -213,11 +213,11 @@ The 3D layer is under active development — see [ROADMAP3D.md](ROADMAP3D.md). B
     Courier New with the same measurements; without it a different font stands in. The
     default font is a monospaced font 13 pixels high in place of the Windows bitmap font
     "Courier", and `FontWidth` is the width of "M", not the widest character as under
-    Windows;
-  - the list server of the Net commands needs `libcurl.so.4` for `https://` addresses.
+    Windows.
 
-  The BLTZNXT IDE runs natively on Linux from the source tree (`ide/start-linux.sh`, needs
-  Node.js 18 or newer); under Wine it does not start. A text program that reads with `Input$`
+  The BLTZNXT IDE runs natively on Linux: `bltznxt-ide` in the Linux package, or
+  `ide/start-linux.sh` in the source tree (needs Node.js 18 or newer); under Wine it does not
+  start. A text program that reads with `Input$`
   waits forever when started from the IDE on Linux: it gets no terminal there, while on
   Windows it opens its own console. (WEAK-24)
 - **Compiling takes 10 to 15 seconds per program**, even for a few lines, where Blitz3D took a

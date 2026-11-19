@@ -1,12 +1,12 @@
 <p align="center">
-  <img src="tide-update.jpg" alt="BLTZNXT Tide Update" width="720">
+  <img src="linux-update.jpg" alt="BLTZNXT Linux" width="720">
 </p>
 
 # BlitzNext
 
-**BlitzNext** is the successor to Blitz3D: a modern compiler that turns Blitz3D (`.bb`) source files into native Windows executables via a C++17 transpilation pipeline, using a bundled MinGW toolchain and SDL3 for audio and graphics. It aims to do everything the original could — and to run the programs written for it, unchanged.
+**BlitzNext** is the successor to Blitz3D: a modern compiler that turns Blitz3D (`.bb`) source files into native Windows and Linux programs via a C++17 transpilation pipeline, using g++ (bundled on Windows) and SDL3 for audio and graphics. It aims to do everything the original could — and to run the programs written for it, unchanged.
 
-> **Status: active development — v0.7.1, a bugfix release of "The Tide Update".** Every sample program that ships with Blitz3D and compiles there now runs like the original, and no known bug that can break an old program is open. BlitzNext has its own IDE, and there is a self-contained Windows package to try it: [download the ZIP from the latest release](https://github.com/Farbfinsternis/bltznxt/releases/latest), unpack it, double-click `BLTZNXT IDE.bat`. BlitzNext compiles and runs the unmodified game **blox-n-balls**, and it can be used to make new games: [Friendly Fire](samples/friendlyfire/), a small Quake III style arena shooter, is an ordinary Blitz3D program that loads its models as glTF from Blender and plays its sounds in 3D. The runtime includes keyframe and skeletal animation, glTF, 3D sound, planes and terrain; full gameplay compatibility of old programs is still being verified.
+> **Status: active development — v0.7.2, "The Linux Update": BlitzNext runs on Linux.** $1there are ready-made packages for Windows and Linux: [download them from the latest release](https://github.com/Farbfinsternis/bltznxt/releases/latest), unpack, and start `BLTZNXT IDE.bat` (Windows) or `bltznxt-ide` (Linux). BlitzNext compiles and runs the unmodified game **blox-n-balls**, and it can be used to make new games: [Friendly Fire](samples/friendlyfire/), a small Quake III style arena shooter, is an ordinary Blitz3D program that loads its models as glTF from Blender and plays its sounds in 3D. The runtime includes keyframe and skeletal animation, glTF, 3D sound, planes and terrain; full gameplay compatibility of old programs is still being verified.
 > **[KNOWN_ISSUES.md](KNOWN_ISSUES.md) lists everything that does not yet behave like Blitz3D** — please check it before reporting a bug.
 > See [roadmap.md](roadmap.md) and [ROADMAP3D.md](ROADMAP3D.md) for the milestones and [DEVLOG.md](DEVLOG.md) for the changelog.
 
@@ -75,17 +75,28 @@ secondary target.
 
 ## Getting Started
 
-### The easy way: the release package
+### The easy way: the release packages
 
-Download the Windows ZIP (`bltznxt-v…-win64.zip`) from the [releases page](https://github.com/Farbfinsternis/bltznxt/releases), unpack it anywhere and double-click `BLTZNXT IDE.bat`. Compiler, IDE, C++ toolchain and SDL3 are all inside — nothing to install. Then *File > Open Folder…* → `samples\friendlyfire`, open `friendlyfire.bb`, press **F5**. (Windows may warn about an unsigned program the first time: *More info > Run anyway*.) See [The BLTZNXT IDE](#the-bltznxt-ide).
+**Windows.** Download the Windows ZIP (`bltznxt-v…-win64.zip`) from the [releases page](https://github.com/Farbfinsternis/bltznxt/releases), unpack it anywhere and double-click `BLTZNXT IDE.bat`. Compiler, IDE, C++ toolchain and SDL3 are all inside — nothing to install. (Windows may warn about an unsigned program the first time: *More info > Run anyway*.)
+
+**Linux.** Download the Linux archive (`bltznxt-v…-linux-x64.tar.gz`), unpack it and start the IDE:
+
+```bash
+sudo apt install build-essential        # the C++ compiler BlitzNext uses (Fedora: gcc-c++, Arch: base-devel)
+tar xzf bltznxt-v*-linux-x64.tar.gz
+bltznxt-v*-linux-x64/bltznxt-ide
+```
+
+Compiler, IDE and SDL3 are inside; only `g++` comes from the system. The package is built on Ubuntu 24.04 and needs glibc 2.39 or newer (Ubuntu 24.04, Debian 13, Fedora 40, current Arch); on older systems build it from source as below. Recommended: `fonts-liberation`, so Arial, Times New Roman and Courier New measure as on Windows.
+
+Then *File > Open Folder…* → `samples/friendlyfire`, open `friendlyfire.bb`, press **F5**. See [The BLTZNXT IDE](#the-bltznxt-ide).
 
 ### From source
 
-#### Requirements
-- Windows 10/11
-- `curl` and `tar` (built into modern Windows)
+#### Windows
 
-#### Setup
+Requirements: Windows 10/11, `git`, and `curl` and `tar` (built into modern Windows).
+
 ```bat
 git clone https://github.com/Farbfinsternis/bltznxt
 cd bltznxt
@@ -94,7 +105,42 @@ build_windows.bat
 
 `build_windows.bat` downloads the MinGW toolchain and SDL3, then builds `bin\blitzcc.exe`. No manual dependency installation required.
 
+For the IDE you also need [Node.js](https://nodejs.org/) 18 or newer:
+
+```bat
+cd ide
+npm install
+npm start
+```
+
+#### Linux
+
+Requirements: a 64-bit Linux with a desktop, `git`, a C++ compiler, CMake 3.16 or newer and the development packages SDL3 is built against. `build_linux.sh --check` lists what is missing and prints the install command for apt, dnf, pacman or zypper. On Ubuntu 24.04:
+
+```bash
+sudo apt install build-essential cmake git pkg-config ninja-build \
+  libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev libxi-dev libxss-dev \
+  libxtst-dev libxkbcommon-dev libwayland-dev wayland-protocols libdecor-0-dev \
+  libgl1-mesa-dev libegl1-mesa-dev libgles2-mesa-dev libdrm-dev libgbm-dev \
+  libasound2-dev libpulse-dev libpipewire-0.3-dev libdbus-1-dev libudev-dev libibus-1.0-dev \
+  libfreetype-dev libharfbuzz-dev libfontconfig-dev
+git clone https://github.com/Farbfinsternis/bltznxt
+cd bltznxt
+./build_linux.sh
+```
+
+`build_linux.sh` takes the compiler and CMake from the system, downloads SDL3 and SDL3_ttf (checksum-verified), builds them into `libs/linux/` and then builds `bin/blitzcc`. Later runs reuse what is there. Options: `--check` (only check the dependencies), `--setup-only` (stop before blitzcc), `--clean-deps` (rebuild SDL).
+
+For the IDE you also need Node.js 18 or newer with npm (`sudo apt install nodejs npm`), then:
+
+```bash
+ide/start-linux.sh
+```
+
+It installs the npm packages on the first run and starts the IDE.
+
 #### Your first program
+
 
 Create `hello.bb`:
 ```blitz3d
@@ -107,7 +153,12 @@ Compile it:
 bin\blitzcc.exe hello.bb
 ```
 
-`hello.exe` appears next to the source file and runs standalone.
+or on Linux:
+```bash
+bin/blitzcc hello.bb
+```
+
+`hello.exe` (on Linux: `hello`) appears next to the source file, together with the SDL3 library, and runs standalone.
 
 ---
 
@@ -316,7 +367,7 @@ src/compiler/
   suggest.h         ← "did you mean …?" for unknown names
 ```
 
-The runtime is **header-only** — the generated `.cpp` file `#include`s only what it needs, then gets compiled by the bundled MinGW g++.
+The runtime is **header-only** — the generated `.cpp` file `#include`s only what it needs, then gets compiled by g++ (the bundled MinGW on Windows, the system's g++ on Linux).
 
 ---
 
@@ -354,15 +405,23 @@ Where the 3D engine is heading — one modern material model, per-pixel lighting
 
 ## Building from Source
 
+**Windows:**
+
 ```bat
 build_windows.bat
 ```
 
 This script downloads MinGW and SDL3 on first run, then builds the compiler via CMake. Subsequent runs skip the download if the toolchain is already present.
 
-BlitzNext currently runs on **Windows only**. `build_linux.sh` exists, but the compiler still
-depends on the Windows API and the bundled MinGW toolchain, so a Linux build does not work yet
-(see [KNOWN_ISSUES.md](KNOWN_ISSUES.md)).
+**Linux:**
+
+```bash
+./build_linux.sh
+```
+
+Compiler and CMake come from the system; SDL3 and SDL3_ttf are built from source into `libs/linux/` on the first run. See [From source](#from-source) for the packages, and [LINUX_PORT.md](LINUX_PORT.md) for how the port works and what was tested.
+
+**Release packages:** `scripts/package_release.py` builds the Windows ZIP, `scripts/package_linux.sh --verify` the Linux archive.
 
 ---
 
@@ -371,6 +430,10 @@ depends on the Windows API and the bundled MinGW toolchain, so a Linux build doe
 ```bash
 bash tests/run_tests.sh
 ```
+
+The same command runs the suite on Windows (Git Bash) and on Linux. On Linux the programs write
+LF instead of CRLF and the `.expected` files are compared without carriage returns; with
+`SDL_VIDEO_DRIVER=offscreen` no window opens on the screen.
 
 The suite contains **308 tests, 106 of them negative**. Positive tests with an
 `.expected` file are executed and their stdout is compared; the others are compile-only.

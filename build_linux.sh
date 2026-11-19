@@ -167,9 +167,6 @@ if command -v fc-list >/dev/null 2>&1 && ! fc-list 2>/dev/null | grep -qi "Liber
     esac
     warn "Recommended for programs: $FONT_PKG (Arial, Times New Roman, Courier New with the same measurements)"
 fi
-if ! ldconfig -p 2>/dev/null | grep -q "libcurl\(-gnutls\)\?\.so\.4"; then
-    warn "Recommended for programs: libcurl (https list servers of the Net commands)"
-fi
 
 if [ "$MODE" = "check" ]; then
     if [ ${#MISSING_OPT[@]} -gt 0 ]; then

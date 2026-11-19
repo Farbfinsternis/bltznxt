@@ -1,5 +1,5 @@
-BLTZNXT @VERSION@  -  "The Tide Update"
-=======================================
+BLTZNXT @VERSION@  -  "The Linux Update"  (Windows 64-bit)
+========================================================
 
 BlitzNext is the successor to Blitz3D: a compiler that turns Blitz3D (.bb) programs
 into native Windows executables, and now an IDE to write them in.
