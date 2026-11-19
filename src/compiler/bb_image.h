@@ -43,7 +43,7 @@
 
 inline unsigned char* bb_load_bmp_rle_(const char* path,
                                        int* out_w, int* out_h, int* out_ch) {
-    std::FILE* f = std::fopen(path, "rb");
+    std::FILE* f = std::fopen(bb_os_path_(path).c_str(), "rb");
     if (!f) return nullptr;
     std::fseek(f, 0, SEEK_END);
     long fsize = std::ftell(f);
@@ -157,7 +157,7 @@ inline unsigned char* bb_load_bmp_rle_(const char* path,
 // LoadImage, LoadAnimImage, LoadBuffer, LoadTexture und LoadAnimTexture
 // dieselben Dateien annehmen.
 inline unsigned char* bb_load_rgba_(const char* path, int* w, int* h, int* ch) {
-    if (unsigned char* d = stbi_load(path, w, h, ch, 4)) return d;
+    if (unsigned char* d = stbi_load(bb_os_path_(path).c_str(), w, h, ch, 4)) return d;
     return bb_load_bmp_rle_(path, w, h, ch);
 }
 
@@ -1296,7 +1296,7 @@ inline bool bb_buf_snapshot_(int buf, std::vector<uint8_t>& px, int& w, int& h) 
 
 inline bool bb_save_bmp_(const bbString& file, const std::vector<uint8_t>& px,
                          int w, int h) {
-    FILE* f = std::fopen(file.c_str(), "wb");
+    FILE* f = std::fopen(bb_os_path_(file).c_str(), "wb");
     if (!f) return false;
     const uint32_t stride = (static_cast<uint32_t>(w) * 3 + 3) & ~3u;
     const uint32_t off    = 14 + 40;

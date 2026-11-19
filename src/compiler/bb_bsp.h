@@ -149,7 +149,7 @@ inline int bb_LoadBSP(const bbString& file, float gamma_adj = 0.0f, int parent =
   using namespace bb_bsp_detail_;
   std::vector<char> data;
   {
-    FILE* fp = std::fopen(file.c_str(), "rb");   // ANSI wie die Lader in bb_loader.h
+    FILE* fp = std::fopen(bb_os_path_(file).c_str(), "rb");   // wie die Lader in bb_loader.h
     if (!fp) return 0;
     std::fseek(fp, 0, SEEK_END);
     const long sz = std::ftell(fp);

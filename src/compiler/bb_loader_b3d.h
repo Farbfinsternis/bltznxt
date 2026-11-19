@@ -469,7 +469,7 @@ inline int bb_b3d_object_(bb_B3DLoad_& L, int parent) {
 }
 
 inline int bb_load_b3d_(const bbString& file) {
-  std::FILE* f = std::fopen(file.c_str(), "rb");
+  std::FILE* f = std::fopen(bb_os_path_(file).c_str(), "rb");
   if (!f) {
     std::cerr << "[runtime] LoadMesh: cannot open '" << file << "'\n";
     return 0;

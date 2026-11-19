@@ -200,10 +200,13 @@ The 3D layer is under active development — see [ROADMAP3D.md](ROADMAP3D.md). B
 ## Platform and tooling
 
 - **Linux is experimental.** `build_linux.sh` builds the compiler and SDL3 natively, and text,
-  2D and 3D programs run (tested on Ubuntu 24.04 under WSL2, see `LINUX_PORT.md`). Not yet done
-  on Linux: paths written the Windows way (`"Media\Pic.PNG"` with backslashes and a
-  different case than the file) are not found, and text with umlauts is passed through as
-  Windows-1252 bytes, so a UTF-8 terminal shows it garbled. Known differences on Linux:
+  2D and 3D programs run (tested on Ubuntu 24.04 under WSL2, see `LINUX_PORT.md`). Paths
+  written the Windows way (`"Media\Pic.PNG"` for `media/pic.png`) are found: backslashes
+  become slashes, and a name that does not exist as written is looked up ignoring case. Strings
+  stay Windows-1252 as under Windows and are converted to UTF-8 for file names, the terminal,
+  window titles and fonts; output into a file or pipe stays byte for byte as under Windows.
+  A source file saved as UTF-8 by a Linux editor keeps its string literals in UTF-8, so `Len`
+  counts an umlaut as two characters there. Known differences on Linux:
   - no gamma (`SetGamma`/`UpdateGamma` do nothing), no MIDI (`PlayMusic` with a `.mid`
     file), no movies (`OpenMovie` returns 0);
   - fonts come from fontconfig. Install `fonts-liberation` for Arial, Times New Roman and

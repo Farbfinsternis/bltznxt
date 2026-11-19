@@ -161,10 +161,14 @@ inline void bbEnd() {
 
 // Accepts any printable type (int, float, bbString, …)
 // Vor Graphics braucht Text ein Fenster: bb_console_ensure_ (bb_sdl.h).
+// Text geht durch bb_console_text_: unter Linux bekommt ein Terminal UTF-8.
 template <typename T>
 inline void bb_Print(const T &val) {
   bb_console_ensure_();
-  std::cout << val << "\n";
+  if constexpr (bb_is_text_v_<T>)
+    std::cout << bb_console_text_(bbString(val)) << "\n";
+  else
+    std::cout << val << "\n";
 }
 // Print nimmt im Original einen String; eine Kommazahl geht also durch
 // ftoa wie bei Str() - "Print 2.0" schreibt "2.0" (BUG-68).
@@ -182,10 +186,10 @@ inline void bb_Print() { bb_console_ensure_(); std::cout << "\n"; }
 
 inline bbString bb_Input(const bbString &prompt = "") {
   bb_console_ensure_();
-  if (!prompt.empty()) std::cout << prompt;
-  bbString line;
+  if (!prompt.empty()) std::cout << bb_console_text_(prompt);
+  std::string line;
   std::getline(std::cin, line);
-  return line;
+  return bb_console_in_(line);
 }
 
 // ---- Data / Read / Restore ----

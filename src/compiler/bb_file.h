@@ -66,7 +66,7 @@ inline int bb_stream_write_(int handle, const void* buf, int n) {
 
 // Internal helper — opens a file, stores it, returns handle (0 on failure).
 inline int bb_file_open_(const bbString &path, const char *mode) {
-  FILE *f = std::fopen(path.c_str(), mode);
+  FILE *f = std::fopen(bb_os_path_(path).c_str(), mode);
   if (!f) {
     std::cerr << "[runtime] Cannot open file: " << path << "\n";
     return 0;
@@ -325,7 +325,11 @@ inline bbString bb_CurrentDir() {
   // Das Original haengt immer einen Trenner an ("F:\dev\", der Stamm bleibt
   // "F:\"), Programme bauen damit CurrentDir()+"datei" (gemessen, BUG-202).
   bbString d = bb_ansi_(p);
+#ifdef _WIN32
   if (d.empty() || (d.back() != '\\' && d.back() != '/')) d += '\\';
+#else
+  if (d.empty() || d.back() != '/') d += '/';
+#endif
   return d;
 }
 

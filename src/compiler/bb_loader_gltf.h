@@ -325,7 +325,7 @@ inline std::string bb_uri_decode_(const std::string& u) {
 }
 
 inline bool bb_gltf_read_file_(const std::string& path, std::vector<uint8_t>& out) {
-  std::FILE* f = std::fopen(path.c_str(), "rb");
+  std::FILE* f = std::fopen(bb_os_path_(path).c_str(), "rb");
   if (!f) return false;
   char buf[65536];
   size_t got;

@@ -242,7 +242,7 @@ struct bb_Md2Rep_ {
 // MD2Rep::MD2Rep. Liefert nullptr, wenn die Datei fehlt oder kein MD2 der
 // Version 8 ist - dann gibt LoadMD2 im Original 0 zurueck.
 inline std::shared_ptr<bb_Md2Rep_> bb_md2_load_(const char* path) {
-  std::FILE* f = std::fopen(path, "rb");
+  std::FILE* f = std::fopen(bb_os_path_(path).c_str(), "rb");
   if (!f) return nullptr;
   struct Hdr {
     int magic, version, skinWidth, skinHeight, frameSize, numSkins,
