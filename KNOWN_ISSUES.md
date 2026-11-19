@@ -199,8 +199,21 @@ The 3D layer is under active development — see [ROADMAP3D.md](ROADMAP3D.md). B
 
 ## Platform and tooling
 
-- **Windows only.** `build_linux.sh` exists, but the compiler currently depends on the
-  Windows API and the bundled MinGW toolchain; a Linux build does not work. (WEAK-24)
+- **Linux is experimental.** `build_linux.sh` builds the compiler and SDL3 natively, and text,
+  2D and 3D programs run (tested on Ubuntu 24.04 under WSL2, see `LINUX_PORT.md`). Not yet done
+  on Linux: paths written the Windows way (`"Media\Pic.PNG"` with backslashes and a
+  different case than the file) are not found, and text with umlauts is passed through as
+  Windows-1252 bytes, so a UTF-8 terminal shows it garbled. Known differences on Linux:
+  - no gamma (`SetGamma`/`UpdateGamma` do nothing), no MIDI (`PlayMusic` with a `.mid`
+    file), no movies (`OpenMovie` returns 0);
+  - fonts come from fontconfig. Install `fonts-liberation` for Arial, Times New Roman and
+    Courier New with the same measurements; without it a different font stands in. The
+    default font is a monospaced font 13 pixels high in place of the Windows bitmap font
+    "Courier", and `FontWidth` is the width of "M", not the widest character as under
+    Windows;
+  - the list server of the Net commands needs `libcurl.so.4` for `https://` addresses.
+
+  The BLTZNXT IDE does not run on Linux yet, not even under Wine. (WEAK-24)
 - **Compiling takes 10 to 15 seconds per program**, even for a few lines, where Blitz3D took a
   fraction of a second. Most of the time goes into the runtime, which is compiled again with
   every program. (WEAK-29)

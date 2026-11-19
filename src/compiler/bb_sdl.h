@@ -12,6 +12,7 @@
   #include <windows.h>  // GetFileType, GetStdHandle
 #else
   #include <unistd.h>   // isatty, fileno
+  #include <termios.h>  // WaitKey ohne Fenster: eine Taste vom Terminal
 #endif
 
 // ---- Global SDL state ----
@@ -438,6 +439,10 @@ inline void bb_sdl_process_event_(const SDL_Event &ev) {
                       MB_OKCANCEL | MB_ICONWARNING | MB_SETFOREGROUND | MB_TOPMOST) != IDOK)
         return;
     }
+#else
+    if (!bb_app_close_prompt_.empty() && bb_window_ &&
+        bb_msgbox_(bb_app_close_prompt_, SDL_MESSAGEBOX_WARNING, {{"OK", 1}, {"Cancel", 0}}) != 1)
+      return;
 #endif
     bb_sdl_quit_();
     std::exit(0);
@@ -624,6 +629,38 @@ inline int bb_WaitKey() {
     while (!empty)
       if (int a = bb_key_queue_pop_ascii_(&empty)) return a;
     Sleep(20);
+  }
+#else
+  // Ohne Fenster bekaeme SDL keine Taste und wartete ewig. Die Taste kommt
+  // direkt vom Terminal: ohne Enter, ohne Echo. Enter ist 13 und Backspace 8
+  // wie unter Windows; Folgen wie die der Pfeiltasten (ESC [ A) haben kein
+  // Zeichen und zaehlen nicht, ein einzelnes Escape ist 27.
+  for (;;) {
+    termios old{};
+    if (tcgetattr(STDIN_FILENO, &old) != 0) break;
+    termios raw = old;
+    raw.c_lflag &= ~(ICANON | ECHO);
+    raw.c_cc[VMIN] = 1;
+    raw.c_cc[VTIME] = 0;
+    tcsetattr(STDIN_FILENO, TCSANOW, &raw);
+    unsigned char c = 0;
+    int a = -1;
+    if (read(STDIN_FILENO, &c, 1) == 1) {
+      a = c;
+      if (c == '\n') a = 13;
+      else if (c == 127) a = 8;
+      else if (c == 27) {
+        termios peek = raw;   // folgt binnen 0,1 s mehr, war es eine Folge
+        peek.c_cc[VMIN] = 0;
+        peek.c_cc[VTIME] = 1;
+        tcsetattr(STDIN_FILENO, TCSANOW, &peek);
+        unsigned char t;
+        while (read(STDIN_FILENO, &t, 1) == 1) a = 0;
+      }
+    }
+    tcsetattr(STDIN_FILENO, TCSANOW, &old);
+    if (a < 0) return 0;   // Terminal geschlossen
+    if (a > 0) return a;
   }
 #endif
 
