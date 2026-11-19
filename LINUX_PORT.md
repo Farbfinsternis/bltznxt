@@ -92,7 +92,29 @@ Ursprüngliche Liste:
   HTTP statt `winhttp`.
 - **Filme zunächst nicht** — in KNOWN_ISSUES.
 
-### L4 Pfade wie unter Windows
+### L4 Pfade und Zeichensatz — **fertig 19.11.**
+- `bb_path.h`, Linux-Teil: `bb_os_path_` (1252 → UTF-8, `\` → `/`, fehlt der Pfad, jeder Teil
+  ohne Rücksicht auf Groß-/Kleinschreibung wie NTFS, ASCII + Latin-1; was es nicht gibt, bleibt
+  wie geschrieben → WriteFile legt neu an). `bb_path_` nutzt es; neu `bb_sdl_path_` für
+  SDL_LoadWAV/TTF_OpenFont. Unter Windows sind beide die alten Wege (ANSI bzw. UTF-8).
+- Alle `fopen`/`stbi_load`/stb_vorbis/dr_mp3-Stellen der Lader (Bilder, Töne, .x, .3ds, .b3d,
+  glTF, MD2, BSP, Dateibefehle, SaveImage) über `bb_os_path_`.
+- Zeichensatz: `bb_utf8_` wandelt 1252 → UTF-8, lässt gültiges UTF-8 stehen; `bb_ansi_`
+  (NextFile, CurrentDir) UTF-8 → 1252, wenn darstellbar. Print/Write: UTF-8 nur, wenn stdout
+  ein Terminal ist (Datei/Pipe bleibt Byte für Byte wie unter Windows); Input$ und
+  CommandLine$ UTF-8 → 1252. CurrentDir endet unter Linux auf `/`.
+- Geprüft (WSL): LoadImage `Media\BILD.BMP`, LoadSound `SOUNDS\Ping.Wav`, LoadMesh
+  `MEDIA\Kiste.3DS`, FileType, ReadFile `Daten\TEXT.TXT`, ReadFile mit Umlaut (Quelle in 1252,
+  Datei in UTF-8), WriteFile in Verzeichnis anderer Schreibung, NextFile (Len 9, Asc 252),
+  CommandLine `Ä` (Len 1, Asc 196), Print `Käse` im Terminal.
+- Windows gegengeprüft: 63 Suite-Tests zu Dateien, Ladern, Schriften, Ausgabe und Umlauten
+  bestehen (63/63). Volle Suite nicht gelaufen.
+- Grenze: Quelltext in UTF-8 behält UTF-8 in String-Literalen (Len zählt ein Umlaut doppelt).
+  Laufwerksbuchstaben (`C:\...`) werden nicht umgesetzt.
+
+Ursprüngliche Punkte:
+
+### L4 Pfade wie unter Windows (Planung)
 - Alte Programme schreiben `"Media\Bild.PNG"`. Beim Öffnen: `\` → `/`, Suche ohne Rücksicht auf
   Groß-/Kleinschreibung, Laufwerksbuchstaben behandeln. Gilt für alle Lade- und Dateibefehle.
 - Wichtigster Punkt für das Kompatibilitätsziel.

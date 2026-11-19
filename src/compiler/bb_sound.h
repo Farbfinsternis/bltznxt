@@ -394,7 +394,7 @@ inline std::string bb_snd_ext_(const std::string& path) {
 inline int bb_load_ogg_(const char* path) {
   int channels = 0, sample_rate = 0;
   short* pcm = nullptr;
-  int samples = stb_vorbis_decode_filename(path, &channels, &sample_rate, &pcm);
+  int samples = stb_vorbis_decode_filename(bb_os_path_(path).c_str(), &channels, &sample_rate, &pcm);
   if (samples < 0 || !pcm) {
     std::cerr << "[runtime] PlayMusic/LoadSound: failed to decode OGG: " << path << "\n";
     return 0;
@@ -428,7 +428,7 @@ inline int bb_store_mp3_pcm_(float* pcm, drmp3_uint64 frameCount, const drmp3_co
 inline int bb_load_mp3_(const char* path) {
   drmp3_config cfg{};
   drmp3_uint64 frameCount = 0;
-  float* pcm = drmp3_open_file_and_read_pcm_frames_f32(path, &cfg, &frameCount, nullptr);
+  float* pcm = drmp3_open_file_and_read_pcm_frames_f32(bb_os_path_(path).c_str(), &cfg, &frameCount, nullptr);
   if (!pcm) {
     std::cerr << "[runtime] PlayMusic/LoadSound: failed to decode MP3: " << path << "\n";
     return 0;
@@ -441,7 +441,7 @@ inline int bb_load_mp3_(const char* path) {
 // snd/txstorm.wav; BUG-216). Dann die Daten aus dem data-Block mit dr_mp3
 // entpacken. -1 = keine solche Datei (weiter mit SDL_LoadWAV).
 inline int bb_load_wav_mp3_(const bbString& file) {
-  std::FILE* f = std::fopen(file.c_str(), "rb");
+  std::FILE* f = std::fopen(bb_os_path_(file).c_str(), "rb");
   if (!f) return -1;
   std::vector<uint8_t> d;
   {
@@ -510,7 +510,7 @@ inline int bb_LoadSound(const bbString& file) {
       SDL_AudioSpec spec{};
       Uint8*  buf = nullptr;
       Uint32  len = 0;
-      if (!SDL_LoadWAV(bb_utf8_(file).c_str(), &spec, &buf, &len)) {   // SDL will UTF-8 (BUG-202)
+      if (!SDL_LoadWAV(bb_sdl_path_(file).c_str(), &spec, &buf, &len)) {   // SDL will UTF-8 (BUG-202)
         std::cerr << "[runtime] LoadSound: SDL_LoadWAV failed for '" << file << "': "
                   << SDL_GetError() << "\n";
         return 0;

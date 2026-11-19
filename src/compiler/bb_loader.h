@@ -526,7 +526,7 @@ inline std::string bb_3ds_brush_key_(const bb_3ds_mat_* m, int texhandle) {
 }
 
 inline bool bb_3ds_read_file_(const bbString& file, std::vector<uint8_t>& data) {
-  std::FILE* f = std::fopen(file.c_str(), "rb");
+  std::FILE* f = std::fopen(bb_os_path_(file).c_str(), "rb");
   if (!f) {
     std::cerr << "[runtime] LoadMesh: cannot open '" << file << "'\n";
     return false;
@@ -1143,7 +1143,7 @@ inline void bb_x_collect_named_(const std::vector<bb_XObj_>& objs,
 // Datei lesen und in den Objektbaum zerlegen; false mit Meldung, wenn das
 // nicht geht.
 inline bool bb_x_read_(const bbString& file, std::vector<bb_XObj_>& roots) {
-  std::FILE* f = std::fopen(file.c_str(), "rb");
+  std::FILE* f = std::fopen(bb_os_path_(file).c_str(), "rb");
   if (!f) {
     std::cerr << "[runtime] LoadMesh: cannot open '" << file << "'\n";
     return false;

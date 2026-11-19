@@ -162,7 +162,7 @@ inline bbString bb_CommandLine() {
   bbString result;
   for (int i = 1; i < bb_argc_; ++i) {
     if (i > 1) result += " ";
-    result += bb_argv_[i];
+    result += bb_arg_text_(bb_argv_[i]);   // unter Linux UTF-8 -> Windows-1252
   }
   return result;
 }

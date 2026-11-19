@@ -1087,7 +1087,10 @@ static constexpr uint8_t bb_font8x8_[128][8] = {
 template <typename T>
 inline void bb_Write(const T& val) {
     bb_console_ensure_();
-    std::cout << val << std::flush;
+    if constexpr (bb_is_text_v_<T>)
+        std::cout << bb_console_text_(bbString(val)) << std::flush;   // Linux: UTF-8 im Terminal
+    else
+        std::cout << val << std::flush;
 }
 // Wie Print: eine Kommazahl wird wie mit Str() geschrieben (BUG-68).
 inline void bb_Write(float val)  { bb_console_ensure_(); std::cout << bb_Str((double)val) << std::flush; }
@@ -1454,7 +1457,7 @@ inline int bb_courier_height_(int height) {
 // Zellenhoehe trifft (siehe bb_LoadFont). false, wenn SDL_ttf sie nicht oeffnet.
 inline bool bb_ttf_open_sized_(const bbString& path, int height, bool styled, bool bold,
                                bool italic, bool underline, bb_Font_& f) {
-    TTF_Font* ttf = TTF_OpenFont(bb_utf8_(path).c_str(), static_cast<float>(height));   // SDL will UTF-8
+    TTF_Font* ttf = TTF_OpenFont(bb_sdl_path_(path).c_str(), static_cast<float>(height));   // SDL will UTF-8
     if (!ttf) return false;
     const int h0 = TTF_GetFontHeight(ttf);
     if (h0 > 0 && h0 != height)
