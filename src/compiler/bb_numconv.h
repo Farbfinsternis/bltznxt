@@ -13,6 +13,35 @@
 #include <limits>
 #include <string>
 
+// Zeichenkette -> Kommazahl wie atof() des Originals, nach der C89-Grammatik:
+// Leerraum, Vorzeichen, Ziffern, Punkt, Ziffern, Exponent; der Rest zaehlt
+// nicht, keine Ziffer ergibt 0. Das atof von MinGW kennt nur das; das von
+// glibc liest auch Hex ("0x10" -> 16), "inf" und "nan" (LINUX_PORT.md, L6).
+// Deshalb wird der Zahlanteil hier selbst abgegrenzt und nur er an strtod
+// gegeben - fuer Float() zur Laufzeit und fuer die Konstantenfaltung.
+inline double bb_atof_(const char *s) {
+  const char *p = s;
+  while (*p == ' ' || (*p >= '\t' && *p <= '\r')) ++p;
+  const char *start = p;
+  if (*p == '+' || *p == '-') ++p;
+  bool digits = false;
+  while (*p >= '0' && *p <= '9') { ++p; digits = true; }
+  if (*p == '.') {
+    ++p;
+    while (*p >= '0' && *p <= '9') { ++p; digits = true; }
+  }
+  if (!digits) return 0.0;
+  if (*p == 'e' || *p == 'E') {
+    const char *e = p + 1;
+    if (*e == '+' || *e == '-') ++e;
+    if (*e >= '0' && *e <= '9') {
+      while (*e >= '0' && *e <= '9') ++e;
+      p = e;
+    }
+  }
+  return std::strtod(std::string(start, p).c_str(), nullptr);
+}
+
 // Kommazahl -> Zeichenkette wie ftoa() in stdutil/stdutil.cpp der Referenz
 // (BUG-68). Sechs signifikante Stellen wie _ecvt. Liegt der Dezimalpunkt bei
 // dec <= -3 oder dec > 8 (Wert unter 0.001 bzw. ab 10^9), schreibt das

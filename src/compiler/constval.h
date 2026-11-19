@@ -34,7 +34,7 @@ struct ConstVal {
   }
   float floatValue() const {
     if (k == INT) return static_cast<float>(i);
-    if (k == STR) return static_cast<float>(std::atof(s.c_str()));
+    if (k == STR) return static_cast<float>(bb_atof_(s.c_str()));
     return f;
   }
   // IntConstNode: itoa, FloatConstNode: ftoa (wie Str zur Laufzeit).

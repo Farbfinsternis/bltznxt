@@ -28,6 +28,7 @@
 #  include <windows.h>
 #else
 #  include <cerrno>
+#  include <dirent.h>
 #  include <sys/types.h>
 #  include <sys/wait.h>
 #  include <unistd.h>
@@ -183,9 +184,105 @@ fs::path findInPath(const std::string &name) {
 // ============================================================================
 #else // POSIX
 
-// Unter Linux sind Pfade Bytes (in der Regel UTF-8), und std::filesystem
-// nimmt sie unveraendert: hier gibt es nichts zu wandeln.
-std::filesystem::path ansiPath(const std::string &ansi) { return std::filesystem::path(ansi); }
+// Unter Linux sind Pfade Bytes, in der Regel UTF-8. Ein altes Programm
+// schreibt sie aber wie unter Windows: in Windows-1252, mit Backslash und ohne
+// Ruecksicht auf die Schreibung - Include "Inc\Funcs.BB" fuer inc/funcs.bb.
+// ansiPath macht daraus den Pfad, den es gibt, wie bb_os_path_ in der
+// Laufzeit (bb_path.h, LINUX_PORT.md L4). Zurueck bleibt es UTF-8: der
+// Rueckweg durch ansiPath findet gueltiges UTF-8 unveraendert wieder.
+namespace host_detail {
+inline constexpr unsigned short kCp1252Hi[32] = {
+  0x20AC, 0x0081, 0x201A, 0x0192, 0x201E, 0x2026, 0x2020, 0x2021,
+  0x02C6, 0x2030, 0x0160, 0x2039, 0x0152, 0x008D, 0x017D, 0x008F,
+  0x0090, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2013, 0x2014,
+  0x02DC, 0x2122, 0x0161, 0x203A, 0x0153, 0x009D, 0x017E, 0x0178 };
+
+// naechstes Zeichen aus UTF-8, -1 bei einer ungueltigen Folge
+inline long next(const std::string &s, size_t &i) {
+  const unsigned char c = static_cast<unsigned char>(s[i]);
+  const int n = c < 0x80 ? 0 : (c >> 5) == 6 ? 1 : (c >> 4) == 14 ? 2 : (c >> 3) == 30 ? 3 : -1;
+  if (n < 0) return -1;
+  long cp = n == 0 ? c : n == 1 ? (c & 0x1F) : n == 2 ? (c & 0x0F) : (c & 0x07);
+  for (int k = 1; k <= n; ++k) {
+    if (i + k >= s.size() || (static_cast<unsigned char>(s[i + k]) >> 6) != 2) return -1;
+    cp = (cp << 6) | (s[i + k] & 0x3F);
+  }
+  static const long minv[4] = { 0, 0x80, 0x800, 0x10000 };
+  if (cp < minv[n] || cp > 0x10FFFF || (cp >= 0xD800 && cp <= 0xDFFF)) return -1;
+  i += n + 1;
+  return cp;
+}
+
+inline void put(std::string &out, long cp) {
+  if (cp < 0x80) { out += static_cast<char>(cp); return; }
+  if (cp < 0x800) { out += static_cast<char>(0xC0 | (cp >> 6)); }
+  else { out += static_cast<char>(0xE0 | (cp >> 12)); out += static_cast<char>(0x80 | ((cp >> 6) & 0x3F)); }
+  out += static_cast<char>(0x80 | (cp & 0x3F));
+}
+
+inline std::string toUtf8(const std::string &s) {
+  for (size_t i = 0; i < s.size();)
+    if (next(s, i) < 0) {   // kein gueltiges UTF-8: Windows-1252
+      std::string out;
+      for (unsigned char c : s)
+        put(out, c < 0x80 ? c : c < 0xA0 ? kCp1252Hi[c - 0x80] : c);
+      return out;
+    }
+  return s;
+}
+
+inline long fold(long cp) {
+  if (cp >= 'A' && cp <= 'Z') return cp + 32;
+  if (cp >= 0xC0 && cp <= 0xDE && cp != 0xD7) return cp + 32;
+  return cp;
+}
+inline bool sameName(const std::string &a, const std::string &b) {
+  size_t i = 0, j = 0;
+  while (i < a.size() && j < b.size()) {
+    const long x = next(a, i), y = next(b, j);
+    if (x < 0 || y < 0) return a == b;
+    if (fold(x) != fold(y)) return false;
+  }
+  return i == a.size() && j == b.size();
+}
+
+inline bool exists(const std::string &p) { return access(p.c_str(), F_OK) == 0; }
+
+inline std::string resolve(const std::string &ansi) {
+  std::string p = toUtf8(ansi);
+  for (char &c : p) if (c == '\\') c = '/';
+  if (p.empty() || exists(p)) return p;
+  std::string cur = p[0] == '/' ? "/" : "";
+  size_t pos = p[0] == '/' ? 1 : 0;
+  while (pos <= p.size()) {
+    size_t slash = p.find('/', pos);
+    if (slash == std::string::npos) slash = p.size();
+    const std::string part = p.substr(pos, slash - pos);
+    const bool last = slash >= p.size();
+    const size_t partStart = pos;
+    pos = slash + 1;
+    if (part.empty()) { if (last) break; continue; }
+    std::string cand = cur + part;
+    if (!exists(cand) && part != "." && part != "..") {
+      bool found = false;
+      if (DIR *d = opendir(cur.empty() ? "." : cur.c_str())) {
+        while (dirent *e = readdir(d))
+          if (sameName(e->d_name, part)) { cand = cur + e->d_name; found = true; break; }
+        closedir(d);
+      }
+      if (!found) return cur + p.substr(partStart);   // bleibt, wie geschrieben
+    }
+    cur = cand;
+    if (last) break;
+    cur += '/';
+  }
+  return cur;
+}
+} // namespace host_detail
+
+std::filesystem::path ansiPath(const std::string &ansi) {
+  return std::filesystem::path(host_detail::resolve(ansi));
+}
 std::string ansiString(const std::filesystem::path &p) { return p.string(); }
 std::string ansiGeneric(const std::filesystem::path &p) { return p.generic_string(); }
 

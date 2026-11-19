@@ -11,10 +11,34 @@
 # bleiben im Fenster und halten ohne Fokus nicht an.
 export BLTZNXT_WINDOWED=1
 
+# Windows (Git-Bash) oder Linux (LINUX_PORT.md, L6). Unter Linux heissen die
+# Programme ohne .exe, und sie schreiben LF statt CRLF: die .expected-Dateien
+# (CRLF, siehe oben) werden dort ohne \r verglichen.
+case "$OSTYPE" in
+    msys*|cygwin*|win32*) EXE=".exe"; expected_text() { cat "$1"; } ;;
+    *)                    EXE="";     expected_text() { tr -d '\r' < "$1"; } ;;
+esac
+BLITZCC="bin/blitzcc$EXE"
+
 PASS=0; FAIL=0; SKIP=0
 
 # Tests mit bekannten pre-existing Bugs (nicht Refactor-Scope):
 KNOWN_FAIL=""
+
+# Unter Linux pruefen diese Tests etwas, das es dort nicht gibt oder das anders
+# ausfaellt (LINUX_PORT.md, L6, mit Begruendung je Test). Sie zaehlen dort als
+# SKIP; unter Windows laufen sie wie immer.
+if [ -z "$EXE" ]; then
+    KNOWN_FAIL="$KNOWN_FAIL
+        test_bug122_systemproperty test_bug202_umlaut_dateien test_bug210_execfile test_m27_dir
+        test_3d_klang
+        test_bug139_fontwidth test_bug139_standardschrift test_bug227_loadfont_dateiname test_m43_fonts
+        test_bug195_movie test_bug216_midi test_bug235_playmusic_einmal
+        test_3d16_mirror test_3d16_sprite test_bug142_blending test_bug191_nebel test_bug148_turnentity"
+    # Ohne Bildschirm (SDL_VIDEO_DRIVER=offscreen) gibt es weder VSync noch Grafikmodi
+    [ "$SDL_VIDEO_DRIVER" = offscreen ] &&
+        KNOWN_FAIL="$KNOWN_FAIL test_bug178_flip_fenster test_bug195_klein test_bug213_16bit_modi"
+fi
 
 # ---- Positive Tests ----
 for f in tests/test_*.bb; do
@@ -27,11 +51,11 @@ for f in tests/test_*.bb; do
         continue
     fi
 
-    if bin/blitzcc.exe "$f" -o bin/"$name" -q 2>/dev/null; then
+    if "$BLITZCC" "$f" -o bin/"$name" -q 2>/dev/null; then
         # Optionaler Output-Vergleich wenn .expected existiert
         if [ -f "tests/${name}.expected" ]; then
-            actual=$(bin/"${name}".exe </dev/null 2>bin/"${name}".stderr)
-            expected=$(cat "tests/${name}.expected")
+            actual=$(bin/"${name}$EXE" </dev/null 2>bin/"${name}".stderr)
+            expected=$(expected_text "tests/${name}.expected")
             # Optional auch die Laufzeitmeldung: .expected_stderr haelt fest,
             # was auf stderr steht, ohne die [GL]-/[shader]-Diagnosezeilen
             # (BUG-170). Zeilenenden zaehlen hier nicht.
@@ -71,14 +95,14 @@ done
 for f in tests/neg_*.bb; do
     [ -f "$f" ] || continue
     name=$(basename "$f" .bb)
-    actual_err=$(bin/blitzcc.exe "$f" -o bin/tmp_neg -q 2>&1 >/dev/null)
+    actual_err=$("$BLITZCC" "$f" -o bin/tmp_neg -q 2>&1 >/dev/null)
     if [ $? -eq 0 ]; then
         echo "FAIL (should have errored): $f"
         ((FAIL++))
         continue
     fi
     if [ -f "tests/${name}.expected_err" ]; then
-        expected_err=$(cat "tests/${name}.expected_err")
+        expected_err=$(expected_text "tests/${name}.expected_err")
         if [ "$actual_err" = "$expected_err" ]; then
             echo "PASS (expected error + message): $f"
             ((PASS++))
