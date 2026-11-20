@@ -6,7 +6,7 @@ accepted. This page lists where that promise is **not yet** kept — programs th
 although Blitz3D accepts them, programs that run but work differently, and commands that
 exist but do nothing — and, separately, the differences that are known and accepted.
 
-Every entry below has been reproduced against a running **Blitz3D 11.8** and checked
+Every entry below has been reproduced against a running **Blitz3D 1.108** and checked
 against the official source code at
 [blitz-research/blitz3d](https://github.com/blitz-research/blitz3d). The `BUG-nn` numbers
 refer to the project's internal tracker, so fixes can be found in [DEVLOG.md](DEVLOG.md)
@@ -153,7 +153,7 @@ counted as bugs and are not planned to be fixed:
 All of Blitz3D's commands are available since the Network Update (2026-10-27): the last 14
 were the DirectPlay commands, rebuilt on BlitzNext's own protocol (see [NETWORKING.md](NETWORKING.md)).
 `blitzcc -k` lists everything that is available; the comparison is between `blitzcc +k` of
-Blitz3D 11.8 and `blitzcc -k`.
+Blitz3D 1.108 and `blitzcc -k`.
 
 `Stop` is available but does not pause the program: in Blitz3D it is a debugger breakpoint,
 and without a debugger Blitz3D suspends the program until its window is activated again.

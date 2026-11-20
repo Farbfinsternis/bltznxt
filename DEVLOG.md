@@ -237,7 +237,7 @@ Files: `src/compiler/bb_net.h`, `src/compiler/commands.h`, `tests/net/fake_igd.j
 
 ## 2026-10-29 — v0.7.1: bugfix release of The Tide Update
 
-Five fixes on top of 0.7.0, each measured against Blitz3D 11.8 and described in the entries
+Five fixes on top of 0.7.0, each measured against Blitz3D 1.108 and described in the entries
 below: object tags in expressions (BUG-224), `Flip` waiting for the display in a window
 (BUG-178), `LoadFont` with a file name (BUG-227), comparisons with NaN (BUG-225) and string
 functions stopping on an invalid position or length (BUG-226, BUG-125).
@@ -364,7 +364,7 @@ Files: `src/compiler/parser.h`, `src/compiler/semant.h`, `tests/test_bug224_tag_
 ## 2026-10-27 — Network Update: the 14 multiplayer commands
 
 The DirectPlay commands are back, on a protocol of BlitzNext's own (`src/compiler/bb_net.h`).
-With them every Blitz3D command is available; `blitzcc +k` of Blitz3D 11.8 and `blitzcc -k`
+With them every Blitz3D command is available; `blitzcc +k` of Blitz3D 1.108 and `blitzcc -k`
 now differ only in language keywords.
 
 The host is the centre of a star: every client keeps one UDP connection to it, and the host
@@ -431,7 +431,7 @@ faster.
 ## 2026-10-27 — v0.7.0: The Tide Update
 
 A release made only of fixes. Since 0.6.5, 41 entries of the bug list were fixed, each
-measured against Blitz3D 11.8, and with them the last 14 non-network commands arrived: BSP
+measured against Blitz3D 1.108, and with them the last 14 non-network commands arrived: BSP
 maps, movies and gamma. Of the 105 sample programs that ship with Blitz3D, 103 compile there;
 all 103 now compile, start and run like the original in a side-by-side run with the same
 keys and answers (2026-10-25: 97, 94 and 85). KNOWN_ISSUES lists no open bug that can break
@@ -494,7 +494,7 @@ Text before `Graphics` goes to the console here, where Blitz3D has a text window
 keys pressed in that console never reached the program (BUG-214): "Press ESC to exit"
 with `KeyHit(1)`, or "press a key" with `WaitKey`, waited forever. While no window is open,
 `KeyHit`, `KeyDown`, `GetKey`, `FlushKeys` and `WaitKey` now read the console's keys. Text
-typed ahead for `Input` stays where it is. Measured against Blitz3D 11.8 with real key
+typed ahead for `Input` stays where it is. Measured against Blitz3D 1.108 with real key
 presses; the values match.
 
 Full suite: 16 passed, 0 failed (tests using KeyHit, MouseHit, FlushKeys, FlushMouse, KeyDown, MouseDown, GetKey, WaitKey or Input).
@@ -506,7 +506,7 @@ the last call (BUG-206); like Blitz3D they now return the number of presses.
 `FlushKeys` and `FlushMouse` forgot keys that were still held, and because they threw away
 the pending events, a key released during the flush could stay down. Now they clear only
 the hits and the queue, as in Blitz3D: a held arrow key is still down after `FlushKeys`.
-Measured against Blitz3D 11.8 with real key presses and clicks; every value matches.
+Measured against Blitz3D 1.108 with real key presses and clicks; every value matches.
 
 Full suite: 16 passed, 0 failed (tests using KeyHit, MouseHit, FlushKeys, FlushMouse, KeyDown, MouseDown, GetKey, WaitKey or Input).
 
@@ -518,7 +518,7 @@ into a DirectDraw surface and plays its sound, so whatever formats DirectShow ha
 machine play here too. Every `DrawMovie` fetches the next frame — it waits until that
 frame is due, and never skips one — and draws it scaled to the given rectangle, on the
 screen or into an image buffer; after the last frame it returns 0 and draws nothing.
-Measured against Blitz3D 11.8 with a generated AVI of ten frames: colours, orientation,
+Measured against Blitz3D 1.108 with a generated AVI of ten frames: colours, orientation,
 timing, end of the movie, scaling and image buffers are the same, with `Graphics` and with
 `Graphics3D`. Unlike Blitz3D, `Origin` and `Viewport` apply as they do for `DrawBlock`.
 Only the 14 DirectPlay commands are still missing; they belong to a separate update.
@@ -534,7 +534,7 @@ the lightmap added on texture layer 0 and the surface texture on layer 1. The ma
 ordinary mesh, so collisions work as for any mesh; faces that only collide sit in an
 invisible surface. On the way, the texture layers now clamp an added or doubled colour to
 white as the fixed pipeline does — a lightmap plus `BSPAmbientLight` was too bright before
-the texture multiplied it. Measured against Blitz3D 11.8 on a generated test map: five views
+the texture multiplied it. Measured against Blitz3D 1.108 on a generated test map: five views
 with 25 pixels each differ by at most 1 per channel, and the collisions are the same.
 Visibility culling inside the map and point lights on the map are not reproduced.
 
@@ -548,7 +548,7 @@ the 16-bit range, and `GammaRed`, `GammaGreen` and `GammaBlue` read it back divi
 Only full screen has a gamma control: there the table starts from the system's and
 `UpdateGamma` puts it on the display; it is restored by the next `Graphics` and at exit. In
 a window the table starts at 0 to 255 — so `GammaRed(100)` is 0.389 — and `UpdateGamma` does
-nothing. Measured against Blitz3D 11.8 in a window; full screen was not measured yet.
+nothing. Measured against Blitz3D 1.108 in a window; full screen was not measured yet.
 
 Full suite: 126 passed, 0 failed (all tests using Graphics or Delay) and 9 passed (BUG-195 and signature tests), 108 negative tests passed.
 
@@ -559,7 +559,7 @@ stays there until it is drawn over or cleared. BlitzNext drew straight into the 
 of the renderer, whose content is undefined after every present, so programs that keep
 drawing without `Cls` — trails, paint programs, text written once — flickered or lost their
 picture (BUG-221). In 2D the screen is now a texture of the game's size; `Flip` copies it
-to the window and drawing continues in the same texture. Measured against Blitz3D 11.8: a
+to the window and drawing continues in the same texture. Measured against Blitz3D 1.108: a
 trail drawn over ten `Flip`s, reading the front and back buffer, and `Cls` give the same
 values.
 
@@ -573,7 +573,7 @@ corner normals. BlitzNext summed them per vertex, and the cube stayed faceted (B
 looked like a shading detail until `samples/mak/multi_tex`: its sphere map takes the
 texture coordinates from the normal, so each face showed one flat colour and the reflection
 almost vanished (BUG-220). `UpdateNormals` now works like Blitz3D; models loaded from glTF
-keep the old normals, as that format asks for flat shading. Measured against Blitz3D 11.8:
+keep the old normals, as that format asks for flat shading. Measured against Blitz3D 1.108:
 the normals of a cube and of a mesh with shared positions, degenerate triangles and two
 surfaces are the same, and the multi_tex cube looks alike.
 
@@ -585,7 +585,7 @@ Blitz3D reports the metrics GDI gives for a font: `FontWidth` is the widest char
 whole font after hinting and `FontHeight` the cell height. BlitzNext reported the width of
 "M" — 8 instead of 24 for Arial 12 — and heights that were one pixel off for some fonts
 (BUG-139). The value cannot be derived from the font tables alone, so `LoadFont` now asks
-GDI with the same call as Blitz3D. Measured against Blitz3D 11.8: ten fonts and sizes give
+GDI with the same call as Blitz3D. Measured against Blitz3D 1.108: ten fonts and sizes give
 the same `FontWidth` and `FontHeight`. `StringWidth` can still differ by a pixel or two per
 character, because the text itself is set by SDL_ttf.
 
@@ -609,7 +609,7 @@ Drawn on the screen, `TileBlock` and `TileImage` swapped the x and y offsets: th
 background of `Games/wing_ring`, tiled with `TileBlock logo,0,tile_y`, scrolled sideways
 instead of down (BUG-222). Origin, viewport and image handle were ignored there as well.
 The screen now uses the same arithmetic as Blitz3D's `tile()`, as image buffers already did.
-Measured against Blitz3D 11.8: positive and negative offsets, `TileImage`, `MidHandle`,
+Measured against Blitz3D 1.108: positive and negative offsets, `TileImage`, `MidHandle`,
 `Origin` and `Viewport` give the same pixels.
 
 Full suite: 7 passed, 0 failed (tests using TileBlock, TileImage, PlayMusic or channel control).
@@ -624,7 +624,7 @@ showed the picture on `Flip`, so a program that draws to the front buffer — th
 Every drawing command now notes when it draws to the front buffer, and handling events shows
 the picture if that happened at least 100 ms ago; the surface is read before and restored
 after, because the back buffer is undefined once shown. `Delay` now handles events in steps of
-at most 100 ms, as Blitz3D does. Measured against Blitz3D 11.8 by reading the screen under the
+at most 100 ms, as Blitz3D does. Measured against Blitz3D 1.108 by reading the screen under the
 window in eight phases: front buffer shown without `Flip`, back buffer only with `Flip`,
 nothing during a loop that handles no events; `doublebuffering` now looks the same before the
 first key.
@@ -644,7 +644,7 @@ Full suite: 366 passed, 0 failed.
 Blitz3D answers `ReadAvail` with the number of bytes its stream buffer holds, and for a file
 that is 0 before, during and after reading. BlitzNext returned the bytes left to the end of
 the file (BUG-211). It now returns 0 for files; TCP streams still report their waiting bytes.
-Measured against Blitz3D 11.8: the same values for files opened with `ReadFile`, `WriteFile`
+Measured against Blitz3D 1.108: the same values for files opened with `ReadFile`, `WriteFile`
 and `OpenFile`.
 
 Full suite: 366 passed, 0 failed.
@@ -656,7 +656,7 @@ wide. BlitzNext drew with a built-in 8×8 font, so `FontHeight()` was 8 and line
 stood closer together than in Blitz3D (BUG-139). The default font, and `LoadFont("courier",…)`,
 now open Windows' `coure.fon` the way GDI does: Courier exists in 13, 16 and 20 pixels, and
 GDI takes the largest of these, also scaled by a whole number, that is not higher than the
-requested height — 24 gives 20, 26 gives 2 × 13. Measured against Blitz3D 11.8 for sizes 1 to
+requested height — 24 gives 20, 26 gives 2 × 13. Measured against Blitz3D 1.108 for sizes 1 to
 48: heights and widths are the same, bold from 20 pixels up is one or two pixels wider per
 character. `FontWidth` of other fonts is still the width of "M".
 
@@ -671,7 +671,7 @@ masked, and now so does BlitzNext. In `RobCummings/Bumpy` four layers with the a
 were each blended, and the sprite came out almost black. Blitz3D blends because of a
 texture's alpha flag only when the surface has exactly one texture; with more layers it
 draws opaque unless the entity alpha is below 1, and then uses the alpha of all layers.
-Measured against Blitz3D 11.8 layer by layer: the same colours within rounding. Two other
+Measured against Blitz3D 1.108 layer by layer: the same colours within rounding. Two other
 samples of the same report, Emerald Gate and BloxAndSpheres, are still open.
 
 Full suite: 366 passed, 0 failed.
@@ -683,7 +683,7 @@ MP3. SDL rejected both, so the music of `Games/wing_ring` and the storm in Death
 stayed silent (BUG-216). On Windows MIDI now goes through the MCI sequencer on a channel of
 its own: `PlayMusic` repeats it like other music, and `StopChannel`, `PauseChannel`,
 `ResumeChannel` and `ChannelPlaying` work on it; volume, pan and pitch do not. A WAV file
-with MP3 data is decoded when it is loaded. Measured against Blitz3D 11.8 with `tune1.mid`
+with MP3 data is decoded when it is loaded. Measured against Blitz3D 1.108 with `tune1.mid`
 and `txstorm.wav` from the samples: the same channel states.
 
 Full suite: 366 passed, 0 failed.
@@ -693,7 +693,7 @@ Full suite: 366 passed, 0 failed.
 Blitz3D frees all images and clears its table of loader matrices on every `Graphics`,
 `Graphics3D` and `EndGraphics`. BlitzNext kept both, so a `LoaderMatrix` set before a mode
 change still scaled the meshes loaded after it (BUG-140). The mode change now frees the
-images and restores the default loader matrices. Measured against Blitz3D 11.8: mesh sizes
+images and restores the default loader matrices. Measured against Blitz3D 1.108: mesh sizes
 before and after the mode changes are the same.
 
 Full suite: 366 passed, 0 failed.
@@ -704,7 +704,7 @@ The screen had its own way of drawing the basic shapes, and it differed from the
 for image buffers: `Oval` came out one pixel too wide and too high, and `Rect` with a zero or
 negative size drew a rectangle where Blitz3D draws nothing (BUG-209). The screen now uses
 the same oval raster as image buffers, which follows Blitz3D's `gxCanvas::oval`. Measured
-against Blitz3D 11.8: the pixels of outlined and filled ovals and rectangles are the same.
+against Blitz3D 1.108: the pixels of outlined and filled ovals and rectangles are the same.
 
 Full suite: 366 passed, 0 failed.
 
@@ -722,7 +722,7 @@ Blitz3D rounds each side of a texture up to the next power of two — `CreateTex
 is 32×32, `(100,60)` is 128×64 — and stretches a loaded image to that size with the nearest
 pixel. BlitzNext kept the requested size, so `TextureWidth` answered differently and drawing
 into a texture buffer covered a different part of the surface (BUG-143). Textures are now
-created and loaded the same way. Measured against Blitz3D 11.8: sizes and stretched pixels
+created and loaded the same way. Measured against Blitz3D 1.108: sizes and stretched pixels
 are the same.
 
 Full suite: 357 passed, 1 failed (test_m43_fonts already expected the default font height of BUG-139, committed later).
@@ -734,7 +734,7 @@ ended, a console window opened, and a document or web address (`ExecFile "http:/
 not be opened (BUG-210). It now splits command and parameters like Blitz3D and hands them to
 `ShellExecute`, which returns at once. The second argument of `AppTitle` — the question
 asked when the window is closed — was stored but never shown; closing the window now asks it
-in a message box, and only OK ends the program. Measured against Blitz3D 11.8; the close
+in a message box, and only OK ends the program. Measured against Blitz3D 1.108; the close
 prompt was tested by sending the window a close message and answering the box from outside.
 
 Full suite: 357 passed, 1 failed (test_m43_fonts already expected the default font height of BUG-139, committed later).
@@ -748,7 +748,7 @@ the score display of the `wing_ring` sample was tiny. Family names are now resol
 the Windows font list, bold and italic pick the file of that style when there is one, and
 GDI bitmap fonts such as "Courier" map to the nearest TrueType font. The height is the cell
 height, as in Blitz3D: `LoadFont("Arial",40)` measured 45 and now measures 40, and the
-default height is 12 instead of 8 (part of BUG-139). Measured against Blitz3D 11.8: heights
+default height is 12 instead of 8 (part of BUG-139). Measured against Blitz3D 1.108: heights
 within one pixel, text widths within a few percent.
 
 Full suite: 357 passed, 1 failed (test_m43_fonts already expected the default font height of BUG-139, committed later).
@@ -759,7 +759,7 @@ Texture flag 64 was ignored, so a sphere map lay on the object like an ordinary 
 the chrome teapot in the `mak/teapot` sample was almost invisible (BUG-130). Blitz3D sets
 Direct3D 7 to take the texture coordinates from the normal in camera space, through a matrix
 that gives u = n.x/2 + 1/2 and v = −n.y/2 + 1/2; the vertex shaders now do the same. Measured
-against Blitz3D 11.8: a sphere-mapped cube in five rotations gives exactly the same pixels, a
+against Blitz3D 1.108: a sphere-mapped cube in five rotations gives exactly the same pixels, a
 lit sphere differs by at most 2 per channel from the lighting.
 
 Full suite: 357 passed, 1 failed (test_m43_fonts already expected the default font height of BUG-139, committed later).
@@ -771,7 +771,7 @@ title received these bytes as UTF-8, so `ä` in a font from `LoadFont` became a 
 glyph — `StringWidth("ä")` measured that glyph — and `AppTitle "Größe"` showed garbage;
 `Print` and `Input$` in the console used the OEM code page (BUG-203). Text now reaches SDL
 as UTF-8, and a console uses the ANSI code page while the program runs; the code page of a
-terminal the program attaches to is restored when it ends. Measured against Blitz3D 11.8:
+terminal the program attaches to is restored when it ends. Measured against Blitz3D 1.108:
 `StringWidth("ä")` equals `StringWidth("a")`, as there; the window title and the console
 were read back from outside the program.
 
@@ -783,7 +783,7 @@ Blitz3D reads a folder with `FindFirstFile`/`FindNextFile`, so `.` and `..` come
 every ordinary folder, even an empty one, but not in the root of a drive. BlitzNext used
 `std::filesystem`, which leaves both out; code that skips the first two entries lost two real
 files (BUG-215). `ReadDir` now reads the folder through the same Windows API. Measured
-against Blitz3D 11.8: an empty folder, a drive root and a folder with a trailing backslash
+against Blitz3D 1.108: an empty folder, a drive root and a folder with a trailing backslash
 give the same entries.
 
 Full suite: 357 passed, 1 failed (test_m43_fonts already expected the default font height of BUG-139, committed later).
@@ -793,7 +793,7 @@ Full suite: 357 passed, 1 failed (test_m43_fonts already expected the default fo
 Blitz3D reads the counter of a `For` loop like the target of an assignment, so
 `For v[0] = …`, `For a\b\c = …` and `For d(1)\k = …` are valid. BlitzNext rejected an
 element of a fixed array and knew only a single field after the name (BUG-160). The counter
-is now read as the same chain of fields and indices. Measured against Blitz3D 11.8: 11
+is now read as the same chain of fields and indices. Measured against Blitz3D 1.108: 11
 values, all the same.
 
 Full suite: 357 passed, 1 failed (test_m43_fonts already expected the default font height of BUG-139, committed later).
@@ -804,7 +804,7 @@ Blitz3D builds `Not x` as the comparison `x = 0`; for a string that is a string 
 so `Not "0"` is 1 and `Not ""` and `Not "abc"` are 0. BlitzNext emitted the C++ `!`, which
 does not exist for strings, and the program failed in the C++ compiler (BUG-108). `Not` is
 now emitted as a small runtime function with one version for numbers and one for strings.
-Measured against Blitz3D 11.8: 13 values, all the same.
+Measured against Blitz3D 1.108: 13 values, all the same.
 
 Full suite: 357 passed, 1 failed (test_m43_fonts already expected the default font height of BUG-139, committed later).
 
@@ -813,7 +813,7 @@ Full suite: 357 passed, 1 failed (test_m43_fonts already expected the default fo
 Blitz3D shifts with the x86 instructions, which only use the lowest five bits of the
 count: `1 Shl 33` is 2, `-16 Sar 33` is -8, `1 Shl -1` is -2147483648. In C++ a count of 32
 or more is undefined, and g++ folded such shifts to 0 or -1 (BUG-207). The count is now
-masked with 31, as the constant folder already did. Measured against Blitz3D 11.8: 14
+masked with 31, as the constant folder already did. Measured against Blitz3D 1.108: 14
 values, all the same.
 
 Full suite: 357 passed, 1 failed (test_m43_fonts already expected the default font height of BUG-139, committed later).
@@ -825,7 +825,7 @@ Full suite: 357 passed, 1 failed (test_m43_fonts already expected the default fo
 Blitz3D's `gxRuntime::systemProperty`: `"cpu"` is `Intel`, the folders end with a
 backslash, `"apphwnd"` and `"apphinstance"` are the window and module handles, `"os"`
 uses the same version table (empty on Windows 10 and 11, as in Blitz3D there), and the
-Direct3D 7 pointers, which do not exist here, are `0`. Measured against Blitz3D 11.8 on
+Direct3D 7 pointers, which do not exist here, are `0`. Measured against Blitz3D 1.108 on
 Windows 11: 14 values, all the same.
 
 Full suite: 349 passed, 0 failed.
@@ -837,7 +837,7 @@ rectangles touched, even in fully masked areas, and the frame arguments were ign
 (BUG-119). They now work like Blitz3D's `gxCanvas::collide`: inside the overlap a pixel
 must differ from the mask colour in both images, with the handle of the chosen frame. A
 frame that was never drawn into is black, like a new `CreateImage`. Measured against
-Blitz3D 11.8 with single pixels just apart and on top of each other, frames, `MidHandle`,
+Blitz3D 1.108 with single pixels just apart and on top of each other, frames, `MidHandle`,
 a fully masked image and `ImageRectCollide`: the same results. One difference stays on
 purpose: Blitz3D builds its collision mask once and does not rebuild it after
 `MaskImage`; BlitzNext always uses the current mask colour.
@@ -866,7 +866,7 @@ strings and before the comment; each part that is an `Include` is replaced by th
 other parts stay statements of that source line, padded so their columns in error messages
 are right. Included files are compared without regard to case.
 
-Measured against Blitz3D 11.8: `Print "a" : Include "h1.bb" : Print "b"`, an `Include`
+Measured against Blitz3D 1.108: `Print "a" : Include "h1.bb" : Print "b"`, an `Include`
 followed by a statement, the second spelling, a colon inside a string and an `Include` in a
 comment — the same output; a missing include after a colon and a typo after an include are
 reported at the same line and column.
@@ -887,7 +887,7 @@ A small header `bb_path.h` now converts at every boundary: code-page bytes to a 
 `stb_image` already took the code page. `CurrentDir` now also ends with a backslash, like
 the original (`F:\dev\`, the drive root stays `F:\`).
 
-Measured against Blitz3D 11.8: the file commands with umlauts in file and folder names (12
+Measured against Blitz3D 1.108: the file commands with umlauts in file and folder names (12
 values), and loading a `.3ds`, `.x` and `.b3d` model, a PNG as texture, image, sprite and
 brush, and a WAV, OGG and MP3 sound from a folder and with names that contain umlauts — all
 the same. A glTF model and a font file with an umlaut in their names load as well.
@@ -926,7 +926,7 @@ fired, and text typed through `Chr(GetKey())` — the high score and save game n
 blox-n-balls — came out wrong (BUG-205).
 
 The conversion is now the same as the original's (on Windows the same `MapVirtualKey` and
-`ToAscii` calls). Measured with keys sent through `SendInput` to Blitz3D 11.8 and to
+`ToAscii` calls). Measured with keys sent through `SendInput` to Blitz3D 1.108 and to
 BlitzNext: letters with and without Shift, digits, `!`, `ä`, Escape, Enter, Backspace, Tab,
 Space, arrows, Home/End/Insert/Delete/Page Up/Page Down, F1, Ctrl+A, keypad 0 without Num
 Lock, and `WaitKey` with a key pressed beforehand and with Shift alone — 23 values, all the
@@ -940,7 +940,7 @@ so a main loop with `key = GetKey()` stood still every frame until a key came (B
 `flares` sample that ships with Blitz3D showed nothing but its text for that reason. Both now
 read the queue and return 0 when it is empty.
 
-Measured against Blitz3D 11.8: 100 calls without input return 0 at once, the same as the
+Measured against Blitz3D 1.108: 100 calls without input return 0 at once, the same as the
 original; a typed key and a mouse click each arrive once while the loop keeps running. The key
 values still differ — BlitzNext returns scan codes where Blitz3D returns characters (BUG-205,
 next). Sample baseline: 102 / 102 / 93 of 103.
@@ -953,7 +953,7 @@ the same order with 16 bits, the desktop mode first. Programs from that time che
 `GfxMode3DExists(640,480,16)` and stops with "Please select another..." otherwise. SDL only
 reports 32-bit modes today, so BlitzNext listed nothing with 16 bits, and `BBLauncher` and
 `SkyPlateau` stopped after one second (BUG-213). The list is now built like the original's:
-42 entries on the test machine, the same as Blitz3D 11.8 except for where two unusual
+42 entries on the test machine, the same as Blitz3D 1.108 except for where two unusual
 resolutions sit.
 
 A quirk of the original on Windows 11: it reports the 16-bit modes only the first time an
@@ -971,7 +971,7 @@ buffer either. The game `wing_ring` that ships with Blitz3D tints its logo every
 far — and crashed with a corrupted heap at the next `LockBuffer` after 1.4 seconds
 (BUG-212).
 
-The linear addressing stays as it is; measured against Blitz3D 11.8 on a 64×64 image and the
+The linear addressing stays as it is; measured against Blitz3D 1.108 on a 64×64 image and the
 back buffer, the values are the same. An address outside the buffer is now dropped when
 writing and reads as 0. The row padding Direct3D 7 adds to odd widths is not reproduced.
 `wing_ring` now runs; the sample baseline is 102 / 100 / 90 of 103 (compile / start / run
@@ -987,7 +987,7 @@ rejected — `x = 1.5` followed by `x%` as a type mismatch, `s - 1` as arithmeti
 cannot become an integer, so `c = New T` without a tag is now rejected at the same line as in
 Blitz3D, where before it was accepted and failed later.
 
-Measured against Blitz3D 11.8: 13 values and four rejections, all the same. The generated
+Measured against Blitz3D 1.108: 13 values and four rejections, all the same. The generated
 code of Friendly Fire, BLTZCRFT, blox-n-balls and of all 97 sample programs that compiled
 before is byte for byte unchanged.
 
@@ -1005,7 +1005,7 @@ valid. BlitzNext passed the digits through to C++, where a leading zero means oc
 emitted as their value, read the way the original reads them. That also settles the rest of
 BUG-11: what does not fit in 32 bits wraps around without a message, as in the original —
 `4294967297` is 1, `$100000000` is 0, `$123456789` is `$23456789`. Before, a decimal one went
-to C++ unwrapped and a hex or binary one was rejected. Measured against Blitz3D 11.8: 36
+to C++ unwrapped and a hex or binary one was rejected. Measured against Blitz3D 1.108: 36
 values, all the same.
 
 Full suite: 337 passed, 0 failed.
@@ -1023,7 +1023,7 @@ The binding now follows the reference's semant order: everything written before 
 refers to the global, everything after it to the local — also when a loop or a `Goto` comes
 back to an earlier line at run time, which is what the original does. The local gets its own
 C++ name and is declared at the top of the body, so a `Goto` cannot jump over it. Measured
-against Blitz3D 11.8 with loops, `Goto`, `Select`, `Read`, `For Each`, `Delete`, objects and
+against Blitz3D 1.108 with loops, `Goto`, `Select`, `Read`, `For Each`, `Delete`, objects and
 changed types: 35 values, all the same. The generated code of Friendly Fire, BLTZCRFT,
 blox-n-balls and of the sample sources that ship with Blitz3D does not change.
 
@@ -1037,7 +1037,7 @@ Terrain is in: `CreateTerrain`, `LoadTerrain`, `ModifyTerrain`, `TerrainHeight`,
 triangle tree: split where the precomputed error divided by the distance to the eye is
 largest, until `TerrainDetail` triangles are reached, optionally morphing the newest
 vertices, and culled against the view frustum. Collisions and picks walk the same error tree.
-Against Blitz3D 11.8 the triangle counts match exactly (`TrisRendered` 345, 98, 149 for the
+Against Blitz3D 1.108 the triangle counts match exactly (`TrisRendered` 345, 98, 149 for the
 measured views), as do byte storage with its overflow, the wrap-around at the edge, the
 bilinear `TerrainY` under scale and rotation, a sphere sliding down a slope and picks onto
 the surface. Only picks that land exactly on a grid edge can differ, where the original's
@@ -1058,7 +1058,7 @@ Version 0.6.5 (`blitzcc -v`, IDE). Full suite: 335 passed, 0 failed.
 ## 2026-10-04 — 40 missing commands added, joystick input rebuilt
 
 Of the 78 Blitz3D commands that were missing, 40 are now available, each translated from the
-original source and measured against Blitz3D 11.8: camera picking and projection (`CameraPick`,
+original source and measured against Blitz3D 1.108: camera picking and projection (`CameraPick`,
 `CameraProject`, `ProjectedX/Y/Z`, `EntityInView`), the angle helpers (`VectorYaw/Pitch`,
 `DeltaYaw/Pitch`, `GetMatElement`), the image transforms (`TFormImage`, `ResizeImage`,
 `TFormFilter`, `RectsOverlap`), the 3D graphics-mode queries, joystick directions and the small
@@ -1390,7 +1390,7 @@ as in Blitz3D's debug mode.
 `tests/test_3d_createplane.bb` checks class and copy, a sphere falling onto the plane and one
 coming from below, picks straight, tilted, stretched and with a radius, the colour from above and
 below and towards the horizon, the triangle counts for 1 and 4 segments, and the texture mapping.
-Its output is line for line what Blitz3D 11.8 prints for the same file. The command table has
+Its output is line for line what Blitz3D 1.108 prints for the same file. The command table has
 469 entries.
 
 ## 2026-09-28 — Lighthouse: CC0 models from Kenney replace the placeholders
@@ -1675,7 +1675,7 @@ glTF models from Blender now move: skins and animations run on the animation sys
   `LoadAnimSeq` reads the animations of a second glTF file and matches entities by name.
 
 The skinning has a measured anchor: `test_gltf_skin.glb` rebuilds the strip from
-`test_skin.b3d` (measured against Blitz3D 11.8 in 3D-19), and `test_3d24_gltf_anim` runs both
+`test_skin.b3d` (measured against Blitz3D 1.108 in 3D-19), and `test_3d24_gltf_anim` runs both
 through the same scenario — rest pose, frames 10 and 15, a copy with its own pose, `Animate`,
 `LoadMesh`. All seven images are pixel-identical. The node animations are checked against
 values computed by hand.
@@ -1719,7 +1719,7 @@ morph targets.
 ## 2026-09-26 — Animation: keys, sequences, `.x`/`.3ds` hierarchies, `.b3d` with bones (3D-19)
 
 Blitz3D's animation system, rebuilt from `animation.cpp`, `animator.cpp`, the three loaders and
-`meshmodel.cpp`/`surface.cpp`, and measured against Blitz3D 11.8 at every step.
+`meshmodel.cpp`/`surface.cpp`, and measured against Blitz3D 1.108 at every step.
 
 - **Commands** (`bb_animation.h`, new): `Animate`, `SetAnimTime`, `AnimSeq`, `AnimLength`,
   `AnimTime`, `Animating`, `AddAnimSeq`, `ExtractAnimSeq`, `SetAnimKey`, `LoadAnimSeq`. Position
@@ -2164,7 +2164,7 @@ Three days after v0.5.0. More of the samples that ship with Blitz3D now compile 
 look the same as in Blitz3D: AGore/BirdDemo, mak/dragon and the GCUK `animation.bb` tutorial
 through the new MD2 support, and birdie/Mirror, mak/flag, mak/primitives, mak/multicam,
 birdie/lodBalls and si/matrix through the rendering fixes. Every fix was measured against a
-running Blitz3D 11.8. The entries below this one describe each step; this is the overview.
+running Blitz3D 1.108. The entries below this one describe each step; this is the overview.
 
 **3D**
 - New: sprites (3D-16), mirrors, collisions and line/entity picking (3D-17, 3D-18), MD2 models
@@ -2758,7 +2758,7 @@ the old runtime. Suite 228/228. 45 open bugs.
 
 `CopyEntity` of a hidden entity returned a hidden copy, so the common pattern of loading a
 template, hiding it and showing copies displayed nothing (the Jet Tails and lodBalls demos). In
-Blitz3D 11.8 every copy is visible, and so is every child copied along with it, even one that was
+Blitz3D 1.108 every copy is visible, and so is every child copied along with it, even one that was
 hidden in the template — although the published source copies the visibility flag. The copy is
 now always visible. `tests/test_bug128_copyentity_sichtbar.bb` covers eight cases measured in
 Blitz3D; six of them fail on the old runtime. Suite 227/227.
@@ -2922,7 +2922,7 @@ now reports 47 open bugs.
 
 The first version since v0.4.3 (2026-09-03). The theme of these two weeks: behaviour is
 no longer guessed but taken from the Blitz3D source and measured against a running
-Blitz3D 11.8. The entries below this one describe each step; this is the overview.
+Blitz3D 1.108. The entries below this one describe each step; this is the overview.
 
 **Compiler**
 - A semantic pass between parser and emitter: types, arity, fields, labels, with
@@ -2963,7 +2963,7 @@ Test suite: 224 tests.
 The bug list is an internal working document and stays out of the repository, which
 left users with no way to see what does not work yet. `KNOWN_ISSUES.md` fills that gap:
 all 40 open bugs plus the user-visible weaknesses, grouped by area, each reproduced
-against Blitz3D 11.8, with a workaround where one exists. A section of its own lists the
+against Blitz3D 1.108, with a workaround where one exists. A section of its own lists the
 deviations that compile and run silently, since those are the hardest to find.
 
 Two workarounds were measured before they went in. On the way it turned out that BUG-95
@@ -3535,7 +3535,7 @@ removed. A misplaced `Not` now reports
 `'Not' is only allowed at the start of an expression; put it in parentheses: (Not x)`
 and consumes its operand, so no second message follows. The position matches
 the original: the previous `test_bug2526_precedence.bb` is rejected at `11:13`,
-as measured against V11.8 on 2026-09-07.
+as measured against V1.108 on 2026-09-07.
 
 `test_bug2526_precedence` and `test_fixes` now put that `Not` in parentheses,
 with unchanged output. New negative tests: `neg_bug41_not_after_and`,
@@ -3586,7 +3586,7 @@ now enters its loop only for a `VarExpr` or `ArrayAccess`.
 
 The diagnostic keeps our parser wording (`unexpected token '\'`); its position
 matches the original: the previous `test_bug09_paren_expr.bb` is now rejected
-at `28:19`, the exact spot measured against V11.8 on 2026-09-07.
+at `28:19`, the exact spot measured against V1.108 on 2026-09-07.
 
 Three tests used the form as expected behaviour (`test_bug09_paren_expr`,
 `test_bug12_case_insensitive`, `test_m16_iteration`). They were rewritten to
@@ -3615,10 +3615,10 @@ true; array index `"1.9"` selects element 1 and `1.9` selects element 2.
 Objects and whole fixed arrays in these contexts produce a semantic diagnostic.
 
 The rules were checked in the original Blitz3D compiler's `stmtnode.cpp`,
-`varnode.cpp` and `exprnode.cpp`, then measured against the installed V11.8.
+`varnode.cpp` and `exprnode.cpp`, then measured against the installed V1.108.
 The new regression covers 37 output values, including loop re-evaluation,
 index side effects, and `Read`/`For` targets. Its outputs match the original
-using file output; three rejection cases were also checked against V11.8.
+using file output; three rejection cases were also checked against V1.108.
 
 Validation: compiler rebuilt successfully. The full suite reported 165 passed
 and one output mismatch caused by LF line endings in the new expected file
@@ -3888,7 +3888,7 @@ wurde nur bei einer fuehrenden Ziffer betreten — `Local a# = .5` scheiterte an
 Die Regel wurde am laufenden Original gemessen, nicht aus dem Referenzquelltext
 abgeleitet, und sie ist einfacher als vermutet: **rein lexikalisch und kontextfrei.**
 Eine Ziffer hinter dem Punkt beginnt immer eine Zahl. Vier Messungen gegen
-Blitz3D 11.8 zeigen, dass das Original wirklich keinen Kontext heranzieht:
+Blitz3D 1.108 zeigen, dass das Original wirklich keinen Kontext heranzieht:
 
 - `Print .5` faltet zu `"0.5"`, `Print 5.` zu `"5.0"` — beide Punktstellungen erlaubt.
 - `Goto .5` scheitert mit `Expecting identifier`. Selbst dort, wo ausschliesslich ein

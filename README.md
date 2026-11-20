@@ -59,7 +59,7 @@ Userlibs are not supported, so `CallDLL` does nothing.
 
 Compatibility is measured, not estimated: language questions are answered from the
 [original source](https://github.com/blitz-research/blitz3d), and behaviour is compared with a
-running Blitz3D 11.8 — to find out what a command does, not to reproduce every last pixel. None
+running Blitz3D 1.108 — to find out what a command does, not to reproduce every last pixel. None
 of the 156 example sources that ship with Blitz3D uses a missing command.
 
 **Sample baseline.** The 156 sources that ship with Blitz3D hold 105 programs, 103 of which
@@ -467,7 +467,7 @@ The network commands get a runner of their own, `bash tests/net/run_net_tests.sh
 each other over 127.0.0.1, and again over ::1, and compares the output of every one of them.
 The cases with the list server or a simulated router need Node.js and are skipped without it.
 
-Where expected values are identified as reference measurements, they come from Blitz3D 11.8.
+Where expected values are identified as reference measurements, they come from Blitz3D 1.108.
 The primary game test supplements this suite; it does not replace coverage of features absent
 from blox-n-balls.
 
