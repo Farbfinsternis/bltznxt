@@ -114,6 +114,7 @@ inline void bb_gfx_close_window_() {
   // Shader-Programme gehoeren zum alten Kontext; ohne das blieb nach einem
   // zweiten Graphics3D die 3D-Welt unsichtbar (BUG-230).
   if (bb_gl_ctx_ && bb_gl_ctx_lost_hook_) bb_gl_ctx_lost_hook_();
+  bb_text_cache_drop_();   // BUG-238: die Texturen gehen mit dem Renderer
   if (bb_renderer_) { SDL_DestroyRenderer(bb_renderer_); bb_renderer_ = nullptr; bb_screen_tex_ = nullptr; }
   if (bb_gl_ctx_)   { SDL_GL_DestroyContext(bb_gl_ctx_); bb_gl_ctx_   = nullptr; }
   bb_gl_active_ = false;
@@ -614,6 +615,7 @@ inline void bb_Flip(int vblank = 1) {
       bb_vsync_mode_ = want;
     }
     SDL_GL_SwapWindow(bb_window_);
+    bb_text_cache_age_();   // BUG-238
     bb_PollEvents();
     return;
   }
@@ -623,6 +625,7 @@ inline void bb_Flip(int vblank = 1) {
     bb_vsync_mode_ = want;
   }
   bb_screen_present_();
+  bb_text_cache_age_();   // BUG-238
   bb_PollEvents();
 }
 
@@ -1606,6 +1609,9 @@ inline void bb_FreeFont(int handle) {
         if (bb_fonts_[handle].ttf) {
             TTF_CloseFont(bb_fonts_[handle].ttf);
             bb_fonts_[handle].ttf = nullptr;
+            // BUG-238: der Schluessel enthaelt die Adresse der Schrift, und
+            // eine neue Schrift kann dieselbe bekommen
+            bb_text_cache_clear_();
         }
 #endif
         bb_fonts_[handle] = bb_Font_{};
@@ -1663,24 +1669,47 @@ inline void bb_Text_ttf_(int x, int y, const bbString& s,
 #ifdef BB_HAS_SDL3_TTF
     const bb_Font_& f = bb_font_active_();
     SDL_Color fg   = { bb_draw_r_, bb_draw_g_, bb_draw_b_, 255 };
-    SDL_Surface* surf = TTF_RenderText_Blended(f.ttf, bb_utf8_(s).c_str(), 0, fg);   // BUG-203
-    if (!surf) return;
-    if (f.scale > 1) {
-        SDL_Surface* big = SDL_ScaleSurface(surf, surf->w * f.scale, surf->h * f.scale, SDL_SCALEMODE_NEAREST);
-        SDL_DestroySurface(surf);
-        if (!big) return;
-        surf = big;
+    // Schon gerendert? (BUG-238) Schluessel: Schrift, Vergroesserung, Farbe, Text
+    std::string key;
+    key.reserve(sizeof(void*) + 4 + s.size());
+    const void* fp = f.ttf;
+    key.append(reinterpret_cast<const char*>(&fp), sizeof fp);
+    key += static_cast<char>(f.scale);
+    key += static_cast<char>(fg.r); key += static_cast<char>(fg.g); key += static_cast<char>(fg.b);
+    key.append(s.data(), s.size());
+    SDL_Texture* tex = nullptr;
+    for (auto& e : bb_text_cache_) {
+        if (e.key == key) { e.used = bb_text_frame_; tex = e.tex; break; }
     }
-    SDL_Texture* tex = SDL_CreateTextureFromSurface(bb_renderer_, surf);
-    SDL_DestroySurface(surf);
-    if (!tex) return;
+    if (!tex) {
+        SDL_Surface* surf = TTF_RenderText_Blended(f.ttf, bb_utf8_(s).c_str(), 0, fg);   // BUG-203
+        if (!surf) return;
+        if (f.scale > 1) {
+            SDL_Surface* big = SDL_ScaleSurface(surf, surf->w * f.scale, surf->h * f.scale, SDL_SCALEMODE_NEAREST);
+            SDL_DestroySurface(surf);
+            if (!big) return;
+            surf = big;
+        }
+        tex = SDL_CreateTextureFromSurface(bb_renderer_, surf);
+        SDL_DestroySurface(surf);
+        if (!tex) return;
+        // Ohne Flip (nur Frontpuffer) waechst der Speicher nicht endlos: die
+        // am laengsten unbenutzte Zeile weicht.
+        if (bb_text_cache_.size() >= BB_TEXT_CACHE_MAX) {
+            size_t old = 0;
+            for (size_t i = 1; i < bb_text_cache_.size(); ++i)
+                if (bb_text_cache_[i].used < bb_text_cache_[old].used) old = i;
+            SDL_DestroyTexture(bb_text_cache_[old].tex);
+            bb_text_cache_.erase(bb_text_cache_.begin() + static_cast<std::ptrdiff_t>(old));
+        }
+        bb_text_cache_.push_back({std::move(key), tex, bb_text_frame_});
+    }
     float texW = 0, texH = 0;
     SDL_GetTextureSize(tex, &texW, &texH);
     float drawX = static_cast<float>(x) - (centerX ? texW * 0.5f : 0.0f);
     float drawY = static_cast<float>(y) - (centerY ? texH * 0.5f : 0.0f);
     SDL_FRect dst = { drawX, drawY, texW, texH };
     SDL_RenderTexture(bb_renderer_, tex, nullptr, &dst);
-    SDL_DestroyTexture(tex);
 #else
     (void)x; (void)y; (void)s; (void)centerX; (void)centerY;
 #endif

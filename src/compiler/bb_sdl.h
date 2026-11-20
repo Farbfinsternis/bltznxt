@@ -10,6 +10,8 @@
 #include <cstdio>
 #include <cstring>
 #include <iostream>
+#include <string>
+#include <vector>
 
 #ifdef _WIN32
   #include <windows.h>  // GetFileType, GetStdHandle
@@ -44,6 +46,40 @@ inline SDL_Texture*  bb_screen_tex_      = nullptr;
 inline SDL_GLContext bb_gl_ctx_          = nullptr;
 inline bool          bb_gl_active_       = false;
 inline bool          bb_sdl_initialized_ = false;
+
+// ---- Zwischenspeicher fuer Text-Texturen (BUG-238) ----
+//
+// Text mit einer TTF-Schrift rendert die Zeile, laedt sie als Textur hoch und
+// zeichnet sie. Bis 2026-11-20 geschah das bei jedem Aufruf neu, und die
+// Textur wurde sofort wieder geloescht. Unter Windows kaum messbar, unter WSL
+// (OpenGL ueber Mesa nach Direct3D 12) rund 2 ms je Aufruf: drei Zeilen
+// Anzeige ueber dem 3D-Bild kosteten BLTZCRFT 7 ms jedes Bild. Jetzt bleibt
+// eine Textur liegen, solange dieselbe Zeile (Schrift, Farbe, Inhalt) in den
+// letzten Bildern gezeichnet wurde. Die Texturen gehoeren zum Renderer und
+// gehen mit ihm (bb_text_cache_drop_).
+struct bb_TextTex_ { std::string key; SDL_Texture *tex; Uint64 used; };
+inline std::vector<bb_TextTex_> bb_text_cache_;
+inline Uint64 bb_text_frame_ = 0;                 // zaehlt Flip
+inline constexpr size_t BB_TEXT_CACHE_MAX = 256;  // Obergrenze ohne Flip
+inline constexpr Uint64 BB_TEXT_CACHE_KEEP = 30;  // so viele Bilder unbenutzt
+// Renderer wird zerstoert: seine Texturen gehen mit, nur vergessen.
+inline void bb_text_cache_drop_() { bb_text_cache_.clear(); }
+inline void bb_text_cache_clear_() {
+  for (auto &e : bb_text_cache_) if (e.tex) SDL_DestroyTexture(e.tex);
+  bb_text_cache_.clear();
+}
+// Nach jedem Flip: was lange nicht gezeichnet wurde, freigeben.
+inline void bb_text_cache_age_() {
+  ++bb_text_frame_;
+  size_t keep = 0;
+  for (size_t i = 0; i < bb_text_cache_.size(); ++i) {
+    bb_TextTex_ &e = bb_text_cache_[i];
+    if (e.used + BB_TEXT_CACHE_KEEP < bb_text_frame_) { SDL_DestroyTexture(e.tex); continue; }
+    if (keep != i) bb_text_cache_[keep] = std::move(e);
+    ++keep;
+  }
+  bb_text_cache_.resize(keep);
+}
 
 // Unseren GL-Kontext aktuell machen. Im 3D-Modus arbeitet der 2D-Renderer in
 // einem eigenen GL-Kontext (bb_Graphics3D in bb_gl_ctx.h) und laesst ihn nach
@@ -386,6 +422,7 @@ inline void bb_sdl_quit_() {
     if (bb_joy_[i].handle) SDL_CloseJoystick(bb_joy_[i].handle);
     bb_joy_[i] = bb_JoyPort_();
   }
+  bb_text_cache_drop_();
   if (bb_renderer_) { SDL_DestroyRenderer(bb_renderer_); bb_renderer_ = nullptr; bb_screen_tex_ = nullptr; }
   if (bb_gl_quit_hook_)    { bb_gl_quit_hook_();    bb_gl_quit_hook_    = nullptr; }
   if (bb_window_)   { SDL_DestroyWindow(bb_window_);     bb_window_   = nullptr; }

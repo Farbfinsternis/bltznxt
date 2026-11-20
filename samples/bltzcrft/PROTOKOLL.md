@@ -273,9 +273,17 @@ echten Zeiger läuft, und dreht sie dann um (siehe Buglist). Kein Umweg im Spiel
 |---|---|---|---|---|
 | Windows | 1193 | 16,8 ms | 149 ms | 1 |
 | WSL (d3d12 über Mesa) | 1247 | 16,0 ms | 491 ms | 7 |
+| WSL nach BUG-238 | 2210 | 9,1 ms | 415 ms | 8 |
 
-Im Mittel gleich (VSync), unter WSL aber mehr Hänger – das spürbare Ruckeln. Woher sie
-kommen (Chunk-Bau, Mesa-d3d12, Bildweitergabe von WSLg an Windows), ist nicht untersucht.
+Zeitprotokoll je Bild (Spielcode / `RenderWorld` / 2D / Tausch, vorübergehend in `Flip`
+eingebaut): unter WSL kostete der 2D-Teil – die drei Zeilen der F3-Anzeige – 8,5 ms jedes
+Bild, unter Windows 0,2 ms. Jedes `Text` legte eine Textur an und löschte sie wieder, unter
+Mesa-d3d12 rund 2 ms je Aufruf. Seit BUG-238 bleiben die Texturen liegen: nach der Ladephase
+0,7 ms, keine Bilder über 25 ms mehr. Die Zahl der Hänger ist gleich geblieben, aber alle
+fallen in die ersten 7 s, in denen die ersten Chunks entstehen: `RenderWorld` lädt dann neue
+Meshes hoch (15–28 ms unter WSL), und die Anzeige-Zeilen ändern sich jedes Bild (je neue Zeile
+2 ms). Das erste Bild (Shader, Texturen) dauert 0,4 s, unter Windows 0,17 s. VSync greift unter
+WSLg nicht, deshalb mehr Bilder als 60 je Sekunde.
 
 ---
 

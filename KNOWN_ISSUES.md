@@ -215,7 +215,13 @@ The 3D layer is under active development — see [ROADMAP3D.md](ROADMAP3D.md). B
     default font is a monospaced font 13 pixels high in place of the Windows bitmap font
     "Courier", and `FontWidth` is the width of "M", not the widest character as under
     Windows;
-  - the list server of the Net commands needs `libcurl.so.4` for `https://` addresses.
+  - the list server of the Net commands needs `libcurl.so.4` for `https://` addresses;
+  - under WSL (Windows 11, WSLg) `Flip` does not wait for the vertical blank: the swap
+    interval is ignored there, so a 3D program runs as fast as it can (measured: a turning
+    cube at about 680 frames per second). Programs that time themselves with `MilliSecs`
+    run correctly, those that count on `Flip` for 60 frames per second run too fast. A
+    mouse-look game sees its mouse movement the wrong way round there; the runtime detects
+    and corrects that (BUG-237).
 
   The BLTZNXT IDE runs natively on Linux from the source tree (`ide/start-linux.sh`, needs
   Node.js 18 or newer); under Wine it does not start. A text program that reads with `Input$`
