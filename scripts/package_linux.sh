@@ -14,6 +14,7 @@
 # Layout:
 #   bltznxt-v0.7.2-linux-x64/
 #     bltznxt-ide            starts the IDE
+#     install-desktop.sh     menu entry and desktop icon for the IDE
 #     README.txt  LICENSES/
 #     bin/blitzcc
 #     ide/                   Electron with the IDE in resources/app
@@ -86,7 +87,7 @@ rm -f "$OUT/ide/resources/default_app.asar"
 mv "$OUT/ide/electron" "$OUT/ide/bltznxt-ide"
 APP="$OUT/ide/resources/app"
 mkdir -p "$APP"
-cp -r "$ROOT/ide/dist" "$ROOT/ide/electron" "$APP/"
+cp -r "$ROOT/ide/dist" "$ROOT/ide/electron" "$ROOT/ide/icons" "$APP/"
 cp "$ROOT/ide/electron-main.js" "$APP/"
 cat > "$APP/package.json" <<EOF
 {
@@ -133,6 +134,8 @@ fi
 exec "$ide" "$@"
 EOF
 chmod +x "$OUT/bltznxt-ide"
+cp "$ROOT/scripts/install-desktop.sh" "$OUT/install-desktop.sh"
+chmod +x "$OUT/install-desktop.sh"
 
 log "Folder: $OUT ($(du -sh "$OUT" | cut -f1))"
 
@@ -169,6 +172,17 @@ if [ "$VERIFY" = 1 ]; then
         r="$(cd "$(dirname "$lt")" && env -u BLITZPATH PATH=/usr/bin:/bin blitzide=1 "$P/bin/blitzcc" -q -o "$work/friendlyfire" "$lt" 2>&1 || true)"
         check "Friendly Fire becomes a program (IDE protocol)" "$([ -x "$work/friendlyfire" ] && echo 1 || echo 0)" "$(echo "$r" | tr '\n' '|' | tail -c 300)"
     fi
+    # Menu entry in a throw-away home: points to the package, icon installed
+    fakehome="$work/home"; mkdir -p "$fakehome"
+    r="$(HOME="$fakehome" XDG_DATA_HOME="$fakehome/.local/share" "$P/install-desktop.sh" --user --no-desktop 2>&1 || true)"
+    de="$fakehome/.local/share/applications/bltznxt-ide.desktop"
+    ok=0
+    if [ -f "$de" ] && grep -q "^Exec=\"$P/bltznxt-ide\" %F$" "$de" \
+       && [ -f "$fakehome/.local/share/icons/hicolor/256x256/apps/bltznxt-ide.png" ]; then ok=1; fi
+    if [ "$ok" = 1 ] && command -v desktop-file-validate >/dev/null 2>&1; then
+        desktop-file-validate "$de" >/dev/null 2>&1 || ok=0
+    fi
+    check "install-desktop.sh writes a menu entry for the package" "$ok" "$(echo "$r" | tr '\n' '|' | tail -c 300)"
     # The IDE through the starter: still running after 12 s means it came up
     # (a missing library or a sandbox problem ends it within a second)
     rc=0; (cd "$work" && timeout 12 "$P/bltznxt-ide" > "$work/ide.log" 2>&1) || rc=$?

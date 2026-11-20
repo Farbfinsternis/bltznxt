@@ -26,6 +26,21 @@ Getting started
 3. File > Open Folder... and choose samples/friendlyfire, open friendlyfire.bb, press F5.
    The first build takes some seconds; the Output tab shows what the compiler does.
 
+Menu entry and desktop icon
+---------------------------
+    bltznxt-v@VERSION@-linux-x64/install-desktop.sh
+
+adds "BLTZNXT IDE" to the application menu (category Development) and puts an icon on
+the desktop; from then on the IDE starts with a click. "--no-desktop" leaves the desktop
+alone, "--uninstall" removes everything again. The entry points to the unpacked folder:
+after moving it, run the script again.
+
+Windows 11 with WSL: run the same script inside your distribution. It asks for the sudo
+password, because the Windows Start menu only lists Linux programs installed for all
+users. A few seconds later "BLTZNXT IDE (Ubuntu-24.04)" (or the name of your
+distribution) is in the Windows Start menu - pin it to the taskbar or Start like any
+Windows program.
+
 The IDE
 -------
 It follows the original Blitz3D IDE (same menus and keys) and adds a file sidebar:
@@ -60,7 +75,8 @@ behave like Blitz3D.
 What is in the package
 ----------------------
   bltznxt-ide       starts the IDE
-  bin/              blitzcc, the compiler
+  install-desktop.sh  menu entry and desktop icon for the IDE
+  bin/             blitzcc, the compiler
   ide/              the IDE (an Electron application)
   src/, libs/       the runtime headers and the SDL3 libraries the programs are built with
   samples/          Friendly Fire, a small Quake III style arena shooter written in Blitz3D

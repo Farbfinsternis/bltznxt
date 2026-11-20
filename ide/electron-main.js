@@ -12,6 +12,10 @@ function createWindow() {
 		width: 1100,
 		height: 800,
 		backgroundColor: '#1e1e1e',
+		// Unter Windows kommt das Symbol aus der .exe; Linux braucht es am Fenster
+		// (Taskleiste, Alt+Tab). Gleiche Datei wie im Menüeintrag, siehe
+		// scripts/install-desktop.sh.
+		...(process.platform === 'linux' ? { icon: path.join(__dirname, 'icons', 'bltznxt-256.png') } : {}),
 		webPreferences: {
 			// Der Renderer bekommt kein Node. Alles, was das Betriebssystem
 			// berührt, läuft im Main-Prozess und wird über electron/preload.js

@@ -140,6 +140,8 @@ ide/start-linux.sh
 
 It installs the npm packages on the first run and starts the IDE.
 
+To start it with a click from then on, `scripts/install-desktop.sh` adds "BLTZNXT IDE" to the application menu and puts an icon on the desktop (`--no-desktop` skips the icon, `--uninstall` removes both). Under WSL on Windows 11 the script installs for all users (it asks for the sudo password), because only those entries reach the Windows Start menu, where "BLTZNXT IDE (Ubuntu-24.04)" then appears.
+
 #### Your first program
 
 
