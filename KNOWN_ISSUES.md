@@ -216,12 +216,11 @@ The 3D layer is under active development — see [ROADMAP3D.md](ROADMAP3D.md). B
     "Courier", and `FontWidth` is the width of "M", not the widest character as under
     Windows;
   - the list server of the Net commands needs `libcurl.so.4` for `https://` addresses;
-  - under WSL (Windows 11, WSLg) `Flip` does not wait for the vertical blank: the swap
-    interval is ignored there, so a 3D program runs as fast as it can (measured: a turning
-    cube at about 680 frames per second). Programs that time themselves with `MilliSecs`
-    run correctly, those that count on `Flip` for 60 frames per second run too fast. A
-    mouse-look game sees its mouse movement the wrong way round there; the runtime detects
-    and corrects that (BUG-237).
+  - under WSL (Windows 11, WSLg) the driver ignores the swap interval in 3D, and a
+    mouse-look game gets its mouse movement the wrong way round. The runtime detects both
+    and makes up for them: `Flip` keeps the screen's refresh rate itself (BUG-239), and a
+    reversed mouse axis is turned round (BUG-237). The first half second of a program can
+    still run unpaced and the first few mouse movements the wrong way.
 
   The BLTZNXT IDE runs natively on Linux from the source tree (`ide/start-linux.sh`, needs
   Node.js 18 or newer); under Wine it does not start. A text program that reads with `Input$`

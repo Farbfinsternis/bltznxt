@@ -600,6 +600,57 @@ inline void bb_screen_present_() {
   bb_apply_viewport_();
 }
 
+// ---- VSync nachbilden, wo der Treiber es nicht tut (BUG-239) ----
+//
+// Flip und Flip 1 warten auf den Bildschirm (Entscheidung 2026-10-29). Unter
+// WSLg (WSL auf Windows 11, OpenGL ueber Mesa nach Direct3D 12) uebergeht der
+// Treiber das Swap-Intervall: ein drehender Wuerfel lief mit rund 680 Bildern
+// je Sekunde, ein Spiel, das sich auf Flip als Takt verlaesst, viel zu
+// schnell. Erkannt wird das am Takt selbst: kommen 30 Flip mit Warten in
+// Folge schneller als in 80 % einer Bildschirmperiode zurueck, kann nicht
+// gewartet worden sein - mit funktionierendem VSync ist das ausgeschlossen,
+// mehr als zwei, drei Bilder puffert kein Treiber. (Zuerst galt eine halbe
+// Periode; BLTZCRFT braucht unter WSL 9 ms je Bild und blieb darueber.)
+// Ab dann haelt Flip den Takt selbst ein (auf die Bildwiederholrate des
+// Bildschirms, ohne Angabe 60 Hz). Flip 0 bleibt frei. Unter Windows wartet
+// der Treiber, dort ist der Teil nicht uebersetzt.
+#ifndef _WIN32
+inline bool   bb_vsync_emul_ = false;
+inline int    bb_vsync_fast_ = 0;
+inline Uint64 bb_vsync_last_ = 0;   // Rueckkehr des letzten Flip (ns)
+inline Uint64 bb_vsync_next_ = 0;   // Soll-Zeit der naechsten Rueckkehr
+inline Uint64 bb_vsync_period_ns_() {
+  float hz = 0.0f;
+  if (bb_window_)
+    if (const SDL_DisplayMode* m = SDL_GetCurrentDisplayMode(SDL_GetDisplayForWindow(bb_window_)))
+      hz = m->refresh_rate;
+  if (hz < 20.0f || hz > 500.0f) hz = 60.0f;
+  return static_cast<Uint64>(1e9 / hz);
+}
+inline void bb_vsync_after_present_(int want) {
+  const Uint64 now = SDL_GetTicksNS();
+  if (!want) { bb_vsync_last_ = now; bb_vsync_next_ = 0; bb_vsync_fast_ = 0; return; }
+  const Uint64 period = bb_vsync_period_ns_();
+  if (!bb_vsync_emul_) {
+    if (bb_vsync_last_ && now - bb_vsync_last_ < period * 4 / 5) {
+      if (++bb_vsync_fast_ >= 30) bb_vsync_emul_ = true;
+    } else {
+      bb_vsync_fast_ = 0;
+    }
+    bb_vsync_last_ = now;
+    return;
+  }
+  // Mehr als ein Bild zu spaet (Laden, Fenster verschoben): neu ansetzen statt
+  // aufzuholen.
+  if (!bb_vsync_next_ || now > bb_vsync_next_ + period) bb_vsync_next_ = now;
+  else if (now < bb_vsync_next_) SDL_DelayPrecise(bb_vsync_next_ - now);
+  bb_vsync_next_ += period;
+  bb_vsync_last_ = SDL_GetTicksNS();
+}
+#else
+inline void bb_vsync_after_present_(int) {}
+#endif
+
 inline void bb_Flip(int vblank = 1) {
   const int want = vblank ? 1 : 0;   // BUG-178
   bb_front_dirty_ = false;   // Flip zeigt die ganze Flaeche (BUG-219)
@@ -615,6 +666,7 @@ inline void bb_Flip(int vblank = 1) {
       bb_vsync_mode_ = want;
     }
     SDL_GL_SwapWindow(bb_window_);
+    bb_vsync_after_present_(want);   // BUG-239
     bb_text_cache_age_();   // BUG-238
     bb_PollEvents();
     return;
@@ -625,6 +677,7 @@ inline void bb_Flip(int vblank = 1) {
     bb_vsync_mode_ = want;
   }
   bb_screen_present_();
+  bb_vsync_after_present_(want);   // BUG-239
   bb_text_cache_age_();   // BUG-238
   bb_PollEvents();
 }

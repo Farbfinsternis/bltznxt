@@ -274,6 +274,7 @@ echten Zeiger läuft, und dreht sie dann um (siehe Buglist). Kein Umweg im Spiel
 | Windows | 1193 | 16,8 ms | 149 ms | 1 |
 | WSL (d3d12 über Mesa) | 1247 | 16,0 ms | 491 ms | 7 |
 | WSL nach BUG-238 | 2210 | 9,1 ms | 415 ms | 8 |
+| WSL nach BUG-239 (Takt) | 1189 | 16,8 ms | 464 ms | 6 |
 
 Zeitprotokoll je Bild (Spielcode / `RenderWorld` / 2D / Tausch, vorübergehend in `Flip`
 eingebaut): unter WSL kostete der 2D-Teil – die drei Zeilen der F3-Anzeige – 8,5 ms jedes
@@ -283,7 +284,11 @@ Mesa-d3d12 rund 2 ms je Aufruf. Seit BUG-238 bleiben die Texturen liegen: nach d
 fallen in die ersten 7 s, in denen die ersten Chunks entstehen: `RenderWorld` lädt dann neue
 Meshes hoch (15–28 ms unter WSL), und die Anzeige-Zeilen ändern sich jedes Bild (je neue Zeile
 2 ms). Das erste Bild (Shader, Texturen) dauert 0,4 s, unter Windows 0,17 s. VSync greift unter
-WSLg nicht, deshalb mehr Bilder als 60 je Sekunde.
+WSLg im 3D-Fenster nicht, deshalb liefen es mehr Bilder als 60 je Sekunde; seit BUG-239 hält
+`Flip` den Takt selbst ein, so viele Bilder wie unter Windows. Vorsicht beim Lesen der
+WSL-Zahlen: in der WSL-Instanz des Nutzers ging die Systemuhr (und damit `MilliSecs`) am
+2026-11-20 rund 7 % zu langsam – `sleep 10` dauerte 10,8 s Windows-Zeit –, „20 s“ Messflug
+sind dort gut 21 s.
 
 ---
 
