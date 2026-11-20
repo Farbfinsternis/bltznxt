@@ -612,8 +612,10 @@ inline void bb_screen_present_() {
 // mehr als zwei, drei Bilder puffert kein Treiber. (Zuerst galt eine halbe
 // Periode; BLTZCRFT braucht unter WSL 9 ms je Bild und blieb darueber.)
 // Ab dann haelt Flip den Takt selbst ein (auf die Bildwiederholrate des
-// Bildschirms, ohne Angabe 60 Hz). Flip 0 bleibt frei. Unter Windows wartet
-// der Treiber, dort ist der Teil nicht uebersetzt.
+// Bildschirms, ohne Angabe 60 Hz). Flip 0 bleibt frei. Nur unter WSL
+// (bb_on_wsl_, bb_sdl.h): auf nativem Linux ist das ungetestet, und die
+// Nutzer dort verwenden kein WSL - erst auf einen Bericht hin ausweiten.
+// Unter Windows wartet der Treiber, dort ist der Teil nicht uebersetzt.
 #ifndef _WIN32
 inline bool   bb_vsync_emul_ = false;
 inline int    bb_vsync_fast_ = 0;
@@ -628,6 +630,7 @@ inline Uint64 bb_vsync_period_ns_() {
   return static_cast<Uint64>(1e9 / hz);
 }
 inline void bb_vsync_after_present_(int want) {
+  if (!bb_on_wsl_()) return;
   const Uint64 now = SDL_GetTicksNS();
   if (!want) { bb_vsync_last_ = now; bb_vsync_next_ = 0; bb_vsync_fast_ = 0; return; }
   const Uint64 period = bb_vsync_period_ns_();
