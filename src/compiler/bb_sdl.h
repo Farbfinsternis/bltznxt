@@ -5,7 +5,10 @@
 #define SDL_MAIN_HANDLED
 
 #include <SDL3/SDL.h>
+#include <cctype>
+#include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <iostream>
 
 #ifdef _WIN32
@@ -439,6 +442,68 @@ inline void bb_suspend_(bool on) {
   if (bb_audio_pause_hook_) bb_audio_pause_hook_(on);
 }
 
+// ---- Vertauschte Mausachsen unter WSLg (BUG-237) ----
+//
+// Mausblick: versteckter Zeiger, den MoveMouse jedes Bild zur Mitte holt
+// (bb_input.h setzt den Schalter, ShowPointer loescht ihn). Unter WSLg (WSL auf
+// Windows 11) kommen die Bewegungen genau dann mit verkehrtem Vorzeichen an -
+// nach oben gilt als nach unten, nach rechts als nach links -, beim
+// Zurueckholen per Warp wie im Relativmodus von SDL, der echte Windows-Zeiger
+// laeuft dabei richtig (gemessen 20.11.2026, SDL 3.2.10, X11 ueber XWayland).
+// Statt fest umzudrehen, vergleicht die Laufzeit die ersten Bewegungen je
+// Achse mit dem echten Zeiger und dreht nur eine Achse um, die durchgehend
+// verkehrt laeuft. Behebt WSLg den Fehler, bleibt so alles richtig.
+inline bool bb_mouse_look_ = false;
+inline bool bb_mouse_flip_[2] = {false, false};   // x, y
+#ifndef _WIN32
+inline int bb_on_wsl_state_ = -1;
+inline bool bb_on_wsl_() {
+  if (bb_on_wsl_state_ < 0) {
+    bb_on_wsl_state_ = 0;
+    if (FILE *f = std::fopen("/proc/sys/kernel/osrelease", "r")) {
+      char buf[256] = {};
+      if (std::fgets(buf, sizeof buf, f)) {
+        for (char *p = buf; *p; ++p) *p = (char)std::tolower((unsigned char)*p);
+        if (std::strstr(buf, "microsoft") || std::strstr(buf, "wsl")) bb_on_wsl_state_ = 1;
+      }
+      std::fclose(f);
+    }
+  }
+  return bb_on_wsl_state_ == 1;
+}
+struct bb_axis_vote_ { int agree = 0, against = 0; bool decided = false; };
+inline bb_axis_vote_ bb_mouse_vote_[2];
+inline bool  bb_mouse_gvalid_ = false;
+inline float bb_mouse_gprev_[2] = {0.0f, 0.0f};
+// Eine Stimme je Achse: zeigen Ereignis und echter Zeiger in dieselbe
+// Richtung? Spruenge (Klick ins Fenster, Warp) und Stillstand am Bildschirmrand
+// zaehlen nicht. Entschieden ist nach 6 klaren Stimmen - bis dahin laeuft die
+// Achse wie gemeldet, also unter WSLg fuer die ersten Ereignisse verkehrt.
+// Bewegung bis zur Entscheidung zurueckzuhalten waere schlimmer: liefert der
+// echte Zeiger nichts (Wayland, Bildschirmrand), bliebe die Maus tot.
+inline void bb_mouse_vote_axis_(int a, float ev, float real) {
+  bb_axis_vote_ &v = bb_mouse_vote_[a];
+  if (v.decided || std::fabs(ev) < 1.0f || std::fabs(real) < 1.0f) return;
+  if (std::fabs(ev) > 200.0f || std::fabs(real) > 200.0f) return;
+  if ((ev > 0) == (real > 0)) ++v.agree; else ++v.against;
+  if (v.against >= 6 && v.agree <= 1) { v.decided = true; bb_mouse_flip_[a] = true; }
+  else if (v.agree >= 6 && v.against <= 1) v.decided = true;
+  else if (v.agree + v.against >= 20) v.agree = v.against = 0;   // unklar: neu zaehlen
+}
+inline void bb_mouse_check_axes_(const SDL_Event &ev) {
+  if (bb_mouse_vote_[0].decided && bb_mouse_vote_[1].decided) return;
+  float gx = 0.0f, gy = 0.0f;
+  SDL_GetGlobalMouseState(&gx, &gy);
+  if (bb_mouse_gvalid_) {
+    bb_mouse_vote_axis_(0, ev.motion.xrel, gx - bb_mouse_gprev_[0]);
+    bb_mouse_vote_axis_(1, ev.motion.yrel, gy - bb_mouse_gprev_[1]);
+  }
+  bb_mouse_gprev_[0] = gx;
+  bb_mouse_gprev_[1] = gy;
+  bb_mouse_gvalid_ = true;
+}
+#endif
+
 inline void bb_sdl_process_event_(const SDL_Event &ev) {
   if (ev.type == SDL_EVENT_QUIT) {
 #ifdef _WIN32
@@ -487,8 +552,17 @@ inline void bb_sdl_process_event_(const SDL_Event &ev) {
   if (ev.type == SDL_EVENT_MOUSE_MOTION) {
     // Die Maus meldet Fensterkoordinaten; das Programm erwartet die seiner
     // eigenen Aufloesung (BUG-159).
-    bb_mouse_x_    = bb_present_to_game_x_(ev.motion.x) + bb_mouse_off_x_;
-    bb_mouse_y_    = bb_present_to_game_y_(ev.motion.y) + bb_mouse_off_y_;
+#ifndef _WIN32
+    if (bb_mouse_look_ && bb_on_wsl_()) bb_mouse_check_axes_(ev);
+#endif
+    // Umgedrehte Achse (BUG-237): die Bewegung gegenlaeufig anrechnen. xrel
+    // ist der Abstand zur letzten Lage, nach MoveMouse also zur Mitte.
+    const bool fx = bb_mouse_look_ && bb_mouse_flip_[0];
+    const bool fy = bb_mouse_look_ && bb_mouse_flip_[1];
+    if (fx) bb_mouse_x_ -= ev.motion.xrel * bb_present_density_ / bb_present_scale_;
+    else    bb_mouse_x_  = bb_present_to_game_x_(ev.motion.x) + bb_mouse_off_x_;
+    if (fy) bb_mouse_y_ -= ev.motion.yrel * bb_present_density_ / bb_present_scale_y_;
+    else    bb_mouse_y_  = bb_present_to_game_y_(ev.motion.y) + bb_mouse_off_y_;
   }
   if (ev.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
     int btn = bb_sdl_btn_to_blitz_(ev.button.button);

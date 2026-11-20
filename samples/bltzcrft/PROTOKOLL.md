@@ -256,6 +256,29 @@ Meldung fehlt – nach dem Kompatibilitätsziel außerhalb. Derselbe Fall traf s
 
 ---
 
+## 9. Unter WSL läuft der Mausblick verkehrt (BUG-237)
+
+**Was (2026-11-20):** Unter WSL Ubuntu 24.04 (Windows 11, WSLg) war die Maus beim
+Umschauen verkehrt herum. Gemessen läuft unter WSLg/XWayland jeder versteckte und per
+`MoveMouse` zurückgeholte Zeiger in **beiden** Achsen verkehrt; das Spiel rechnet
+`-MouseXSpeed()` für die Drehung, dort fiel die Senkrechte zuerst auf. Der Fehler liegt in
+WSLg, nicht im Spiel.
+
+**Behoben in BLTZNXT:** die Laufzeit erkennt unter WSL je Achse, ob die Bewegung gegen den
+echten Zeiger läuft, und dreht sie dann um (siehe Buglist). Kein Umweg im Spiel nötig.
+
+**Bildrate dabei** (`bltzcrft 2026 -rundflug`, 1280×720, RTX 5070 Ti):
+
+| | Bilder in 20 s | Mittel | längstes | über 33 ms |
+|---|---|---|---|---|
+| Windows | 1193 | 16,8 ms | 149 ms | 1 |
+| WSL (d3d12 über Mesa) | 1247 | 16,0 ms | 491 ms | 7 |
+
+Im Mittel gleich (VSync), unter WSL aber mehr Hänger – das spürbare Ruckeln. Woher sie
+kommen (Chunk-Bau, Mesa-d3d12, Bildweitergabe von WSLg an Windows), ist nicht untersucht.
+
+---
+
 ## Geprüft und *kein* BLTZNXT-Problem
 
 Damit sie nicht noch einmal verdächtigt werden:

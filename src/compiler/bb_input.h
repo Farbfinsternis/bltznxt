@@ -413,7 +413,10 @@ inline void bb_MoveMouse(int x, int y) {
       // schnellen Bewegung, und ein Klick trifft das Fenster dahinter.
       // Blitz3D sperrt ihn im Fenstermodus nicht; auf einem heutigen
       // Desktop macht erst das ein Spiel mit Mausblick spielbar.
-      if (bb_pointer_hidden_) SDL_SetWindowMouseGrab(bb_window_, true);
+      if (bb_pointer_hidden_) {
+        SDL_SetWindowMouseGrab(bb_window_, true);
+        bb_mouse_look_ = true;   // BUG-237
+      }
     }
   } else {
     SDL_WarpMouseGlobal((float)x, (float)y);
@@ -453,6 +456,7 @@ inline void bb_ShowPointer() {
   if (!bb_sdl_initialized_) return;
   SDL_ShowCursor();
   bb_pointer_hidden_ = false;
+  bb_mouse_look_ = false;   // BUG-237: sichtbarer Zeiger laeuft richtig
   if (!bb_window_) return;
   SDL_SetWindowMouseGrab(bb_window_, false);
   // Den sichtbaren Zeiger als Lage uebernehmen und den Versatz von MoveMouse
